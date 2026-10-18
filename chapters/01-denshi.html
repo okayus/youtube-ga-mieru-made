@@ -1,0 +1,1051 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>電子と電流 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .meter { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第I部 電気 ／ 第1章 ／ 全25章</p>
+    <h1 id="h-s0">電子と電流</h1>
+    <p class="standfirst">YouTube の映像も音も、最後は電線の中を動く電子として運ばれる。この章では「電気が流れる」とは何かを、銅の原子の中の電子から始めて、電圧・電流・抵抗、回路とスイッチ、交流と直流、コンデンサまで順に見る。ここで出てくる「電子を押す力（電圧）」「流れを止めるスイッチ」「電荷を溜める板（コンデンサ）」が、あとの章のトランジスタ・記憶・信号のすべての土台になる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の大きさや速さは見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>原子と自由電子</a><p>銅の原子から外側の電子が離れ、結晶の中を熱で飛び回っている。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>電圧をかける</a><p>電池の「差」が電場を一瞬で広げ、電子にゆっくりした平均の流れ（ドリフト）を与える。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>電流と抵抗</a><p>断面を通る電子の数が電流。イオンとの衝突が抵抗と熱。オームの法則。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>導体・絶縁体・半導体</a><p>自由電子の多さで分かれる。「流れる道」と「止める壁」で回路が作れる。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>回路とスイッチ</a><p>輪がつながると流れ、切ると全体が止まる。スイッチの開閉が1ビット。直列と並列。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>交流・直流・コンデンサ</a><p>コンセントの交流をパソコンの直流に変える。コンデンサは電荷を溜めて放す。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（半導体とダイオード）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図はすべて模式図で、原子の大きさ・電子の数・速さの比は実際とは違う。数値は本文に書いたものだけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 原子と自由電子 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="原子" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>原子と自由電子</h2>
+    <p class="sh-meta"><span class="chip">銅 Cu</span><span class="chip">模式図</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">電線の材料は銅。銅の塊の中では、原子ごとに1個の電子が原子を離れ、結晶全体を飛び回っている。この<span class="tag e">自由電子</span>が、あとで「電流」の主役になる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">銅 1 cm³ には自由電子が約 8.5×10<sup>22</sup> 個ある。熱運動の速さは毎秒 1,000 km を超えるが、向きがばらばらなので、全部を足すと流れはゼロになる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="銅原子の電子の配置と、結晶の中を熱運動する自由電子"></svg></div>
+    <figcaption>図1　左は銅原子1個の電子の配置（内側から 2・8・18・1 個）。右は銅の結晶で、＋のイオンが並び、自由電子が熱で飛び回る。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 電圧をかける ================= -->
+<section class="scene sc-anim" id="s2" data-tab="電圧" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>電圧をかける</h2>
+    <p class="sh-meta"><span class="chip">電池 1.5 V</span><span class="chip">電場</span><span class="chip">ドリフト</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">電池をつなぐと、ばらばらだった自由電子の動きに、わずかな「平均の向き」がつく。これが電流。押しているのは<span class="tag h">電圧</span>（電位の差）で、その影響は導線全体にほぼ一瞬で広がる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1 A の電流が流れる太さ 1 mm² の銅線で、電子の平均の速さ（ドリフト速度）は毎秒 0.1 mm 以下。電場が広がる速さは光速の 5〜9 割。スイッチを入れた瞬間に遠くの電球が点くのは、電子が走って届くからではない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="電池と電球をつないだ回路で、電場が広がり、電子がドリフトする様子"></svg></div>
+    <figcaption>図2　電池・電球・導線の輪。電子は−極から＋極へドリフトし、「電流の向き」は逆に＋から−と決められている。右上は電位を高さにたとえた図。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 電流と抵抗 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="抵抗" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>電流と抵抗</h2>
+    <p class="sh-meta"><span class="chip">I = V / R</span><span class="chip">ジュール熱</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">電流の大きさは「断面を1秒に通る電荷の量」。電子はイオンにぶつかりながら進むので、同じ電圧でも流れにくさ（<b>抵抗</b>）によって電流が変わる。ぶつかったエネルギーは熱になる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1 A は 1 秒に 1 クーロン、電子にして約 6.24×10<sup>18</sup> 個。銅の抵抗率は 1.68×10<sup>-8</sup> Ω·m、ニクロム線はその約 65 倍。CPU が熱くなるのも、この「電流 × 抵抗」の熱である。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="導線の中で電子がイオンにぶつかりながら流れ、断面を通る数を数える図"></svg></div>
+    <figcaption>図3　導線の中を流れる電子と、断面（点線）を通った数。下段は太さ・長さ・材質を変えた3本の比較。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 導体・絶縁体・半導体 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="導体と絶縁体" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>導体・絶縁体・半導体</h2>
+    <p class="sh-meta"><span class="chip">銅</span><span class="chip">ゴム</span><span class="chip">シリコン</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">同じ電圧をかけても、物質によって電子の動き方はまったく違う。自由電子が多い<b>導体</b>、電子が原子に縛られたままの<b>絶縁体</b>、その中間で量を調整できる<b>半導体</b>。この3つの組み合わせで、電気の通り道を設計できる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">純粋なシリコンの自由電子は室温で 1 cm³ あたり約 10<sup>10</sup> 個で、銅の 1 兆分の 1 以下。ここに不純物をわずかに混ぜて自由電子（または正孔）を増やすのが次の章の主題になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="導体・絶縁体・半導体に同じ電圧をかけたときの電子の動きの違い"></svg></div>
+    <figcaption>図4　3つの物質に同じ電圧（左が−、右が＋）をかけたとき。導体では自由電子が流れ、絶縁体では原子のまわりを回るだけ、半導体ではごく少数が流れる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 回路とスイッチ ================= -->
+<section class="scene sc-anim" id="s5" data-tab="スイッチ" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>回路とスイッチ</h2>
+    <p class="sh-meta"><span class="chip">開 = 0 ／ 閉 = 1</span><span class="chip">直列・並列</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">電流は輪になった道でしか流れない。どこか1か所を切ると、輪全体の電子が同時に止まる。だから「切る・つなぐ」ができるスイッチは、電流を<b>情報</b>に変える最初の部品になる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">直列と並列の2つの配線は、そのまま論理の AND と OR になる。<a class="xref" href="03-transistor.html">第3章</a>で手で押すスイッチを「電圧で動くスイッチ」（トランジスタ）に置き換え、<a class="xref" href="04-ronri.html">第4章</a>でこの組み合わせから計算機を組み立てる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="電池・スイッチ・電球の回路と、スイッチ2個の直列・並列"></svg></div>
+    <figcaption>図5　スイッチを開くと電子が全体で止まり、閉じると流れて電球が光る。段階5・6では2個のスイッチの組み合わせ4通りを順に試す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 交流・直流・コンデンサ ================= -->
+<section class="scene sc-anim" id="s6" data-tab="交流とコンデンサ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>交流・直流・コンデンサ</h2>
+    <p class="sh-meta"><span class="chip">100 V 50/60 Hz</span><span class="chip">AC アダプタ</span><span class="chip">C</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">コンセントから来る電気は向きが1秒に100回以上入れ替わる<b>交流</b>。パソコンの中はすべて一定の向きの<b>直流</b>で動くので、電源が変換する。その変換の最後に使う<b>コンデンサ</b>は、電荷を溜めて放せる部品で、あとで「記憶」の最小単位にもなる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">日本の家庭用電源は 100 V で、東日本が 50 Hz、西日本が 60 Hz。パソコンの電源は 12 V・5 V・3.3 V を作り、CPU の中心部は基板上の変換回路でさらに約 1 V まで下げて使う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="交流で振動する電子、整流と平滑で直流にする流れ、コンデンサの充電と放電"></svg></div>
+    <figcaption>図6　左は交流（電子が往復する）とその電圧の波形。右は AC アダプタの中身（整流→平滑）と、コンデンサの充電・放電。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 電気が「流れる」とは</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>金属の中では原子を離れた<span class="tag e">自由電子</span>が熱で飛び回っていて、何もしなければ流れの合計はゼロ（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li><span class="tag h">電圧</span>（電位の差）をかけると電場が光速近くで広がり、電子全体にゆっくりした平均の流れ＝電流が生まれる（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>電流は断面を1秒に通る電荷の量。イオンとの衝突が抵抗で、I = V / R。衝突のエネルギーは熱になる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>導体は流す、絶縁体は止める、半導体は調整できる。この3つで電気の通り道を設計する（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>輪を切れば全体が同時に止まる。スイッチの開閉が 0 と 1、直列が AND、並列が OR（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>交流を整流・平滑して直流にする。コンデンサは電荷を溜めて放す部品（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw e"></i>自由電子</th><td>金属の中で特定の原子に属さず動き回れる電子。銅では原子1個につき1個。</td></tr>
+        <tr><th><i class="sw h"></i>電圧（電位差）</th><td>電荷を押す「高さの差」。単位はボルト（V）。電池 1.5 V、USB 5 V、CPU 内部 約 1 V、家庭 100 V。</td></tr>
+        <tr><th>電流</th><td>断面を1秒に通る電荷の量。単位はアンペア（A）。1 A = 1 秒に電子約 6.24×10<sup>18</sup> 個。</td></tr>
+        <tr><th>抵抗・オームの法則</th><td>流れにくさ。単位はオーム（Ω）。I = V / R。長いほど・細いほど・抵抗率が高い材質ほど大きい。</td></tr>
+        <tr><th>ジュール熱</th><td>電子がイオンにぶつかって失うエネルギーが熱になること。P = I²R。CPU の発熱の正体。</td></tr>
+        <tr><th>導体・絶縁体・半導体</th><td>自由電子が多い／ほぼ無い／少ないが調整できる。銅・ゴム・シリコンが代表。</td></tr>
+        <tr><th>回路・スイッチ</th><td>輪になった道と、それを切る／つなぐ部品。開＝0、閉＝1 として情報を表せる。</td></tr>
+        <tr><th>直流・交流</th><td>向きが一定／周期的に入れ替わる電流。コンセントは交流、パソコン内部は直流。</td></tr>
+        <tr><th>コンデンサ</th><td>向かい合う2枚の板に電荷を溜める部品。溜まっているか否かで 1 ビットを表せる（DRAM、第5章）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 箱の中を熱運動する電子の群れ。drift（px/s）だけ平均して右へ流れる */
+  function gas(parent, n, box, o) {
+    o = Object.assign({ r: 4, speed: 70, cls: 'f-e', wrap: false }, o || {});
+    const g = S.g({ cls: 'gas' }, parent);
+    const ps = [];
+    for (let i = 0; i < n; i++) {
+      const p = { x: rnd(box.x, box.x + box.w), y: rnd(box.y, box.y + box.h), a: rnd(0, TAU) };
+      p.el = S.circle(p.x, p.y, o.r, { cls: o.cls }, g);
+      ps.push(p);
+    }
+    const api = {
+      g, ps, box, drift: 0, speed: o.speed,
+      update(dt) {
+        const b = api.box;
+        for (const p of ps) {
+          if (dt) p.a += (Math.random() - 0.5) * 9 * Math.sqrt(dt);
+          p.x += (Math.cos(p.a) * api.speed + api.drift) * dt;
+          p.y += Math.sin(p.a) * api.speed * dt;
+          if (p.y < b.y) { p.y = b.y; p.a = -p.a; }
+          if (p.y > b.y + b.h) { p.y = b.y + b.h; p.a = -p.a; }
+          if (o.wrap) {
+            if (p.x > b.x + b.w) p.x -= b.w;
+            if (p.x < b.x) p.x += b.w;
+          } else {
+            if (p.x < b.x) { p.x = b.x; p.a = Math.PI - p.a; }
+            if (p.x > b.x + b.w) { p.x = b.x + b.w; p.a = Math.PI - p.a; }
+          }
+          p.el.setAttribute('cx', p.x.toFixed(1));
+          p.el.setAttribute('cy', p.y.toFixed(1));
+        }
+      },
+      show(on) { g.style.display = on ? '' : 'none'; return api; }
+    };
+    return api;
+  }
+
+  /* 道（path）に沿って並ぶ電子。drift（px/s）で道に沿って進み、揺れながら動く */
+  function pathGas(parent, pathEl, n, o) {
+    o = Object.assign({ r: 4, cls: 'f-e', jitter: 4, wobble: 40 }, o || {});
+    const g = S.g({ cls: 'pgas' }, parent);
+    const ps = [];
+    for (let i = 0; i < n; i++) ps.push({ f: U.mod(i / n + rnd(-0.3, 0.3) / n, 1), j: rnd(-o.jitter, o.jitter), ph: rnd(0, TAU), el: S.circle(0, 0, o.r, { cls: o.cls }, g) });
+    let L = 0;
+    const api = {
+      g, ps, drift: 0, t: 0,
+      update(dt) {
+        if (!L) { L = S.len(pathEl); if (!L) return; }
+        api.t += dt;
+        for (const p of ps) {
+          p.f = U.mod(p.f + (api.drift * dt + (Math.random() - 0.5) * o.wobble * dt) / L, 1);
+          const d = p.f * L;
+          const pt = pathEl.getPointAtLength(d);
+          const pt2 = pathEl.getPointAtLength(Math.min(L, d + 1));
+          let nx = -(pt2.y - pt.y), ny = pt2.x - pt.x;
+          const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+          const jj = p.j + Math.sin(api.t * 3 + p.ph) * 1.5;
+          p.el.setAttribute('cx', (pt.x + nx * jj).toFixed(1));
+          p.el.setAttribute('cy', (pt.y + ny * jj).toFixed(1));
+        }
+      },
+      show(on) { g.style.display = on ? '' : 'none'; return api; }
+    };
+    return api;
+  }
+
+  /* 導線（太さ w の管）を描き、電子を乗せる中心線の path を返す */
+  function wire(parent, d, w) {
+    S.path(d, { cls: 's-rule f-none round', 'stroke-width': w }, parent);
+    S.path(d, { cls: 's-in f-none round', 'stroke-width': w - 5 }, parent);
+    return S.path(d, { cls: 'f-none s-none' }, parent);
+  }
+
+  /* 電池の記号。長い線が＋、短く太い線が− */
+  function battery(parent, x, y, horizontal, label) {
+    const g = S.g({ transform: `translate(${x},${y})` + (horizontal ? '' : ' rotate(90)') }, parent);
+    S.rect(-26, -30, 52, 60, { cls: 'f-bg' }, g);
+    S.line(-8, -26, -8, 26, { cls: 's-h w3' }, g);
+    S.line(8, -14, 8, 14, { cls: 's-e w6' }, g);
+    S.text(-8, -36, '＋', { cls: 't-h t-b t-c t-lg' }, g);
+    S.text(8, -36, '−', { cls: 't-e t-b t-c t-lg' }, g);
+    if (label) S.text(0, 50, label, { cls: 't-c t-sm t-dim t-mono' }, g);
+    return g;
+  }
+
+  /* 電球。glow(0..1) で光らせる */
+  function lamp(parent, x, y, r) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const halo = S.circle(0, 0, r * 2.1, { cls: 'f-p', style: { opacity: 0 } }, g);
+    S.circle(0, 0, r, { cls: 'f-sf s-fg w2' }, g);
+    const fil = S.path(`M${-r * 0.5},${r * 0.35} l${r * 0.2},${-r * 0.7} l${r * 0.2},${r * 0.7} l${r * 0.2},${-r * 0.7} l${r * 0.2},${r * 0.7} l${r * 0.2},${-r * 0.7}`, { cls: 'f-none s-dim w2 round' }, g);
+    return { g, glow(v) { halo.style.opacity = (v * 0.35).toFixed(3); fil.setAttribute('class', v > 0.3 ? 'f-none s-p w3 round' : 'f-none s-dim w2 round'); } };
+  }
+
+  /* 丸い角の輪の path（時計回り、x,y が左上、r が角の丸み）。始点は上辺の中央 */
+  function loopPath(x, y, w, h, r) {
+    const cx = x + w / 2;
+    return `M${cx},${y} H${x + w - r} A${r},${r} 0 0 1 ${x + w},${y + r} V${y + h - r} A${r},${r} 0 0 1 ${x + w - r},${y + h} H${x + r} A${r},${r} 0 0 1 ${x},${y + h - r} V${y + r} A${r},${r} 0 0 1 ${x + r},${y} Z`;
+  }
+
+  /* 小さな枠付きのラベル */
+  function tag(parent, x, y, text, cls) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (cls || '') }, g);
+    const w = text.length * 11.5 + 16;
+    g.insertBefore(S.rect(-w / 2, -11, w, 22, { rx: 4, cls: 'f-sf s-rule w1' }), t);
+    return g;
+  }
+
+  /* ================================================================
+     場面1 原子と自由電子
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '物はすべて原子でできている', text: '銅の原子は、中心の原子核（＋の電気をもつ陽子29個と、電気をもたない中性子）と、そのまわりの{e|電子}29個でできている。電子は−、陽子は＋で、数が同じなので原子全体は中性。' },
+      { title: 'いちばん外側の電子は離れやすい', text: '29個の電子は内側から 2・8・18・1 個の層に入る。いちばん外側の1個は原子核から遠く、引きつける力が弱い。金属では、この電子が原子を離れて結晶全体を動き回る**自由電子**になる。' },
+      { title: '結晶の中を熱で飛び回っている', text: '電子を1個手放した原子は＋のイオンとなって規則正しく並ぶ（結晶）。自由電子はその隙間を、熱のエネルギーで毎秒1,000 km を超える速さで飛び回る。向きはでたらめで、絶えずイオンにぶつかって向きを変える。' },
+      { title: '全部を足すと、流れはゼロ', text: 'どの瞬間も、右へ動く電子と左へ動く電子はほぼ同数。平均すると流れはゼロで、これが「電流が流れていない」状態。ただし電子は止まっているわけではない。次の場面で、この群れに**向き**を与える。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 左: 原子1個
+      const ga = st.ga = S.g({ transform: 'translate(230,290)' }, svg);
+      S.text(0, -248, '銅の原子 1 個', { cls: 't-c t-b t-lg' }, ga);
+      st.shells = [];
+      [[2, 46], [8, 92], [18, 142], [1, 196]].forEach(([n, r], si) => {
+        S.circle(0, 0, r, { cls: 'f-none s-rule w1 dash2' }, ga);
+        const sg = S.g({}, ga);
+        const dots = [];
+        for (let i = 0; i < n; i++) {
+          const a = TAU * i / n;
+          dots.push(S.circle(Math.cos(a) * r, Math.sin(a) * r, si === 3 ? 6 : 4.2, { cls: 'f-e' }, sg));
+        }
+        st.shells.push({ g: sg, n, r, dots, speed: (0.9 - si * 0.2) });
+      });
+      S.circle(0, 0, 22, { cls: 'f-h-soft s-h w2' }, ga);
+      S.text(0, 4, '＋29', { cls: 't-c t-b t-sm t-h' }, ga);
+      S.text(0, 232, '原子核：陽子 29 個 ＋ 中性子', { cls: 't-c t-sm t-dim' }, ga);
+      S.text(0, 250, '電子 29 個 = 2 + 8 + 18 + 1', { cls: 't-c t-sm t-dim t-mono' }, ga);
+      st.outerLabel = S.text(150, -150, '← 外側の電子 1 個', { cls: 't-x t-b t-sm fade hide' }, ga);
+      st.freeDot = S.circle(0, -196, 6, { cls: 'f-e glow fade hide' }, ga);
+      // 右: 結晶
+      const gl = st.gl = S.g({ cls: 'fade' }, svg);
+      S.text(700, 44, '銅の結晶（金属）', { cls: 't-c t-b t-lg' }, gl);
+      S.rect(500, 70, 400, 400, { rx: 8, cls: 'f-sf s-rule w1' }, gl);
+      for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
+        const x = 540 + i * 80, y = 110 + j * 80;
+        S.circle(x, y, 15, { cls: 'f-h-soft s-h w15' }, gl);
+        S.text(x, y + 4, '＋', { cls: 't-c t-h t-b t-sm' }, gl);
+      }
+      st.gas = gas(gl, 25, { x: 506, y: 76, w: 388, h: 388 }, { r: 5, speed: 90 });
+      st.sumArrow = S.g({ cls: 'fade hide' }, gl);
+      S.text(700, 500, '25個の速度を全部足すと →', { cls: 't-sm t-dim', 'text-anchor': 'end' }, st.sumArrow);
+      st.sumLine = S.line(720, 496, 722, 496, { cls: 's-e w3 round' }, st.sumArrow);
+      st.sumText = S.text(880, 500, 'ほぼ 0', { cls: 't-sm t-e t-b', 'text-anchor': 'end' }, st.sumArrow);
+      st.countTxt = S.text(700, 528, '＋のイオン 25 個 ／ 自由電子 25 個 → 全体は中性', { cls: 't-c t-sm t-dim fade hide' }, gl);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gl, i >= 1);
+      st.gl.style.opacity = i === 1 ? 0.45 : '';
+      S.fade(st.outerLabel, i === 1);
+      S.fade(st.freeDot, i >= 1);
+      st.shells[3].dots[0].style.opacity = i >= 1 ? 0 : 1;
+      S.fade(st.sumArrow, i >= 3);
+      S.fade(st.countTxt, i >= 3);
+      st.gas.speed = i >= 2 ? 90 : 50;
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.shells.forEach((s) => s.g.setAttribute('transform', `rotate(${(t * s.speed * 40) % 360})`));
+      if (i >= 1) {
+        // 外側の電子が原子を離れて結晶へ飛んでいく（段階1では途中で止まる）
+        const f = i === 1 ? U.ease.out(U.prog(ctx.ts, 0.3, 1.2)) * 0.45 : 1;
+        st.freeDot.setAttribute('cx', (f * 290).toFixed(1));
+        st.freeDot.setAttribute('cy', (-196 + f * 60).toFixed(1));
+        st.freeDot.style.opacity = i === 1 ? 1 : 0;
+      }
+      st.gas.update(dt);
+      if (i >= 3) {
+        let vx = 0, vy = 0;
+        for (const p of st.gas.ps) { vx += Math.cos(p.a); vy += Math.sin(p.a); }
+        const len = Math.hypot(vx, vy) * 3;
+        st.sumLine.setAttribute('x2', (720 + vx * 3).toFixed(1));
+        st.sumLine.setAttribute('y2', (496 + vy * 3).toFixed(1));
+        st.sumText.textContent = len < 20 ? 'ほぼ 0' : '小さい';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 電圧をかける
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '電池をつなぐ', text: '電池は中の化学反応で、−極に{e|電子}を余らせ、＋極で不足させる。この「電子の過不足の差」が**電圧**（電位の差）で、乾電池なら 1.5 V。つないだだけでは、まだ導線の電子はばらばらに動いている。' },
+      { title: '電場が導線全体に一瞬で広がる', text: '＋極と−極の間の電気的な力（電場）は、導線に沿って光速の 5〜9 割の速さで伝わる。だから遠くの電子も、ほぼ同時に押され始める。スイッチを入れた瞬間に電球が点くのはこのため。' },
+      { title: '電子は−から＋へ、ゆっくりドリフトする', text: '押された電子は、相変わらず熱で飛び回りながら、平均するとわずかに＋極の側へ進む。この平均の動きが**ドリフト**で、速さは毎秒 0.1 mm 以下。図では見えるように大きく誇張している。' },
+      { title: '「電流の向き」は逆向きに決めてある', text: '電子が見つかる前に「＋から−へ流れるもの」と決められたので、回路図で使う{h|電流の向き}は電子の動きと逆。中身は電子が−から＋へ動いているが、計算上はどちらで考えても結果は同じ。' },
+      { title: '電池はポンプ、電圧は高さの差', text: '右上の図は電位を高さにたとえたもの。＋の電荷が高い所から低い所へ転がり落ちるのが電流の向きで、電球のところで高さ（エネルギー）を失い、電池がポンプのように持ち上げ直す。水の比喩はここまでは正しいが、電子が「溜まって流れ出す」わけではない点が違う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      const d = loopPath(120, 110, 440, 360, 40);
+      st.path = wire(g, d, 16);
+      st.pg = pathGas(g, st.path, 60, { r: 4.5, jitter: 3 });
+      st.bat = battery(g, 340, 470, true, '乾電池 1.5 V');
+      st.lamp = lamp(g, 560, 290, 28);
+      S.text(600, 250, '電球', { cls: 't-sm t-dim' }, g);
+      // 電場の波（高速で一周する光る点）
+      st.wave = S.circle(0, 0, 9, { cls: 'f-h glow fade hide' }, g);
+      st.waveTxt = S.text(340, 60, '電場が広がる（光速に近い）', { cls: 't-c t-h t-b fade hide' }, g);
+      // 電子の向き・電流の向きの矢印
+      st.eArrows = S.g({ cls: 'fade hide' }, g);
+      S.path('M180,300 V420', { cls: 'f-none s-e w3', 'marker-end': mk('e') }, st.eArrows);
+      S.text(195, 355, '電子の動き', { cls: 't-e t-b t-sm' }, st.eArrows);
+      S.text(195, 373, '− 極から ＋ 極へ', { cls: 't-e t-sm' }, st.eArrows);
+      st.iArrows = S.g({ cls: 'fade hide' }, g);
+      S.path('M340,420 V300', { cls: 'f-none s-h w3', 'marker-end': mk('h') }, st.iArrows);
+      S.text(355, 355, '電流の向き（約束）', { cls: 't-h t-b t-sm' }, st.iArrows);
+      S.text(355, 373, '＋ 極から − 極へ。電子と逆', { cls: 't-h t-sm' }, st.iArrows);
+      // 右上: 電位を高さで
+      const gp = st.gp = S.g({ transform: 'translate(630,70)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 300, 230, { rx: 8, cls: 'f-sf s-rule w1' }, gp);
+      S.text(150, 24, '電位を高さにたとえると', { cls: 't-c t-b' }, gp);
+      S.line(40, 200, 280, 200, { cls: 's-rule w1' }, gp);
+      S.line(40, 200, 40, 50, { cls: 's-rule w1', 'marker-end': mk('dim') }, gp);
+      S.text(30, 60, 'V', { cls: 't-xs t-dim t-mono' }, gp);
+      // 高い棚（＋極から電球まで）→ 電球で落ちる → 低い棚（−極まで）→ 電池で持ち上げ
+      const prof = 'M60,80 H150 L180,180 H240';
+      S.path(prof, { cls: 'f-none s-fg w2 round' }, gp);
+      S.path('M240,180 V80 H60', { cls: 'f-none s-h w2 dash round' }, gp);
+      S.text(118, 72, '＋極 1.5 V', { cls: 't-c t-xs t-h t-mono' }, gp);
+      S.text(230, 196, '−極 0 V', { cls: 't-c t-xs t-e t-mono' }, gp);
+      S.text(140, 150, '電球', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gp);
+      S.text(258, 130, '電池', { cls: 't-xs t-h' }, gp);
+      S.text(258, 144, '(持ち上げ)', { cls: 't-xs t-h' }, gp);
+      st.ball = S.circle(60, 74, 6, { cls: 'f-h' }, gp);
+      st.profPath = S.path(prof, { cls: 'f-none s-none' }, gp);
+      // 速度の表示
+      st.speedTxt = S.text(340, 540, '', { cls: 't-c t-sm t-dim t-mono' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.pg.drift = i >= 2 ? -34 : 0;      // 道は時計回りなので、負の向きで−極(右)から＋極(左)へ…上辺を左へ、左辺を下へ
+      S.fade(st.wave, i === 1);
+      S.fade(st.waveTxt, i === 1);
+      S.fade(st.eArrows, i >= 2);
+      S.fade(st.iArrows, i >= 3);
+      S.fade(st.gp, i >= 4);
+      st.speedTxt.textContent = i >= 2 ? 'ドリフト速度 ≒ 0.1 mm/s 以下（図では約 100 万倍に誇張）' : i === 1 ? '電場の伝わる速さ ≒ 光速の 5〜9 割' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.pg.update(dt);
+      st.lamp.glow(i >= 2 ? 0.8 + 0.2 * Math.sin(t * 9) : 0);
+      if (i === 1) {
+        // 0.7秒で一周してから 1.3秒休む
+        const c = U.mod(ctx.ts, 2.0);
+        const f = c < 0.7 ? c / 0.7 : 1;
+        const p = S.along(st.path, U.mod(0.5 - f, 1));   // 電池（下辺の中央 = 0.5）から両側へ…ここでは一方向
+        st.wave.setAttribute('cx', p.x); st.wave.setAttribute('cy', p.y);
+        st.wave.style.opacity = c < 0.7 ? 1 : 0;
+      }
+      if (i >= 4) {
+        const f = U.cycle(t, 4);
+        if (f < 0.75) {
+          const p = S.along(st.profPath, f / 0.75);
+          st.ball.setAttribute('cx', p.x); st.ball.setAttribute('cy', p.y - 6);
+        } else {
+          const k = (f - 0.75) / 0.25;
+          st.ball.setAttribute('cx', (240 - k * 180).toFixed(1));
+          st.ball.setAttribute('cy', (174 - U.ease.inOut(Math.min(1, k * 2)) * 100).toFixed(1));
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 電流と抵抗
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '電流 ＝ 断面を1秒に通る電荷の量', text: '導線のどこかに断面（点線）を考え、そこを通る電子を数える。1秒に約 6.24×10¹⁸ 個（1 クーロン）通れば 1 アンペア。数えている間に逆向きに戻る電子もいるので、差し引きで数える。' },
+      { title: '電子はイオンにぶつかりながら進む', text: '電子は＋のイオンにぶつかるたびに向きを変え、ドリフトで得た速さを失う。失ったエネルギーはイオンの振動＝**熱**になる（{x|光る}イオンがぶつかった所）。これが「電気を流すと熱くなる」理由で、流れにくさの正体でもある。' },
+      { title: '細いほど、長いほど流れにくい', text: '抵抗 R は長さに比例し、断面積に反比例する（R = ρL/A）。細い線は通れる電子の列が少なく、長い線はぶつかる回数が多い。下段の左2本を比べると、同じ電池でも太く短い線のほうがたくさん流れる。' },
+      { title: '材質でも違う', text: '抵抗率 ρ は材質で決まる。銅は 1.68×10⁻⁸ Ω·m と小さく電線に向く。ニクロム線（下段右）は銅の約 65 倍で、わざと熱を出す電熱線に使う。木やゴムは桁違いに大きく、ほとんど流れない。' },
+      { title: 'オームの法則 I = V / R', text: '電圧を 1.5 V から 3 V に倍にすると、電子を押す力が倍になり、ドリフトも電流も倍になる。V = 3 V、R = 5 Ω なら I = 0.6 A。電圧・電流・抵抗の3つのうち2つが分かれば残りが決まる。' },
+      { title: '熱と光は抵抗から生まれる', text: '1秒あたりの発熱は P = I²R（= VI）。電流が倍なら熱は4倍。電熱線や白熱電球はこれを利用し、CPU の発熱は小さなトランジスタと配線の抵抗でこれが起きている（第3章・第6章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // 主な導線
+      S.rect(80, 200, 800, 130, { rx: 65, cls: 'f-in s-rule w2' }, g);
+      st.heat = S.rect(80, 200, 800, 130, { rx: 65, cls: 'f-h', style: { opacity: 0 } }, g);
+      S.text(60, 268, '−', { cls: 't-e t-b t-xl', 'text-anchor': 'end' }, g);
+      S.text(900, 268, '＋', { cls: 't-h t-b t-xl' }, g);
+      st.ions = [];
+      for (let i = 0; i < 11; i++) for (let j = 0; j < 2; j++) {
+        const x = 130 + i * 70, y = 240 + j * 50;
+        const halo = S.circle(x, y, 20, { cls: 'f-x', style: { opacity: 0 } }, g);
+        S.circle(x, y, 11, { cls: 'f-h-soft s-h w15' }, g);
+        S.text(x, y + 4, '＋', { cls: 't-c t-h t-b t-xs' }, g);
+        st.ions.push({ x, y, halo, heat: 0 });
+      }
+      st.gas = gas(g, 40, { x: 92, y: 212, w: 776, h: 106 }, { r: 4.5, speed: 60, wrap: true });
+      st.gas.drift = 40;
+      // 断面
+      S.line(480, 180, 480, 350, { cls: 's-x w2 dash' }, g);
+      S.text(480, 172, '断面', { cls: 't-c t-x t-b t-sm' }, g);
+      st.countTxt = S.text(480, 372, '通った電子: 0', { cls: 't-c t-sm t-mono meter' }, g);
+      st.count = 0;
+      // 式
+      const gf = S.g({ transform: 'translate(560,40)' }, svg);
+      S.rect(0, 0, 360, 110, { rx: 8, cls: 'f-sf s-rule w1' }, gf);
+      st.fV = S.text(20, 36, '', { cls: 't-mono t-lg' }, gf);
+      st.fR = S.text(20, 66, '', { cls: 't-mono t-lg' }, gf);
+      st.fI = S.text(20, 96, '', { cls: 't-mono t-lg t-b' }, gf);
+      st.fNote = S.text(350, 36, '', { cls: 't-sm t-dim', 'text-anchor': 'end' }, gf);
+      S.text(90, 60, '電流 I と電子の流れ', { cls: 't-b t-lg' }, svg);
+      S.path('M90,80 H250', { cls: 'f-none s-e w3', 'marker-end': mk('e') }, svg);
+      S.text(90, 104, '電子のドリフト（左→右）', { cls: 't-sm t-dim' }, svg);
+      // 熱の目盛り
+      st.heatG = S.g({ transform: 'translate(560,160)', cls: 'fade hide' }, svg);
+      S.text(0, 0, '発熱 P = I²R', { cls: 't-sm t-b' }, st.heatG);
+      S.rect(110, -12, 200, 14, { rx: 3, cls: 'f-in s-rule w1' }, st.heatG);
+      st.heatBar = S.rect(110, -12, 0, 14, { rx: 3, cls: 'f-h' }, st.heatG);
+      st.heatTxt = S.text(320, 0, '', { cls: 't-sm t-mono' }, st.heatG);
+      // 下段: 比較
+      const gc = st.gc = S.g({ cls: 'fade hide' }, svg);
+      const mkTube = (x, y, w, h, label, sub, speed, count) => {
+        S.rect(x, y - h / 2, w, h, { rx: h / 2, cls: 'f-in s-rule w1' }, gc);
+        const p = S.path(`M${x + 8},${y} H${x + w - 8}`, { cls: 'f-none s-none' }, gc);
+        S.text(x + w / 2, y - h / 2 - 10, label, { cls: 't-c t-sm t-b' }, gc);
+        S.text(x + w / 2, y + h / 2 + 18, sub, { cls: 't-c t-xs t-dim t-mono' }, gc);
+        return A.flow(p, { count, speed, r: 4, parent: gc, jitter: h / 2 - 7 });
+      };
+      st.flows = [
+        mkTube(60, 470, 220, 44, '太く短い銅線', 'R 小 → I 大', 90, 10),
+        mkTube(330, 470, 300, 20, '細く長い銅線', 'R 大 → I 小', 35, 6),
+        mkTube(680, 470, 220, 30, 'ニクロム線（同じ太さ）', 'ρ が銅の約65倍 → I 小', 30, 5)
+      ];
+      st.cmpLabel = S.text(480, 418, '同じ 1.5 V の電池につないだとき', { cls: 't-c t-sm t-dim' }, gc);
+      st.flows[2].g.classList.add('fade');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const V = i >= 4 ? 3.0 : 1.5, R = 5, I = V / R;
+      st.fV.textContent = `V = ${V.toFixed(1)} V`;
+      st.fR.textContent = `R = ${R} Ω`;
+      st.fI.textContent = `I = V / R = ${I.toFixed(2)} A`;
+      st.fNote.textContent = i >= 4 ? '電圧を倍に → 電流も倍' : '';
+      st.gas.drift = 40 * (V / 1.5);
+      st.gas.speed = 60;
+      S.fade(st.heatG, i >= 1);
+      S.fade(st.gc, i >= 2);
+      st.flows[2].g.classList.toggle('hide', i < 3);
+      st.heat.style.opacity = i >= 5 ? 0.22 : (i >= 1 ? 0.08 : 0);
+      const P = I * I * R;
+      st.heatBar.setAttribute('width', Math.min(200, P / 1.8 * 200).toFixed(1));
+      st.heatTxt.textContent = `${P.toFixed(2)} W`;
+      // 光るイオンと数えた電子は段階ごとに数え直す（前の段階の続きを残さない）
+      st.ions.forEach((ion) => { ion.heat = 0; ion.halo.style.opacity = 0; });
+      st.count = 0;
+      st.countTxt.textContent = '通った電子: 0';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const before = st.gas.ps.map((p) => p.x < 480);
+      st.gas.update(dt);
+      st.gas.ps.forEach((p, k) => {
+        if (before[k] && p.x >= 480 && p.x < 520) st.count++;
+        else if (!before[k] && p.x < 480 && p.x > 440) st.count--;
+        // イオンとの衝突
+        for (const ion of st.ions) {
+          const dx = p.x - ion.x, dy = p.y - ion.y;
+          if (dx * dx + dy * dy < 15.5 * 15.5) {
+            p.a = Math.atan2(dy, dx) + rnd(-0.6, 0.6);
+            const d = Math.hypot(dx, dy) || 1;
+            p.x = ion.x + dx / d * 16; p.y = ion.y + dy / d * 16;
+            if (i >= 1 && dt > 0) ion.heat = 1;   // 止めているとき（dt = 0）は光らせない
+          }
+        }
+      });
+      if (dt) st.countTxt.textContent = `通った電子: ${st.count}`;
+      for (const ion of st.ions) {
+        if (ion.heat > 0) { ion.halo.style.opacity = (ion.heat * 0.6).toFixed(2); ion.heat = Math.max(0, ion.heat - dt * 2.5); }
+        else ion.halo.style.opacity = 0;
+      }
+      if (i >= 2) st.flows.forEach((f) => f.update(dt));
+    }
+  };
+
+  /* ================================================================
+     場面4 導体・絶縁体・半導体
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '導体：自由電子がたくさんある', text: '銅のような金属では、原子1個につき1個の自由電子がある（1 cm³ に約 8.5×10²² 個）。電圧をかけると、この大群がいっせいにドリフトして大きな電流になる。銀・銅・金・アルミが代表。' },
+      { title: '絶縁体：電子が原子に縛られている', text: 'ゴムやガラス、プラスチック、乾いた空気では、外側の電子も原子（または分子）にしっかり結びついていて、原子のまわりを回るだけ。電圧をかけても原子から離れられないので、電流はほとんど流れない。' },
+      { title: '半導体：少しだけ流れ、量を調整できる', text: '純粋なシリコンでは、熱でごくまれに電子が結びつきから外れて自由になり、しばらくして別の空席（正孔）に戻る。自由電子は銅の1兆分の1以下。ただし不純物をわずかに混ぜると、流れる量を桁違いに増やせる（第2章）。' },
+      { title: '通り道を設計する', text: '導体の道を絶縁体で包めば、電子は決めた道だけを通る。これが電線（銅線＋ビニル被覆）であり、基板の配線でもある。導体＝道、絶縁体＝壁、半導体＝量を変えられる「ゲート」。この3つで電気の通り道が自由に作れる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const g3 = st.g3 = S.g({}, svg);
+      st.panels = [];
+      const defs = [
+        { title: '導体（銅）', sub: '自由電子 多', kind: 'c' },
+        { title: '絶縁体（ゴム）', sub: '自由電子 ほぼ 0', kind: 'i' },
+        { title: '半導体（シリコン）', sub: '自由電子 少し', kind: 's' }
+      ];
+      defs.forEach((d, k) => {
+        const x0 = 30 + k * 310;
+        const pg = S.g({ cls: 'fade' }, g3);
+        S.text(x0 + 145, 50, d.title, { cls: 't-c t-b t-lg' }, pg);
+        S.text(x0 + 145, 70, d.sub, { cls: 't-c t-sm t-dim' }, pg);
+        S.rect(x0, 90, 290, 320, { rx: 8, cls: 'f-sf s-rule w1' }, pg);
+        // 電圧の向きは板の上の左右の角に（板の間に置くと隣の板の符号と接し、右端は図の外へ出る）
+        S.text(x0 + 6, 84, '−', { cls: 't-e t-b t-lg' }, pg);
+        S.text(x0 + 284, 84, '＋', { cls: 't-h t-b t-lg', 'text-anchor': 'end' }, pg);
+        S.text(x0 + 145, 440, '電圧をかけている（左 −、右 ＋）', { cls: 't-c t-xs t-dim' }, pg);
+        const atoms = [];
+        for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+          const x = x0 + 50 + i * 63, y = 140 + j * 70;
+          S.circle(x, y, 12, { cls: d.kind === 'c' ? 'f-h-soft s-h w15' : 'f-in s-dim w15' }, pg);
+          S.text(x, y + 4, d.kind === 'c' ? '＋' : '', { cls: 't-c t-h t-b t-xs' }, pg);
+          atoms.push({ x, y });
+        }
+        const panel = { g: pg, kind: d.kind, atoms, bound: [], free: null, flashes: [] };
+        if (d.kind === 'c') {
+          panel.free = gas(pg, 20, { x: x0 + 10, y: 100, w: 270, h: 300 }, { r: 4.5, speed: 60, wrap: true });
+          panel.free.drift = 45;
+        } else {
+          atoms.forEach((a) => {
+            const e = S.circle(a.x, a.y, 4.5, { cls: 'f-e' }, pg);
+            panel.bound.push({ a, el: e, ph: rnd(0, TAU), r: 20 + rnd(-3, 3), w: rnd(2, 3.2) });
+          });
+          if (d.kind === 's') {
+            panel.free = gas(pg, 2, { x: x0 + 10, y: 100, w: 270, h: 300 }, { r: 4.5, speed: 50, wrap: true });
+            panel.free.drift = 45;
+            panel.flash = S.circle(0, 0, 18, { cls: 'f-x', style: { opacity: 0 } }, pg);
+            panel.flashT = 0;
+            panel.flashTxt = S.text(x0 + 145, 425, '', { cls: 't-c t-xs t-x t-b' }, pg);
+          }
+        }
+        st.panels.push(panel);
+      });
+      // 段階4: 電線の断面と曲がった配線
+      const gw = st.gw = S.g({ cls: 'fade hide' }, svg);
+      S.text(300, 50, '電線 ＝ 導体の道を絶縁体で包む', { cls: 't-c t-b t-lg' }, gw);
+      const d = 'M60,120 C260,120 160,330 360,330 S520,160 700,160 S640,420 880,420';
+      S.path(d, { cls: 'f-none s-dim round', 'stroke-width': 54, style: { opacity: 0.55 } }, gw);
+      S.path(d, { cls: 'f-none s-h round', 'stroke-width': 22, style: { opacity: 0.55 } }, gw);
+      const core = S.path(d, { cls: 'f-none s-none' }, gw);
+      st.wflow = A.flow(core, { count: 26, speed: 70, r: 4, parent: gw, jitter: 6 });
+      // 札は帯（幅 54）の外に置く（帯の上に置くと被覆と銅の色に紛れて読めない）
+      S.text(40, 80, '− 極から', { cls: 't-sm t-e t-b' }, gw);
+      S.text(900, 472, '＋ 極へ', { cls: 't-sm t-h t-b', 'text-anchor': 'end' }, gw);
+      S.text(20, 282, 'ゴム・ビニル（絶縁体＝壁）', { cls: 't-sm t-dim' }, gw);
+      S.text(330, 386, '銅（導体＝道）', { cls: 't-sm t-h t-b' }, gw);
+      // 断面
+      const gx = S.g({ transform: 'translate(820,110)' }, gw);
+      S.circle(0, 0, 54, { cls: 'f-in s-dim w2' }, gx);
+      S.circle(0, 0, 22, { cls: 'f-h-soft s-h w2' }, gx);
+      S.text(0, 4, '銅', { cls: 't-c t-sm t-h t-b' }, gx);
+      S.text(0, 74, '断面', { cls: 't-c t-xs t-dim' }, gx);
+      S.text(0, -62, '被覆', { cls: 't-c t-xs t-dim' }, gx);
+      st.gateTxt = S.text(480, 520, '半導体は「量を変えられるゲート」として、第3章でこの道の途中に入る', { cls: 't-c t-sm t-dim' }, gw);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g3, i < 3);
+      S.fade(st.gw, i >= 3);
+      st.panels.forEach((p, k) => { p.g.style.opacity = (i < 3 && i !== k) ? 0.35 : ''; });
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i < 3) {
+        st.panels.forEach((p) => {
+          if (p.free) p.free.update(dt);
+          p.bound.forEach((b) => {
+            const a = t * b.w + b.ph;
+            b.el.setAttribute('cx', (b.a.x + Math.cos(a) * b.r).toFixed(1));
+            b.el.setAttribute('cy', (b.a.y + Math.sin(a) * b.r * 0.6).toFixed(1));
+          });
+          if (p.kind === 's') {
+            p.flashT -= dt;
+            if (p.flashT <= 0) {
+              const a = p.atoms[Math.floor(Math.random() * p.atoms.length)];
+              p.flash.setAttribute('cx', a.x); p.flash.setAttribute('cy', a.y);
+              p.flashT = rnd(1.5, 3);
+              p.flashAge = 0;
+              p.flashTxt.textContent = '熱で電子が1個自由になった（やがて戻る）';
+            }
+            p.flashAge = (p.flashAge || 0) + dt;
+            p.flash.style.opacity = Math.max(0, 0.6 - p.flashAge * 0.8).toFixed(2);
+            if (p.flashAge > 1.2) p.flashTxt.textContent = '';
+          }
+        });
+      } else {
+        st.wflow.update(dt);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 回路とスイッチ
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '回路は輪', text: '電池の−極から出た{e|電子}は導線を通って電球を抜け、＋極へ戻る。一周つながった輪（回路）になって初めて流れが続く。導線のどこでも電子の数は同じ割合で進み、電球の中だけ抵抗が大きいので熱と光が出る。' },
+      { title: 'スイッチを開くと、全体が同時に止まる', text: 'スイッチを開くと隙間は空気（絶縁体）になり、そこを電子が越えられない。すると、押し合いの連鎖が切れて輪のすべての電子がほぼ同時に止まる。スイッチの手前で電子が溜まり続けるわけではない。' },
+      { title: '閉じると流れる', text: 'スイッチを閉じると電場が一瞬で輪全体に広がり、全体の電子が同時にドリフトを始めて電球が光る。スイッチの位置はどこでもよく、どこを切っても全体が止まり、どこをつないでも全体が流れる。' },
+      { title: '開と閉で 1 ビット', text: 'スイッチの状態は「開」か「閉」の2通りしかない。これを 0 と 1 と呼べば、スイッチ1個が**1ビット**の情報を表す。「電流が流れているか」で0と1を運ぶ、という考え方がここから始まる。' },
+      { title: '直列：両方閉じないと点かない（AND）', text: '2個のスイッチを一列につなぐと、A と B の**両方**が閉じているときだけ輪がつながる。4通りの組み合わせを順に試すと、点くのは A=1 かつ B=1 のときだけ。これが論理の AND。' },
+      { title: '並列：どちらかが閉じれば点く（OR）', text: '2個を枝分かれにつなぐと、A か B の**どちらか**が閉じていれば道ができる。点かないのは両方開いたときだけ。これが OR。スイッチを電気で動かせれば（第3章）、スイッチの組み合わせで計算ができる（第4章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 基本の回路
+      const g = st.g1 = S.g({ cls: 'fade' }, svg);
+      const d = loopPath(160, 110, 560, 360, 40);
+      st.path = wire(g, d, 16);
+      st.pg = pathGas(g, st.path, 70, { r: 4.5, jitter: 3 });
+      st.bat = battery(g, 440, 470, true, '電池');
+      st.lamp = lamp(g, 720, 290, 30);
+      // スイッチ（上辺の中央、x 390..490）
+      S.rect(380, 96, 120, 30, { cls: 'f-bg' }, g);
+      S.circle(390, 110, 6, { cls: 'f-fg' }, g);
+      S.circle(490, 110, 6, { cls: 'f-fg' }, g);
+      st.lever = S.line(390, 110, 490, 110, { cls: 's-fg w4 round' }, g);
+      st.swTxt = S.text(440, 48, 'スイッチ', { cls: 't-c t-sm t-dim' }, g);   // 開いた刃（先端 y≈57）より上
+      st.bitTag = S.g({ cls: 'fade hide', transform: 'translate(440,160)' }, g);
+      st.bitRect = S.rect(-60, -16, 120, 32, { rx: 5, cls: 'f-sf s-rule w1' }, st.bitTag);
+      st.bitTxt = S.text(0, 5, '', { cls: 't-c t-b t-mono t-lg' }, st.bitTag);
+      st.stopTxt = S.text(440, 540, '', { cls: 't-c t-sm t-dim' }, svg);
+      // 直列・並列
+      const g2 = st.g2 = S.g({ cls: 'fade hide' }, svg);
+      st.g2title = S.text(330, 28, '', { cls: 't-c t-b t-lg' }, g2);   // 開いた刃の先端（y≈37）より上
+      // 直列: 上辺にスイッチ A と B
+      const gs = st.gs = S.g({}, g2);
+      const ds = loopPath(90, 90, 480, 320, 36);
+      st.sPath = wire(gs, ds, 14);
+      st.sFlow = A.flow(st.sPath, { count: 34, speed: 0, r: 4, parent: gs, jitter: 2 });
+      battery(gs, 330, 410, true, '');
+      st.sLamp = lamp(gs, 570, 250, 24);
+      st.sLevers = [mkSwitch(gs, 180, 90, 'A'), mkSwitch(gs, 380, 90, 'B')];
+      // 並列: 幹と2つの枝
+      const gp = st.gpar = S.g({ cls: 'hide' }, g2);
+      const trunk = 'M330,410 H90 V250 H190 M470,250 H570 V410 H330';
+      st.pTrunk = wire(gp, trunk, 14);
+      const brA = 'M190,250 V170 H470 V250';
+      const brB = 'M190,250 V330 H470 V250';
+      st.pA = wire(gp, brA, 14);
+      st.pB = wire(gp, brB, 14);
+      S.circle(190, 250, 7, { cls: 'f-fg' }, gp);
+      S.circle(470, 250, 7, { cls: 'f-fg' }, gp);
+      st.pFlowT = A.flow(st.pTrunk, { count: 24, speed: 0, r: 4, parent: gp, jitter: 2 });
+      st.pFlowA = A.flow(st.pA, { count: 16, speed: 0, r: 4, parent: gp, jitter: 2 });
+      st.pFlowB = A.flow(st.pB, { count: 16, speed: 0, r: 4, parent: gp, jitter: 2 });
+      battery(gp, 330, 410, true, '');
+      st.pLamp = lamp(gp, 570, 330, 24);
+      st.pLevers = [mkSwitch(gp, 280, 170, 'A', -24), mkSwitch(gp, 280, 330, 'B', -24)];   // 名前を少し左へ（B の名前を電池の＋−から離す）
+      // 真理値表
+      const gt = S.g({ transform: 'translate(680,110)' }, g2);
+      S.rect(0, 0, 250, 230, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      ['A', 'B', '電球'].forEach((h, k) => S.text(40 + k * 80, 32, h, { cls: 't-c t-b t-sm' }, gt));
+      S.line(14, 44, 236, 44, { cls: 's-rule w1' }, gt);
+      st.rows = [];
+      [[0, 0], [0, 1], [1, 0], [1, 1]].forEach(([a, b], r) => {
+        const y = 60 + r * 42;
+        const bg = S.rect(10, y - 6, 230, 36, { rx: 4, cls: 'f-in', style: { opacity: 0 } }, gt);
+        S.text(40, y + 17, String(a), { cls: 't-c t-mono t-lg' }, gt);
+        S.text(120, y + 17, String(b), { cls: 't-c t-mono t-lg' }, gt);
+        const out = S.text(200, y + 17, '', { cls: 't-c t-mono t-lg t-b' }, gt);
+        st.rows.push({ bg, out, a, b });
+      });
+      st.ruleTxt = S.text(805, 370, '', { cls: 't-c t-sm t-dim' }, g2);
+      st.ruleTxt2 = S.text(805, 390, '', { cls: 't-c t-sm t-dim' }, g2);
+
+      function mkSwitch(parent, x, y, name, dx) {
+        S.rect(x - 60, y - 14, 120, 28, { cls: 'f-bg' }, parent);
+        S.circle(x - 50, y, 5, { cls: 'f-fg' }, parent);
+        S.circle(x + 50, y, 5, { cls: 'f-fg' }, parent);
+        const lv = S.line(x - 50, y, x + 50, y, { cls: 's-fg w3 round' }, parent);
+        const lbl = S.text(x + (dx || 0), y + 32, name, { cls: 't-c t-b t-mono' }, parent);   // 導線の下。開くと刃は上へ回るので重ならない
+        return { lv, lbl, x: x - 50, y, set(closed) { lv.setAttribute('transform', closed ? '' : `rotate(-32 ${x - 50} ${y})`); lbl.textContent = `${name} = ${closed ? 1 : 0}`; } };
+      }
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const basic = i <= 3;
+      S.fade(st.g1, basic);
+      S.fade(st.g2, !basic);
+      if (basic) {
+        const closed = i !== 1;
+        st.lever.setAttribute('transform', closed ? '' : 'rotate(-32 390 110)');
+        st.pg.drift = closed ? -30 : 0;
+        S.fade(st.bitTag, i >= 3);
+        st.bitTxt.textContent = closed ? '閉 = 1' : '開 = 0';
+        st.stopTxt.textContent = i === 1 ? '隙間は空気（絶縁体）。輪のどこも同時に止まる' : i === 2 ? '電場が一瞬で広がり、全体が同時に動き出す' : '';
+      } else {
+        const series = i === 4;
+        st.gs.style.display = series ? '' : 'none';
+        st.gpar.classList.toggle('hide', series);
+        st.g2title.textContent = series ? '直列：A と B を一列に（AND）' : '並列：A と B を枝分かれに（OR）';
+        st.ruleTxt.textContent = series ? '点く ⇔ A = 1 かつ B = 1' : '点く ⇔ A = 1 または B = 1';
+        st.ruleTxt2.textContent = series ? '論理の AND' : '論理の OR';
+        st.rows.forEach((r) => { r.out.textContent = (series ? (r.a && r.b) : (r.a || r.b)) ? '点' : '−'; });
+        st.stopTxt.textContent = '2.4 秒ごとに組み合わせが変わる';
+        st.comboT = -1;
+      }
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i <= 3) {
+        st.pg.update(dt);
+        st.lamp.glow(st.pg.drift ? 0.85 + 0.15 * Math.sin(t * 8) : 0);
+        return;
+      }
+      const series = i === 4;
+      const combo = Math.floor(U.mod(ctx.ts, 9.6) / 2.4);
+      if (combo !== st.comboT) {
+        st.comboT = combo;
+        const a = combo >> 1 & 1, b = combo & 1;
+        const on = series ? (a && b) : (a || b);
+        st.rows.forEach((r, k) => { r.bg.style.opacity = k === combo ? 1 : 0; });
+        if (series) {
+          st.sLevers[0].set(a); st.sLevers[1].set(b);
+          st.sFlow.set('speed', on ? 60 : 0);
+          st.sOn = on;
+        } else {
+          st.pLevers[0].set(a); st.pLevers[1].set(b);
+          st.pFlowT.set('speed', on ? 60 : 0);
+          st.pFlowA.set('speed', a ? 60 : 0);
+          st.pFlowB.set('speed', b ? 60 : 0);
+          st.pFlowA.g.style.opacity = a ? 1 : 0.15;
+          st.pFlowB.g.style.opacity = b ? 1 : 0.15;
+          st.pOn = on;
+        }
+      }
+      if (series) { st.sFlow.update(dt); st.sLamp.glow(st.sOn ? 0.9 : 0); }
+      else { st.pFlowT.update(dt); st.pFlowA.update(dt); st.pFlowB.update(dt); st.pLamp.glow(st.pOn ? 0.9 : 0); }
+    }
+  };
+
+  /* ================================================================
+     場面6 交流・直流・コンデンサ
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: 'コンセントは交流', text: '発電所からの電気は、電圧の向きが周期的に入れ替わる**交流**（AC）。日本では 1 秒に 50 回（東）または 60 回（西）。導線の{e|電子}は一方向に進まず、その場で行ったり来たりしている。電球や電熱器はどちら向きでも熱が出るので困らない。' },
+      { title: 'なぜ交流で送るのか', text: '交流は**変圧器**（鉄心に巻いた2つのコイル）で電圧を簡単に上げ下げできる。発電所で 50 万 V まで上げると同じ電力でも電流が小さくなり、送電線の抵抗で失う熱（I²R）が激減する。街で 6,600 V、電柱の変圧器で 100 V に下げて家に届く。' },
+      { title: 'パソコンの中は直流', text: 'トランジスタは電圧の向きが決まっている前提で動くので、電源が交流を**直流**（DC）に変える。手順は、変圧器で下げる → ダイオード（第2章）で向きをそろえる（整流）→ コンデンサで波を平らにする（平滑）。こうして 12 V・5 V・3.3 V を作る。' },
+      { title: 'コンデンサ：電荷を溜める板', text: '向かい合う2枚の金属板の間に絶縁体を挟んだ部品。電池をつなぐと片方の板に電子が溜まり、もう片方から電子が抜けて＋になる。溜まった分だけ板の間に電圧が生まれ、電池と同じ電圧になると流れが止まる。' },
+      { title: '放電：溜めた電荷を放す', text: '電池を外して抵抗につなぐと、溜まった電子が反対側へ流れ出し、電圧は 0 に戻る。溜まる速さ・抜ける速さは抵抗と容量の積（時定数 RC）で決まる。「溜まっているか、いないか」を 1 と 0 と見なせば、1 ビットを覚えておける（第5章の DRAM）。' },
+      { title: 'ここから先、電気は「信号」になる', text: 'この章の電子の動きは、以後「電圧が高いか低いか」という**信号**として扱う。導線の上を 1 と 0 の列が走り、それをトランジスタが切り替え、記憶し、計算する。次の章では、その切り替えを可能にする半導体の中身を見る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: 交流
+      const ga = st.ga = S.g({}, svg);
+      S.text(230, 44, '交流（コンセント）', { cls: 't-c t-b t-lg' }, ga);
+      S.rect(40, 90, 50, 70, { rx: 6, cls: 'f-sf s-fg w2' }, ga);
+      S.rect(55, 108, 6, 22, { cls: 'f-fg' }, ga);
+      S.rect(69, 108, 6, 22, { cls: 'f-fg' }, ga);
+      S.rect(90, 118, 340, 16, { rx: 8, cls: 'f-in s-rule w1' }, ga);
+      st.acGas = gas(ga, 22, { x: 96, y: 124, w: 328, h: 4 }, { r: 4.5, speed: 25, wrap: false });
+      st.acBase = st.acGas.ps.map((p) => p.x);
+      S.text(230, 170, '電子はその場で往復する（1 秒に 50 / 60 往復）', { cls: 't-c t-sm t-dim' }, ga);
+      // 波形
+      const gw = S.g({ transform: 'translate(60,200)' }, ga);
+      S.line(0, 60, 380, 60, { cls: 's-rule w1' }, gw);
+      S.line(0, 10, 0, 110, { cls: 's-rule w1' }, gw);
+      S.text(-6, 22, '+141 V', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      S.text(-6, 104, '−141 V', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      S.text(-6, 64, '0', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      st.acWave = S.path('', { cls: 'f-none s-h w2' }, gw);
+      st.acCursor = S.line(0, 10, 0, 110, { cls: 's-x w15' }, gw);
+      st.acDot = S.circle(0, 60, 5, { cls: 'f-x' }, gw);
+      S.text(190, 130, '電圧の波形（実効値 100 V ＝ 最大 141 V）', { cls: 't-c t-xs t-dim' }, gw);
+      // 変圧器
+      const gt = st.gt = S.g({ transform: 'translate(40,370)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 420, 170, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      S.text(210, 24, '変圧器：巻き数の比で電圧が変わる', { cls: 't-c t-b' }, gt);
+      S.rect(150, 50, 120, 90, { cls: 'f-none s-dim w10' }, gt);
+      for (let k = 0; k < 8; k++) S.path(`M135,${58 + k * 10} q-12,5 0,10`, { cls: 'f-none s-h w2' }, gt);
+      for (let k = 0; k < 3; k++) S.path(`M285,${78 + k * 14} q12,7 0,14`, { cls: 'f-none s-h w2' }, gt);
+      S.text(70, 95, '6,600 V', { cls: 't-c t-mono t-b' }, gt);
+      S.text(70, 113, '巻き数 多', { cls: 't-c t-xs t-dim' }, gt);
+      S.text(350, 95, '100 V', { cls: 't-c t-mono t-b' }, gt);
+      S.text(350, 113, '巻き数 少', { cls: 't-c t-xs t-dim' }, gt);
+      S.text(210, 160, '発電所 50万V → 送電 → 6,600V → 電柱 → 100V', { cls: 't-c t-xs t-dim t-mono' }, gt);
+      // 右: AC アダプタ
+      const gd = st.gd = S.g({ transform: 'translate(490,40)', cls: 'fade hide' }, svg);
+      S.text(220, 4, 'AC アダプタ／電源の中身', { cls: 't-c t-b t-lg' }, gd);
+      const boxes = [['交流 100 V', 0], ['変圧 → 5 V', 1], ['整流（ダイオード）', 2], ['平滑（コンデンサ）', 3], ['直流 5 V', 4]];
+      boxes.forEach(([lbl, k]) => {
+        const x = k * 90;
+        S.rect(x, 20, 80, 44, { rx: 6, cls: k === 2 || k === 3 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1' }, gd);   // 本文で説明する整流・平滑に注目（d は信号 0/1 に取っておく）
+        S.lines(x + 40, 38, lbl.includes('（') ? lbl.replace('（', '\n（').split('\n') : [lbl], { cls: 't-c t-xs' }, gd, 13);
+        if (k < 4) S.path(`M${x + 82},42 H${x + 88}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gd);
+      });
+      const graphs = [['変圧後', 20], ['整流後', 170], ['平滑後', 320]];
+      st.gpaths = [];
+      graphs.forEach(([lbl, x], k) => {
+        S.text(x + 60, 100, lbl, { cls: 't-c t-sm t-b' }, gd);
+        S.line(x, 160, x + 120, 160, { cls: 's-rule w1' }, gd);
+        S.line(x, 115, x, 200, { cls: 's-rule w1' }, gd);
+        st.gpaths.push(S.path('', { cls: 'f-none s-h w2' }, gd));   // 3 つとも電圧の波形なので同じ色
+        if (k < 2) S.path(`M${x + 128},160 H${x + 142}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gd);
+      });
+      S.text(380, 190, '0 V', { cls: 't-xs t-mono t-dim' }, gd);
+      // コンデンサ
+      const gc = st.gc = S.g({ transform: 'translate(520,230)', cls: 'fade hide' }, svg);
+      S.text(200, 0, 'コンデンサ', { cls: 't-c t-b t-lg' }, gc);
+      // 配線: 電池(左下) → 上 → 左板 ; 右板 → 下 → スイッチ → 電池
+      const cw = 'M60,250 V60 H165 M235,60 H340 V250 H60';
+      wire(gc, cw, 10);
+      S.rect(165, 20, 12, 160, { cls: 'f-h-soft s-h w2' }, gc);
+      S.rect(223, 20, 12, 160, { cls: 'f-e-soft s-e w2' }, gc);
+      S.text(171, 200, '板 A', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(229, 200, '板 B', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(200, 110, '絶縁体', { cls: 't-c t-xs t-dim' }, gc);
+      st.cBat = battery(gc, 60, 250, false, '');
+      st.cBatLbl = S.text(60, 300, '電池', { cls: 't-c t-xs t-dim' }, gc);
+      st.cLamp = lamp(gc, 340, 250, 18);
+      st.cLampLbl = S.text(340, 290, '抵抗（電球）', { cls: 't-c t-xs t-dim' }, gc);
+      // 電荷の表示
+      st.minus = []; st.plus = [];
+      for (let k = 0; k < 10; k++) {
+        st.minus.push(S.circle(229, 32 + k * 15, 4, { cls: 'f-e', style: { opacity: 0 } }, gc));
+        st.plus.push(S.text(171, 36 + k * 15, '＋', { cls: 't-c t-h t-b t-xs', style: { opacity: 0 } }, gc));
+      }
+      // 電圧計
+      S.text(200, 240, 'V(板の間)', { cls: 't-c t-xs t-dim' }, gc);
+      S.rect(140, 250, 120, 12, { rx: 3, cls: 'f-in s-rule w1' }, gc);
+      st.vBar = S.rect(140, 250, 0, 12, { rx: 3, cls: 'f-h' }, gc);
+      st.vTxt = S.text(200, 284, '', { cls: 't-c t-mono t-sm' }, gc);
+      st.cMode = S.text(200, 310, '', { cls: 't-c t-sm t-b' }, gc);
+      // 電流の流れ（充電時: 電池の−から板Bへ、板Aから電池の＋へ）
+      st.cFlowPath = S.path(cw, { cls: 'f-none s-none' }, gc);
+      st.cFlow = A.flow(st.cFlowPath, { count: 20, speed: 0, r: 3.5, parent: gc, jitter: 1.5 });
+      // 信号
+      const gsg = st.gsg = S.g({ transform: 'translate(40,370)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 420, 170, { rx: 8, cls: 'f-sf s-rule w1' }, gsg);
+      S.text(210, 24, '信号：電圧の高い／低いの列', { cls: 't-c t-b' }, gsg);
+      S.line(20, 120, 400, 120, { cls: 's-rule w1' }, gsg);
+      S.text(14, 66, '1', { cls: 't-mono t-dim t-xs', 'text-anchor': 'end' }, gsg);
+      S.text(14, 124, '0', { cls: 't-mono t-dim t-xs', 'text-anchor': 'end' }, gsg);
+      st.sigPath = S.path('', { cls: 'f-none s-d w3 round' }, gsg);
+      st.sigTxt = S.text(210, 155, '1 0 1 1 0 0 1 0 …', { cls: 't-c t-mono t-sm t-d' }, gsg);
+      st.bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 1];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gt, i === 1);
+      S.fade(st.gd, i === 2);
+      S.fade(st.gc, i === 3 || i === 4);
+      S.fade(st.gsg, i === 5);
+      st.ga.style.opacity = i >= 3 ? 0.35 : '';
+      if (i === 3 || i === 4) {
+        st.cBat.style.opacity = i === 3 ? 1 : 0.15;
+        st.cLamp.g.style.opacity = i === 4 ? 1 : 0.15;
+        st.cMode.textContent = i === 3 ? '充電中（電池をつないだ）' : '放電中（電池を外し、抵抗につないだ）';
+        st.cFlow.set('speed', i === 3 ? 50 : -50);
+      }
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      // 交流: 電子が往復（図では 1 Hz 相当に遅く）
+      const ph = Math.sin(t * TAU * 0.5);
+      st.acGas.ps.forEach((p, k) => {
+        p.el.setAttribute('cx', (st.acBase[k] + ph * 22 + Math.sin(t * 7 + k) * 2).toFixed(1));
+        p.el.setAttribute('cy', (126 + Math.sin(t * 5 + k * 1.3) * 2).toFixed(1));
+      });
+      let d = '';
+      for (let x = 0; x <= 380; x += 4) d += (x ? 'L' : 'M') + x + ',' + (60 - 46 * Math.sin((x / 95) * TAU)).toFixed(1);
+      st.acWave.setAttribute('d', d);
+      const cx = U.cycle(t, 4) * 380;
+      st.acCursor.setAttribute('x1', cx); st.acCursor.setAttribute('x2', cx);
+      st.acDot.setAttribute('cx', cx); st.acDot.setAttribute('cy', (60 - 46 * Math.sin((cx / 95) * TAU)).toFixed(1));
+      if (i === 2) {
+        const f = U.cycle(t, 4);
+        const upto = Math.floor(f * 120);
+        st.gpaths.forEach((p, k) => {
+          let dd = '';
+          for (let x = 0; x <= upto; x += 2) {
+            const s = Math.sin((x / 30) * TAU);
+            const y = k === 0 ? s : k === 1 ? Math.abs(s) : 0.85 + 0.12 * Math.abs(s);
+            dd += (x ? 'L' : 'M') + (x + [20, 170, 320][k]) + ',' + (160 - y * 36).toFixed(1);
+          }
+          p.setAttribute('d', dd);
+        });
+      }
+      if (i === 3 || i === 4) {
+        const tau = 2.2;
+        const f = i === 3 ? 1 - Math.exp(-ctx.ts / tau) : Math.exp(-ctx.ts / tau);
+        const n = Math.round(f * 10);
+        st.minus.forEach((m, k) => { m.style.opacity = k < n ? 1 : 0; });
+        st.plus.forEach((m, k) => { m.style.opacity = k < n ? 1 : 0; });
+        st.vBar.setAttribute('width', (f * 120).toFixed(1));
+        st.vTxt.textContent = (f * 1.5).toFixed(2) + ' V';
+        st.cFlow.set('speed', (i === 3 ? 1 : -1) * 70 * (1 - f));
+        st.cFlow.update(dt);
+        st.cFlow.g.style.opacity = Math.min(1, (1 - f) * 3).toFixed(2);
+        st.cLamp.glow(i === 4 ? (1 - f) : 0);
+      }
+      if (i === 5) {
+        const shift = U.cycle(t, 6) * 16;
+        let dd = '';
+        const w = 380 / 8;
+        for (let k = 0; k <= 9; k++) {
+          const idx = Math.floor(shift) + k;
+          const b = st.bits[U.mod(idx, st.bits.length)];
+          const x0 = 20 + (k - (shift % 1)) * w;
+          const y = b ? 62 : 120;
+          dd += (k ? 'L' : 'M') + Math.max(20, x0).toFixed(1) + ',' + y + ' L' + Math.min(400, x0 + w).toFixed(1) + ',' + y;
+        }
+        st.sigPath.setAttribute('d', dd);
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第I部 電気 ／ 第1章',
+      title: '電子と電流',
+      home: '../index.html',
+      next: { href: '02-handoutai.html', title: '半導体とダイオード' },
+      legend: [{ c: 'e', label: '電子・電流' }, { c: 'h', label: '＋の電荷・高い電位' }, { c: 'p', label: '光・熱' }, { c: 'd', label: '信号 0/1' }, { c: 'x', label: '注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>TLS — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+  svg text.pre { white-space: pre; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第V部 約束ごと ／ 第20章 ／ 全25章</p>
+    <h1 id="h-s0">TLS</h1>
+    <p class="standfirst">接続が開いたら（第19章）、HTTP の要求を送る前に、その接続を暗号で守る。それが TLS で、HTTPS の S にあたる。この章では、TLS が防ぐ 3 つの危険から始めて、データを混ぜる共通鍵暗号、鍵を送らずに鍵をそろえる鍵交換、相手が本物かを確かめる証明書、それらを 1 往復にまとめた TLS 1.3 のハンドシェイク、暗号化されたレコードまでを、www.youtube.com への実際の接続で測った値とともに追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のメッセージの動きは、見やすいように実際よりずっと遅くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>なぜ暗号化するか</a><p>途中の機器は平文を読み、書き換え、相手のふりができる。TLS が防ぐ 3 つと HSTS。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>共通鍵暗号（AES）</a><p>16 バイトのブロックを鍵で混ぜる。GCM、CPU の専用命令、ChaCha20。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>公開鍵と鍵交換</a><p>楕円曲線のスカラー倍で、鍵を送らずに同じ鍵を持つ。前方秘匿性とポスト量子。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>証明書と認証局</a><p>名前と公開鍵の結びつきを、署名の連鎖でルートまでたどる。ルートストアと CT。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>TLS 1.3 ハンドシェイク</a><p>ClientHello から Finished まで 1 往復。TCP・QUIC での位置と 0-RTT。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>暗号化された通信</a><p>レコード、番号から作るノンス、改ざん検出のタグ。外から見えるものと ECH。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（HTTP）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。PC 192.168.1.10、WAN 側 203.0.113.5、第三者 192.0.2.66 は説明用の値、www.youtube.com の 142.250.196.110 は全章共通の例。証明書・鍵交換・暗号方式は 2026 年 10 月 12 日と 17 日に手元の Chrome 155 と OpenSSL 3.5 で www.youtube.com に接続して確かめた例で、時期や接続先で変わる。場面2・3・6の数の例は、実際の AES・GCM と小さな楕円曲線で計算した値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 なぜ暗号化するか ================= -->
+<section class="scene sc-anim" id="s1" data-tab="なぜ暗号化" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>なぜ暗号化するか — 途中の機器は何ができるか</h2>
+    <p class="sh-meta"><span class="chip">HTTPS = HTTP + TLS</span><span class="chip">ポート 443</span><span class="chip">RFC 8446</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">PC から YouTube のサーバーまでの間には、家の Wi-Fi、ルーター、ISP、IX と、他人の機器がいくつも挟まる。暗号化しなければ、その誰もが中身を読み、書き換え、相手のふりをできる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">2026 年 10 月に手元の Chrome 155 で www.youtube.com に接続すると、TCP（HTTP/2）でも QUIC（HTTP/3）でも TLS 1.3 だった。古い TLS 1.0・1.1 は RFC 8996（2021 年）で廃止された。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC から www.youtube.com までの経路の機器と、途中の機器から見える中身、書き換え、偽のサーバーへのすり替え、暗号の届く範囲"></svg></div>
+    <figcaption>図1　PC から www.youtube.com までの道（例）と、途中の機器から見える中身。段階3の偽のサーバー 192.0.2.66 は説明用の値。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 共通鍵暗号（AES） ================= -->
+<section class="scene sc-anim" id="s2" data-tab="共通鍵暗号" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>共通鍵暗号（AES）— 16 バイトずつ鍵で混ぜる</h2>
+    <p class="sh-meta"><span class="chip">AES-128-GCM</span><span class="chip">ブロック 128 ビット</span><span class="chip">FIPS 197</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">データそのものを暗号化するのは、送る側と受け取る側が同じ鍵を使う<b>共通鍵暗号</b>。TLS ではほとんどが AES で、16 バイトのブロックを鍵で混ぜて別の 16 バイトにする。速く、鍵を知らなければ元に戻せない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の鍵 2b 7e 15 … は AES の規格書（FIPS 197）の例に載っている値で、図の数はすべて実際に AES-128 で計算した結果。実際の TLS では、鍵は接続ごとに鍵交換から作る（場面3）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="16 バイトの平文ブロックが AES-128 で暗号文ブロックになる図と、1 ラウンドの 4 つの操作、1 ビットの違いの広がり、GCM のカウンタとタグ、CPU の専用命令の速さ、鍵をそろえる問題"></svg></div>
+    <figcaption>図2　上は AES-128 の入口と出口（16 バイトを列ごとに 4 バイトずつ並べた形）。下は段階ごとの中身。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 公開鍵と鍵交換 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="鍵交換" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>公開鍵と鍵交換 — 鍵を送らずに同じ鍵を持つ</h2>
+    <p class="sh-meta"><span class="chip">ECDHE</span><span class="chip">X25519</span><span class="chip">X25519MLKEM768</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">共通鍵は送れない。そこで両端はそれぞれ秘密の数を選び、そこから計算した値だけを見せ合う。見せた値から秘密は逆算できないのに、両端は同じ値にたどり着く。これが<b>鍵交換</b>で、TLS 1.3 は楕円曲線の上で毎回行う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の曲線は y² = x³ + 7 を 67 で割った余りで考えた小さな例（点は 79 個）。実際の X25519 は 2<sup>255</sup> − 19 で割った余りの上の曲線を使い、秘密も公開値も 32 バイト（RFC 7748、2016 年）。段階4の値は同 RFC の試験用の値。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザとサーバーが持つ値、小さな楕円曲線の上の点とスカラー倍、共有した値から鍵を作る流れ、一時鍵と前方秘匿性、ポスト量子のハイブリッド鍵交換の大きさ、途中で聞く第三者"></svg></div>
+    <figcaption>図3　左右はブラウザとサーバーが持つ値。中央は小さな曲線の上の点（段階4〜6は鍵の作り方・前方秘匿性・ポスト量子）。下は途中の線と、それを聞く第三者。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 証明書と認証局 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="証明書" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>証明書と認証局 — 相手が本物かを確かめる</h2>
+    <p class="sh-meta"><span class="chip">X.509</span><span class="chip">WE2 → GTS Root R4</span><span class="chip">CT</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">鍵交換だけでは、相手が本物の www.youtube.com かは分からない。サーバーは<b>証明書</b>（名前と公開鍵の結びつきに、認証局が署名した文書）を送り、ブラウザはその署名を、最初から信じているルートまでたどって確かめる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">証明書の値は 2026 年 10 月 17 日に Chrome で取り出した例。ECDSA を使えない相手には RSA の連鎖（WR2 → GTS Root R1）が届く。認証局は、申請者が名前の持ち主かを、DNS や Web に指定の値を置かせて確かめてから発行する。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザとサーバーの間に立つ第三者、www.youtube.com の証明書の中身と署名の連鎖、ブラウザのルートストア、Certificate Transparency のログ、有効期間の上限の推移"></svg></div>
+    <figcaption>図4　上はブラウザとサーバーの間に立つ第三者。左下は www.youtube.com の証明書の連鎖（2026 年 10 月 17 日の値）、右下はルートストア・CT ログ・有効期間の上限。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 TLS 1.3 ハンドシェイク ================= -->
+<section class="scene sc-anim" id="s5" data-tab="ハンドシェイク" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>TLS 1.3 ハンドシェイク — 1 往復で鍵と相手を決める</h2>
+    <p class="sh-meta"><span class="chip">ClientHello</span><span class="chip">1-RTT</span><span class="chip">0-RTT</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ここまでの部品（鍵交換・証明書・署名）を、最初の 1 往復にまとめたのが TLS 1.3 のハンドシェイク。ブラウザは最初のメッセージに鍵交換の値を入れておくので、サーバーの返事の途中から先は、もう暗号化されている。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">TLS 1.2 は鍵を決めるまでに 2 往復かかり、証明書も平文で流れた。TLS 1.3（RFC 8446、2018 年）は 1 往復にまとめ、RSA による鍵の受け渡しなど古い方式を外した。QUIC への載せ方は RFC 9001（2021 年）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザとサーバーの間を時間順に流れる TLS 1.3 のメッセージ、暗号化に使う鍵の段階、各メッセージの中身、TCP と QUIC と 0-RTT で要求を送れるまでの往復の数"></svg></div>
+    <figcaption>図5　上はブラウザとサーバーの間のメッセージ（上から時間順）と、暗号化に使う鍵の段階。右は段階ごとの中身、左下は要求を送れるまでの往復の数。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 暗号化された通信 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="暗号化通信" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>暗号化された通信 — レコードとタグ、外から見えるもの</h2>
+    <p class="sh-meta"><span class="chip">AEAD</span><span class="chip">AES-128-GCM</span><span class="chip">SNI・ECH</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ハンドシェイクのあとは、HTTP のデータを<b>レコード</b>に切り、1 つずつ AEAD（暗号化と改ざん検出を一度に行う方式）で包んで送る。中身は読めず、1 ビットでも変えれば受け手が気づく。ただし包みの外側は見える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">AEAD は Authenticated Encryption with Associated Data の略で、TLS 1.3 の暗号はすべて AEAD。同じ鍵で送れる量には上限があり、長い接続では KeyUpdate で鍵を新しくする。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="HTTP の要求を包んだ TLS レコードのバイト列（見出し・暗号文・タグ）、1 ビットの改ざんとタグの不一致、IV とレコード番号からノンスを作る計算、途中の機器から見えるもの、ECH、QUIC のパケット"></svg></div>
+    <figcaption>図6　上は 1 つのレコード（例。中身は HTTP/1.1 の要求の先頭 24 バイトだけにし、場面2と同じ鍵とノンスで実際に AES-128-GCM で計算した値）。中はノンスの作り方、下は途中の機器から見えるもの。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 端から端までを鍵で守る</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>平文の HTTP は、Wi-Fi・ルーター・ISP・IX のどこでも読まれ、書き換えられ、偽の相手にすり替えられる。TLS は暗号化・改ざん検出・認証をブラウザとサーバーの間で行い、HSTS で最初の 1 回から使う（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>データは共通鍵暗号で包む。AES-128 は 16 バイトのブロックを 10 ラウンドで混ぜ、TLS では GCM（カウンタとタグ）で使う。CPU の専用命令で 1 コア毎秒数 GB（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>鍵は送らずに鍵交換で作る。楕円曲線のスカラー倍は速く、逆は難しい。接続ごとに捨てる一時鍵で前方秘匿性を得る。2026 年の Chrome と Google は X25519MLKEM768（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>証明書は、名前と公開鍵の結びつきに認証局が署名したもの。www.youtube.com の証明書は WE2 → GTS Root R4 とたどってルートストアで終わり、CT ログに記録されている（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>TLS 1.3 は ClientHello に鍵交換の値を入れ、1 往復で要求を送れる。TCP では 3-way の後に、QUIC では最初の往復に入る。0-RTT は再送攻撃に注意して使う（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>データはレコード（QUIC ではパケット）ごとに AEAD で包み、番号からノンスを作り、タグで改ざんを見つける。IP・ポート・SNI・大きさ・時刻は外から見える（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>TLS・HTTPS</th><td>TCP の上で（QUIC では QUIC に組み込まれて）暗号化・改ざん検出・認証を行う約束。TLS 1.3 は RFC 8446（2018 年）。HTTPS は HTTP を TLS で包んだもので、ポート 443。</td></tr>
+        <tr><th>共通鍵暗号・AES</th><td>同じ鍵で暗号化と復号をする方式。AES はブロック 128 ビット、鍵 128／192／256 ビット、ラウンド 10／12／14。FIPS 197（2001 年）。</td></tr>
+        <tr><th><i class="sw d"></i>AEAD（AES-GCM）</th><td>暗号化と改ざん検出を一度に行う方式。ノンス 12 バイト、タグ 16 バイト。TLS 1.3 では ChaCha20-Poly1305 も使える。</td></tr>
+        <tr><th>鍵交換（ECDHE）・X25519</th><td>秘密の数から作った公開値だけを見せ合い、両端で同じ値を計算する。X25519 は秘密も公開値も 32 バイト（RFC 7748）。</td></tr>
+        <tr><th>前方秘匿性</th><td>長く使う鍵が後で漏れても、記録された過去の通信を解けない性質。接続ごとの一時鍵を捨てることで得る。</td></tr>
+        <tr><th>ML-KEM・X25519MLKEM768</th><td>格子の問題に基づくポスト量子の鍵カプセル化（FIPS 203、2024 年）と、X25519 を組み合わせた鍵交換。key_share はブラウザ 1,216 B、サーバー 1,120 B。</td></tr>
+        <tr><th>証明書・認証局（CA）</th><td>名前と公開鍵の結びつきに CA が署名した文書（X.509）。公開の証明書の有効期間の上限は 2026 年 3 月から 200 日、2029 年 3 月から 47 日。</td></tr>
+        <tr><th>ルートストア</th><td>ブラウザや OS が最初から信じるルート証明書の一覧。Chrome は約 100 個（2026 年 10 月）。</td></tr>
+        <tr><th>Certificate Transparency</th><td>発行した証明書を公開の追記専用ログに記録する仕組み。証明書に受領印（SCT）を入れる。</td></tr>
+        <tr><th>SNI・ALPN・ECH</th><td>ClientHello で伝える接続先の名前と、使う HTTP の版（h2・h3）。ECH は ClientHello を暗号化して名前を隠す（RFC 9849、2026 年）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 動きを止めているときは、段階の動きの代表の姿（終わりや途中）を見せる */
+  const playing = () => YT.motion.playing;
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 種から決まる疑似乱数（xorshift32、第12章と同じ）。時刻の区切りを種にして、同じ段階・同じ時刻なら同じ見た目にする */
+  const prng = (seed) => { let s = (Math.imul(seed | 0, 2654435761) >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; };
+  /* 見せかけの暗号文（n バイトを 16 進で）。暗号文は乱数と区別できないので、表示はこれで代える */
+  const noise = (seed, n) => { const R = prng(seed); const a = []; for (let k = 0; k < n; k++) a.push(Math.floor(R() * 256).toString(16).padStart(2, '0')); return a.join(' '); };
+  const hx = (a, sep) => a.map((b) => b.toString(16).padStart(2, '0')).join(sep == null ? ' ' : sep);
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱。g.rect が枠、g.title / g.sub が文字 */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: o.cls || 'f-sf s-rule w15' }, g);
+    if (title) g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim ' + (o.scls == null ? 't-mono' : o.scls) }, g);
+    return g;
+  }
+  /* 荷札（メッセージ）。中央が原点で、S.place で道の上に置く。set(文字, 塗り) で付け替える */
+  function pkt(p, text, cls, tcls) {
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = tw(text, 11) + 16;
+    const r = S.rect(-w / 2, -11, w, 22, { rx: 4, cls: cls || 'f-d' }, g);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (tcls || 't-sf') }, g);
+    g.set = (s, c) => {
+      t.textContent = s;
+      const nw = tw(s, 11) + 16;
+      r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+      if (c) r.setAttribute('class', c);
+    };
+    return g;
+  }
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 書き分けのある 1 行の文字。^{128} 上付き、_{1} 下付き、{m|…} 等幅、{b|…} 太字、{d|…} {x|…} 色付きの太字、{dim|…} 薄い字 */
+  const RT = { m: 't-mono', b: 't-b', d: 't-d t-b', x: 't-x t-b', dim: 't-dim' };
+  function rtSet(t, s) {
+    S.clear(t);
+    const re = /([\^_])\{([^}]*)\}|\{(m|b|d|x|dim)\|([^}]*)\}/g;
+    let last = 0, m, cur = 0;                 // cur: いまの文字の高さのずれ（上付き −5、下付き +3）
+    const put = (txt, a, off) => {
+      if (txt === '') return;
+      a = a || {}; a.text = txt;
+      if (off !== cur) { a.dy = off - cur; cur = off; }
+      S.el('tspan', a, t);
+    };
+    while ((m = re.exec(s))) {
+      put(s.slice(last, m.index), null, 0);
+      if (m[1]) put(m[2], { style: { fontSize: 'max(10px, 0.72em)' } }, m[1] === '^' ? -5 : 3);   // 10px より小さくしない
+      else put(m[4], { cls: RT[m[3]] }, 0);
+      last = re.lastIndex;
+    }
+    put(s.slice(last), null, 0);
+    return t;
+  }
+  const rt = (p, x, y, s, attrs) => rtSet(S.text(x, y, '', attrs, p), s);
+  /* 札（S.label）の文字と色を付け替える。kind は x / d / dim */
+  function setTag(g, text, kind) {
+    const t = g.querySelector('text'), r = g.querySelector('rect');
+    t.textContent = text;
+    t.setAttribute('class', 't-c t-xs t-b ' + (kind === 'dim' ? 't-dim' : 't-' + kind));
+    r.setAttribute('class', kind === 'dim' ? 'f-in s-rule w1' : 'f-' + kind + '-soft s-' + kind + ' w1');
+  }
+  /* 題と n 行の文字を持つ板。set(題, [[文字, 色], …]) で中身を入れ替える */
+  function board(p, x, y, w, h, n, lh, fs) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+    const title = S.text(x + 18, y + 26, '', { cls: 't-sm t-b t-dim' }, g);
+    const lines = [];
+    for (let k = 0; k < n; k++) lines.push(S.text(x + 18, y + 62 + k * lh, '', { cls: 'pre ' + (fs || 't-md') }, g));
+    g.set = (tt, rows) => {
+      title.textContent = tt;
+      lines.forEach((t, k) => {
+        const r = rows[k];
+        t.textContent = r ? r[0] : '';
+        t.setAttribute('class', 'pre ' + (fs || 't-md') + (r && r[2] ? ' t-mono' : '') + (r && r[1] ? ' t-b t-' + r[1] : ''));
+      });
+    };
+    g.lines = lines;
+    return g;
+  }
+  /* 範囲を示す括弧（下向き）。x1〜x2 の上に、y の高さで */
+  function bracket(p, x1, x2, y, label, scls, tcls) {
+    S.path(`M${x1},${y - 9} V${y} H${x2} V${y - 9}`, { cls: 'f-none w2 ' + scls }, p);
+    S.text((x1 + x2) / 2, y + 18, label, { cls: 't-c t-sm t-b ' + tcls }, p);
+  }
+  /* 4×4 のバイトの格子（AES の状態。k バイト目は 行 k%4・列 k/4 に入る）。set(バイト列, 印) */
+  function grid(p, x, y, cw, ch, fs) {
+    const g = S.g({}, p);
+    const cells = [];
+    for (let k = 0; k < 16; k++) {
+      const r = k % 4, c = (k - r) / 4;
+      const rc = S.rect(x + c * cw, y + r * ch, cw, ch, { cls: 'f-sf s-rule w1' }, g);
+      const t = S.text(x + c * cw + cw / 2, y + r * ch + ch / 2 + 4, '', { cls: 't-c t-mono ' + (fs || 't-sm') }, g);
+      cells.push({ rc, t });
+    }
+    g.set = (bytes, mark) => cells.forEach((c, k) => {
+      c.t.textContent = bytes ? bytes[k].toString(16).padStart(2, '0') : '';
+      c.rc.setAttribute('class', mark && mark[k] ? 'f-x-soft s-x w1' : 'f-sf s-rule w1');
+    });
+    return g;
+  }
+
+  /* ---------- AES-128 と GCM（図の数値を実際に計算する。FIPS 197 と GCM 仕様の試験値で確かめた実装） ---------- */
+  const AES = (() => {
+    const xt = (a) => ((a << 1) ^ (a & 0x80 ? 0x1b : 0)) & 0xff;      // GF(2⁸) で 2 を掛ける
+    const mul = (a, b) => { let r = 0; for (let i = 0; i < 8; i++) { if (b & 1) r ^= a; a = xt(a); b >>= 1; } return r; };
+    /* S-box: GF(2⁸) の逆元にアフィン変換をかけたもの */
+    const SB = [];
+    for (let x = 0; x < 256; x++) {
+      let inv = 0;
+      if (x) for (let y = 1; y < 256; y++) if (mul(x, y) === 1) { inv = y; break; }
+      let r = inv, b = inv;
+      for (let k = 0; k < 4; k++) { b = ((b << 1) | (b >> 7)) & 0xff; r ^= b; }
+      SB.push(r ^ 0x63);
+    }
+    function expand(key) {               // 鍵スケジュール: 16 バイトの鍵 → 11 個のラウンド鍵（176 バイト）
+      const w = key.slice();
+      let rc = 1;
+      for (let i = 16; i < 176; i += 4) {
+        let t = w.slice(i - 4, i);
+        if (i % 16 === 0) { t = [SB[t[1]] ^ rc, SB[t[2]], SB[t[3]], SB[t[0]]]; rc = xt(rc); }
+        for (let j = 0; j < 4; j++) w.push(w[i - 16 + j] ^ t[j]);
+      }
+      return w;
+    }
+    const sub = (s) => s.map((b) => SB[b]);
+    const shift = (s) => s.map((_, i) => { const r = i % 4, c = (i - r) / 4; return s[r + 4 * ((c + r) % 4)]; });
+    const mix = (s) => {
+      const o = s.slice();
+      for (let c = 0; c < 4; c++) {
+        const [a0, a1, a2, a3] = s.slice(4 * c, 4 * c + 4);
+        o[4 * c] = xt(a0) ^ xt(a1) ^ a1 ^ a2 ^ a3;
+        o[4 * c + 1] = a0 ^ xt(a1) ^ xt(a2) ^ a2 ^ a3;
+        o[4 * c + 2] = a0 ^ a1 ^ xt(a2) ^ xt(a3) ^ a3;
+        o[4 * c + 3] = xt(a0) ^ a0 ^ a1 ^ a2 ^ xt(a3);
+      }
+      return o;
+    };
+    const addk = (s, w, r) => s.map((b, i) => b ^ w[16 * r + i]);
+    /* 1 ブロックを暗号化。trace を渡すと、各操作の後の状態を {r, op, s} で積む */
+    function enc(key, pt, trace) {
+      const w = expand(key);
+      let s = addk(pt, w, 0);
+      if (trace) trace.push({ r: 0, op: 'AddRoundKey', s });
+      for (let r = 1; r <= 10; r++) {
+        s = sub(s); if (trace) trace.push({ r, op: 'SubBytes', s });
+        s = shift(s); if (trace) trace.push({ r, op: 'ShiftRows', s });
+        if (r < 10) { s = mix(s); if (trace) trace.push({ r, op: 'MixColumns', s }); }
+        s = addk(s, w, r); if (trace) trace.push({ r, op: 'AddRoundKey', s });
+      }
+      return s;
+    }
+    /* GCM（ノンス 12 バイト）。カウンタは ノンス‖00000002 から。タグ = GHASH ⊕ AES(ノンス‖00000001) */
+    const big = (a) => a.reduce((x, b) => (x << 8n) | BigInt(b), 0n);
+    const bytes = (x) => { const a = []; for (let i = 15; i >= 0; i--) a.push(Number((x >> BigInt(8 * i)) & 0xffn)); return a; };
+    function gmul(X, Y) {                // GF(2¹²⁸) の掛け算（GCM のビット順）
+      const R = 0xe1n << 120n;
+      let Z = 0n, V = Y;
+      for (let i = 127; i >= 0; i--) { if ((X >> BigInt(i)) & 1n) Z ^= V; V = (V & 1n) ? (V >> 1n) ^ R : V >> 1n; }
+      return Z;
+    }
+    function gcm(key, nonce, pt, aad) {
+      const ctr = (n) => nonce.concat([(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255]);
+      const ks = [], ct = [];
+      for (let i = 0; i < pt.length; i += 16) {
+        const k = enc(key, ctr(2 + i / 16));
+        ks.push(k);
+        for (let j = 0; j < 16 && i + j < pt.length; j++) ct.push(pt[i + j] ^ k[j]);
+      }
+      const H = big(enc(key, new Array(16).fill(0)));
+      let X = 0n;
+      const absorb = (a) => { for (let i = 0; i < a.length; i += 16) { const b = a.slice(i, i + 16); while (b.length < 16) b.push(0); X = gmul(X ^ big(b), H); } };
+      absorb(aad || []); absorb(ct);
+      X = gmul(X ^ ((BigInt((aad || []).length * 8) << 64n) | BigInt(ct.length * 8)), H);
+      return { ct, ks, tag: bytes(X ^ big(enc(key, ctr(1)))), ctr };
+    }
+    return { enc, gcm };
+  })();
+  const fromHex = (h) => h.replace(/\s+/g, '').match(/../g).map((x) => parseInt(x, 16));
+  const ascii = (s) => Array.from(s, (c) => c.charCodeAt(0));
+  const bitDiff = (a, b) => a.map((x, i) => { let d = x ^ b[i], n = 0; while (d) { n += d & 1; d >>= 1; } return n; }).reduce((s, n) => s + n, 0);
+
+  /* 例の値（場面2と場面6で共通）。鍵は FIPS 197 の例の鍵、ノンスは例 */
+  const EX = (() => {
+    const key = fromHex('2b7e151628aed2a6abf7158809cf4f3c');
+    const p1 = ascii('GET /watch?v=dQw');
+    const p2 = p1.slice(); p2[15] ^= 1;                      // 最後の 1 文字 w → v（1 ビットの違い）
+    const t1 = [], t2 = [];
+    const c1 = AES.enc(key, p1, t1), c2 = AES.enc(key, p2, t2);
+    const nonce = fromHex('8e 4d 52 a9 1c 07 f3 66 b2 d8 15 40');
+    const req = ascii('GET /watch?v=dQw4w9WgXcQ');           // 24 バイト
+    return { key, p1, p2, t1, t2, c1, c2, bits: bitDiff(c1, c2), nonce, req, g: AES.gcm(key, nonce, req, []) };
+  })();
+
+  /* ================================================================
+     場面1 なぜ暗号化するか
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '平文は途中のどこでも読める', text: 'HTTP の要求も応答も、暗号化しなければ文字のまま運ばれる。読める立場にあるのは、同じ Wi-Fi や LAN の機器、ルーター、ISP、IX と、経路上で中継する全員。Wi-Fi の暗号（第12章）は電波の区間だけで、ルーターから先では外れている。' },
+      { title: '途中で書き換えられる', text: '中継する機器は、読むだけでなく中身を変えて送り直せる。応答に広告やスクリプトを差し込む、ダウンロードするファイルを差し替える、といったことが実際に起きてきた。受け取る側には、どこが変えられたかを知る手段がない。' },
+      { title: '相手になりすまされる', text: 'DNS の偽の答え（第17章）や ARP の偽装（第13章）で、宛先を第三者の機器にすり替えられる。第三者は本物のサーバーと中継しながら、ブラウザには本物のふりをする。平文の通信には、相手が本物かを確かめる手段がない。' },
+      { title: 'TLS が防ぐ 3 つ', text: '3 つの危険に、TLS は 3 つの働きで応える。暗号化は[[2|共通鍵暗号]]と[[3|鍵交換]]、改ざん検出は[[6|暗号化された通信]]のタグ、認証は[[4|証明書]]が受け持つ。どれも両端だけが持つ鍵に頼るので、途中に何台の機器があっても、誰が運用していても効く。' },
+      { title: 'TLS は端から端まで', text: 'TLS は TCP の上、HTTP の下に入る（第11章）。QUIC では TLS が QUIC の中に組み込まれる（第19章）。暗号をかけ外しするのは、ブラウザと Google の入口のサーバー（第22章）の 2 か所だけ。途中の機器はどの区間でも暗号文しか運ばず、経路やルーターが変わっても同じ。' },
+      { title: 'HSTS：最初の 1 回から', text: '`http://` で 1 回でも送ると、第三者がその要求に割り込み、以後も平文のまま中継し続けられる。youtube.com は HSTS のプリロードリストに入っているので、ブラウザは送る前に `https://` に直す（第10章）。平文の要求は 1 回も出ない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const X = (k) => 14 + k * 162, W = 132;
+      st.X = X; st.W = W;
+      const N = [['PC（ブラウザ）', '192.168.1.10'], ['Wi-Fi・家の LAN', '第12・13章'], ['ルーター', '203.0.113.5'], ['ISP の網', 'AS64500'], ['IX・他社の網', '第16章'], ['www.youtube.com', '142.250.196.110']];
+      st.nodes = N.map(([t, s], k) => box(svg, X(k), 50, W, 56, t, s));
+      for (let k = 0; k < 5; k++) S.line(X(k) + W + 3, 78, X(k + 1) - 5, 78, { cls: 's-dim w15', 'marker-end': mk('dim') }, svg);
+      /* 途中の 4 か所の札 */
+      st.tags = [1, 2, 3, 4].map((k) => S.label(svg, X(k) + W / 2, 128, '読める', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 20, w: 100, gcls: 'fade' }));
+      /* 段階3: 偽のサーバーへのすり替え */
+      const gf = st.fake = S.g({ cls: 'fade hide' }, svg);
+      box(gf, X(2), 196, W, 56, '偽のサーバー', '192.0.2.66', { cls: 'f-x-soft s-x w15' });
+      S.path(`M${X(2) + W / 2},108 V192`, { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, gf);
+      /* 箱の 192.0.2.66 は外の第三者なので、図は DNS の偽の答えの例。ARP の偽装（LAN の中の第三者）は下の板と本文で扱う */
+      S.text(X(2) + W / 2 - 10, 146, 'DNS の偽の答え', { cls: 't-xs t-x t-b t-end' }, gf);
+      S.path(`M${X(2) + W},224 H${X(5) + W / 2} V110`, { cls: 'f-none s-x w15 dash', 'marker-end': mk('x') }, gf);
+      S.text(X(4), 244, '本物へ中継しながら、本物のふりをする', { cls: 't-c t-xs t-x t-b' }, gf);
+      /* 段階4: 3 つの危険と、それに応える働き */
+      const gw = st.work = S.g({ cls: 'fade hide' }, svg);
+      [['盗み見', '暗号化', '中身を読めなくする（場面2・3）'], ['書き換え', '改ざん検出', '1 ビットの変更でも気づく（場面6）'], ['なりすまし', '認証', '証明書で相手を確かめる（場面4）']].forEach(([a, b, c], k) => {
+        const x = 34 + k * 304;
+        S.rect(x, 176, 284, 74, { rx: 6, cls: 'f-d-soft s-d w1' }, gw);
+        S.text(x + 70, 206, a, { cls: 't-c t-md t-b t-x' }, gw);
+        S.line(x + 112, 202, x + 150, 202, { cls: 's-d w2', 'marker-end': mk('d') }, gw);
+        S.text(x + 212, 206, b, { cls: 't-c t-lg t-b t-d' }, gw);
+        S.text(x + 142, 234, c, { cls: 't-c t-xs t-mid' }, gw);
+      });
+      /* 段階5: 暗号の届く範囲 */
+      const gr = st.reach = S.g({ cls: 'fade hide' }, svg);
+      bracket(gr, X(0) + 6, X(1) + W - 6, 168, 'WPA2・WPA3：電波の区間だけ（第12章）', 's-mid', 't-mid');
+      bracket(gr, X(0) + 6, X(5) + W - 6, 226, 'TLS：ブラウザ ↔ Google の入口のサーバー（端から端）', 's-d', 't-d');
+      /* 動く荷札 */
+      // 両端は、いちばん長い札（GET /watch?v=…、幅 約 175）が図の外へ出ない位置
+      st.road = road(svg, `M${X(0) + W / 2 + 14},30 H${X(5) + W / 2 - 22}`);
+      st.detour = road(svg, `M${X(0) + W / 2 + 14},30 H${X(2) + W / 2} V180`);
+      st.p = pkt(svg, 'GET /watch?v=dQw4w9WgXcQ', 'f-d');
+      /* 下の板: 途中から見える中身 */
+      st.bd = board(svg, 14, 290, 932, 254, 4, 40);
+      st.ISPX = X(3) + W / 2;
+    },
+    rows(i) {
+      return [
+        ['途中の機器から見える中身（暗号化しない HTTP の場合）', [['GET /watch?v=dQw4w9WgXcQ HTTP/1.1', '', 1], ['Host: www.youtube.com', '', 1], ['Cookie: SID=…（ログインの印）', '', 1], ['→ どの動画を見たかも、ログインの印も、経路上の誰でも読める', 'x']]],
+        ['途中で書き換えられた応答（例）', [['HTTP/1.1 200 OK   Content-Type: text/html', '', 1], ['<html> … 動画のページ …', '', 1], ['<script src="http://192.0.2.66/ad.js"><\/script>  ← 途中で足された', 'x', 1], ['→ 受け取った側には、元の応答との違いが分からない', '']]],
+        ['宛先のすり替え', [['DNS の偽の答え   www.youtube.com → 192.0.2.66（第17章）', '', 1], ['ARP の偽装   ルーターの MAC → 第三者の MAC（第13章）', '', 1], ['→ 宛先が本物のサーバーかどうかを確かめる手段がない', 'x']]],
+        ['TLS で包んだあと、ルーターより外の区間で見える中身', [['IP   203.0.113.5:40001 → 142.250.196.110:443', '', 1], ['TLS   17 03 03 00 4a   ' + noise(5, 12) + ' …', 'd', 1], ['→ 中身は読めない。変えれば受け手が気づく。偽物は本物の鍵を持たない', 'd'], ['見えるのは宛先・大きさ・時刻と、接続の最初に送る名前（場面6）', '']]],
+        ['暗号が届く範囲', [['WPA2・WPA3   PC ↔ AP の電波の区間だけ。AP の先では平文に戻る', ''], ['TLS   ブラウザ ↔ Google の入口のサーバー。途中のどの区間でも暗号のまま', 'd'], ['層   HTTP ／ TLS ／ TCP ／ IP ／ リンク（第11章。QUIC は TLS を中に組み込む）', '', 1]]],
+        ['HSTS：送る前に https に直す（第10章）', [['入力    http://www.youtube.com/', '', 1], ['送信    https://www.youtube.com/   → 最初から TLS で 443 番へ', 'd', 1], ['応答ヘッダ   Strict-Transport-Security: max-age=31536000（1 年）', '', 1], ['プリロードリストに載った名前は、初めての訪問でも http で送らない', '']]]
+      ][i];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const enc = i >= 3;
+      st.tags.forEach((g) => {
+        S.fade(g, i !== 2);
+        setTag(g, enc ? '暗号文だけ' : i === 1 ? '変えられる' : '読める', enc ? 'dim' : 'x');
+      });
+      S.fade(st.fake, i === 2);
+      S.fade(st.work, i === 3);
+      S.fade(st.reach, i === 4);
+      [st.nodes[0], st.nodes[5]].forEach((n) => n.rect.setAttribute('class', enc ? 'f-d-soft s-d w2' : 'f-sf s-rule w15'));
+      st.p.set(enc ? (i === 5 ? 'TLS ClientHello' : 'TLS ' + '■'.repeat(8)) : i === 1 ? '200 OK' : i === 2 ? 'GET /watch…' : 'GET /watch?v=dQw4w9WgXcQ', 'f-d');
+      const [tt, rows] = this.rows(i);
+      st.bd.set(tt, rows);
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      const q = U.seq(ctx.ts, [2.8, 0.9], true);
+      const f = run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : (i === 1 ? 0.8 : i === 2 ? 1 : 0.5);
+      if (i === 1) {
+        /* 応答は Google → PC。ISP を過ぎたところで書き換わる */
+        S.place(st.p, st.road, 1 - f);
+        const x = S.along(st.road, 1 - f).x;
+        const changed = x < st.ISPX;
+        st.p.set(changed ? '200 OK ＋ script' : '200 OK', changed ? 'f-x' : 'f-d');
+      } else if (i === 2) {
+        S.place(st.p, st.detour, f);
+      } else {
+        S.place(st.p, st.road, f);
+      }
+      if (i === 3) {
+        /* 暗号文は乱数と見分けがつかない。0.4 秒ごとに別のレコード（種は時刻の区切り） */
+        st.bd.lines[1].textContent = 'TLS   17 03 03 00 4a   ' + noise(run ? Math.floor(t / 0.4) + 11 : 5, 12) + ' …';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 共通鍵暗号（AES）
+     ================================================================ */
+  const RD = (trace, r) => trace.find((e) => e.r === r && e.op === 'AddRoundKey').s;   // ラウンド r の終わりの状態
+  /* 段階2の印: 状態の 2 バイト目（行 1・列 0）がどこへ行くか。ShiftRows で列 3 へ、MixColumns で列 3 の 4 バイトへ */
+  const TRACK = [[1], [1], [13], [12, 13, 14, 15], [12, 13, 14, 15]].map((a) => Array.from({ length: 16 }, (_, k) => a.includes(k)));
+  /* 2026 年 10 月に openssl speed で測った値（Ryzen 7 5700X の 1 コア、16 KB ずつ）。GB/s */
+  const SPEED = [['AES-128-GCM（専用命令あり）', 5.79, 'd'], ['ChaCha20-Poly1305（AES の命令は使わない）', 3.19, 'd'], ['AES-128-GCM（専用命令を止めた）', 0.42, 'x']];
+  const s2 = {
+    steps: [
+      { title: '16 バイトのブロックを鍵で写す', text: 'AES は 128 ビット（16 バイト）の**ブロック**を、鍵で決まる別の 128 ビットへ写す。同じ鍵があれば逆向きに計算して戻せる（復号）。鍵の長さは 128・192・256 ビットで、TLS 1.3 は 128 か 256 を使う。2001 年に米国の標準（FIPS 197）になった。' },
+      { title: '1 ラウンドは 4 つの操作', text: 'S-box で 1 バイトずつ置き換え（SubBytes）、行を 0〜3 バイト回し（ShiftRows）、列ごとに 4 バイトを混ぜ（MixColumns）、ラウンド鍵と XOR する（AddRoundKey）。AES-128 はこれを 10 回くり返す（最後は MixColumns なし）。' },
+      { title: '1 ビットの違いが全体に広がる', text: `平文の最後の文字を \`w\` から \`v\` に変える（1 ビットの違い）。違いは 1 ラウンド目で 1 列の 4 バイトに、2 ラウンド目で 16 バイト全部に広がり、暗号文は 128 ビット中 ${EX.bits} ビットが変わった。暗号文から平文の手がかりを拾えないよう、こう設計されている。` },
+      { title: 'GCM：カウンタを暗号化して XOR', text: 'ブラウザの TLS では AES を **GCM** で使う。データを直接 AES に通さず、ノンスと番号を並べたカウンタを暗号化して鍵の流れを作り、平文と XOR する。最後に GHASH（GF(2¹²⁸) の掛け算）で 16 バイトのタグを作り、改ざんを見つける（[[6|暗号化された通信]]）。' },
+      { title: 'CPU の専用命令', text: 'x86-64 の AES-NI（2010 年〜）は AES の 1 ラウンドを 1 命令で、ARMv8 の暗号拡張は 2 命令で行い、GHASH の掛け算用の命令もある。AES の命令が無い CPU では、足し算・回転・XOR だけで回る ChaCha20 を使う ChaCha20-Poly1305 がよく選ばれる。' },
+      { title: '残る問題：鍵をどうそろえるか', text: '共通鍵暗号は、両端が**同じ鍵**を持っていなければ使えない。その鍵を平文で送れば途中で読まれ、暗号化して送るにはまた別の鍵が要る。初めて話す相手と、どうやって鍵をそろえるか。これを解くのが[[3|鍵交換]]。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 上段: 平文 → AES-128 → 暗号文（全段階で同じ位置） */
+      S.text(120, 44, '平文 16 バイト', { cls: 't-c t-sm t-b' }, svg);
+      st.gp = grid(svg, 40, 54, 40, 28, 't-sm');
+      st.pTxt = S.text(120, 188, '', { cls: 't-c t-sm t-mono pre' }, svg);
+      S.text(840, 44, '暗号文 16 バイト', { cls: 't-c t-sm t-b t-d' }, svg);
+      st.gc = grid(svg, 760, 54, 40, 28, 't-sm');
+      st.cTxt = S.text(840, 188, '', { cls: 't-c t-xs t-dim' }, svg);
+      rt(svg, 480, 24, '{b|鍵 16 バイト（例）}  {m|' + hx(EX.key) + '}', { cls: 't-c t-sm pre' });
+      S.line(480, 32, 480, 62, { cls: 's-fg w15', 'marker-end': mk('fg') }, svg);
+      st.aes = box(svg, 330, 68, 300, 84, 'AES-128', '', { tcls: 't-lg', scls: '' });
+      S.line(206, 110, 324, 110, { cls: 's-d w2', 'marker-end': mk('d') }, svg);
+      S.line(636, 110, 754, 110, { cls: 's-d w2', 'marker-end': mk('d') }, svg);
+      st.dec = S.g({ cls: 'fade hide' }, svg);
+      S.path('M840,198 V212 H120 V200', { cls: 'f-none s-mid w15 dash', 'marker-end': mk('mid') }, st.dec);
+      S.text(480, 230, '同じ鍵で逆の計算をすると元に戻る（復号）', { cls: 't-c t-sm t-mid' }, st.dec);
+
+      /* 段階1: 鍵の長さ */
+      const b1 = st.b1 = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 252, 900, 196, { rx: 8, cls: 'f-sf s-rule w1' }, b1);
+      const cx = [50, 160, 370, 450, 660];
+      ['', '鍵の長さ', 'ラウンド', '鍵の数', 'TLS 1.3 で'].forEach((h, k) => S.text(cx[k], 278, h, { cls: 't-xs t-b t-dim' }, b1));
+      S.line(44, 288, 916, 288, { cls: 's-soft w1' }, b1);
+      S.rect(40, 296, 880, 30, { rx: 4, cls: 'f-d-soft' }, b1);
+      [['AES-128', '128 ビット（16 バイト）', '10', '2^{128} ≈ 3.4×10^{38}', '使う（Chrome と YouTube の例）'], ['AES-192', '192 ビット（24 バイト）', '12', '2^{192} ≈ 6.3×10^{57}', '使わない'], ['AES-256', '256 ビット（32 バイト）', '14', '2^{256} ≈ 1.2×10^{77}', '使う']].forEach((row, r) => {
+        row.forEach((s, k) => rt(b1, cx[k], 316 + r * 34, s, { cls: k === 0 ? 't-sm t-b' : 't-sm' }));
+      });
+      rt(b1, 50, 420, '総当たり：毎秒 10^{18} 個の鍵を試せても、2^{128} 通りを試し終えるには約 1.1×10^{13} 年かかる', { cls: 't-sm t-b' });
+
+      /* 段階2: 1 ラウンドの 4 つの操作（ラウンド 1 の実際の値） */
+      const b2 = st.b2 = S.g({ cls: 'fade hide' }, svg);
+      st.r1 = EX.t1.slice(0, 5).map((e) => e.s);
+      st.g2 = [['入力', '平文 ⊕ 元の鍵'], ['SubBytes', 'S-box で 1 バイトずつ置換'], ['ShiftRows', '行 r を r バイト左へ回す'], ['MixColumns', '列ごとに 4 バイトを混ぜる'], ['AddRoundKey', 'ラウンド鍵 1 と XOR']].map(([n, sub], k) => {
+        const x = 30 + k * 192;
+        S.text(x + 60, 274, n, { cls: 't-c t-sm t-b t-mono' }, b2);
+        S.text(x + 60, 291, sub, { cls: 't-c t-xs t-dim' }, b2);
+        if (k < 4) S.line(x + 126, 344, x + 184, 344, { cls: 's-dim w15', 'marker-end': mk('dim') }, b2);
+        return grid(b2, x, 300, 30, 22, 't-xs');
+      });
+      S.text(480, 428, 'ラウンド 1 の 4 つの操作（実際の値）。これを 10 回くり返して暗号文になる', { cls: 't-c t-sm' }, b2);
+      S.text(480, 452, '印は平文の 2 バイト目（E）の行き先。ShiftRows で列 3 へ移り、MixColumns で列の 4 バイトに混ざる', { cls: 't-c t-xs t-x t-b' }, b2);
+
+      /* 段階3: 1 ビットの違いの広がり */
+      const b3 = st.b3 = S.g({ cls: 'fade hide' }, svg);
+      [0, 1, 2, 10].forEach((r, k) => {
+        const x = 90 + k * 220;
+        const a = RD(EX.t1, r), b = RD(EX.t2, r);
+        S.text(x + 50, 272, r === 10 ? 'ラウンド 10 の後（暗号文）' : `ラウンド ${r} の後`, { cls: 't-c t-sm t-b' }, b3);
+        grid(b3, x, 282, 25, 18, 't-xs').set(b, b.map((v, j) => v !== a[j]));
+        S.text(x + 50, 374, `違うバイト ${b.filter((v, j) => v !== a[j]).length} / 16`, { cls: 't-c t-xs t-x t-b' }, b3);
+        if (k < 3) S.line(x + 108, 318, x + 210, 318, { cls: 's-dim w15', 'marker-end': mk('dim') }, b3);
+      });
+      rt(b3, 60, 410, '暗号文（w）  {m|' + hx(EX.c1) + '}', { cls: 't-sm pre' });
+      rt(b3, 60, 432, '暗号文（v）  {m|' + hx(EX.c2) + '}', { cls: 't-sm pre' });
+      for (let k = 0; k < 128; k++) {
+        const d = ((EX.c1[k >> 3] ^ EX.c2[k >> 3]) >> (7 - (k & 7))) & 1;
+        S.rect(60 + k * 6.6, 446, 5, 18, { cls: d ? 'f-x' : 'f-in' }, b3);
+      }
+      S.text(60, 488, `2 つの暗号文の 128 ビットを並べ、違うビットに印（${EX.bits} 個）`, { cls: 't-sm t-b t-x' }, b3);
+
+      /* 段階4: GCM（ノンス‖番号を暗号化して XOR、最後にタグ） */
+      const b4 = st.b4 = S.g({ cls: 'fade hide' }, svg);
+      const G = EX.g;
+      [0, 1].forEach((k) => {
+        const x0 = 30 + k * 460, c = x0 + 205;
+        const ctr = G.ctr(2 + k), n = k ? EX.req.length - 16 : 16;
+        S.text(x0, 268, `ブロック ${k + 1}（${n} バイト）`, { cls: 't-sm t-b' }, b4);
+        S.rect(x0, 276, 410, 26, { rx: 4, cls: 'f-in s-rule w1' }, b4);
+        rt(b4, c, 293, 'ノンス {m|' + hx(ctr.slice(0, 12), '') + '} ‖ 番号 {m|' + hx(ctr.slice(12), '') + '}', { cls: 't-c t-xs pre' });
+        S.line(c, 304, c, 316, { cls: 's-fg w15', 'marker-end': mk('fg') }, b4);
+        box(b4, c - 55, 318, 110, 24, 'AES（鍵）', '', { tcls: 't-sm' });
+        S.line(c, 344, c, 356, { cls: 's-fg w15', 'marker-end': mk('fg') }, b4);
+        S.rect(x0, 358, 410, 26, { rx: 4, cls: 'f-sf s-rule w1' }, b4);
+        rt(b4, c, 375, '鍵の流れ {m|' + hx(G.ks[k]) + '}', { cls: 't-c t-xs pre' });
+        rt(b4, c, 404, '⊕ 平文 {m|"' + String.fromCharCode(...EX.req.slice(16 * k, 16 * k + n)) + '"}', { cls: 't-c t-sm pre' });
+        S.line(c, 412, c, 424, { cls: 's-d w15', 'marker-end': mk('d') }, b4);
+        S.rect(x0, 426, 410, 26, { rx: 4, cls: 'f-d-soft s-d w1' }, b4);
+        rt(b4, c, 443, '暗号文 {m|' + hx(G.ct.slice(16 * k, 16 * k + n)) + '}', { cls: 't-c t-xs t-d t-b pre' });
+      });
+      S.text(490 + 205, 470, 'ブロック 2 は鍵の流れの先頭 8 バイトだけを使う', { cls: 't-c t-xs t-dim' }, b4);
+      S.rect(30, 484, 900, 50, { rx: 6, cls: 'f-d-soft s-d w1' }, b4);
+      rt(b4, 46, 504, '{b|タグ 16 バイト}  {m|' + hx(G.tag) + '}', { cls: 't-sm t-d t-b pre' });
+      rt(b4, 46, 524, 'GHASH：暗号文を 16 バイトずつ足し込むたびに H = AES(0…0) を GF(2^{128}) で掛け、最後に AES(ノンス ‖ 00000001) と XOR する', { cls: 't-xs t-mid' });
+
+      /* 段階5: CPU の専用命令と、測った速さ */
+      const b5 = st.b5 = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 252, 430, 282, { rx: 8, cls: 'f-sf s-rule w1' }, b5);
+      [['x86-64（AES-NI と PCLMULQDQ）', 1], ['aesenc      xmm0, xmm1    ; 1 ラウンド'], ['aesenclast  xmm0, xmm2    ; 最後のラウンド'], ['pclmulqdq   xmm3, xmm4, 0 ; GHASH の掛け算'], [''], ['ARMv8（暗号拡張）', 1], ['aese   v0.16b, v1.16b     ; 鍵と XOR・SubBytes・ShiftRows'], ['aesmc  v0.16b, v0.16b     ; MixColumns'], ['pmull  v2.1q, v3.1d, v4.1d ; GHASH の掛け算']].forEach(([s, b], k) => {
+        S.text(b ? 48 : 60, 280 + k * 26, s, { cls: b ? 't-sm t-b' : 't-xs t-mono pre' }, b5);
+      });
+      S.text(490, 274, '1 コアで 1 秒に処理できる量（16 KB ずつ暗号化）', { cls: 't-sm t-b' }, b5);
+      st.bars = SPEED.map(([n, v, c], k) => {
+        const y = 300 + k * 66;
+        S.text(490, y, n, { cls: 't-xs' }, b5);
+        S.rect(490, y + 8, 400, 24, { rx: 3, cls: 'f-in' }, b5);
+        const bar = S.rect(490, y + 8, 0, 24, { rx: 3, cls: 'f-' + c }, b5);
+        const t = S.text(0, y + 25, U.fmt(v, 2) + ' GB/s', { cls: 't-sm t-b t-mono' }, b5);
+        return { bar, t, w: 400 * v / SPEED[0][1] };
+      });
+      S.text(490, 512, 'Ryzen 7 5700X・OpenSSL 3.5（2026 年 10 月に測定）', { cls: 't-xs t-dim' }, b5);
+
+      /* 段階6: 鍵をどうそろえるか */
+      const b6 = st.b6 = S.g({ cls: 'fade hide' }, svg);
+      box(b6, 40, 282, 200, 56, 'ブラウザ', '鍵 2b 7e 15 16 …');
+      st.srv6 = box(b6, 720, 282, 200, 56, 'www.youtube.com', '鍵 ？');
+      S.line(244, 310, 716, 310, { cls: 's-dim w2' }, b6);
+      box(b6, 400, 416, 160, 50, '第三者', '192.0.2.66', { cls: 'f-x-soft s-x w15' });
+      S.line(480, 318, 480, 410, { cls: 's-x w15 dash', 'marker-end': mk('x') }, b6);
+      S.text(506, 372, '平文で送れば写し取られる', { cls: 't-xs t-x t-b' }, b6);   // 落ちていく「写し」の札（幅 38）に重ならない位置
+      S.text(480, 508, 'この鍵を、どうやって両端にそろえるか（場面3）', { cls: 't-c t-md t-b' }, b6);
+      st.kRoad = road(b6, 'M306,310 H636');               // 出発点で札がブラウザの箱の枠に掛からないように
+      st.kDrop = road(b6, 'M480,310 V400');
+      st.kPkt = pkt(b6, '鍵 2b 7e 15 16 …', 'f-d');
+      st.kCopy = pkt(b6, '写し', 'f-x');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'].forEach((k, j) => S.fade(st[k], i === j));
+      S.fade(st.dec, i === 0);
+      const alt = i === 2;
+      st.gp.set(alt ? EX.p2 : EX.p1, alt ? EX.p1.map((v, j) => v !== EX.p2[j]) : null);
+      st.gc.set(alt ? EX.c2 : i === 3 ? EX.g.ct.slice(0, 16) : EX.c1, alt ? EX.c1.map((v, j) => v !== EX.c2[j]) : null);
+      st.pTxt.textContent = alt ? '"GET /watch?v=dQv"（w → v）' : '"GET /watch?v=dQw"';
+      st.cTxt.textContent = alt ? '16 バイトすべてが変わった' : i === 3 ? 'GCM のブロック 1（下の段）' : '乱数と見分けがつかない';
+      st.aes.title.textContent = i === 3 ? 'AES-128-GCM' : 'AES-128';
+      st.g2.forEach((g, k) => g.set(st.r1[k], TRACK[k]));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 1) {
+        /* 印を 1 つずつ左から出す（止めているときは全部） */
+        const n = run ? Math.floor(U.mod(ctx.ts, 6.3) / 1.05) : 5;
+        st.g2.forEach((g, k) => g.set(st.r1[k], k <= n ? TRACK[k] : null));
+      }
+      if (i === 4) {
+        const f = run ? U.ease.out(U.prog(ctx.ts, 0.2, 1.2)) : 1;
+        st.bars.forEach((b) => {
+          b.bar.setAttribute('width', (b.w * f).toFixed(1));
+          b.t.setAttribute('x', (490 + Math.max(b.w * f, 0) + 8).toFixed(1));
+        });
+      }
+      if (i === 5) {
+        const q = U.seq(ctx.ts, [2.6, 1.0], true);
+        const f = run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 1;
+        S.place(st.kPkt, st.kRoad, f);
+        const g = run ? U.clamp((f - 0.5) * 2, 0, 1) : 1;      // 真ん中を過ぎたら写しが落ちる
+        S.place(st.kCopy, st.kDrop, g);
+        st.kCopy.style.opacity = f >= 0.5 ? 1 : 0;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 公開鍵と鍵交換（ECDHE）
+     ================================================================ */
+  /* 小さな楕円曲線 y² = x³ + 7（mod 67）。点は 78 個 ＋ 無限遠点 = 79（素数）なので、無限遠点以外のどの点も G の倍数 */
+  const EC = (() => {
+    const p = 67;
+    const mod = (v) => ((v % p) + p) % p;
+    const inv = (v) => { v = mod(v); for (let i = 1; i < p; i++) if ((v * i) % p === 1) return i; return 0; };
+    const add = (P, Q) => {
+      if (!P) return Q;
+      if (!Q) return P;
+      if (P[0] === Q[0] && mod(P[1] + Q[1]) === 0) return null;          // 無限遠点
+      const l = (P[0] === Q[0] && P[1] === Q[1]) ? mod(3 * P[0] * P[0] * inv(2 * P[1])) : mod((Q[1] - P[1]) * inv(Q[0] - P[0]));
+      const x = mod(l * l - P[0] - Q[0]);
+      return [x, mod(l * (P[0] - x) - P[1])];
+    };
+    const mul = (k, P) => { let R = null, Q = P; while (k > 0) { if (k & 1) R = add(R, Q); Q = add(Q, Q); k >>= 1; } return R; };
+    const pts = [];
+    for (let x = 0; x < p; x++) for (let y = 0; y < p; y++) if (mod(y * y - x * x * x - 7) === 0) pts.push([x, y]);
+    return { p, pts, G: [2, 22], add, mul };
+  })();
+  const DH = { a: 7, b: 11 };
+  DH.A = EC.mul(DH.a, EC.G); DH.B = EC.mul(DH.b, EC.G); DH.S = EC.mul(DH.a, DH.B);
+  const pt = (q) => '(' + q[0] + ', ' + q[1] + ')';
+  /* 左右の値の札。set(題, [[見出し, 値（rt の書き方）, 色], …]) */
+  function card(p, x, y, w, h, n) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+    const title = S.text(x + 12, y + 22, '', { cls: 't-sm t-b' }, g);
+    const rows = [];
+    for (let k = 0; k < n; k++) {
+      const yy = y + 54 + k * 60;
+      rows.push([S.text(x + 12, yy, '', { cls: 't-xs t-dim' }, g), S.text(x + 12, yy + 21, '', { cls: 't-md' }, g)]);
+    }
+    g.set = (tt, rs) => {
+      title.textContent = tt;
+      rows.forEach(([a, b], k) => {
+        const r = rs[k] || ['', ''];
+        a.textContent = r[0];
+        rtSet(b, r[1]);
+        b.setAttribute('class', 't-md' + (r[2] ? ' t-b t-' + r[2] : ''));
+      });
+    };
+    return g;
+  }
+  /* 2 点を結ぶ線（両端を r だけ縮める）。矢印の先が点に重ならないように */
+  function seg(p, a, b, r, attrs) {
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
+    return S.line(a[0] + dx / L * r, a[1] + dy / L * r, b[0] - dx / L * r, b[1] - dy / L * r, attrs, p);
+  }
+  const s3 = {
+    steps: [
+      { title: '楕円曲線の点と足し算', text: '有限体の上の楕円曲線 y² = x³ + ax + b の点には、足し算が決まっている。2 点を足すと、決まった式で曲線の上の 3 つ目の点が出る。同じ点 G を k 回足した kG を**スカラー倍**と呼ぶ。図は mod 67 の小さな例で、G, 2G, 3G … は曲線の点を飛び回る。' },
+      { title: 'k から kG は速く、kG から k は難しい', text: '77G は、2 倍を 6 回と足し算 3 回で求まる（77 = 64 + 8 + 4 + 1）。256 ビットの k でも、2 倍と足し算を約 255 回ずつで済む。逆に kG から k を求める方法は、知られている最良のものでも X25519 で約 2¹²⁶ 回の計算が要る。' },
+      { title: 'ECDHE：秘密を見せずに同じ点へ', text: `ブラウザは秘密 a を選んで {d|A = aG} を送り、サーバーは秘密 b を選んで {d|B = bG} を返す。ブラウザは a·B、サーバーは b·A を計算すると、どちらも {x|abG} になる。途中で見えるのは G・A・B だけで、abG を作るには a か b が要る。` },
+      { title: '共有した値から鍵を作る', text: '共有した値はそのまま鍵にしない。HKDF（SHA-256 を使う鍵の導出）に、それまでに交わしたメッセージのハッシュと一緒に入れ、向きごと・用途ごとに別の鍵を作る。データ用は AES-128 の鍵 16 バイトと IV 12 バイトを、ブラウザ発とサーバー発で 1 組ずつ。' },
+      { title: '一時鍵と前方秘匿性', text: 'a と b は接続のたびに乱数で作り、終われば捨てる（ECDHE の E は ephemeral＝一時の）。サーバーが長く使う鍵（証明書の秘密鍵）は、ハンドシェイクへの署名にだけ使う（[[4|証明書]]）。そのため後でその鍵が漏れても、記録された過去の通信は解けない。これが**前方秘匿性**。' },
+      { title: 'ポスト量子：X25519MLKEM768', text: '十分大きな量子計算機があれば、A から a を求められる（Shor のアルゴリズム）。今の通信を記録して将来解く攻撃に備え、2026 年 10 月の Chrome と Google の間では、X25519 に格子暗号の ML-KEM-768（FIPS 203）を足した鍵交換が使われていた。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 左右: ブラウザとサーバー、それぞれの値 */
+      box(svg, 16, 14, 210, 46, 'ブラウザ', '192.168.1.10');
+      box(svg, 734, 14, 210, 46, 'www.youtube.com', '142.250.196.110');
+      st.cl = card(svg, 16, 70, 210, 300, 4);
+      st.cr = card(svg, 734, 70, 210, 300, 4);
+
+      /* 中央（段階1〜3）: 小さな曲線の点 */
+      const u = 320 / EC.p, X0 = 320, Y0 = 46;
+      const P = (q) => [X0 + (q[0] + 0.5) * u, Y0 + 320 - (q[1] + 0.5) * u];
+      const gp = st.plot = S.g({ cls: 'fade' }, svg);
+      rt(gp, 480, 32, 'y^{2} = x^{3} + 7（mod 67）の点（小さな例）', { cls: 't-c t-sm t-b' });
+      S.rect(X0, Y0, 320, 320, { cls: 'f-sf s-rule w1' }, gp);
+      [0, 33, 66].forEach((v) => {
+        S.text(X0 + (v + 0.5) * u, Y0 + 334, String(v), { cls: 't-c t-xs t-dim t-mono' }, gp);
+        S.text(X0 - 6, Y0 + 320 - (v + 0.5) * u + 4, String(v), { cls: 't-xs t-dim t-mono t-end' }, gp);
+      });
+      S.text(X0 + 330, Y0 + 334, 'x', { cls: 't-xs t-dim t-mono' }, gp);
+      S.text(X0 - 6, Y0 - 12, 'y', { cls: 't-xs t-dim t-mono t-end' }, gp);   // 目盛りの 66 と重ならない高さ
+      EC.pts.forEach((q) => S.circle(P(q)[0], P(q)[1], 2.6, { cls: 'f-dim' }, gp));
+      const dot = (g, q, cls, label, dx, dy, tcls) => {
+        const [x, y] = P(q);
+        S.circle(x, y, 4.8, { cls }, g);
+        /* 札には下地色の縁取りを付け、線や点と重なっても読めるようにする。dx が負なら右寄せ */
+        if (label) S.text(x + (dx == null ? 8 : dx), y + (dy == null ? -6 : dy), label, { cls: 't-xs t-b s-sf w3 ' + (dx < 0 ? 't-end ' : '') + (tcls || ''), 'paint-order': 'stroke', 'stroke-linejoin': 'round' }, g);
+      };
+      /* 段階1: G, 2G, … 12G と飛び回る */
+      const gh = st.hop = S.g({ cls: 'fade hide' }, gp);
+      st.hopPts = [];
+      for (let k = 1, Q = null; k <= 12; k++) { Q = EC.add(Q, EC.G); st.hopPts.push(Q); }
+      st.hopLine = S.path('', { cls: 'f-none s-x w15' }, gh);
+      const hopOff = { 9: [-8, -6], 12: [-8, 4] };
+      st.hopG = st.hopPts.map((q, k) => {
+        const g = S.g({}, gh);
+        const o = hopOff[k + 1] || [8, -6];
+        dot(g, q, 'f-x', (k ? k + 1 : '') + 'G', o[0], o[1], 't-x');
+        return g;
+      });
+      /* 段階2: 2 倍の列と 77G */
+      const gd = st.dbl = S.g({ cls: 'fade hide' }, gp);
+      const chain = [1, 2, 4, 8, 16, 32, 64].map((k) => [k, EC.mul(k, EC.G)]);
+      const dblOff = { 1: [8, 14], 64: [8, 14] };
+      chain.forEach(([k, q], j) => {
+        if (j) seg(gd, P(chain[j - 1][1]), P(q), 7, { cls: 's-mid w15 dash', 'marker-end': mk('mid') });
+        const o = dblOff[k] || [8, -6];
+        dot(gd, q, 'f-fg', (k > 1 ? k : '') + 'G', o[0], o[1]);
+      });
+      seg(gd, P(chain[6][1]), P(DH.S), 6, { cls: 's-x w2', 'marker-end': mk('x') });
+      dot(gd, DH.S, 'f-x', '77G = ' + pt(DH.S), -9, -6, 't-x');
+      /* 段階3: G・A・B・abG */
+      const gx = st.dh = S.g({ cls: 'fade hide' }, gp);
+      dot(gx, EC.G, 'f-fg', 'G', 8, -6);
+      dot(gx, DH.A, 'f-d', 'A = 7G', 8, -6, 't-d');
+      dot(gx, DH.B, 'f-d', 'B = 11G', 8, -6, 't-d');
+      dot(gx, DH.S, 'f-x', 'abG = 77G', -9, -6, 't-x');
+      /* 曲線の下の式 */
+      st.form = S.g({ cls: 'fade hide' }, svg);
+      st.form1 = rt(st.form, 480, 400, '', { cls: 't-c t-sm' });
+      st.form2 = rt(st.form, 480, 420, '', { cls: 't-c t-xs t-dim' });
+
+      /* 中央（段階4）: 鍵の導出 */
+      const gk = st.ks = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 32, '共有の値から、向きごと・用途ごとの鍵を作る', { cls: 't-c t-sm t-b' }, gk);
+      box(gk, 250, 50, 220, 50, '共有の値 abG', 'X25519 なら 32 B', { cls: 'f-x-soft s-x w15', scls: '' });
+      box(gk, 490, 50, 220, 50, 'メッセージのハッシュ', 'ClientHello と ServerHello', { scls: '' });
+      S.path('M360,102 V130 M600,102 V130 M360,130 H600 M480,130 V146', { cls: 'f-none s-fg w15' }, gk);
+      S.line(480, 146, 480, 150, { cls: 's-fg w15', 'marker-end': mk('fg') }, gk);
+      S.text(490, 140, 'HKDF（SHA-256）', { cls: 't-xs t-b' }, gk);
+      box(gk, 250, 156, 220, 50, 'ハンドシェイク用の鍵', 'ブラウザ発', { scls: '' });
+      box(gk, 490, 156, 220, 50, 'ハンドシェイク用の鍵', 'サーバー発', { scls: '' });
+      S.text(480, 224, '→ 証明書などを暗号化して送る（場面5）', { cls: 't-c t-xs t-dim' }, gk);
+      S.line(480, 234, 480, 262, { cls: 's-fg w15', 'marker-end': mk('fg') }, gk);
+      S.text(490, 252, 'HKDF（Finished までのハッシュも混ぜる）', { cls: 't-xs t-b' }, gk);
+      box(gk, 250, 268, 220, 58, 'データ用の鍵', 'ブラウザ発：鍵 16 B ＋ IV 12 B', { cls: 'f-d-soft s-d w15', scls: '' });
+      box(gk, 490, 268, 220, 58, 'データ用の鍵', 'サーバー発：鍵 16 B ＋ IV 12 B', { cls: 'f-d-soft s-d w15', scls: '' });
+      S.text(480, 346, '→ HTTP の要求と応答を AES-128-GCM で包む（場面6）', { cls: 't-c t-xs t-dim' }, gk);
+      S.text(480, 378, '同じ材料から両端が同じ計算をするので、鍵そのものは一度も送らない', { cls: 't-c t-sm t-b' }, gk);
+
+      /* 中央（段階5）: 一時鍵と前方秘匿性 */
+      const gf = st.fs = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 32, '接続ごとに一時の鍵を作り、終われば消す', { cls: 't-c t-sm t-b' }, gf);
+      [['接続 1', 290, 'a_{1}・b_{1} → 鍵_{1}'], ['接続 2', 380, 'a_{2}・b_{2} → 鍵_{2}'], ['接続 3', 470, 'a_{3}・b_{3} → 鍵_{3}']].forEach(([n, x, s], k) => {
+        const y = 66 + k * 54;
+        S.text(250, y + 22, n, { cls: 't-xs t-b' }, gf);
+        S.rect(x, y + 6, 150, 26, { rx: 4, cls: 'f-d-soft s-d w1' }, gf);
+        rt(gf, x + 75, y + 23, s, { cls: 't-c t-xs t-b' });
+        S.text(x + 158, y + 23, '消す', { cls: 't-xs t-dim' }, gf);
+      });
+      S.text(250, 252, '証明書の秘密鍵', { cls: 't-xs t-b' }, gf);
+      S.rect(290, 260, 420, 26, { rx: 4, cls: 'f-in s-rule w1' }, gf);
+      S.text(500, 277, '長く使う。署名だけに使い、データの鍵は作らない', { cls: 't-c t-xs' }, gf);
+      S.line(290, 314, 712, 314, { cls: 's-dim w1', 'marker-end': mk('dim') }, gf);
+      S.text(712, 330, '時間', { cls: 't-xs t-dim t-end' }, gf);
+      S.label(gf, 662, 238, '後で漏れた', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 20, w: 80 });
+      S.path('M662,250 V258', { cls: 'f-none s-x w15' }, gf);
+      S.text(480, 352, '漏れた鍵では、記録してあった接続 1〜3 は解けない', { cls: 't-c t-sm t-b t-x' }, gf);
+      S.text(480, 374, 'TLS 1.2 の RSA 鍵交換は、この鍵で共通鍵の材料を包んで送っていた（TLS 1.3 で廃止）', { cls: 't-c t-xs t-dim' }, gf);
+
+      /* 中央（段階6）: ハイブリッドの鍵共有の大きさ */
+      const gq = st.pq = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 32, 'X25519MLKEM768 で送る値の大きさ（バイト）', { cls: 't-c t-sm t-b' }, gq);
+      const sc = 370 / 1216, BX = 250;
+      [['ブラウザ → サーバー  1,216 B', 1184, 'ML-KEM-768 の公開鍵 1,184 B', 66], ['サーバー → ブラウザ  1,120 B', 1088, 'ML-KEM-768 の暗号文 1,088 B', 142], ['共有の値  64 B → HKDF へ', 32, 'ML-KEM 32 B', 218]].forEach(([n, kem, kn, y]) => {
+        S.text(BX, y, n, { cls: 't-xs t-b' }, gq);
+        S.rect(BX, y + 8, kem * sc, 26, { cls: 'f-d-soft s-d w1' }, gq);
+        S.rect(BX + kem * sc, y + 8, 32 * sc, 26, { cls: 'f-d s-d w1' }, gq);
+        S.text(BX + 6, y + 50, kn, { cls: 't-xs t-mid' }, gq);
+        S.text(BX + (kem + 32) * sc + 6, y + 26, 'X25519 32 B', { cls: 't-xs t-d t-b' }, gq);
+      });
+      S.text(480, 310, 'X25519 だけなら 32 B ずつ。どちらか一方が破られなければ鍵は守られる', { cls: 't-c t-sm t-b' }, gq);
+      S.text(480, 334, 'ML-KEM-768：格子の問題に基づく鍵カプセル化（FIPS 203、2024 年）', { cls: 't-c t-xs t-mid' }, gq);
+      S.text(480, 354, 'ブラウザは X25519 だけの値（32 B）も添えて送る', { cls: 't-c t-xs t-mid' }, gq);
+
+      /* 下: 途中の線と第三者（段階3〜6） */
+      const gw = st.wire = S.g({ cls: 'fade hide' }, svg);
+      S.path('M121,370 V436 H839 V370', { cls: 'f-none s-dim w2' }, gw);
+      S.line(480, 440, 480, 464, { cls: 's-x w15 dash' }, gw);
+      S.rect(320, 466, 320, 80, { rx: 6, cls: 'f-x-soft s-x w15' }, gw);
+      S.text(480, 488, '第三者（経路の途中）', { cls: 't-c t-sm t-b t-x' }, gw);
+      st.eve1 = S.text(480, 512, '', { cls: 't-c t-xs t-b' }, gw);
+      st.eve2 = S.text(480, 532, '', { cls: 't-c t-xs' }, gw);
+      st.road = road(gw, 'M190,436 H770');
+      st.pA = pkt(gw, '', 'f-d');
+      st.pB = pkt(gw, '', 'f-d');
+    },
+    cards(i) {
+      const L = [
+        ['公開の約束（この例）', [['曲線', 'y^{2} = x^{3} + 7'], ['数の範囲', '0〜66 の整数（mod 67）'], ['基準の点 G', pt(EC.G)], ['点の数', '79（素数）']]],
+        ['ブラウザの値', [['秘密 a（乱数）', String(DH.a)], ['公開 A = aG', pt(DH.A), 'd'], ['受け取った B', pt(DH.B), 'd'], ['共有 a·B', pt(DH.S), 'x']]],
+        ['ブラウザ（X25519 の例）', [['秘密 a（32 B）', '{m|77076d0a 7318a57d …}'], ['公開 A（32 B）', '{m|8520f009 8930a754 …}', 'd'], ['受け取った B', '{m|de9edb7d 7b7dc1b4 …}', 'd'], ['共有 a·B（32 B）', '{m|4a5d9d5b a4ce2de1 …}', 'x']]],
+        ['ブラウザ', [['秘密 a', '接続ごとに乱数で作る'], ['公開 A', '接続ごとに違う値', 'd'], ['共有の値と鍵', '接続が終われば消す', 'x'], ['長く使う鍵', '持たない']]],
+        ['ブラウザ（ハイブリッド）', [['送る', 'ML-KEM の公開鍵 ＋ A', 'd'], ['受け取る', 'ML-KEM の暗号文 ＋ B', 'd'], ['暗号文を開いて', 'ML-KEM の 32 B を得る', 'x'], ['a·B を計算して', 'X25519 の 32 B を得る', 'x']]]
+      ];
+      const R = [
+        ['実際の X25519（RFC 7748）', [['曲線', 'y^{2} = x^{3} + 486662x^{2} + x'], ['数の範囲', 'mod 2^{255} − 19'], ['基準の点 G', 'x = 9'], ['点の数', '約 2^{255}（8 × 素数）']]],
+        ['サーバーの値', [['秘密 b（乱数）', String(DH.b)], ['公開 B = bG', pt(DH.B), 'd'], ['受け取った A', pt(DH.A), 'd'], ['共有 b·A', pt(DH.S), 'x']]],
+        ['サーバー（X25519 の例）', [['秘密 b（32 B）', '{m|5dab087e 624a8a4b …}'], ['公開 B（32 B）', '{m|de9edb7d 7b7dc1b4 …}', 'd'], ['受け取った A', '{m|8520f009 8930a754 …}', 'd'], ['共有 b·A（32 B）', '{m|4a5d9d5b a4ce2de1 …}', 'x']]],
+        ['サーバー', [['秘密 b', '接続ごとに乱数で作る'], ['公開 B', '接続ごとに違う値', 'd'], ['共有の値と鍵', '接続が終われば消す', 'x'], ['証明書の秘密鍵', '長く使う。署名だけ']]],
+        ['サーバー（ハイブリッド）', [['受け取る', 'ML-KEM の公開鍵 ＋ A', 'd'], ['乱数 32 B を', '公開鍵で包む（暗号文）', 'x'], ['b·A を計算して', 'X25519 の 32 B を得る', 'x'], ['送る', 'ML-KEM の暗号文 ＋ B', 'd']]]
+      ];
+      const k = [0, 0, 1, 2, 3, 4][i];
+      return [L[k], R[k]];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const [l, r] = this.cards(i);
+      st.cl.set(l[0], l[1]);
+      st.cr.set(r[0], r[1]);
+      S.fade(st.plot, i <= 2);
+      S.fade(st.hop, i === 0);
+      S.fade(st.dbl, i === 1);
+      S.fade(st.dh, i === 2);
+      S.fade(st.form, i <= 1);
+      rtSet(st.form1, i === 0 ? 'P + Q：λ = (y_{2} − y_{1}) / (x_{2} − x_{1})、x_{3} = λ^{2} − x_{1} − x_{2}、y_{3} = λ(x_{1} − x_{3}) − y_{1}' : '77 = 64 + 8 + 4 + 1（2 進で 1001101）：2 倍を 6 回、足し算を 3 回');
+      rtSet(st.form2, i === 0 ? '計算はすべて mod 67。割り算は逆数を掛ける。P = Q（2 倍）のときは λ = 3x_{1}^{2} / 2y_{1}' : '逆に (52, 60) が何 G かは、素朴には G・2G・3G … と順に試す（この例なら最大 78 回）。最良の方法でも、点の数の平方根ほどの手間が要る');
+      S.fade(st.ks, i === 3);
+      S.fade(st.fs, i === 4);
+      S.fade(st.pq, i === 5);
+      S.fade(st.wire, i >= 2);
+      const eve = [['', ''], ['', ''], ['見える：G・A・B', '見えない：a・b・abG（a か b が無いと作れない）'], ['見える：A・B（各 32 B）', '鍵の材料 abG と、そこから作る鍵は見えない'], ['記録しておいても', 'a・b はもう消えていて、後から鍵を作れない'], ['記録しておき、将来の量子計算機で a を求める？', 'それでも ML-KEM の 32 B が残る']][i];
+      st.eve1.textContent = eve[0];
+      st.eve2.textContent = eve[1];
+      const lab = [['', ''], ['', ''], ['A = ' + pt(DH.A), 'B = ' + pt(DH.B)], ['A  8520f009…', 'B  de9edb7d…'], ['', ''], ['key_share 1,216 B', 'key_share 1,120 B']][i];
+      st.pA.set(lab[0]); st.pB.set(lab[1]);
+      st.pA.style.display = lab[0] ? '' : 'none';
+      st.pB.style.display = lab[1] ? '' : 'none';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 0) {
+        /* 0.7 秒ごとに次の倍数へ（止めているときは 12G まで全部） */
+        const n = run ? Math.min(12, 1 + Math.floor(U.mod(ctx.ts, 11.2) / 0.7)) : 12;
+        st.hopG.forEach((g, k) => { g.style.opacity = k < n ? 1 : 0; });
+        const P = (q) => [320 + (q[0] + 0.5) * 320 / EC.p, 46 + 320 - (q[1] + 0.5) * 320 / EC.p];
+        st.hopLine.setAttribute('d', st.hopPts.slice(0, n).map((q, k) => (k ? 'L' : 'M') + P(q).map((v) => v.toFixed(1)).join(',')).join(''));
+      }
+      if (i === 2 || i === 3 || i === 5) {
+        /* A がブラウザから、続いて B がサーバーから */
+        const q = U.seq(ctx.ts, [2.2, 2.2, 0.8], true);
+        const fa = run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 1;
+        const fb = run ? (q.i === 1 ? U.ease.inOut(q.f) : q.i === 2 ? 1 : 0) : 1;
+        S.place(st.pA, st.road, fa);
+        S.place(st.pB, st.road, 1 - fb);
+        st.pB.style.opacity = run && q.i === 0 ? 0 : 1;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 証明書と認証局
+     ================================================================ */
+  /* 2026 年 10 月 17 日に Chrome 155 が www.youtube.com から受け取った証明書（Chrome の securityDetails と openssl s_client で確認）。
+     Chrome は ECDSA の署名を受け付けるので ECDSA の連鎖（WE2 → GTS Root R4）が届く。RSA だけの相手には別の証明書（WR2 → GTS Root R1）が届く */
+  const CERT = [
+    ['名前（CN）', '*.google.com'],
+    ['別名（SAN）', '*.youtube.com、youtube.com、youtu.be、*.google.com … 計 65 個'],
+    ['公開鍵', 'EC P-256  {m|04 df fb 3a 8f b1 af c0 …}'],
+    ['発行者', 'WE2（Google Trust Services）'],
+    ['有効期間', '2026-09-18 〜 2026-12-11（84 日）'],
+    ['SCT', '2 個（Google Argon2026h2、Sectigo Elephant2026h2）'],
+    ['署名', 'WE2 の秘密鍵で（ECDSA P-256・SHA-256）  {m|30 45 02 21 00 fe …}']
+  ];
+  const s4 = {
+    steps: [
+      { title: '間に立つ第三者', text: '第三者がブラウザとサーバーの間に立ち、両方と別々に鍵交換すれば、どちらの暗号も正しく動く。第三者は受け取った中身を復号して読み、暗号化し直して渡せる。防ぐには、鍵交換の相手が本物の www.youtube.com だと確かめる手段が要る。' },
+      { title: '証明書の中身', text: 'サーバーの**証明書**（X.509 形式）には、名前・公開鍵・有効期間・発行者が書かれ、発行者である**認証局**（CA）の署名が付く。www.youtube.com が送ってきた証明書は名前が `*.google.com` で、別名の欄に `*.youtube.com` を含む 65 個の名前を持っていた。' },
+      { title: '署名の連鎖', text: 'この証明書には中間の認証局 WE2 が署名し、WE2 の証明書にはルートの GTS Root R4 が署名している。ブラウザは下から順に、1 つ上の証明書の公開鍵で署名を確かめる。サーバーは自分の証明書と WE2 の証明書を送り、古い機器向けに別のルートへの橋渡しも添える。' },
+      { title: 'ルートストア', text: '連鎖の最後のルートは、送られてきたから信じるのではない。ブラウザや OS が最初から持つ**ルートストア**に入っているから信じる。入れるかどうかはブラウザや OS の作り手が審査して決め、2026 年 10 月の Chrome では約 100 個、この PC の OS（Ubuntu）では 121 個だった。' },
+      { title: '名前・期限・持ち主の確認', text: '証明書は公開の文書なので、第三者も同じものを送れる。そこでサーバーは、ハンドシェイクの内容に証明書の秘密鍵で署名して送る（CertificateVerify、[[5|ハンドシェイク]]）。ブラウザは名前・有効期間と、証明書の公開鍵でこの署名を確かめ、どれかが合わなければ接続をやめる。' },
+      { title: '短い有効期間と CT', text: 'この証明書の有効期間は 84 日。業界の取り決め（CA/Browser Forum）で、上限は 2026 年 3 月から 200 日、2029 年 3 月から 47 日へ縮む。発行した証明書は公開の **CT ログ**に載せ、受領印（SCT）を証明書に入れる。SCT を示せない公開の証明書を Chrome は拒む。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 上: ブラウザ・第三者・サーバー */
+      box(svg, 16, 26, 170, 52, 'ブラウザ', '192.168.1.10');
+      st.eve = box(svg, 395, 26, 170, 52, '第三者', '192.0.2.66', { cls: 'f-x-soft s-x w15' });
+      box(svg, 774, 26, 170, 52, 'www.youtube.com', '142.250.196.110');
+      st.mitm = S.g({ cls: 'fade hide' }, svg);
+      S.line(190, 52, 391, 52, { cls: 's-x w2' }, st.mitm);
+      S.line(569, 52, 770, 52, { cls: 's-x w2' }, st.mitm);
+      S.text(290, 44, '鍵交換 1（第三者と）', { cls: 't-c t-xs t-x t-b' }, st.mitm);
+      S.text(670, 44, '鍵交換 2（第三者と）', { cls: 't-c t-xs t-x t-b' }, st.mitm);
+      st.link = S.g({ cls: 'fade hide' }, svg);
+      S.line(190, 52, 391, 52, { cls: 's-dim w15 dash' }, st.link);
+      S.line(569, 52, 770, 52, { cls: 's-dim w15 dash' }, st.link);
+      st.eveNote = S.text(480, 16, '', { cls: 't-c t-xs t-x t-b' }, svg);
+      st.srvNote = S.text(859, 16, '', { cls: 't-c t-xs t-d t-b' }, svg);
+      st.road = road(svg, 'M101,98 H859');
+      st.pk = pkt(svg, '', 'f-d');
+
+      /* 左下: 証明書の連鎖 */
+      const chainCard = (y, title, l1, l2, ok) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        g.rect = S.rect(16, y, 300, 64, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+        S.text(30, y + 22, title, { cls: 't-sm t-b' }, g);
+        S.text(30, y + 40, l1, { cls: 't-xs' }, g);
+        S.text(30, y + 56, l2, { cls: 't-xs t-dim' }, g);
+        g.ok = S.text(306, y + 22, ok, { cls: 't-xs t-b t-d t-end fade hide' }, g);
+        return g;
+      };
+      st.root = chainCard(122, 'GTS Root R4（ルート）', 'EC P-384 ／ 自分で自分に署名', '有効 2016-06-22 〜 2036-06-22', '✓ ルートストアにある');
+      st.we2 = chainCard(212, 'WE2（中間の認証局）', 'EC P-256 ／ GTS Root R4 が署名', '有効 2023-12-13 〜 2029-02-20', '✓ 署名が合う');
+      st.sig = S.g({ cls: 'fade' }, svg);
+      [[188, 208], [278, 298]].forEach(([y1, y2]) => {
+        S.line(166, y1, 166, y2, { cls: 's-mid w15', 'marker-end': mk('mid') }, st.sig);
+        S.text(176, (y1 + y2) / 2 + 4, '下の証明書に署名', { cls: 't-xs t-mid' }, st.sig);
+      });
+      const gl = st.leaf = S.g({ cls: 'fade' }, svg);
+      st.leafRect = S.rect(16, 302, 544, 244, { rx: 6, cls: 'f-sf s-rule w15' }, gl);
+      S.text(30, 326, 'www.youtube.com が送ってきた証明書（X.509）', { cls: 't-sm t-b' }, gl);
+      st.leafOk = S.text(546, 326, '✓ 署名が合う', { cls: 't-xs t-b t-d t-end fade hide' }, gl);
+      st.rows = CERT.map(([k, v], j) => {
+        const y = 354 + j * 27;
+        const bg = S.rect(24, y - 17, 528, 24, { rx: 3, cls: 'f-x-soft' }, gl);
+        S.text(34, y, k, { cls: 't-xs t-b t-dim' }, gl);
+        const t = rt(gl, 130, y, v, { cls: 't-sm pre' });
+        return { bg, t };
+      });
+
+      /* 右下: ルートストア */
+      const gs = st.store = S.g({ cls: 'fade' }, svg);
+      st.storeRect = S.rect(590, 122, 354, 178, { rx: 6, cls: 'f-sf s-rule w15' }, gs);
+      S.text(606, 146, 'ブラウザ・OS のルートストア（抜粋）', { cls: 't-sm t-b' }, gs);
+      st.storeBg = S.rect(600, 155, 334, 20, { rx: 3, cls: 'f-d-soft' }, gs);
+      ['GTS Root R4', 'GTS Root R1', 'ISRG Root X1', 'DigiCert Global Root G2', 'Amazon Root CA 1'].forEach((n, j) => S.text(612, 170 + j * 20, n, { cls: 't-xs t-mono' }, gs));
+      S.text(606, 284, '… ほか（一覧はブラウザや OS ごとに違う）', { cls: 't-xs t-dim' }, gs);
+      st.link4 = S.g({ cls: 'fade hide' }, svg);
+      S.path('M318,150 H452 V165 H596', { cls: 'f-none s-d w15 dash', 'marker-end': mk('d') }, st.link4);
+      S.text(322, 142, '最初から持っている同じ証明書', { cls: 't-xs t-d t-b' }, st.link4);
+
+      /* 右下: CT ログ */
+      const gc = st.ct = S.g({ cls: 'fade' }, svg);
+      st.ctRect = S.rect(590, 314, 354, 102, { rx: 6, cls: 'f-sf s-rule w15' }, gc);
+      S.text(606, 336, 'Certificate Transparency のログ', { cls: 't-sm t-b' }, gc);
+      for (let k = 0; k < 16; k++) S.rect(606 + k * 20, 346, 16, 16, { rx: 2, cls: k === 15 ? 'f-x' : 'f-in s-rule w1' }, gc);
+      S.text(606, 384, '発行した証明書を追記だけのログに載せ、受領印（SCT）を返す', { cls: 't-xs' }, gc);
+      S.text(606, 402, '持ち主はログを見張り、身に覚えのない発行を見つけられる', { cls: 't-xs t-dim' }, gc);
+
+      /* 右下: 有効期間の上限 */
+      const gv = st.valid = S.g({ cls: 'fade' }, svg);
+      st.vRect = S.rect(590, 430, 354, 116, { rx: 6, cls: 'f-sf s-rule w15' }, gv);
+      S.text(606, 452, '公開の証明書の有効期間の上限', { cls: 't-sm t-b' }, gv);
+      [['〜2026-03  398 日', 398], ['2026-03〜  200 日', 200], ['2027-03〜  100 日', 100], ['2029-03〜   47 日', 47]].forEach(([n, d], j) => {
+        const y = 464 + j * 18;
+        S.text(606, y + 10, n, { cls: 't-xs t-mono pre' }, gv);
+        S.rect(740, y, d * 0.45, 12, { rx: 2, cls: 'f-d-soft s-d w1' }, gv);
+      });
+      S.line(740 + 84 * 0.45, 460, 740 + 84 * 0.45, 536, { cls: 's-x w15 dash' }, gv);
+      S.text(744 + 84 * 0.45, 541, 'この証明書 84 日', { cls: 't-xs t-x t-b' }, gv);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.mitm, i === 0);
+      S.fade(st.link, i > 0);
+      op(st.eve, i === 0 || i === 4 ? '' : 0.35);
+      st.eveNote.textContent = i === 0 ? '復号して読み、暗号化し直して渡す' : i === 4 ? '本物の秘密鍵が無いので、署名を作れない' : '';
+      st.srvNote.textContent = i === 4 ? 'CertificateVerify：秘密鍵で署名' : '';
+      /* 主役の部品を濃く、残りを薄く */
+      const on = [[], ['leaf'], ['root', 'we2', 'sig', 'leaf'], ['root', 'store'], ['leaf'], ['leaf', 'ct', 'valid']][i];
+      ['root', 'we2', 'sig', 'leaf', 'store', 'ct', 'valid'].forEach((k) => op(st[k], on.includes(k) ? '' : 0.3));
+      st.leafRect.setAttribute('class', i === 1 || i === 4 || i === 5 ? 'f-sf s-x w2' : 'f-sf s-rule w15');
+      st.storeRect.setAttribute('class', i === 3 ? 'f-sf s-x w2' : 'f-sf s-rule w15');
+      st.ctRect.setAttribute('class', i === 5 ? 'f-sf s-x w2' : 'f-sf s-rule w15');
+      st.vRect.setAttribute('class', i === 5 ? 'f-sf s-x w2' : 'f-sf s-rule w15');
+      st.storeBg.style.opacity = i === 3 ? 1 : 0;
+      S.fade(st.link4, i === 3);
+      /* 段階5: 名前は CN ではなく SAN で照らし合わせる（Chrome は CN を見ない）。署名は証明書の公開鍵で確かめる */
+      const lit = [[], [], [], [], [1, 2, 4], [4, 5]][i];
+      st.rows.forEach((r, j) => { r.bg.style.opacity = lit.includes(j) ? 1 : 0; });
+      rtSet(st.rows[1].t, i === 4 ? '*.youtube.com が www.youtube.com に合う（* はラベル 1 つ分）' : CERT[1][1]);
+      rtSet(st.rows[2].t, i === 4 ? 'EC P-256  {m|04 df fb …}  この鍵で CertificateVerify を確かめる' : CERT[2][1]);
+      rtSet(st.rows[4].t, i === 4 ? '2026-09-18 〜 2026-12-11（2026-10-17 は期間内）' : CERT[4][1]);
+      st.pk.set(i === 0 ? '' : i === 4 ? 'CertificateVerify' : '証明書 3 枚', 'f-d');
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      const q = U.seq(ctx.ts, [3.0, 0.8], true);
+      const f = run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 0.5;
+      if (i === 0) {
+        /* ブラウザ → サーバー。第三者の所でだけ読める */
+        S.place(st.pk, st.road, f);
+        const x = S.along(st.road, f).x;
+        const mid = x >= 395 && x <= 565;
+        st.pk.set(mid ? 'GET /watch?v=dQw4w9WgXcQ（読める）' : x < 395 ? '鍵 1 で暗号化 ■■■■' : '鍵 2 で暗号化 ■■■■', mid ? 'f-x' : 'f-d');
+      } else {
+        S.place(st.pk, st.road, 1 - (run ? f : 1));
+      }
+      /* 段階3: 下から順に確かめる（止めているときは全部に印） */
+      const n = i === 2 ? (run ? Math.floor(U.mod(ctx.ts, 5.2) / 1.1) : 3) : (i >= 3 ? 3 : -1);
+      S.fade(st.leafOk, n >= 1);
+      S.fade(st.we2.ok, n >= 2);
+      S.fade(st.root.ok, n >= 3);
+    }
+  };
+
+  /* ================================================================
+     場面5 TLS 1.3 ハンドシェイク
+     ================================================================ */
+  /* [向き（1: ブラウザ → サーバー、-1: 逆）, y, 文字, 種類（p 平文 ／ h ハンドシェイク用の鍵 ／ a データ用の鍵）, 出てくる段階] */
+  const HS = [
+    [1, 92, 'ClientHello（key_share・SNI・ALPN ほか）', 'p', 0],
+    [-1, 134, 'ServerHello（key_share）', 'p', 1],
+    [-1, 168, '{EncryptedExtensions}（ALPN の答え）', 'h', 2],
+    [-1, 194, '{Certificate}（証明書 3 枚）', 'h', 2],
+    [-1, 220, '{CertificateVerify}（署名）', 'h', 2],
+    [-1, 246, '{Finished}', 'h', 2],
+    [1, 284, '{Finished}', 'h', 3],
+    [1, 312, '[GET /watch?v=dQw4w9WgXcQ]', 'a', 3],
+    [-1, 350, '[HTTP の応答]', 'a', 3]
+  ];
+  const XC = 170, XS = 560;               // ブラウザとサーバーの縦線
+  const s5 = {
+    steps: [
+      { title: 'ClientHello：最初から鍵交換の値を入れる', text: 'ブラウザは最初のメッセージに、使える方式の一覧と、鍵交換の公開値（key_share）をもう入れて送る。サーバーがどちらを選んでも 1 回で済むよう、ML-KEM を含む値と X25519 だけの値を両方入れる。接続先の名前（SNI）と、使いたい HTTP の版（ALPN）もここに書く。' },
+      { title: 'ServerHello：ここで鍵が決まる', text: 'サーバーは方式を 1 つずつ選び（この例では TLS_AES_128_GCM_SHA256 と X25519MLKEM768）、自分の公開値を返す。この時点で両端は共有の値を計算でき、そこからハンドシェイク用の鍵を作る（[[3:3|鍵交換]]）。ハンドシェイクのメッセージで平文なのは、ここまでの 2 つだけ。' },
+      { title: 'サーバーの残りは暗号化して送る', text: '続けてサーバーは、選んだ HTTP の版を入れた EncryptedExtensions、証明書（[[4|証明書]]）、ここまでの内容への署名 CertificateVerify、全体の検算値 Finished を、ハンドシェイク用の鍵で暗号化して一度に送る。TLS 1.2 と違い、証明書も途中からは読めない。' },
+      { title: 'ブラウザの Finished と最初の要求', text: 'ブラウザは証明書の連鎖・署名・Finished を確かめ、自分の Finished を返す。その直後に、データ用の鍵で暗号化した HTTP の要求を送れる。ClientHello から要求まで 1 往復。手元の回線から www.youtube.com までの 1 往復は約 7〜12 ms（2026 年 10 月）。' },
+      { title: 'TCP と QUIC での位置', text: 'TCP では 3-way ハンドシェイク（第19章）の 1 往復のあとに ClientHello を送るので、要求まで 2 往復。QUIC は接続を開く往復で ClientHello も運ぶので、1 往復で済む。手元の Chrome は 1 回目に TCP、HTTP/3 を知った 2 回目から QUIC を使った。' },
+      { title: '0-RTT の再開と再送攻撃', text: '1 回目の接続でサーバーは再開用のチケットを渡す。次の接続では、それから作った鍵で暗号化した要求を、ClientHello と一緒に送れる（0-RTT）。ただしこの早期データは、第三者が写し取って送り直してもサーバーには見分けにくい。何度届いても困らない要求にだけ使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      box(svg, XC - 70, 16, 140, 36, 'ブラウザ', '', { tcls: 't-sm' });
+      box(svg, XS - 70, 16, 140, 36, 'www.youtube.com', '', { tcls: 't-sm' });
+      S.line(XC, 54, XC, 364, { cls: 's-rule w15 dash' }, svg);
+      S.line(XS, 54, XS, 364, { cls: 's-rule w15 dash' }, svg);
+      /* 鍵の段階の帯 */
+      S.rect(XC, 152, XS - XC, 140, { cls: 'f-d-soft' }, svg);
+      S.rect(XC, 296, XS - XC, 62, { cls: 'f-d-soft' }, svg);
+      S.text(XS + 8, 118, '平文', { cls: 't-xs t-b t-dim' }, svg);
+      S.lines(XS + 8, 214, ['ハンドシェイク', '用の鍵で暗号化'], { cls: 't-xs t-b t-d' }, svg, 14);
+      S.lines(XS + 8, 322, ['データ用の', '鍵で暗号化'], { cls: 't-xs t-b t-d' }, svg, 14);
+      /* 1 往復の括弧 */
+      S.path(`M${XC - 12},92 H${XC - 20} V312 H${XC - 12}`, { cls: 'f-none s-x w15' }, svg);
+      S.lines(XC - 26, 196, ['ClientHello から', '要求まで', '1 往復'], { cls: 't-xs t-b t-x t-end' }, svg, 15);
+      /* メッセージ */
+      st.msgs = HS.map(([dir, y, label, kind]) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        const x1 = dir > 0 ? XC + 4 : XS - 4, x2 = dir > 0 ? XS - 8 : XC + 8;
+        const c = kind === 'p' ? 'fg' : 'd';
+        g.line = S.line(x1, y, x2, y, { cls: 's-' + c + ' w15', 'marker-end': mk(c) }, g);
+        g.label = S.text((XC + XS) / 2, y - 6, label, { cls: 't-c t-sm' + (kind === 'p' ? '' : ' t-d') }, g);
+        g.x1 = x1; g.x2 = x2; g.y = y;
+        return g;
+      });
+      st.dot = S.circle(0, 0, 5.5, { cls: 'f-x' }, svg);
+
+      /* 右: 段階ごとの中身 */
+      const gp = S.g({}, svg);
+      S.rect(646, 16, 298, 530, { rx: 8, cls: 'f-sf s-rule w1' }, gp);
+      st.pTitle = S.text(662, 42, '', { cls: 't-sm t-b' }, gp);
+      st.pRows = [];
+      for (let k = 0; k < 8; k++) {
+        const y = 74 + k * 56;
+        st.pRows.push([S.text(662, y, '', { cls: 't-xs t-b t-dim' }, gp), S.text(662, y + 20, '', { cls: 't-sm' }, gp)]);
+      }
+
+      /* 左下: 要求を送れるまでの往復 */
+      S.text(20, 390, '要求を送れるまでの往復（RTT）', { cls: 't-sm t-b' }, svg);
+      const X = (r) => 250 + r * 115;
+      [0, 1, 2, 3].forEach((r) => {
+        S.line(X(r), 408, X(r), 540, { cls: 's-soft w1' }, svg);
+        S.text(X(r), 402, r ? r + ' 往復' : '0', { cls: 't-c t-xs t-dim' }, svg);
+      });
+      const seg2 = (g, r0, r1, y, s, cls) => {
+        S.rect(X(r0) + 2, y - 12, X(r1) - X(r0) - 4, 24, { rx: 4, cls }, g);
+        S.text((X(r0) + X(r1)) / 2, y + 4, s, { cls: 't-c t-xs t-b' }, g);
+      };
+      const req = (g, r, y, s) => {
+        S.path(`M${X(r)},${y - 14} V${y + 14}`, { cls: 'f-none s-x w3' }, g);
+        S.text(X(r) + 8, y + 4, s, { cls: 't-xs t-b t-x' }, g);
+      };
+      st.rows = [
+        ['TCP ＋ TLS 1.3', (g, y) => { seg2(g, 0, 1, y, 'TCP の 3-way', 'f-in s-rule w1'); seg2(g, 1, 2, y, 'TLS 1.3', 'f-d-soft s-d w1'); req(g, 2, y, '要求'); }],
+        ['QUIC（TLS 1.3 入り）', (g, y) => { seg2(g, 0, 1, y, 'QUIC ＋ TLS 1.3', 'f-d-soft s-d w1'); req(g, 1, y, '要求'); }],
+        ['0-RTT（QUIC で再開）', (g, y) => { req(g, 0, y, 'ClientHello と同時に要求（早期データ）'); }]
+      ].map(([n, draw], k) => {
+        const y = 430 + k * 44;
+        const g = S.g({ cls: 'fade' }, svg);
+        S.text(20, y + 4, n, { cls: 't-xs t-b' }, g);
+        draw(g, y);
+        return g;
+      });
+    },
+    panel(i) {
+      return [
+        ['ClientHello（平文）', [['random', '32 B の乱数'], ['supported_versions', 'TLS 1.3、TLS 1.2'], ['cipher_suites', 'TLS_AES_128_GCM_SHA256 など 15 個'], ['key_share', '{d|X25519MLKEM768 1,216 B ＋ X25519 32 B}'], ['server_name（SNI）', '{x|www.youtube.com}（平文のまま）'], ['ALPN', 'h2, http/1.1（QUIC では h3）'], ['signature_algorithms', 'ecdsa_secp256r1_sha256 ほか']]],
+        ['ServerHello（平文）', [['random', '32 B の乱数'], ['cipher_suite', '{d|TLS_AES_128_GCM_SHA256}'], ['key_share', '{d|X25519MLKEM768 1,120 B}'], ['supported_versions', 'TLS 1.3'], ['このあと両端で', '共有の値 → ハンドシェイク用の鍵']]],
+        ['ハンドシェイク用の鍵で暗号化', [['EncryptedExtensions', 'ALPN の答え：h2（QUIC なら h3）'], ['Certificate', '自分の証明書 ＋ WE2 ほか（場面4）'], ['CertificateVerify', '{x|ここまでの内容に署名}（ECDSA P-256）'], ['Finished', 'ここまでの全メッセージの HMAC']]],
+        ['ブラウザが確かめて、送る', [['確かめる', '証明書の連鎖・名前・有効期間'], ['確かめる', 'CertificateVerify の署名'], ['確かめる', 'サーバーの Finished'], ['送る', 'Finished（ブラウザ側）'], ['送る（データ用の鍵）', '{d|GET /watch?v=dQw4w9WgXcQ}']]],
+        ['TCP と QUIC（2026 年 10 月、Chrome 155）', [['TCP', '3-way の 1 往復のあとに ClientHello'], ['QUIC', '接続を開く Initial パケットに ClientHello'], ['ClientHello の大きさ', '約 1.9 KB。QUIC でも TCP でもパケット 2 個'], ['1 回目の接続', 'TCP ＋ TLS 1.3、ALPN で h2'], ['応答のヘッダ', 'Alt-Svc: h3=":443"'], ['2 回目から', '{d|QUIC（UDP 443）、ALPN で h3}']]],
+        ['0-RTT（2026 年 10 月に測定）', [['チケットの有効期間', '172,800 秒（48 時間）'], ['早期データの上限', '14,336 B'], ['再開した接続で', '早期データを受け付けた（TCP）'], ['危険', '{x|第三者が早期データを送り直せる}'], ['使ってよい要求', '何度届いても困らないものだけ']]]
+      ][i];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.msgs.forEach((g, k) => {
+        const at = HS[k][4];
+        op(g, i <= 3 ? (at === i ? '' : at < i ? 0.5 : 0.18) : 0.5);
+        g.label.setAttribute('class', 't-c t-sm' + (HS[k][3] === 'p' ? '' : ' t-d') + (i <= 3 && at === i ? ' t-b' : ''));
+      });
+      st.rows.forEach((g, k) => op(g, (i === 4 && k < 2) || (i === 5 && k === 2) ? '' : 0.3));
+      const [tt, rows] = this.panel(i);
+      st.pTitle.textContent = tt;
+      st.pRows.forEach(([a, b], k) => { const r = rows[k] || ['', '']; a.textContent = r[0]; rtSet(b, r[1]); });
+      st.dot.style.opacity = 0;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      const list = i <= 3 ? st.msgs.filter((g, k) => HS[k][4] === i) : [];
+      if (!run || !list.length) { st.dot.style.opacity = 0; return; }
+      /* 段階のメッセージを順に 1 つずつ運ぶ */
+      const q = U.seq(ctx.ts, list.map(() => 1.3).concat([0.6]), true);
+      if (q.i >= list.length) { st.dot.style.opacity = 0; return; }
+      const g = list[q.i], f = U.ease.inOut(Math.min(1, q.f * 1.15));
+      st.dot.setAttribute('cx', (g.x1 + (g.x2 - g.x1) * f).toFixed(1));
+      st.dot.setAttribute('cy', g.y);
+      st.dot.style.opacity = 1;
+    }
+  };
+
+  /* ================================================================
+     場面6 暗号化された通信
+     ================================================================ */
+  /* 1 つのレコード（ブラウザが送る最初のデータ、番号 0）。場面2と同じ鍵とノンス。見出し 5 バイトを追加データとしてタグで守る */
+  const REC = (() => {
+    const inner = EX.req.concat([0x17]);                      // HTTP のデータ 24 B ＋ 中身の種別 1 B（23 = データ）
+    const len = inner.length + 16;
+    const aad = [0x17, 0x03, 0x03, len >> 8, len & 255];      // 見出し: 種別 23・版 0x0303・長さ
+    const g = AES.gcm(EX.key, EX.nonce, inner, aad);
+    const bad = inner.slice(); bad[13] ^= 1;                   // 途中で暗号文の 14 バイト目を 1 ビット変えた場合（CTR なので平文の同じビットが変わる）
+    const g2 = AES.gcm(EX.key, EX.nonce, bad, aad);
+    return { inner, aad, len, ct: g.ct, tag: g.tag, ct2: g2.ct, tag2: g2.tag, bad, at: 13 };
+  })();
+  const s6 = {
+    steps: [
+      { title: 'レコードに切って包む', text: 'HTTP のデータは最大 16 KB（2¹⁴ バイト）ずつの**レコード**に切り、1 つずつ AEAD で包む。見出し 5 バイトは平文だが、タグで守られる。中身の種別（データか、ハンドシェイクの続きか）も暗号文の中に入れ、見出しにはいつも「データ（23）」と書く。' },
+      { title: 'ノンスは番号から作る', text: 'GCM では、同じ鍵で同じノンスを二度使ってはいけない。TLS 1.3 は、鍵と一緒に作った IV（12 バイト）に、レコードの番号（0 から 1 ずつ増える 64 ビット）を XOR してノンスにする。番号は両端が数えるので送らない。' },
+      { title: 'タグで改ざんを見つける', text: `暗号文を 1 ビット変えると、復号した平文も同じ 1 ビットだけ変わる（\`v=dQw\` が \`v=eQw\` に）。だが受け手が計算し直したタグは、届いたタグと合わない。受け手はレコードを捨てて接続を切る。鍵を知らない第三者は、合うタグを作れない。` },
+      { title: '途中から見えるもの', text: '暗号化しても、包みの外側は見える。IP アドレスとポート、接続の最初の ClientHello に平文で書く名前（SNI）、レコードやパケットの大きさと時刻の並び。暗号文の大きさと時刻の並びだけから、見ている動画を推定できたという研究もある（2017 年）。' },
+      { title: 'ECH：名前も隠す', text: 'ECH（RFC 9849、2026 年）は、本当の ClientHello を DNS で配る公開鍵で暗号化し、外側には共用の名前だけを書く。Chrome は 2023 年から対応しているが、www.youtube.com は ECH の鍵を公開しておらず、SNI は平文だった（2026 年 10 月 12 日）。' },
+      { title: 'QUIC ではパケットごとに包む', text: 'QUIC は TLS のレコードを使わない。TLS のハンドシェイクで作った鍵で、QUIC のパケットを 1 つずつ同じ AEAD で包み、パケット番号からノンスを作る。パケット番号そのものも別の鍵で隠す。ALPN で決めた HTTP/3 が、この中を流れる（第21章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const CW = 19, X0 = 44, cx = (k) => X0 + k * CW;      // レコードの k バイト目の左端（1 バイト 19 px）
+      /* 上: 1 つのレコード */
+      const gt = st.top = S.g({ cls: 'fade' }, svg);
+      S.text(X0, 24, '1 つのレコード（ブラウザが送る最初の HTTP の要求。番号 0）', { cls: 't-sm t-b' }, gt);
+      S.text(cx(5) - 8, 60, '平文', { cls: 't-xs t-b t-dim t-end' }, gt);
+      st.pt = REC.inner.map((b, k) => {
+        const x = cx(5 + k);
+        const r = S.rect(x, 44, CW, 24, { cls: 'f-sf s-rule w1' }, gt);
+        const t = S.text(x + CW / 2, 61, '', { cls: 't-c t-sm t-mono' }, gt);
+        return { r, t };
+      });
+      S.text(cx(5), 84, 'HTTP のデータ 24 B ＋ 中身の種別 1 B（16 進の 17 ＝ 23 ＝ データ）', { cls: 't-xs t-dim' }, gt);
+      S.line(cx(27), 70, cx(27), 106, { cls: 's-d w15', 'marker-end': mk('d') }, gt);
+      S.text(cx(27) + 10, 94, 'AES-128-GCM（データ用の鍵・ノンス）', { cls: 't-xs t-b t-d' }, gt);
+      st.rec = [];
+      const all = REC.aad.concat(REC.ct, REC.tag);
+      all.forEach((b, k) => {
+        const kind = k < 5 ? 'h' : k < 30 ? 'c' : 't';
+        const x = cx(k);
+        const r = S.rect(x, 110, CW, 26, { cls: kind === 'h' ? 'f-in s-rule w1' : kind === 'c' ? 'f-d-soft s-d w1' : 'f-d s-d w1' }, gt);
+        const t = S.text(x + CW / 2, 127, b.toString(16).padStart(2, '0'), { cls: 't-c t-xs t-mono' + (kind === 't' ? ' t-sf' : '') }, gt);
+        st.rec.push({ r, t, kind });
+      });
+      [[0, 5, '見出し 5 B（平文）', '種別 23・版・長さ 41'], [5, 30, '暗号文 25 B', '中身の種別もこの中'], [30, 46, 'タグ 16 B', '見出しと暗号文から作る']].forEach(([a, b, n, sub]) => {
+        S.text((cx(a) + cx(b)) / 2, 154, n, { cls: 't-c t-xs t-b' }, gt);
+        S.text((cx(a) + cx(b)) / 2, 170, sub, { cls: 't-c t-xs t-dim' }, gt);
+      });
+      /* 段階3: 改ざんとタグの不一致 */
+      const gx = st.tamper = S.g({ cls: 'fade hide' }, svg);
+      S.text(X0, 198, '届いたタグ（送り手が計算）', { cls: 't-sm' }, gx);
+      S.text(X0 + 210, 198, hx(REC.tag), { cls: 't-sm t-mono' }, gx);
+      S.text(X0, 220, '受け手が計算し直したタグ', { cls: 't-sm t-x' }, gx);
+      S.text(X0 + 210, 220, hx(REC.tag2), { cls: 't-sm t-mono t-x t-b' }, gx);
+      S.text(X0, 244, '→ 一致しないので、このレコードを捨てて接続を切る（bad_record_mac）', { cls: 't-sm t-b t-x' }, gx);
+
+      /* 中: ノンスの作り方 */
+      const gm = st.mid = S.g({ cls: 'fade' }, svg);
+      S.rect(30, 262, 900, 112, { rx: 8, cls: 'f-sf s-rule w1' }, gm);
+      S.text(46, 284, 'ノンス ＝ IV ⊕ レコードの番号', { cls: 't-sm t-b' }, gm);
+      const row = (y, label, cls) => {
+        S.text(46, y + 15, label, { cls: 't-xs t-b' }, gm);
+        return Array.from({ length: 12 }, (_, k) => {
+          S.rect(262 + k * 28, y, 28, 20, { cls }, gm);
+          return S.text(262 + k * 28 + 14, y + 14, '', { cls: 't-c t-xs t-mono' }, gm);
+        });
+      };
+      st.ivT = row(294, 'IV（12 B。鍵と一緒に作る）', 'f-in s-rule w1');
+      st.sqT = row(318, '番号（64 ビット。送らない）', 'f-sf s-rule w1');
+      st.ncT = row(342, 'ノンス（XOR した結果）', 'f-d-soft s-d w1');
+      st.ivT.forEach((t, k) => { t.textContent = EX.nonce[k].toString(16).padStart(2, '0'); });
+      st.recNo = S.text(640, 318, '', { cls: 't-lg t-b t-mono' }, gm);
+      S.text(640, 342, '番号は 1 つ送るたびに 1 増える', { cls: 't-xs t-dim' }, gm);
+      S.text(640, 358, '→ 同じ鍵で同じノンスは二度と出ない', { cls: 't-xs t-dim' }, gm);
+
+      /* 下: 途中から見えるもの（見出しと値の 2 列） */
+      const gb = st.bot = S.g({ cls: 'fade' }, svg);
+      S.rect(30, 386, 900, 160, { rx: 8, cls: 'f-sf s-rule w1' }, gb);
+      st.botT = S.text(46, 410, '', { cls: 't-sm t-b t-dim' }, gb);
+      st.botR = [0, 1, 2, 3].map((k) => [S.text(46, 444 + k * 27, '', { cls: 't-xs t-b' }, gb), S.text(176, 444 + k * 27, '', { cls: 't-sm' }, gb)]);
+    },
+    rows(i) {
+      if (i === 4) return ['ECH を使うと（www.youtube.com は 2026 年 10 月 12 日の時点で使っていない）', [['外側の SNI', '{d|共用の名前}（例 {m|cloudflare-ech.com}）'], ['本当の SNI', '{d|内側の ClientHello ごと暗号化される}'], ['鍵の配り方', 'DNS の HTTPS レコードの {m|ech=} に公開鍵を載せる'], ['www.youtube.com', '{x|HTTPS レコードは} {m|1 .}{x|（ech= なし）}']]];
+      if (i === 5) return ['QUIC のパケット（第19章）', [['見出し', '接続 ID とパケット番号（番号は別の鍵で隠す）'], ['暗号文', '{d|QUIC のフレーム（STREAM など。HTTP/3 はこの中）}'], ['タグ', '{d|16 B（AES-128-GCM）}'], ['ノンス', 'IV ⊕ パケット番号（レコードの番号の代わり）']]];
+      return ['途中の機器から見えるもの（ルーターより外の区間）', [['IP アドレス', '{m|203.0.113.5 → 142.250.196.110}（第18章）'], ['ポート', '{m|40001 → 443}（TCP か UDP。第19章）'], ['SNI', '{x|www.youtube.com}（ClientHello の中、平文）'], ['大きさと時刻', '{x|レコードやパケットの長さと、送った時刻の並び}']]];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.top, i === 0 || i === 2 ? '' : i === 3 ? 0.6 : 0.3);
+      op(st.mid, i === 1 ? '' : 0.3);
+      op(st.bot, i >= 3 ? '' : 0.3);
+      S.fade(st.tamper, i === 2);
+      const tam = i === 2;
+      st.pt.forEach((c, k) => {
+        const b = tam ? REC.bad[k] : REC.inner[k];
+        c.t.textContent = k === 24 ? '17' : String.fromCharCode(b);
+        c.r.setAttribute('class', tam && k === REC.at ? 'f-x-soft s-x w15' : k === 24 ? 'f-in s-rule w1' : 'f-sf s-rule w1');
+        c.t.setAttribute('class', 't-c t-sm t-mono' + (tam && k === REC.at ? ' t-x t-b' : ''));
+      });
+      st.rec.forEach((c, k) => {
+        const hit = tam && k === 5 + REC.at;
+        const v = hit ? REC.ct2[REC.at] : (REC.aad.concat(REC.ct, REC.tag))[k];
+        c.t.textContent = v.toString(16).padStart(2, '0');
+        c.r.setAttribute('class', hit ? 'f-x-soft s-x w15' : c.kind === 'h' ? (i === 3 ? 'f-x-soft s-x w1' : 'f-in s-rule w1') : c.kind === 'c' ? 'f-d-soft s-d w1' : 'f-d s-d w1');
+        c.t.setAttribute('class', 't-c t-xs t-mono' + (c.kind === 't' ? ' t-sf' : '') + (hit ? ' t-x t-b' : ''));
+        c.t.style.opacity = '';
+      });
+      const [tt, rows] = this.rows(i);
+      st.botT.textContent = tt;
+      st.botR.forEach(([a, b], k) => { a.textContent = rows[k][0]; rtSet(b, rows[k][1]); });
+      this.seq(st, 5);
+    },
+    /* 番号 n のときの番号の列とノンスの列 */
+    seq(st, n) {
+      const s = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, n];
+      st.sqT.forEach((t, k) => { t.textContent = s[k].toString(16).padStart(2, '0'); });
+      st.ncT.forEach((t, k) => { t.textContent = (EX.nonce[k] ^ s[k]).toString(16).padStart(2, '0'); });
+      st.recNo.textContent = 'レコード #' + n;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 0) {
+        /* 暗号文とタグが左から順にできる（止めているときは全部） */
+        const n = run ? Math.floor(U.mod(ctx.ts, 6) / 4 * 41) : 41;
+        st.rec.forEach((c, k) => { if (k >= 5) c.t.style.opacity = k - 5 < n ? '' : 0; });
+      }
+      if (i === 1) this.seq(st, run ? Math.floor(U.mod(ctx.ts, 8)) : 5);
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第V部 約束ごと ／ 第20章',
+      title: 'TLS',
+      home: '../index.html',
+      prev: { href: '19-tcp.html', title: 'TCP・UDP・QUIC' },
+      next: { href: '21-http.html', title: 'HTTP' },
+      legend: [{ c: 'd', label: 'データ・暗号文' }, { c: 'x', label: '注目・第三者' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

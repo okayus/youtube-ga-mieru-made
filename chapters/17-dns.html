@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>DNS — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+  svg text.pre { white-space: pre; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第V部 約束ごと ／ 第17章 ／ 全25章</p>
+    <h1 id="h-s0">DNS</h1>
+    <p class="standfirst">ブラウザが YouTube に接続するには、まず <code>www.youtube.com</code> という名前を、IP パケットの宛先に書ける番号（IP アドレス）に変えなければならない。その変換を引き受けるのが DNS で、名前の木をルート・TLD・権威のサーバーが分けて持ち、ISP のフルリゾルバが代わりにたどり、答えは期限付きで何段にも覚えられる。この章から第V部「約束ごと」に入り、DNS → IP → TCP・UDP・QUIC → TLS → HTTP の順に、第IV部で見た道の上でやり取りされる手順を追う。名前の変換は、その最初の 1 往復。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のメッセージの動きは、見やすいように実際よりずっと遅くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>名前と番号</a><p>宛先欄には番号しか書けない。名前を番号に変える問い合わせと答えの形。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>階層</a><p>名前の木をルート・TLD・権威のゾーンに分けて持ち、親は子の担当だけを書く。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>再帰的な問い合わせ</a><p>PC は 1 回聞くだけ。フルリゾルバが紹介をたどって答えを得る。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>キャッシュと TTL</a><p>答えは期限付きで何段にも覚えられ、2 回目からは外へ聞きに行かない。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>答えが人によって違う</a><p>問い合わせ元で答えを変える振り分けと、同じ番号を各地に置く Anycast。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>DoH／DoT とルーターの DNS 転送</a><p>平文の DNS とルーターの中継、暗号化した DNS、HTTPS レコード。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（IP）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。PC 192.168.1.10 とルーター 192.168.1.1 は家の中の私設アドレス、WAN 側 203.0.113.5 と ISP のフルリゾルバ 198.51.100.53 は説明用に予約された範囲（RFC 5737）の値。www.youtube.com の答え 142.250.196.110（IPv6 は 2404:6800:4004:80a::200e）は全章で共通に使う例で、2026 年 10 月の実際の答えは別の番号だった（場面1・5）。TTL・サーバーの数・レコードの中身は 2026 年 10 月に確かめた値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 名前と番号 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="名前と番号" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>名前と番号 — 宛先欄には番号しか書けない</h2>
+    <p class="sh-meta"><span class="chip">UDP 53</span><span class="chip">A ／ AAAA</span><span class="chip">RFC 1035</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IP パケットの宛先欄に書けるのは番号（IP アドレス）だけ。だからブラウザは接続の前に、名前を番号に変える問い合わせを DNS サーバーに送る。問い合わせも答えも、数十バイトの<span class="tag d">メッセージ</span>1 個ずつ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">実際の答えには番号が複数入る。2026 年 10 月に権威サーバーへ問い合わせると、www.youtube.com は A が 8 個、AAAA が 8 個で、TTL はどれも 300 秒だった。この章では 1 個だけを例（142.250.196.110）として追う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="URL のホスト名、IP ヘッダの宛先欄、名前のラベルとメッセージの中の形、PC と DNS サーバーの間を往復する問い合わせと答えの中身"></svg></div>
+    <figcaption>図1　上から URL、接続に使う IP ヘッダ、名前のラベルとその符号化、PC と DNS サーバーの間を往復するメッセージの中身。段階5はレコードのタイプの一覧。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 階層 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="階層" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>階層 — ルート・TLD・権威</h2>
+    <p class="sh-meta"><span class="chip">ゾーン</span><span class="chip">委任 NS</span><span class="chip">13 の名前 a〜m</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">名前の木は一か所では持たない。根（ルート）、<code>com</code> のような TLD、<code>youtube.com</code> のような組織の名前と、枝ごとに別の組織が<b>ゾーン</b>として持つ。親のゾーンには、子を担当するサーバーの名前と番号だけを書いておく。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ここのルートは木の根（root）で、<a class="xref" href="16-internet.html#s3">第16章</a>の IX のルートサーバー（route server）とは別のもの。ルートゾーンは IANA が管理し、Verisign が署名して各ルートサーバーの運用者に配る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ルートから com、youtube.com、www へと枝分かれする名前の木と、ゾーンの境目、各ゾーンを持つサーバー"></svg></div>
+    <figcaption>図2　名前の木と、それを分けて持つ 3 つのゾーン（点線の枠）。各ゾーンを答えるサーバーと、そこに書いてあるレコード。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 再帰的な問い合わせ ================= -->
+<section class="scene sc-anim" id="s3" data-tab="再帰" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>再帰的な問い合わせ — フルリゾルバが代わりにたどる</h2>
+    <p class="sh-meta"><span class="chip">RD = 1</span><span class="chip">紹介（リフェラル）</span><span class="chip">AA = 1</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">PC は「最後まで調べて、答えだけ返して」と 1 回聞くだけ。ルートから順にたどるのは ISP の<b>フルリゾルバ</b>で、ルートと TLD からは「次はここに聞け」という紹介を、権威サーバーからは答えを受け取る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PC からフルリゾルバまでを再帰問い合わせ、各サーバーへを反復問い合わせと呼ぶ。ルート・TLD・権威の 1 往復は、近くにサーバーがあれば数 ms、海外なら 100 ms を超える。DNS サーバーが 192.168.1.1 になるのは<a class="xref" href="14-router.html#s2">第14章</a>の DHCP。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC、ルーター、ISP のフルリゾルバ、ルートサーバー、.com のサーバー、youtube.com の権威サーバーの間を、番号付きの問い合わせと紹介と答えが往復する図"></svg></div>
+    <figcaption>図3　番号は送る順。下の枠はいま動いているメッセージの中身（例）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 キャッシュと TTL ================= -->
+<section class="scene sc-anim" id="s4" data-tab="キャッシュ" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>キャッシュと TTL — 答えは期限付きで覚える</h2>
+    <p class="sh-meta"><span class="chip">TTL 300 秒</span><span class="chip">NS 172,800 秒</span><span class="chip">RFC 2308</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">DNS の答えには、使い回してよい秒数（<b>TTL</b>）が付く。フルリゾルバもルーターも OS もブラウザも、答えを TTL の間覚えておき、同じ質問には外へ聞かずに答える。多くの問い合わせは、どこかの段のキャッシュで終わる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">「その名前は無い」（NXDOMAIN）という答えも覚える（ネガティブキャッシュ）。覚える時間はゾーンの SOA レコードで決まり、youtube.com は 60 秒（2026 年 10 月）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="フルリゾルバのキャッシュの表と、時間とともに減る TTL、キャッシュで答える問い合わせと外へ聞きに行く問い合わせ、PC からフルリゾルバまでのキャッシュの段"></svg></div>
+    <figcaption>図4　上はフルリゾルバのキャッシュ（例）。中段は時間軸（早送り。段階6は TTL の長さの比べ）、下段は名前を探す順のキャッシュの段。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 答えが人によって違う ================= -->
+<section class="scene sc-anim" id="s5" data-tab="答えの違い" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>答えが人によって違う — 近いサーバーへ向ける 2 つの方法</h2>
+    <p class="sh-meta"><span class="chip">ECS</span><span class="chip">GGC</span><span class="chip">Anycast</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">同じ名前でも、問い合わせた場所によって、返る番号や届く先のサーバーが違う。近いサーバーへ向ける主な方法は 2 つある。答えの番号を変える方法（DNS による振り分け）と、同じ番号を世界中に置く方法（<b>Anycast</b>）。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">番号と往復時間は 2026 年 10 月に、日本の家庭の回線から権威サーバーへ ECS で地域を変えて問い合わせ、ping で測った値（往復は最小値）。Google の拠点の選び方は<a class="xref" href="22-server.html">第22章</a>、経路の選ばれ方は<a class="xref" href="16-internet.html">第16章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="日本とブラジルの利用者が同じ名前を問い合わせ、権威サーバーがそれぞれ近い拠点の番号を返す図と、同じ番号を各地に置く Anycast の図"></svg></div>
+    <figcaption>図5　上は DNS による振り分け、下は Anycast。地図ではなく模式図で、距離の比は正確でない。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 DoH／DoT とルーターの DNS 転送 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="DoH・転送" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>DoH／DoT とルーターの DNS 転送 — 名前は誰に見えるか</h2>
+    <p class="sh-meta"><span class="chip">UDP 53</span><span class="chip">DoT 853</span><span class="chip">DoH 443</span><span class="chip">HTTPS レコード</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ふつうの DNS は暗号のない UDP で、問い合わせた名前は経路の途中から読める。家ではルーターがそれを中継する。DNS を TLS や HTTPS で包む DoT・DoH は、PC からリゾルバまでを読めなくする。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Chrome の既定の設定では、PC に設定された DNS サーバーが DoH にも対応する既知の事業者なら、自動で DoH に切り替える。DNS サーバーがルーター（192.168.1.1）の家では、多くの場合は平文のまま。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC からルーター、ISP の網を通ってフルリゾルバへ向かう DNS の問い合わせと、暗号化した DoT・DoH の問い合わせを比べ、途中から何が見えるかを示す図"></svg></div>
+    <figcaption>図6　上の道はルーターの DNS 転送を通る平文の DNS、下の道は PC からリゾルバまで暗号化した DoT・DoH。下の枠は、途中から見える中身の例（段階6は HTTPS レコードの例）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 名前を番号に変える</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>IP パケットの宛先は番号だけなので、名前は DNS で番号に変えてから使う。問い合わせも答えも数十バイトのメッセージで、答えのレコードには TTL が付く（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>名前の木はルート・TLD・権威のゾーンに分かれ、親は子の担当（NS）を書くだけ。答えを持つのは権威サーバー（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>PC は RD=1 で 1 回聞くだけ。ISP のフルリゾルバが、ルート → com → ns1.google.com と紹介をたどって答えを得る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>答えは TTL の間、ブラウザ・OS・ルーター・フルリゾルバに覚えられ、多くの問い合わせは外へ出ない。www.youtube.com の A は 300 秒（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>近いサーバーへ向ける主な方法は、問い合わせ元で答えを変える振り分け（ECS で利用者の場所を添える）と、同じ番号を各地に置く Anycast（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>平文の DNS はルーターが中継し、経路の途中から読める。DoT・DoH は PC からリゾルバまでを暗号化する。HTTPS レコードは接続のしかたも知らせる（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>ドメイン名・ラベル</th><td>点で区切ったラベルの列。右ほど木の根に近い。ラベルは 63 バイト、名前全体は 255 バイトまで。</td></tr>
+        <tr><th><i class="sw d"></i>リソースレコード</th><td>名前・タイプ・クラス・TTL・データの組。A（IPv4）、AAAA（IPv6）、CNAME（別名）、NS（担当）、MX（メール）、HTTPS（type 65）。</td></tr>
+        <tr><th>ゾーン・委任</th><td>1 つの組織が持つ名前の木の一部分。親のゾーンに子の NS（必要ならその番号＝グルーも）を書いて担当を渡すのが委任。</td></tr>
+        <tr><th>ルートサーバー</th><td>根（root）のゾーンを答えるサーバー。名前は a〜m の 13 個、運用は 12 組織、2,047 か所（2026 年 10 月）。根の下の TLD は 1,437 個。IX の route server（第16章）とは別。</td></tr>
+        <tr><th>権威サーバー</th><td>ゾーンの持ち主として答えるサーバー。答えに AA ビットが立つ。youtube.com は ns1〜ns4.google.com。</td></tr>
+        <tr><th>スタブリゾルバ・フルリゾルバ</th><td>最後の答えだけを頼む側（OS・ブラウザ）と、ルートから紹介をたどって答えを作る側（ISP、8.8.8.8 など）。後者はキャッシュ DNS サーバーとも呼ぶ。</td></tr>
+        <tr><th>TTL</th><td>答えを使い回してよい秒数（32 ビット）。www.youtube.com の A は 300 秒、com に書かれた委任の NS は 172,800 秒＝2 日。IP ヘッダの TTL（通れるルーターの数、第14章）とは別のもの。</td></tr>
+        <tr><th>ECS</th><td>フルリゾルバが利用者の番号の上位（IPv4 は 24 ビット、IPv6 は 56 ビット）を権威サーバーへ添える拡張。RFC 7871。</td></tr>
+        <tr><th>Anycast</th><td>同じ番号を複数の場所のサーバーに付け、経路の上で最も近い 1 か所へ届ける方式。ルートサーバーや 8.8.8.8 が使う。</td></tr>
+        <tr><th>DoT・DoH</th><td>DNS を TLS（TCP 853 番）または HTTPS（443 番）で包んで暗号化する方式。RFC 7858（2016 年）、RFC 8484（2018 年）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱。g.rect が枠、g.title / g.sub が文字 */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: o.cls || 'f-sf s-rule w15' }, g);
+    if (title) g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim ' + (o.scls == null ? 't-mono' : o.scls) }, g);
+    return g;
+  }
+  /* 荷札（メッセージ）。中央が原点で、S.place で道の上に置く */
+  function pkt(p, text, cls, tcls) {
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = tw(text, 11) + 16;
+    const r = S.rect(-w / 2, -11, w, 22, { rx: 4, cls: cls || 'f-d' }, g);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (tcls || 't-sf') }, g);
+    g.set = (s, c) => {
+      t.textContent = s;
+      const nw = tw(s, 11) + 16;
+      r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+      if (c) r.setAttribute('class', c);
+    };
+    return g;
+  }
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 動きを止めているときは、段階の動きの終わりの姿を見せる */
+  const playing = () => YT.motion.playing;
+
+  /* ================================================================
+     場面1 名前と番号
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '宛先欄は 32 ビットの番号', text: 'IPv4 ヘッダの宛先は 32 ビット、IPv6 は 128 ビットの番号で、名前を書く欄はない（第18章）。だから URL のホスト名 `www.youtube.com` は、接続の前に番号に変えておく。ブラウザのネットワークプロセス（第10章）は、この変換を OS などの**スタブリゾルバ**に頼む。' },
+      { title: '名前はラベルの列', text: '名前は点で区切った**ラベル**の列で、右へ行くほど木の根に近い。末尾の点は根（空のラベル）を表し、ふだんは省く。メッセージの中では各ラベルの前に長さを 1 バイトで置き、長さ 0 で終える。ラベルは 63 バイト、名前全体は 255 バイトまで。' },
+      { title: '問い合わせは 33 バイト', text: 'ヘッダ 12 バイトと質問 21 バイト（拡張の EDNS を付けると増える）。ヘッダには 16 ビットの乱数の ID と、相手に最後まで調べてもらうことを頼む RD ビットが入る。質問は名前・タイプ（A）・クラス（IN）。これを 192.168.1.1 の 53 番へ UDP（第19章）で 1 個送る。' },
+      { title: '答えは質問の写しに足して返る', text: '答えは同じ ID で QR ビットを 1 にし、質問をそのまま写してから**リソースレコード**を足す。レコードは名前・タイプ・クラス・{x|TTL}（使い回してよい秒数）・データの組で、A のデータは 4 バイトの番号。PC は ID と送り元が合う答えだけを受け取る。' },
+      { title: 'レコードのタイプ', text: 'A は IPv4、AAAA は IPv6 の番号、CNAME は別名、NS は担当のサーバー、MX はメールの宛先、HTTPS は接続のしかた（[[6|DoH／DoT と DNS 転送]]）。ブラウザは A と AAAA を同時に問い合わせ、IPv6 が使える家では AAAA の番号で接続することが多い（第18章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      /* 1 段目: URL */
+      const gu = st.gu = S.g({ cls: 'fade' }, svg);
+      S.text(30, 24, 'URL（第10章）', { cls: 't-xs t-dim' }, gu);
+      S.rect(30, 32, 900, 38, { rx: 19, cls: 'f-sf s-rule w15' }, gu);
+      const ut = S.text(54, 57, '', { cls: 't-mono t-lg' }, gu);
+      S.el('tspan', { cls: 't-dim', text: 'https://' }, ut);
+      S.el('tspan', { cls: 't-x t-b', text: 'www.youtube.com' }, ut);
+      S.el('tspan', { cls: 't-dim', text: '/watch?v=dQw4w9WgXcQ' }, ut);
+      S.text(486, 57, '← ホスト名だけを番号に変える', { cls: 't-sm t-x t-b' }, gu);
+
+      /* 2 段目: IP ヘッダ */
+      const gi = st.gi = S.g({ cls: 'fade' }, svg);
+      S.text(30, 104, 'IPv4 ヘッダ（第18章）', { cls: 't-sm t-b' }, gi);
+      S.text(176, 104, '— YouTube への接続に使うパケットの先頭', { cls: 't-xs t-dim' }, gi);
+      const cells = [['版・長さ・生存時間 ほか', 270], ['種類', 80], ['送信元 192.168.1.10', 240], ['', 310]];
+      let x = 30;
+      cells.forEach(([s, w], k) => {
+        const last = k === cells.length - 1;
+        S.rect(x, 114, w, 38, { cls: last ? 'f-x-soft s-x w2' : 'f-in s-rule w1' }, gi);
+        if (s) S.text(x + w / 2, 138, s, { cls: 't-c t-sm t-mono' + (k === 0 ? ' t-dim' : '') }, gi);
+        x += w;
+      });
+      st.dst = S.text(775, 139, '', { cls: 't-c t-md t-mono t-b t-x' }, gi);
+      S.text(930, 170, '宛先は 32 ビット（4 バイト）の番号。名前を書く欄はない', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gi);
+
+      /* 3 段目: 名前のラベルと、メッセージの中の形 */
+      const gn = st.gn = S.g({ cls: 'fade' }, svg);
+      S.text(30, 204, '名前はラベルの列', { cls: 't-sm t-b' }, gn);
+      const labs = [['www', 30, 84], ['youtube', 132, 128], ['com', 278, 84], ['', 380, 64]];
+      st.labs = labs.map(([s, lx, w], k) => {
+        const g = S.g({ cls: 'fade' }, gn);
+        S.rect(lx, 214, w, 40, { rx: 5, cls: k === 3 ? 'f-none s-dim w15 dash' : 'f-sf s-fg w15' }, g);
+        S.text(lx + w / 2, 240, s || '根', { cls: 't-c ' + (s ? 't-mono t-lg t-b' : 't-sm t-dim') }, g);
+        return g;
+      });
+      [123, 269, 371].forEach((dx) => S.text(dx, 246, '.', { cls: 't-c t-mono t-xl t-b' }, gn));
+      S.line(40, 274, 434, 274, { cls: 's-dim w15', 'marker-end': S.markers(svg)('dim') }, gn);
+      S.text(30, 292, '下位', { cls: 't-xs t-dim' }, gn);
+      S.text(444, 292, '上位（根に近い）', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gn);
+
+      S.text(500, 204, 'メッセージの中の形（17 バイト）', { cls: 't-sm t-b' }, gn);
+      const wire = ['3', 'w', 'w', 'w', '7', 'y', 'o', 'u', 't', 'u', 'b', 'e', '3', 'c', 'o', 'm', '0'];
+      const owner = [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 3];   // どのラベルの部分か
+      st.wire = wire.map((c, k) => {
+        const wx = 500 + k * 25, isLen = /\d/.test(c);
+        const g = S.g({ cls: 'fade' }, gn);
+        S.rect(wx, 214, 25, 40, { cls: isLen ? 'f-x-soft s-x w1' : 'f-in s-rule w1' }, g);
+        S.text(wx + 12.5, 239, c, { cls: 't-c t-mono t-md' + (isLen ? ' t-x t-b' : '') }, g);
+        g.owner = owner[k];
+        return g;
+      });
+      S.text(500, 274, '色の付いた数字は、続くラベルの長さ（1 バイトの数値）。0 が根で、名前の終わり', { cls: 't-xs t-dim' }, gn);
+
+      /* 4 段目: PC と DNS サーバーの間のメッセージ */
+      const gm = st.gm = S.g({ cls: 'fade' }, svg);
+      box(gm, 30, 308, 170, 50, 'PC', '192.168.1.10:51600');
+      box(gm, 760, 308, 170, 50, 'DNS サーバー（ルーター）', '192.168.1.1:53 ／ UDP');
+      S.line(200, 333, 760, 333, { cls: 's-rule w2' }, gm);
+      st.qRoad = road(gm, 'M312,333 H648');
+      st.aRoad = road(gm, 'M648,333 H312');
+      st.rA = road(gm, 'M240,321 H720');
+      st.rB = road(gm, 'M240,345 H720');
+
+      /* メッセージの中身。sections は [名前, バイト数, 行の配列]。hl 番目の区画に色を付ける */
+      const msgBox = (bx, by, w, title, sections, hl) => {
+        const g = S.g({ cls: 'fade' }, gm);
+        const LH = 16;
+        const lines = sections.reduce((n, s) => n + s[2].length, 0);
+        const h = 30 + lines * LH + sections.length * 4 + (sections.length - 1) * 6 + 8;
+        S.rect(bx, by, w, h, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(bx + 12, by + 20, title, { cls: 't-sm t-b' }, g);
+        let y = by + 28;
+        sections.forEach(([name, bytes, ls], k) => {
+          const sh = ls.length * LH + 4;
+          S.rect(bx + 8, y, w - 16, sh, { rx: 3, cls: k === hl ? 'f-d-soft' : 'f-in' }, g);
+          S.text(bx + 16, y + 14, name + ' ' + bytes, { cls: 't-xs t-b' + (k === hl ? ' t-d' : '') }, g);
+          ls.forEach((l, j) => S.text(bx + 100, y + 14 + j * LH, l, { cls: 't-sm t-mono' }, g));
+          y += sh + 6;
+        });
+        return g;
+      };
+      st.qBox = msgBox(30, 372, 440, '問い合わせ（33 バイト）', [
+        ['ヘッダ', '12 B', ['ID 0x5A3C（乱数）', 'QR=0（問い） RD=1（再帰を望む）', '質問 1 件 ／ 答え 0 件']],
+        ['質問', '21 B', ['www.youtube.com', 'タイプ A（1） クラス IN（1）']]
+      ], 1);
+      st.aBox = msgBox(490, 372, 440, '答え（49 バイト）', [
+        ['ヘッダ', '12 B', ['ID 0x5A3C（問い合わせと同じ）', 'QR=1（答え） RD=1 RA=1', '質問 1 件 ／ 答え 1 件']],
+        ['質問', '21 B', ['問い合わせの質問をそのまま写す']],
+        ['答え', '16 B', ['www.youtube.com（2 B に圧縮）', 'A  IN  TTL 300', '142.250.196.110（4 B）']]
+      ], 2);
+
+      /* 段階5: レコードのタイプ */
+      const gt = st.gt = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 372, 900, 176, { rx: 6, cls: 'f-sf s-rule w1' }, gt);
+      const cols = [46, 130, 190, 400];
+      ['タイプ', '番号', 'データ', 'youtube.com まわりの例'].forEach((s, k) => S.text(cols[k], 394, s, { cls: 't-xs t-b t-dim' }, gt));
+      S.line(40, 402, 920, 402, { cls: 's-soft w1' }, gt);
+      [
+        ['A', '1', 'IPv4 アドレス（4 B）', 'www.youtube.com → 142.250.196.110'],
+        ['AAAA', '28', 'IPv6 アドレス（16 B）', 'www.youtube.com → 2404:6800:4004:80a::200e'],
+        ['CNAME', '5', '別名（本当の名前）', 'rr1---sn-….googlevideo.com → rr1.sn-….googlevideo.com'],
+        ['NS', '2', '担当サーバーの名前', 'youtube.com → ns1.google.com ほか 3 台'],
+        ['MX', '15', 'メールの宛先', 'youtube.com → smtp.google.com'],
+        ['HTTPS', '65', '接続のしかた', 'rr1.sn-….googlevideo.com → alpn="h3"']
+      ].forEach((r, k) => {
+        const y = 422 + k * 21;
+        r.forEach((s, j) => S.text(cols[j], y, s, { cls: 't-xs' + (j === 0 ? ' t-b t-mono t-d' : j === 1 || j === 3 ? ' t-mono' : '') }, gt));
+      });
+
+      /* 動くメッセージ */
+      st.qPkt = pkt(gm, '問い合わせ www.youtube.com A？');
+      st.aPkt = pkt(gm, '答え 142.250.196.110');
+      st.pA = pkt(gm, 'A？');
+      st.pAAAA = pkt(gm, 'AAAA？');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.gu, i === 0 ? 1 : 0.35);
+      op(st.gi, i === 0 || i === 3 ? 1 : 0.35);
+      op(st.gn, i === 1 ? 1 : (i === 0 ? 0.25 : 0.35));
+      op(st.gm, i >= 2 ? 1 : 0.25);
+      /* 隠すときはインラインの濃さを外す（.hide より強いので） */
+      op(st.qBox, i === 4 ? '' : (i === 2 ? 1 : 0.35));
+      op(st.aBox, i === 4 ? '' : (i === 3 ? 1 : 0.35));
+      S.fade(st.qBox, i <= 3);
+      S.fade(st.aBox, i <= 3);
+      S.fade(st.gt, i === 4);
+      st.dst.textContent = i >= 3 ? '宛先 142.250.196.110' : '宛先 ？';
+      st.labs.forEach((g) => op(g, 1));
+      st.wire.forEach((g) => op(g, 1));
+      st.qPkt.style.display = i === 2 ? '' : 'none';
+      st.aPkt.style.display = i === 3 ? '' : 'none';
+      st.pA.style.display = i === 4 ? '' : 'none';
+      st.pAAAA.style.display = i === 4 ? '' : 'none';
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      if (i === 0) {
+        op(st.dst, playing() ? 0.55 + 0.45 * U.pulse(t, 1.4) : 1);
+      } else op(st.dst, 1);
+      if (i === 1) {
+        /* 根 → com → youtube → www の順に、ラベルと符号化の対応を照らす */
+        const k = playing() ? 3 - Math.floor(U.mod(ts, 4.8) / 1.2) : -1;
+        st.labs.forEach((g, n) => op(g, k < 0 || n === k ? 1 : 0.3));
+        st.wire.forEach((g) => op(g, k < 0 || g.owner === k ? 1 : 0.3));
+      }
+      if (i === 2 || i === 3) {
+        const q = U.seq(ts, [1.8, 0.9], true);
+        const f = playing() ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 1;
+        S.place(i === 2 ? st.qPkt : st.aPkt, i === 2 ? st.qRoad : st.aRoad, f);
+      }
+      if (i === 4) {
+        const q = U.seq(ts, [1.8, 0.9], true);
+        const f = playing() ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 0.5;
+        S.place(st.pA, st.rA, f);
+        S.place(st.pAAAA, st.rB, f);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 階層（ルート／TLD／権威）
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '名前の木', text: 'DNS の名前は根から枝分かれする木で、`www.youtube.com` は根 → com → youtube → www とたどった先の葉。`m.youtube.com` は同じ枝の兄弟。名前は .com と .net だけで約 1.8 億個（2026 年 6 月）あるが、木に分けて持つので一か所に集めずに済む。' },
+      { title: 'ゾーンと委任', text: '木を持ち主ごとに切り分けた単位が**ゾーン**。親のゾーンは子の中身を書かず、「youtube.com は ns1.google.com などが担当」という{d|NS レコード}と、そのサーバーの番号（グルー）だけを書く。これが**委任**で、子は親に断らずに中身を変えられる。' },
+      { title: 'ルート：TLD の担当表', text: '根のゾーンには TLD が 1,437 個（2026 年 10 月）と、それぞれの担当サーバーが載る。ルートサーバーの名前が a〜m の 13 個なのは、全部の名前と番号が 512 バイトの UDP の答えに収まるようにしたため。各名前は、各地の多くの機械が同じ番号で受け持つ（Anycast、[[5:4|答えの違い]]）。' },
+      { title: 'TLD：名前ごとの担当表', text: 'com のゾーンは Verisign が持ち、a〜m.gtld-servers.net が答える。中身は登録された名前ごとの NS。youtube.com の行は、持ち主（今は Google）が登録事業者の MarkMonitor を通して申し込み、Verisign が書き込んだもの。jp は JPRS が持つ。' },
+      { title: '権威サーバー：答えを持つ所', text: 'youtube.com のゾーンは Google 自身の ns1〜ns4.google.com が持つ。www の A や AAAA が書いてあるのはここだけで、答えには「ゾーンの持ち主が答えた」ことを示す{x|AA ビット}が立つ。ルートと TLD は、次に聞く先を紹介することしかできない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 木の節。[x, y, 表示, 正式な名前（道の上の節だけ）] */
+      const N = {
+        root: [300, 64, '.', ''], com: [140, 178, 'com', ''], net: [240, 178, 'net', ''], org: [340, 178, 'org', ''], jp: [440, 178, 'jp', ''], more: [545, 178, '… 計 1,437 個', ''],
+        google: [46, 290, 'google', ''], youtube: [204, 290, 'youtube', ''], example: [350, 290, 'example', ''], co: [440, 290, 'co', ''],
+        www: [136, 410, 'www', 'www.youtube.com.'], m: [204, 410, 'm', ''], music: [268, 410, 'music', '']
+      };
+      const path = ['root', 'com', 'youtube', 'www'];
+      const gz = S.g({}, svg);   // ゾーンの枠は木の下に敷く
+      const gt = st.tree = S.g({ cls: 'fade' }, svg);
+      const edges = [['root', 'com'], ['root', 'net'], ['root', 'org'], ['root', 'jp'], ['root', 'more'], ['com', 'google'], ['com', 'youtube'], ['com', 'example'], ['jp', 'co'], ['youtube', 'www'], ['youtube', 'm'], ['youtube', 'music']];
+      st.edges = {};
+      edges.forEach(([a, b]) => {
+        const on = path.indexOf(a) >= 0 && path.indexOf(b) >= 0;
+        st.edges[a + '-' + b] = S.line(N[a][0], N[a][1] + 18, N[b][0], N[b][1] - 16, { cls: on ? 's-fg w2' : 's-rule w15' }, gt);
+      });
+      st.nodes = {};
+      Object.keys(N).forEach((k) => {
+        const [x, y, lab, full] = N[k];
+        const g = S.g({ cls: 'fade' }, gt);
+        if (k === 'root') {
+          S.circle(x, y, 18, { cls: 'f-sf s-fg w2' }, g);
+          S.text(x, y + 6, '.', { cls: 't-c t-xl t-b t-mono' }, g);
+          S.text(x - 40, y + 5, '根（ルート）', { cls: 't-sm t-b', 'text-anchor': 'end' }, g);
+        } else {
+          const w = k === 'more' ? 96 : tw(lab, 13) + 22;
+          S.rect(x - w / 2, y - 16, w, 32, { rx: 6, cls: k === 'more' ? 'f-none s-dim w1 dash' : (path.indexOf(k) >= 0 ? 'f-sf s-fg w2' : 'f-sf s-rule w15') }, g);
+          S.text(x, y + 5, lab, { cls: 't-c ' + (k === 'more' ? 't-xs t-dim' : 't-mono t-md' + (path.indexOf(k) >= 0 ? ' t-b' : '')) }, g);
+          if (full) S.text(x + 14, y + 30, full, { cls: 't-c t-xs t-mono t-dim' }, g);
+        }
+        st.nodes[k] = g;
+      });
+      /* 道の上を動く点（根から葉へ） */
+      st.walk = road(gt, 'M300,82 L140,162 L140,194 L204,274 L204,306 L136,394');
+      st.dot = S.circle(0, 0, 7, { cls: 'f-x' }, gt);
+
+      /* ゾーンの枠（点線）。[x, y, w, h, 札, 札の位置] */
+      st.zones = [
+        [270, 40, 60, 50, 'ルートゾーン', [338, 58, 'start']],
+        [98, 156, 84, 72, 'com ゾーン', [94, 150, 'end']],
+        [86, 266, 220, 184, 'youtube.com ゾーン', [302, 466, 'end']]
+      ].map(([x, y, w, h, lab, [lx, ly, an]]) => {
+        const g = S.g({ cls: 'fade hide' }, gz);
+        g.rect = S.rect(x, y, w, h, { rx: 10, cls: 'f-none s-mid w15 dash' }, g);
+        g.lab = S.text(lx, ly, lab, { cls: 't-xs t-b t-mid', 'text-anchor': an }, g);
+        return g;
+      });
+      /* 委任の札（親のゾーンに書いてある NS）。枝の線に重ねず、境目を越える枝のすぐ脇に置く */
+      st.dele = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.dele, 207, 97, 'NS（委任）', { cls: 't-xs t-b t-d', box: 'f-d-soft s-d w1', h: 18, pad: 10 });
+      S.label(st.dele, 131, 245, 'NS（委任）', { cls: 't-xs t-b t-d', box: 'f-d-soft s-d w1', h: 18, pad: 10 });
+
+      /* 右: 各ゾーンを持つサーバーと、書いてあるレコード */
+      const card = (y, h, title, who, recs) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        g.rect = S.rect(620, y, 320, h, { rx: 8, cls: 'f-sf s-rule w15' }, g);
+        S.text(636, y + 24, title, { cls: 't-md t-b' }, g);
+        S.text(636, y + 43, who, { cls: 't-xs t-dim' }, g);
+        g.recs = recs.map(([s, cls], k) => {
+          const ry = y + h - 14 - (recs.length - 1 - k) * 19;
+          const bg = S.rect(630, ry - 13, 300, 18, { rx: 3, cls: 'f-in' }, g);
+          S.text(638, ry, s, { cls: 't-xs t-mono pre ' + (cls || '') }, g);
+          return bg;
+        });
+        return g;
+      };
+      st.cards = [
+        card(20, 168, 'ルートゾーン', '管理 IANA ／ 答えるのは a〜m.root-servers.net', [['com.  NS  a.gtld-servers.net. ほか 12（2 日）']]),
+        card(200, 132, 'com ゾーン（TLD）', '管理 Verisign ／ 答えるのは a〜m.gtld-servers.net', [['youtube.com.  NS  ns1.google.com. ほか 3（2 日）'], ['ns1.google.com.  A  216.239.32.10（グルー）', 't-dim']]),
+        card(344, 160, 'youtube.com ゾーン（権威）', '管理 Google ／ 答えるのは ns1〜ns4.google.com', [['www.youtube.com.  A     142.250.196.110'], ['www.youtube.com.  AAAA  2404:6800:4004:80a::200e'], ['youtube.com.      MX    smtp.google.com.', 't-dim']])
+      ];
+      /* ルートサーバー 13 個の名前 */
+      st.roots = S.g({}, st.cards[0]);
+      'abcdefghijklm'.split('').forEach((c, k) => {
+        S.rect(636 + k * 23, 74, 20, 20, { rx: 3, cls: 'f-in s-mid w1' }, st.roots);
+        S.text(646 + k * 23, 88, c, { cls: 't-c t-xs t-mono t-b' }, st.roots);
+      });
+      S.text(636, 114, '12 の組織が運用し、合わせて 2,047 か所で動く', { cls: 't-xs' }, st.cards[0]);
+      S.text(636, 130, '（root-servers.org、2026 年 10 月）', { cls: 't-xs t-dim' }, st.cards[0]);
+      st.aa = S.label(st.cards[2], 894, 364, 'AA=1', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 18, pad: 10 });
+
+      /* 段階4: 名前が com に載るまで */
+      const gr = st.reg = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 496, '名前が com のゾーンに載るまで', { cls: 't-xs t-b' }, gr);
+      [['Google', '登録者'], ['MarkMonitor', '登録事業者'], ['Verisign', 'レジストリ'], ['com ゾーン', 'NS の行が載る']].forEach(([a, b], k) => {
+        const x = 20 + k * 150;
+        S.rect(x, 506, 124, 40, { rx: 5, cls: k === 3 ? 'f-d-soft s-d w1' : 'f-sf s-rule w1' }, gr);
+        S.text(x + 62, 523, a, { cls: 't-c t-xs t-b' }, gr);
+        S.text(x + 62, 538, b, { cls: 't-c t-xs t-dim' }, gr);
+        if (k < 3) S.line(x + 126, 526, x + 146, 526, { cls: 's-dim w15', 'marker-end': mk('dim') }, gr);
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.dot.style.display = i === 0 ? '' : 'none';
+      st.zones.forEach((z, k) => {
+        S.fade(z, i >= 1);
+        const on = i === k + 2;
+        z.rect.setAttribute('class', on ? 'f-x-soft s-x w2 dash' : 'f-none s-mid w15 dash');
+        z.lab.setAttribute('class', 't-xs t-b ' + (on ? 't-x' : 't-mid'));
+      });
+      S.fade(st.dele, i === 1);
+      st.cards.forEach((c, k) => {
+        op(c, i === 0 ? 0.3 : (i === 1 || i === k + 2) ? 1 : 0.3);
+        c.recs.forEach((bg) => bg.setAttribute('class', i === 1 && k < 2 ? 'f-d-soft' : 'f-in'));
+      });
+      S.fade(st.aa, i === 4);
+      S.fade(st.reg, i === 3);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) {
+        const q = U.seq(ctx.ts, [2.4, 1.0], true);
+        S.place(st.dot, st.walk, playing() ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 1);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 再帰的な問い合わせ
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '①　PC はルーターに 1 回聞くだけ', text: 'PC のスタブリゾルバは、DHCP で教わった DNS サーバー 192.168.1.1（第14章）の 53 番に、RD ビットを 1 にした問い合わせを送る。RD は「再帰を望む」、つまり途中の紹介ではなく最後の答えだけを返してほしいという意味。PC の仕事はこの 1 往復だけ。' },
+      { title: '②　ルーターが ISP のフルリゾルバへ転送する', text: 'ルーターは自分のキャッシュに答えが無いので、WAN 側の 203.0.113.5 から ISP のフルリゾルバ 198.51.100.53 へ、自分の ID を付けて同じ質問を送り直す。フルリゾルバの番号は、回線につないだときに ISP から受け取っている（第15章）。' },
+      { title: '③④　ルートは com の担当を紹介する', text: '何も覚えていないフルリゾルバは、まずルートに聞く。ルートは答えを持たず、「com はこの 13 台が担当」という NS と番号を返す。これが**紹介**（リフェラル）。今の多くのリゾルバは、ルートには名前のうち `com` の部分だけを見せる（QNAME 最小化、RFC 9156）。' },
+      { title: '⑤⑥　com は youtube.com の担当を紹介する', text: '次に com のサーバー（a.gtld-servers.net など）へ聞くと、「youtube.com は ns1〜ns4.google.com が担当」という紹介が返る。番号（216.239.32.10 など）も付いているので、すぐ次へ聞ける。' },
+      { title: '⑦⑧　権威サーバーが答える', text: 'ns1.google.com は youtube.com のゾーンの持ち主なので、AA ビットを立てて A 142.250.196.110、TTL 300 秒を返す。ここで初めて答えが出る。フルリゾルバから見れば、紹介を 2 回たどった 3 往復。' },
+      { title: '⑨⑩　答えが PC まで戻る', text: 'フルリゾルバは RA=1（再帰に対応）、AA=0（受け売り）でルーターへ答え、ルーターは ID を PC の 0x5A3C に戻して PC へ返す。途中で受け取った紹介と答えは、フルリゾルバとルーターがそれぞれ TTL の間覚える（[[4|キャッシュと TTL]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.mk = S.markers(svg);
+      /* 区域 */
+      [[275, '家の中', 140], [640, 'ISP', 458]].forEach(([x, lab, lx]) => {
+        S.line(x, 20, x, 340, { cls: 's-soft w15 dash' }, svg);
+        S.text(lx, 14, lab, { cls: 't-c t-xs t-b t-dim' }, svg);
+      });
+      S.text(830, 14, 'インターネットの各地', { cls: 't-c t-xs t-b t-dim' }, svg);
+      /* 機器 */
+      st.nodes = {
+        pc: box(svg, 30, 40, 170, 56, 'PC（スタブリゾルバ）', '192.168.1.10'),
+        rt: box(svg, 30, 236, 170, 56, 'ルーター（DNS 転送）', '192.168.1.1'),
+        rs: box(svg, 350, 236, 200, 56, 'フルリゾルバ', '198.51.100.53'),
+        root: box(svg, 730, 24, 200, 56, 'ルートサーバー', 'a〜m.root-servers.net'),
+        tld: box(svg, 730, 150, 200, 56, 'com のサーバー（TLD）', 'a〜m.gtld-servers.net'),
+        auth: box(svg, 730, 276, 200, 56, 'youtube.com の権威', 'ns1〜ns4.google.com')
+      };
+      S.text(115, 310, 'WAN 側 203.0.113.5', { cls: 't-c t-xs t-mono t-dim' }, svg);
+      /* 道。[番号, x1, y1, x2, y2, 番号の x, y, 送り手, 受け手, 荷札] */
+      const L = [
+        [1, 105, 100, 105, 232, 70, 172, 'pc', 'rt', 'A？'],
+        [2, 204, 256, 346, 256, 275, 240, 'rt', 'rs', 'A？'],
+        [3, 554, 240, 726, 46, 664, 92, 'rs', 'root', 'A？'],
+        [4, 726, 62, 554, 252, 702, 126, 'root', 'rs', '紹介'],
+        [5, 554, 258, 726, 170, 664, 184, 'rs', 'tld', 'A？'],
+        [6, 726, 186, 554, 270, 702, 228, 'tld', 'rs', '紹介'],
+        [7, 554, 276, 726, 296, 680, 280, 'rs', 'auth', 'A？'],
+        [8, 726, 312, 554, 288, 680, 328, 'auth', 'rs', '答え'],
+        [9, 346, 274, 204, 274, 275, 304, 'rs', 'rt', '答え'],
+        [10, 125, 232, 125, 100, 162, 172, 'rt', 'pc', '答え']
+      ];
+      const circ = '①②③④⑤⑥⑦⑧⑨⑩';
+      st.lanes = L.map(([n, x1, y1, x2, y2, lx, ly, a, b, tag]) => {
+        const line = S.line(x1, y1, x2, y2, { cls: 's-rule w15', 'marker-end': st.mk('dim') }, svg);
+        const num = S.text(lx, ly + 2, circ[n - 1], { cls: 't-c t-xl t-b t-dim' }, svg);
+        const rd = road(svg, `M${x1},${y1} L${x2},${y2}`);
+        return { n, line, num, rd, a, b, tag };
+      });
+      st.pkts = st.lanes.map((ln) => {
+        const p = pkt(svg, ln.tag, 'f-d');
+        p.style.display = 'none';
+        return p;
+      });
+      /* 下: いまのメッセージの中身 */
+      const gp = S.g({}, svg);
+      S.rect(30, 360, 900, 188, { rx: 8, cls: 'f-sf s-rule w1' }, gp);
+      S.text(46, 384, 'いまのメッセージの中身（ID は例）', { cls: 't-xs t-b t-dim' }, gp);
+      st.pLines = [0, 1, 2, 3, 4].map((k) => S.text(46, 410 + k * 24, '', { cls: 't-sm t-mono pre' }, gp));
+      st.panel = [
+        [['① PC 192.168.1.10:51600 → ルーター 192.168.1.1:53', 'b'], ['ヘッダ  ID 0x5A3C  QR=0  RD=1（再帰を望む）'], ['質問    www.youtube.com.  IN  A']],
+        [['② ルーター 203.0.113.5 → フルリゾルバ 198.51.100.53:53', 'b'], ['ヘッダ  ID 0x91C7（ルーターが付け直す）  QR=0  RD=1'], ['質問    www.youtube.com.  IN  A']],
+        [['③ フルリゾルバ → ルート　④ ルート → フルリゾルバ', 'b'], ['③ 質問    com.（名前のうち com の部分だけ）'], ['④ ヘッダ  QR=1  AA=0  答え 0 件（紹介）'], ['   権威欄  com.  172800  NS  a.gtld-servers.net. ほか 12'], ['   追加欄  a.gtld-servers.net.  A  192.5.6.30 ほか']],
+        [['⑤ フルリゾルバ → com のサーバー　⑥ com のサーバー → フルリゾルバ', 'b'], ['⑤ 質問    youtube.com.（youtube.com まで）'], ['⑥ ヘッダ  QR=1  AA=0  答え 0 件（紹介）'], ['   権威欄  youtube.com.  172800  NS  ns1.google.com. ほか 3'], ['   追加欄  ns1.google.com.  A  216.239.32.10 ほか']],
+        [['⑦ フルリゾルバ → ns1.google.com　⑧ ns1.google.com → フルリゾルバ', 'b'], ['⑦ 質問    www.youtube.com.  IN  A'], ['⑧ ヘッダ  QR=1  AA=1（ゾーンの持ち主の答え）  答え 1 件'], ['   答え欄  www.youtube.com.  300  IN  A  142.250.196.110', 'x']],
+        [['⑨ フルリゾルバ → ルーター　⑩ ルーター → PC', 'b'], ['⑨ ヘッダ  ID 0x91C7  QR=1  RA=1（再帰に対応）  AA=0'], ['⑩ ヘッダ  ID 0x5A3C（PC の ID に戻す）  QR=1  RA=1'], ['   答え欄  www.youtube.com.  300  IN  A  142.250.196.110', 'x']]
+      ];
+      st.active = [[1], [2], [3, 4], [5, 6], [7, 8], [9, 10]];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const act = st.active[i];
+      const done = [].concat(...st.active.slice(0, i));
+      const busy = {};
+      st.lanes.forEach((ln) => {
+        const a = act.indexOf(ln.n) >= 0, d = done.indexOf(ln.n) >= 0;
+        ln.line.setAttribute('class', a ? 's-d w2' : d ? 's-mid w15' : 's-rule w15');
+        ln.line.setAttribute('marker-end', st.mk(a ? 'd' : d ? 'mid' : 'dim'));
+        ln.num.setAttribute('class', 't-c t-xl t-b ' + (a ? 't-d' : d ? 't-mid' : 't-dim'));
+        if (a) { busy[ln.a] = 1; busy[ln.b] = 1; }
+      });
+      Object.keys(st.nodes).forEach((k) => st.nodes[k].rect.setAttribute('class', busy[k] ? 'f-d-soft s-d w2' : 'f-sf s-rule w15'));
+      st.pkts.forEach((p) => { p.style.display = 'none'; });
+      st.pLines.forEach((t, k) => {
+        const row = st.panel[i][k];
+        t.textContent = row ? row[0] : '';
+        t.setAttribute('class', 't-sm t-mono pre' + (row && row[1] === 'b' ? ' t-b' : '') + (row && row[1] === 'x' ? ' t-x t-b' : ''));
+      });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      const act = st.active[i];
+      const pk = (n) => st.pkts[n - 1], rd = (n) => st.lanes[n - 1].rd;
+      if (act.length === 1) {
+        const q = U.seq(ctx.ts, [1.4, 0.7], true);
+        const f = playing() ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 0.5;
+        pk(act[0]).style.display = '';
+        S.place(pk(act[0]), rd(act[0]), f);
+      } else {
+        const q = U.seq(ctx.ts, [1.3, 0.4, 1.3, 0.8], true);
+        const first = playing() ? q.i <= 1 : false;
+        const f = playing() ? (q.i === 0 || q.i === 2 ? U.ease.inOut(q.f) : 1) : 0.5;
+        pk(act[0]).style.display = first ? '' : 'none';
+        pk(act[1]).style.display = first ? 'none' : '';
+        S.place(pk(first ? act[0] : act[1]), rd(first ? act[0] : act[1]), f);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 キャッシュと TTL
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'TTL：使い回してよい秒数', text: 'どのレコードにも TTL（32 ビット、単位は秒）が付き、値はゾーンの持ち主が決める。www.youtube.com の A は 300 秒、com と youtube.com の担当（NS）は 172,800 秒＝2 日、ルートの担当は 6 日（2026 年 10 月）。' },
+      { title: 'フルリゾルバが覚える', text: 'フルリゾルバは、紹介で受け取った NS と番号、最後の答えを、受け取った時刻と TTL ごと表に入れる。同じ質問が来たら、表の残りの秒数を TTL にして答える。表の TTL は 1 秒ごとに減っていく（図は早送り）。' },
+      { title: '2 人目は外へ聞きに行かない', text: '同じ ISP の別の家が 2 分後に www.youtube.com を引くと、フルリゾルバは表から即答し、TTL は残りの 180 秒になる。ルートにも com にも Google にも問い合わせは出ない。待ち時間はフルリゾルバまでの 1 往復だけ。' },
+      { title: '期限が切れても、残っている所から', text: '300 秒たつと A の行は消えるが、youtube.com の NS はまだ 2 日近く残っている。7 分後の問い合わせは ns1.google.com への 1 往復で済み、A は新しい 300 秒で覚え直す。ルートから聞き直すのは、com の NS も切れたときだけ。' },
+      { title: 'キャッシュは何段もある', text: 'ブラウザ（Chrome は自前の表）、OS（Windows の DNS Client、macOS の mDNSResponder、Linux の systemd-resolved など）、ルーター、フルリゾルバの順に探す。ブラウザが OS の段を通らず、自分で DNS サーバーへ聞く場合もある（[[6:3|DoH]] など）。' },
+      { title: 'TTL の長さは取引', text: 'TTL が短いほど、持ち主はサーバーの入れ替えや障害時の切り替えを早く行き渡らせられるが、問い合わせは増える。名前ごとの番号は分単位、担当（NS）は日単位のことが多い。担当サーバーを替えると、古い NS が各地のキャッシュから消えるまで日単位で待つ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      /* 左: 2 軒の家 */
+      st.homeA = box(svg, 30, 34, 160, 52, '家 A（この PC）', 'WAN 203.0.113.5');
+      st.homeB = box(svg, 30, 136, 160, 52, '家 B（別の家）', 'WAN 192.0.2.20');
+      /* 中: フルリゾルバのキャッシュの表 */
+      const gr = S.g({}, svg);
+      S.rect(270, 20, 420, 200, { rx: 8, cls: 'f-sf s-fg w15' }, gr);
+      S.text(286, 44, 'フルリゾルバ 198.51.100.53 のキャッシュ', { cls: 't-sm t-b' }, gr);
+      [['名前', 286], ['タイプ', 420], ['値', 470]].forEach(([h, x]) => S.text(x, 72, h, { cls: 't-xs t-b t-dim' }, gr));
+      S.text(674, 72, '残り TTL', { cls: 't-xs t-b t-dim', 'text-anchor': 'end' }, gr);
+      S.line(282, 80, 678, 80, { cls: 's-soft w1' }, gr);
+      st.empty = S.text(480, 130, '（まだ何も覚えていない）', { cls: 't-c t-sm t-dim fade' }, gr);
+      st.rows = [['com.', 'NS', 'a.gtld-servers.net. …', 172800, 0], ['youtube.com.', 'NS', 'ns1.google.com. …', 172800, 0], ['www.youtube.com.', 'A', '142.250.196.110', 300, 0]].map(([n, ty, v, ttl], k) => {
+        const y = 104 + k * 34;
+        const g = S.g({ cls: 'fade' }, gr);
+        const bg = S.rect(280, y - 19, 400, 28, { rx: 4, cls: 'f-in' }, g);
+        S.text(286, y, n, { cls: 't-xs t-mono t-b' }, g);
+        S.text(420, y, ty, { cls: 't-xs t-mono' }, g);
+        const val = S.text(470, y, v, { cls: 't-xs t-mono' }, g);
+        const tt = S.text(674, y, '', { cls: 't-xs t-mono t-b', 'text-anchor': 'end' }, g);
+        return { g, bg, val, tt, ttl, v };
+      });
+      st.hit = S.label(svg, 480, 204, '表から即答。外へは問い合わせない', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 20, pad: 12, gcls: 'fade hide' });
+      /* 右: 外のサーバーと、答えに付けてくる TTL */
+      const srv = [['ルート', 'com.  NS …', 'TTL 172800', 20], ['com のサーバー', 'youtube.com.  NS …', 'TTL 172800', 88], ['ns1.google.com', 'www.youtube.com.  A …', 'TTL 300', 156]];
+      st.srv = srv.map(([t, r, ttl, y]) => {
+        const g = box(svg, 750, y, 190, 62, '', '');
+        S.text(845, y + 18, t, { cls: 't-c t-sm t-b' }, g);
+        S.text(845, y + 35, r, { cls: 't-c t-xs t-mono pre' }, g);
+        g.rec = S.text(845, y + 52, ttl, { cls: 't-c t-xs t-mono' }, g);
+        return g;
+      });
+      /* 矢印（往きと帰り）。名前 → [x1, y1, x2, y2] の組 */
+      const pair = (a, b) => [a, b].map(([x1, y1, x2, y2]) => S.line(x1, y1, x2, y2, { cls: 's-rule w15', 'marker-end': mk('dim') }, svg));
+      st.ar = {
+        A: pair([190, 54, 266, 54], [266, 68, 190, 68]),
+        B: pair([190, 156, 266, 156], [266, 170, 190, 170]),
+        root: pair([694, 44, 746, 44], [746, 58, 694, 58]),
+        com: pair([694, 112, 746, 112], [746, 126, 694, 126]),
+        ns1: pair([694, 180, 746, 180], [746, 194, 694, 194])
+      };
+
+      /* 中段: 時間の流れ（早送り） */
+      const X = st.X = (t) => 70 + t * 820 / 600;
+      const gtl = st.tl = S.g({ cls: 'fade' }, svg);
+      S.text(30, 254, '時間の流れ（早送り）', { cls: 't-xs t-b' }, gtl);
+      S.rect(X(0), 278, X(600) - X(0), 12, { rx: 3, cls: 'f-in' }, gtl);
+      S.text(X(600) - 4, 288, 'NS は 2 日残る →', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gtl);
+      S.text(X(0) - 6, 288, 'NS', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gtl);
+      S.text(X(0) - 6, 306, 'A', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gtl);
+      st.bandA1 = S.rect(X(0), 296, X(300) - X(0), 12, { rx: 3, cls: 'f-d-soft s-d w1' }, gtl);
+      st.bandA2 = S.rect(X(420), 296, X(600) - X(420), 12, { rx: 3, cls: 'f-d-soft s-d w1' }, gtl);
+      S.line(X(0), 320, X(600), 320, { cls: 's-mid w15' }, gtl);
+      for (let m = 0; m <= 10; m++) {
+        S.line(X(m * 60), 316, X(m * 60), 324, { cls: 's-mid w1' }, gtl);
+        S.text(X(m * 60), 338, m ? m + ' 分' : '0', { cls: 't-c t-xs t-dim' }, gtl);
+      }
+      st.ev = [[0, '家 A：外へ 3 往復'], [120, '家 B：表から即答'], [300, 'A の期限'], [420, '家 A：ns1 へ 1 往復']].map(([t, s]) => {
+        const g = S.g({ cls: 'fade' }, gtl);
+        S.circle(X(t), 320, 5, { cls: t === 300 ? 'f-x' : 'f-d' }, g);
+        S.text(X(t), 360, s, { cls: 't-c t-xs t-b' + (t === 300 ? ' t-x' : '') }, g);
+        return g;
+      });
+      st.cursor = S.g({}, gtl);
+      S.line(0, 266, 0, 326, { cls: 's-x w2' }, st.cursor);
+      st.curTxt = S.text(6, 272, '', { cls: 't-xs t-b t-x' }, st.cursor);
+
+      /* 中段（段階6）: TTL の長さの比べ（対数目盛） */
+      const gc = st.cmp = S.g({ cls: 'fade hide' }, svg);
+      S.text(30, 254, 'TTL の長さ（対数目盛、2026 年 10 月の値）', { cls: 't-xs t-b' }, gc);
+      const LX = (sec) => 330 + (Math.log10(sec) - 1) / 5 * 560;   // 10 秒〜100 万秒
+      [[10, '10 秒'], [60, '1 分'], [3600, '1 時間'], [86400, '1 日']].forEach(([sec, s]) => {
+        S.line(LX(sec), 262, LX(sec), 374, { cls: 's-soft w1' }, gc);
+        S.text(LX(sec), 384, s, { cls: 't-c t-xs t-dim' }, gc);
+      });
+      [['youtube.com の「無い」の答え', 60], ['www.youtube.com の A', 300], ['動画の配信元の CNAME', 1800], ['www.youtube.com の HTTPS', 3600], ['com に書かれた youtube.com の NS', 172800], ['ルートの NS', 518400]].forEach(([s, sec], k) => {
+        const y = 270 + k * 18;
+        S.text(318, y + 9, s, { cls: 't-xs', 'text-anchor': 'end' }, gc);
+        S.rect(330, y, LX(sec) - 330, 12, { rx: 2, cls: 'f-d' }, gc);
+        S.text(LX(sec) + 6, y + 10, U.fmt(sec) + ' 秒', { cls: 't-xs t-mono t-dim' }, gc);
+      });
+
+      /* 下段: キャッシュの段 */
+      const gk = st.tiers = S.g({ cls: 'fade' }, svg);
+      S.text(30, 410, '名前を探す順（見つかった所で終わる）と、そこで見つかったときの待ち時間の目安', { cls: 't-xs t-b' }, gk);
+      [['ブラウザ', 'Chrome などは自前の表', 'ほぼ 0 ms'], ['OS', 'DNS Client（Windows）など', '1 ms 未満'], ['ルーター', 'DNS 転送（dnsmasq など）', '数 ms（家の中）'], ['フルリゾルバ', 'ISP の 198.51.100.53', '数 ms〜十数 ms'], ['ルート・TLD・権威', 'どの段にも無いときだけ', '数十〜数百 ms']].forEach(([t, sub, ms], k) => {
+        const x = 30 + k * 184;
+        box(gk, x, 422, 164, 58, t, sub, { scls: '', cls: k === 4 ? 'f-in s-rule w1' : 'f-sf s-rule w15' });
+        S.text(x + 82, 500, ms, { cls: 't-c t-xs t-mono t-b' }, gk);
+        if (k < 4) S.line(x + 166, 451, x + 180, 451, { cls: 's-dim w15', 'marker-end': mk('dim') }, gk);
+      });
+      S.text(930, 530, '待ち時間は目安。回線と距離で変わる', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gk);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const lit = [[], ['A', 'root', 'com', 'ns1'], ['B'], ['A', 'ns1'], [], []][i];
+      Object.keys(st.ar).forEach((k) => st.ar[k].forEach((ln) => {
+        const on = lit.indexOf(k) >= 0;
+        ln.setAttribute('class', on ? 's-d w2' : 's-rule w15');
+        ln.setAttribute('marker-end', st.mk(on ? 'd' : 'dim'));
+      }));
+      st.srv.forEach((g) => g.rec.setAttribute('class', 't-c t-xs t-mono' + (i === 0 ? ' t-x t-b' : '')));
+      S.fade(st.tl, i <= 4);
+      S.fade(st.cmp, i === 5);
+      op(st.tl, i === 4 ? 0.35 : (i <= 3 ? '' : ''));
+      op(st.tiers, i === 4 ? 1 : 0.4);
+      S.fade(st.empty, i === 0);
+      st.ev.forEach((g, k) => op(g, i === 0 ? 0.3 : (i >= 3 || k === 0 || (i === 2 && k === 1)) ? 1 : 0.3));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts, run = playing();
+      const simT = i <= 1 ? 0 : i === 2 ? 120 * (run ? U.ease.inOut(U.prog(ts, 0.2, 1.6)) : 1) : i === 3 ? 120 + 300 * (run ? U.prog(ts, 0.2, 3.0) : 1) : 420;
+      st.cursor.setAttribute('transform', `translate(${st.X(simT).toFixed(1)},0)`);
+      st.cursor.style.display = i >= 1 && i <= 4 ? '' : 'none';
+      st.curTxt.textContent = simT < 1 ? 'いま' : `+${Math.round(simT)} 秒`;
+      st.rows.forEach((r, k) => {
+        const shown = i >= 2 || (i === 1 && (!run || ts > 0.3 + 0.5 * k));
+        op(r.g, shown ? 1 : 0);
+        let ttl = r.ttl - simT, cls = 'f-in', txt;
+        if (k === 2) {
+          if (simT >= 300 && simT < 420) { txt = '期限切れ'; cls = 'f-x-soft'; }
+          else if (simT >= 420) { ttl = 300 - (simT - 420); }
+          if (i === 2 && simT >= 119.5) cls = 'f-x-soft';
+          if (i === 3 && simT >= 420) cls = 'f-d-soft';
+          r.val.setAttribute('class', 't-xs t-mono' + (txt ? ' t-dim' : ''));
+        }
+        r.tt.textContent = txt || U.fmt(Math.max(0, Math.round(ttl))) + ' 秒';
+        r.tt.setAttribute('class', 't-xs t-mono t-b' + (txt ? ' t-x' : ''));
+        r.bg.setAttribute('class', cls);
+      });
+      S.fade(st.hit, i === 2 && simT >= 119.5);
+      st.bandA2.style.display = simT >= 420 ? '' : 'none';
+    }
+  };
+
+  /* ================================================================
+     場面5 答えが人によって違う（CDN・Anycast）
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '同じ名前、違う答え', text: 'Google の権威サーバーは、多くの名前で、問い合わせ元に近い拠点の番号を返す。2026 年 10 月に m.youtube.com を日本とブラジルの利用者として引くと、答えはそれぞれの国の拠点の番号だった。PC はその番号へ接続するので、同じ名前でも、つながる先は利用者の近くになる。' },
+      { title: '権威サーバーが見るのはフルリゾルバ', text: '権威サーバーに届くのはフルリゾルバからの問い合わせで、PC の番号は見えない。だから問い合わせ元のフルリゾルバの番号（198.51.100.53）から場所を推定する。ISP のフルリゾルバは利用者の近くにあるので、多くの場合はこれで足りる。' },
+      { title: 'ECS：利用者の場所を添える', text: '公開リゾルバ（8.8.8.8 など）は広い地域の利用者を受け持つので、リゾルバの番号だけでは利用者の場所が粗くしか分からない。そこで利用者の番号の上位 24 ビット（203.0.113.0/24）を質問に添える。これが ECS（RFC 7871）。Google Public DNS は送り、1.1.1.1 は送らない。' },
+      { title: '動画の断片の多くは ISP の中から', text: '動画の断片を取りに行く名前（rr1---sn-xxxxxxxx.googlevideo.com の形）は、YouTube のサーバーが利用者に合わせて選んで渡す。DNS はその名前を CNAME で別名に向け、GGC のある ISP では ISP の中のキャッシュ（GGC）の番号を返すことがある（第22章）。' },
+      { title: 'Anycast：同じ番号を各地に置く', text: 'Anycast は、同じ番号を多くの場所のサーバーに付け、それぞれの場所から経路を広告する方式。パケットは経路の上で最も近い 1 か所に届く（BGP、第16章）。ルートサーバーの 2,047 か所や 8.8.8.8 がこの方式で、1 往復で終わる DNS と相性がよい。' },
+      { title: 'www.youtube.com は経路で近くへ', text: '2026 年 10 月の確認では、www.youtube.com はどの地域の利用者として問い合わせても同じ 8 個の番号（142.251.150.4〜157.4）を返し、日本からの往復は約 7 ms だった。近くへ運ぶ仕事を、DNS の答えではなく Anycast の経路に任せていると考えられる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      /* 上段: DNS による振り分け */
+      const ga = st.ga = S.g({ cls: 'fade' }, svg);
+      S.text(30, 24, 'DNS による振り分け — 答えの番号を変える', { cls: 't-sm t-b' }, ga);
+      box(ga, 360, 36, 240, 50, 'ns1.google.com（権威）', '問い合わせ元から場所を推定', { scls: '' });
+      S.text(480, 106, 'どちらも「m.youtube.com の A は？」', { cls: 't-c t-xs t-dim' }, ga);
+      const res = (x, l1, l2, l3) => {
+        const g = S.g({ cls: 'fade' }, ga);
+        S.rect(x, 100, 260, 64, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+        S.text(x + 12, 119, l1, { cls: 't-sm t-b' }, g);
+        S.text(x + 12, 136, l2, { cls: 't-xs t-mono t-dim' }, g);
+        S.text(x + 12, 153, l3, { cls: 't-xs t-mono t-b t-d' }, g);
+        return g;
+      };
+      st.jp = res(30, 'フルリゾルバ（日本の ISP）', '送信元 198.51.100.53', '答え 142.251.23.100 など');
+      st.br = res(670, 'フルリゾルバ（ブラジルの ISP）', '送信元 ブラジルの番号', '答え 172.217.29.142');
+      const lane = (x1, y1, x2, y2, tag) => {
+        const ln = S.line(x1, y1, x2, y2, { cls: 's-d w15', 'marker-end': mk('d') }, ga);
+        const rd = road(ga, `M${x1},${y1} L${x2},${y2}`);
+        const p = pkt(ga, tag, 'f-d');
+        return { ln, rd, p };
+      };
+      st.lanes = [lane(292, 118, 358, 70, 'A？'), lane(358, 84, 292, 132, '答え'), lane(668, 118, 602, 70, 'A？'), lane(602, 84, 668, 132, '答え')];
+
+      /* 中段: 段階ごとの流れ */
+      const flow = (items, notes) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        let x = 30;
+        const W = items.reduce((a, it) => a + it[2], 0), gap = (900 - W) / (items.length - 1);
+        items.forEach(([t, sub, w, cls], k) => {
+          box(g, x, 214, w, 52, t, sub, { cls: cls || 'f-sf s-rule w15', scls: 't-mono' });
+          if (k < items.length - 1) S.line(x + w + 4, 240, x + w + gap - 4, 240, { cls: 's-d w15', 'marker-end': mk('d') }, g);
+          x += w + gap;
+        });
+        notes.forEach((n, k) => S.text(480, 294 + k * 18, n, { cls: 't-c t-xs' + (k ? ' t-dim' : '') }, g));
+        g.items = items;
+        return g;
+      };
+      const g0 = S.g({ cls: 'fade hide' }, svg);
+      box(g0, 30, 214, 260, 52, 'Google の拠点（日本）', '142.251.23.100 など／日本から往復 約 7 ms', { cls: 'f-d-soft s-d w15' });
+      box(g0, 670, 214, 260, 52, 'Google の拠点（サンパウロ）', '172.217.29.142／日本から往復 約 270 ms', { cls: 'f-d-soft s-d w15' });
+      [160, 800].forEach((x) => S.line(x, 168, x, 210, { cls: 's-d w15 dash', 'marker-end': mk('d') }, g0));
+      S.text(480, 236, 'PC は答えの番号へ接続する', { cls: 't-c t-xs t-b' }, g0);
+      S.text(480, 254, '同じ名前でも、つながる先は利用者の近く', { cls: 't-c t-xs t-dim' }, g0);
+      st.rows = [
+        g0,
+        flow([['PC', '192.168.1.10', 150], ['ルーター', '203.0.113.5', 150], ['フルリゾルバ', '198.51.100.53', 170], ['ns1.google.com', '送信元 198.51.100.53 だけ', 190, 'f-x-soft s-x w15']],
+          ['権威サーバーから見える送信元は、フルリゾルバの 198.51.100.53 だけ', 'PC の番号も家のルーターの番号も届かない']),
+        flow([['家 A の PC', 'WAN 203.0.113.5', 170], ['公開リゾルバ 8.8.8.8', '世界各地に同じ番号', 200], ['ns1.google.com', 'ECS で場所を知る', 190, 'f-x-soft s-x w15']],
+          ['公開リゾルバの送信元は、そのリゾルバの拠点の番号。利用者の場所は添えた 24 ビットで知る', '24 ビットまでに切るのは、利用者を特定しすぎないため（IPv6 は 56 ビット）']),
+        flow([['YouTube のサーバー', '断片の URL を渡す', 170], ['rr1---sn-xxxxxxxx', 'CNAME → rr1.sn-xxxxxxxx', 230], ['ISP の中のキャッシュ', 'GGC 198.51.100.80（例）', 210, 'f-x-soft s-x w15']],
+          ['名前は .googlevideo.com の下。CNAME と A の TTL は 1,800 秒（2026 年 10 月）', '同じ動画でも、ISP が違えば多くの場合は違う名前・違うキャッシュから届く'])
+      ];
+      st.ecs = S.label(st.rows[2], 0, 0, 'ECS 203.0.113.0/24', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 18, pad: 10 });
+
+      /* 下段: Anycast */
+      const gb = st.gb = S.g({ cls: 'fade' }, svg);
+      S.text(30, 342, 'Anycast — 同じ番号を各地に置き、経路が近い 1 か所へ運ぶ', { cls: 't-sm t-b' }, gb);
+      st.sites = ['日本の拠点', '東南アジアの拠点', '欧州の拠点', '南米の拠点'].map((n, k) => {
+        const x = 135 + k * 230;
+        const g = S.g({}, gb);
+        S.rect(x - 95, 376, 190, 50, { rx: 6, cls: 'f-sf s-fg w15' }, g);
+        S.text(x, 396, n, { cls: 't-c t-sm t-b' }, g);
+        g.ip = S.text(x, 415, '', { cls: 't-c t-xs t-mono t-b t-d' }, g);
+        S.circle(x, 504, 9, { cls: 'f-mid' }, g);
+        S.text(x, 528, ['日本の利用者', '東南アジアの利用者', '欧州の利用者', '南米の利用者'][k], { cls: 't-c t-xs' }, g);
+        S.line(x, 492, x, 432, { cls: 's-d w15', 'marker-end': mk('d') }, g);
+        g.rd = road(g, `M${x},490 L${x},436`);
+        g.p = pkt(g, 'A？', 'f-d');
+        return g;
+      });
+      st.note = S.text(480, 548, '', { cls: 't-c t-xs t-b' }, gb);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.ga, i === 0 ? '' : i <= 3 ? 0.45 : 0.3);
+      op(st.br, i === 0 ? '' : 0.5);
+      st.lanes.forEach((l, k) => { l.p.style.display = 'none'; op(l.ln, (k >= 2 && i !== 0) ? 0.25 : 1); });
+      st.rows.forEach((g, k) => S.fade(g, k === i));
+      op(st.gb, i >= 4 ? 1 : 0.3);
+      st.sites.forEach((g) => { g.ip.textContent = i === 5 ? '142.251.150.4 など 8 個' : '8.8.8.8'; g.p.style.display = i >= 4 ? '' : 'none'; g.p.set(i === 5 ? '接続' : 'A？'); });
+      /* 仕組みの説明は本文に任せ、図には本文に無いこと（問い合わせた地域、図が推定であること）だけを書く */
+      st.note.textContent = i === 5 ? '問い合わせた地域：日本・米国・英国・ブラジル・アフリカ。各地の拠点の置き方は推定' : '';
+      /* ECS の札は公開リゾルバと権威の間の矢印の上に */
+      const it = st.rows[2].items, gap = (900 - it.reduce((a, b) => a + b[2], 0)) / 2;
+      st.ecs.setAttribute('transform', `translate(${30 + it[0][2] + gap + it[1][2] + gap / 2},222)`);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 0) {
+        const q = U.seq(ctx.ts, [1.0, 0.3, 1.0, 0.9], true);
+        const first = run ? q.i <= 1 : false;
+        const f = run ? (q.i === 0 || q.i === 2 ? U.ease.inOut(q.f) : 1) : 0.5;
+        const pairs = [[0, 1], [2, 3]];
+        pairs.forEach(([a, b]) => {
+          st.lanes[a].p.style.display = first ? '' : 'none';
+          st.lanes[b].p.style.display = first ? 'none' : '';
+          S.place(st.lanes[first ? a : b].p, st.lanes[first ? a : b].rd, f);
+        });
+      } else if (i >= 4) {
+        st.sites.forEach((g, k) => {
+          const q = U.seq(ctx.ts + k * 0.35, [1.2, 0.6], true);
+          S.place(g.p, g.rd, run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 0.5);
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 DoH／DoT とルーターの DNS 転送
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '平文の DNS は途中で読める', text: 'ふつうの DNS は UDP の 53 番で、暗号も署名もない。経路上の機器は名前を読めるし、偽の答えを先に届けることもできる。PC は 16 ビットの ID と、毎回変える送信元ポートが合う答えだけを受け取り、当て推量の偽装を難しくしている。' },
+      { title: 'ルーターの DNS 転送', text: 'PC が聞く 192.168.1.1 は、ルーターの中の DNS 転送（Linux 系なら dnsmasq など）。キャッシュに無ければ、WAN 側から ISP のフルリゾルバへ聞き直す。ISP が変わっても PC の設定は変えずに済み、家の全機器でキャッシュを共有できる。' },
+      { title: 'DoT：TLS で包む', text: 'DoT（DNS over TLS、2016 年）は、TCP の 853 番で TLS（第20章）の接続を張り、その中で DNS をやり取りする。中身は読めないが、853 番なので DNS だとは分かり、止めることもできる。Android の「プライベート DNS」は主にこれを使う（一部の事業者には DoH）。' },
+      { title: 'DoH：HTTPS に混ぜる', text: 'DoH（DNS over HTTPS、RFC 8484、2018 年）は、DNS のメッセージをそのまま HTTPS（第21章）の要求に入れ、443 番で送る。ふつうの Web の通信と見分けにくい。ブラウザや OS が DoH を使うと、ルーターの DNS 転送は通らず、ルーターは NAT するだけになる。' },
+      { title: '暗号化しても見えるもの', text: 'DoT・DoH で隠れるのは、PC からリゾルバまでの区間だけ。接続先の番号は IP ヘッダに見え、名前は TLS の SNI（第20章）にも出る。答えが本物かを署名で確かめる DNSSEC は別の仕組みで、youtube.com は署名していない（2026 年 10 月）。' },
+      { title: 'HTTPS レコード：接続のしかたも引く', text: '答えは番号だけではない。HTTPS レコード（type 65、RFC 9460、2023 年）は接続のしかたを知らせる。動画の配信元の名前には alpn="h3" が載っていて、対応したブラウザは最初から QUIC（HTTP/3、第19・21章）で接続を始められる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      S.text(30, 24, '平文の DNS（ルーターの DNS 転送を通る）', { cls: 't-xs t-b t-dim' }, svg);
+      S.text(124, 204, '暗号化した DNS（DoT・DoH。ルーターは NAT するだけ）', { cls: 't-xs t-b t-dim' }, svg);
+      /* 上の道: 平文 */
+      const gt = st.top = S.g({ cls: 'fade' }, svg);
+      st.pc = box(svg, 30, 64, 150, 56, 'PC', '192.168.1.10');
+      st.rt = box(gt, 250, 64, 190, 56, 'ルーター（DNS 転送）', '192.168.1.1 ／ 203.0.113.5');
+      box(gt, 510, 64, 150, 56, 'ISP の網', '第15・16章', { cls: 'f-in s-rule w1 dash', scls: '' });
+      st.isp = box(gt, 730, 64, 200, 56, 'ISP のフルリゾルバ', '198.51.100.53');
+      st.tSeg = [[180, 250], [440, 510], [660, 730]].map(([a, b]) => S.line(a + 2, 92, b - 4, 92, { cls: 's-d w2', 'marker-end': mk('d') }, gt));
+      st.tPort = [[215, 'UDP 53'], [475, 'UDP 53'], [695, 'UDP 53']].map(([x, s]) => S.text(x, 112, s, { cls: 't-c t-xs t-mono' }, gt));
+      st.read = [475, 695].map((x) => S.label(gt, x, 140, '読める', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 18, pad: 10, gcls: 'fade hide' }));
+      st.cache = S.label(gt, 345, 140, 'キャッシュ ／ 転送先 198.51.100.53', { cls: 't-xs t-b t-d', box: 'f-d-soft s-d w1', h: 18, pad: 10, gcls: 'fade hide' });
+      st.tRoad = road(gt, 'M120,48 H840');   // メッセージは箱の上を通す（箱の文字を隠さない）
+
+      /* 下の道: 暗号化 */
+      const gb = st.bot = S.g({ cls: 'fade' }, svg);
+      box(gb, 270, 242, 150, 40, 'ルーター', 'NAT するだけ', { cls: 'f-none s-dim w1 dash', tcls: 't-sm', scls: '' });
+      box(gb, 510, 242, 150, 40, 'ISP の網', '中身は読めない', { cls: 'f-none s-dim w1 dash', tcls: 't-sm', scls: '' });
+      st.pub = box(gb, 730, 234, 200, 56, 'DoT・DoH のリゾルバ', '例 dns.google（8.8.8.8）');
+      S.path('M105,124 V262 H266', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, gb);
+      S.line(422, 262, 506, 262, { cls: 's-d w2', 'marker-end': mk('d') }, gb);
+      S.line(662, 262, 726, 262, { cls: 's-d w2', 'marker-end': mk('d') }, gb);
+      st.bPort = [[190, 278], [465, 278], [695, 278]].map(([x, y]) => S.text(x, y, '', { cls: 't-c t-xs t-mono' }, gb));
+      st.know = S.label(gb, 465, 310, '', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 18, pad: 10, w: 200, gcls: 'fade hide' });
+      st.sees = S.label(gb, 830, 310, 'リゾルバは名前を全部見る', { cls: 't-xs t-b t-x', box: 'f-x-soft s-x w1', h: 18, pad: 10, gcls: 'fade hide' });
+      st.bRoad = road(gb, 'M105,140 V226 H840');
+
+      /* 動くメッセージ */
+      st.pPlain = pkt(svg, 'www.youtube.com A？', 'f-d');
+      st.pEnc = pkt(svg, 'TLS ■■■■', 'f-d');
+      st.pAns = pkt(svg, 'HTTPS  alpn="h3"', 'f-d');
+
+      /* 下: 途中から見える中身 */
+      const gp = S.g({}, svg);
+      S.rect(30, 350, 900, 196, { rx: 8, cls: 'f-sf s-rule w1' }, gp);
+      st.pTitle = S.text(46, 374, '', { cls: 't-xs t-b t-dim' }, gp);
+      st.pLines = [0, 1, 2].map((k) => S.text(46, 404 + k * 30, '', { cls: 't-sm t-mono pre' }, gp));
+      st.panel = [
+        ['途中の機器から見える中身', [['送信元 192.168.1.10:51600 → 宛先 192.168.1.1:53（UDP）'], ['中身  ID 0x5A3C  質問 www.youtube.com.  IN  A'], ['→ 経路上の誰でも読める。答えも読めて、偽物を混ぜ込める', 'x']]],
+        ['ルーターの DNS 転送の 2 区間', [['PC 192.168.1.10 → 192.168.1.1:53　家の中だけを通る'], ['ルーター 203.0.113.5 → 198.51.100.53:53　ISP の網を平文で通る'], ['ルーターのキャッシュにあれば、外へは出ない', 'd']]],
+        ['途中の機器から見える中身', [['送信元 192.168.1.10 → 宛先 リゾルバ:853（TCP）'], ['中身  TLS の暗号文 ■■■■■■■■'], ['→ 名前は読めない。853 番なので DNS の通信だとは分かる', 'x']]],
+        ['途中の機器から見える中身', [['送信元 192.168.1.10 → 宛先 リゾルバ:443（TCP か QUIC）'], ['暗号の中  POST /dns-query  型 application/dns-message'], ['→ ふつうの Web の通信と見分けにくい', 'x']]],
+        ['暗号化した DNS でも見えるもの', [['IP ヘッダ  接続先 142.250.196.110:443'], ['TLS の SNI  www.youtube.com（ECH を使わない場合、第20章）'], ['リゾルバ  問い合わせた名前をすべて見る', 'x']]],
+        ['HTTPS レコードの例（2026 年 10 月）', [['rr1.sn-xxxxxxxx.googlevideo.com.  21600  HTTPS  1 .  alpn="h3"', 'd'], ['www.google.com.  21600  HTTPS  1 .  alpn="h2,h3"'], ['www.youtube.com.  3600  HTTPS  1 .（alpn なし。h3 は応答のヘッダで知る）']]]
+      ];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const topOn = i <= 1 || i === 5, botOn = i >= 2 && i <= 4;
+      op(st.top, topOn ? '' : 0.3);
+      op(st.bot, botOn ? '' : 0.3);
+      st.read.forEach((g) => S.fade(g, i === 0));
+      S.fade(st.cache, i === 1);
+      st.rt.rect.setAttribute('class', i === 1 ? 'f-d-soft s-d w2' : 'f-sf s-rule w15');
+      st.pub.rect.setAttribute('class', i === 4 ? 'f-x-soft s-x w2' : 'f-sf s-rule w15');
+      S.fade(st.sees, i === 4);
+      const port = i === 2 ? 'TCP 853' : i === 3 ? '443' : '';
+      st.bPort.forEach((t) => { t.textContent = port; });
+      S.fade(st.know, i === 2 || i === 3);
+      st.know.querySelector('text').textContent = i === 2 ? '853 番 → DNS だと分かる' : '443 番 → Web と見分けにくい';
+      st.pEnc.set(i === 3 ? 'HTTPS ■■■■' : 'TLS ■■■■');
+      st.pPlain.style.display = i <= 1 ? '' : 'none';
+      st.pEnc.style.display = i === 2 || i === 3 ? '' : 'none';
+      st.pAns.style.display = i === 5 ? '' : 'none';
+      const [title, rows] = st.panel[i];
+      st.pTitle.textContent = title;
+      st.pLines.forEach((t, k) => {
+        const r = rows[k];
+        t.textContent = r ? r[0] : '';
+        t.setAttribute('class', 't-sm t-mono pre' + (r && r[1] ? ' t-b t-' + r[1] : ''));
+      });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      const q = U.seq(ctx.ts, [2.4, 0.8], true);
+      const f = run ? (q.i === 0 ? U.ease.inOut(q.f) : 1) : 0.5;
+      if (i === 0) S.place(st.pPlain, st.tRoad, f);
+      if (i === 1) {
+        /* 前半は PC → ルーター、後半はルーターから外へ（送り直し） */
+        S.place(st.pPlain, st.tRoad, run ? (q.i === 0 ? (q.f < 0.45 ? U.ease.inOut(q.f / 0.45) * 0.28 : 0.28 + U.ease.inOut((q.f - 0.45) / 0.55) * 0.72) : 1) : 0.28);
+      }
+      if (i === 2 || i === 3) S.place(st.pEnc, st.bRoad, f);
+      if (i === 5) S.place(st.pAns, st.tRoad, 1 - f);
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第V部 約束ごと ／ 第17章',
+      title: 'DNS',
+      home: '../index.html',
+      prev: { href: '16-internet.html', title: 'インターネットの骨格' },
+      next: { href: '18-ip.html', title: 'IP' },
+      legend: [{ c: 'd', label: 'DNS のメッセージ・データ' }, { c: 'x', label: '注目・注意' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

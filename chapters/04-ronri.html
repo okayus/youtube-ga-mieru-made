@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>論理ゲートと2進数 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .bitbig { font-family: var(--mono); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第II部 計算機 ／ 第4章 ／ 全25章</p>
+    <h1 id="h-s0">論理ゲートと2進数</h1>
+    <p class="standfirst">前の章で手に入れた「電圧で動くスイッチ」を4個つなぐと、入力の組み合わせで出力が決まる部品（NAND ゲート）ができる。この章では、電圧の高い・低いを 1 と 0 と読む約束から始めて、NAND だけで NOT・AND・OR・XOR のすべてが作れること、2進数の桁上がり、1桁の足し算回路（半加算器・全加算器）、そして4桁をつないだ加算器で桁上がりが順に伝わる様子まで追う。ここで CPU の計算の最小単位がそろう。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の電圧の波形と遅延の時間は、見やすいように引き伸ばしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>ビット＝電圧の高い・低い</a><p>しきい値と禁止帯、ノイズ余裕、立ち上がり時間、ビット列とバス。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>NAND と NOR を CMOS で作る</a><p>pMOS 2個と nMOS 2個。入力4通りで経路がどう切り替わるか。定常時の電流はゼロ。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>NAND から全部作る</a><p>真理値表、NOT・AND・OR・XOR の組み立て、ゲートの記号。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>2進数と桁上がり</a><p>位取り、数え上げ、桁上がりの連鎖、ビット数と範囲、16進表記、筆算。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>半加算器と全加算器</a><p>1桁の足し算は XOR と AND。下の桁からの桁上がりも足す全加算器。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>4ビット加算器</a><p>0101 + 0011 を実際に流す。桁上がりが右から左へ伝わる遅延、引き算、ALU へ。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（記憶）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図のゲート記号は MIL 記号（米国の規格に由来する一般的な書き方）。回路図のトランジスタは第3章と同じく「電圧で開閉するスイッチ」として描く。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 ビット＝電圧 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="ビット" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>ビット＝電圧の高い・低い</h2>
+    <p class="sh-meta"><span class="chip">VDD = 1.0 V</span><span class="chip">しきい値</span><span class="chip">ノイズ余裕</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">計算機の中の情報は、導線の電圧が電源電圧に近いか 0 V に近いかの2通りで表す。これが<span class="tag d">ビット</span>。値そのものではなく「どちら側か」だけを読むので、多少のノイズが乗っても壊れない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">電源電圧 VDD は CPU の中心部で約 1 V、基板上の配線では 1.8 V や 3.3 V。しきい値の 0.3 VDD／0.7 VDD は CMOS の一般的な目安で、受け手の回路によって多少違う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="導線の電圧の時間変化と、しきい値で0と1を読み分ける受け手"></svg></div>
+    <figcaption>図1　上は送り手から受け手への1本の導線。下はその電圧の波形で、受け手の位置（縦線）の値をしきい値で 0／1 に読む。段階5では8本の導線を並べた1バイトの値。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 NAND/NOR ================= -->
+<section class="scene sc-anim" id="s2" data-tab="NAND" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>NAND と NOR を CMOS で作る</h2>
+    <p class="sh-meta"><span class="chip">pMOS × 2</span><span class="chip">nMOS × 2</span><span class="chip">4 トランジスタ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">第3章の CMOS インバータは pMOS と nMOS が1個ずつ。これを2個ずつにして、上を並列・下を直列につなぐと NAND ゲートになる。入力の全4通りで、出力が VDD と GND のどちらにつながるかを追う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">nMOS は入力が 1（高い電圧）のとき閉じ、pMOS は 0 のとき閉じる。どの入力でも、閉じた経路は VDD 側か GND 側のどちらか一方だけになるので、出力は必ず 1 か 0 に決まり、定常状態で貫通電流は流れない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CMOS NAND ゲートの回路図。入力の組み合わせで閉じるスイッチと出力の経路が変わる"></svg></div>
+    <figcaption>図2　CMOS の NAND（段階1〜4）と NOR（段階5）。閉じたスイッチの経路に色が付き、切り替わった直後だけ出力配線の充放電の電流（粒）が流れる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 NANDから全部 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="万能" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>NAND から全部作る</h2>
+    <p class="sh-meta"><span class="chip">真理値表</span><span class="chip">NOT・AND・OR・XOR</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">論理ゲートの性質は、入力の全組み合わせに対する出力の表（真理値表）で言い尽くせる。NAND を組み合わせると、どんな真理値表でも作れる。図では入力が約1.6秒ごとに切り替わり、1 の導線に色が付く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">NAND 1個は CMOS でトランジスタ4個。NOT 2個、AND 6個（NAND＋NOT）、OR 6個、XOR は NAND 4個で16個分だが、専用に設計すれば 8〜12 個で済む。実際のチップは設計ツールがこうした「標準セル」を並べて配線する。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="NAND ゲートの組み合わせで NOT・AND・OR・XOR を作る回路と、その真理値表"></svg></div>
+    <figcaption>図3　左は作っているゲートの真理値表（いまの入力の行に色）。右はその回路。段階6はゲートの記号の一覧。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 2進数 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="2進数" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>2進数と桁上がり</h2>
+    <p class="sh-meta"><span class="chip">位取り</span><span class="chip">2ⁿ</span><span class="chip">16進</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ビットを並べれば数になる。10進数が「桁の重みが10倍ずつ」なのと同じ仕組みで、2進数は重みが2倍ずつ、各桁は 0 か 1。計算機が2進数を使うのは、1桁を1本の導線の高い・低いで表せるから。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">8 ビット＝1 バイトで 0〜255。本教材の後半で出てくる IPv4 アドレス（32 ビット）、色の指定（赤緑青 各 8 ビット）、動画の画素値（8 または 10 ビット）は、すべてこの位取りで読む。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="8ビットの箱に重みを付けた位取りと、1ずつ数え上げたときの桁上がり、筆算"></svg></div>
+    <figcaption>図4　8 個の箱が 8 ビット。箱の上の数が重み、下に10進と16進の値。段階2・3では約0.8秒ごとに 1 を足し、桁上がりに矢印が出る。段階6は筆算。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 半加算器・全加算器 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="加算器" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>半加算器と全加算器</h2>
+    <p class="sh-meta"><span class="chip">S = A ⊕ B</span><span class="chip">C = A·B</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">2進の1桁の足し算は4通りしかなく、和の桁が XOR、桁上がりが AND と一致する。これが半加算器。下の桁からの桁上がりも足せるようにしたのが全加算器で、何桁の加算器もこれを並べて作る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">全加算器 1 個は CMOS で約 28 トランジスタ（教科書的な構成）。入力の組み合わせは 2³ = 8 通りで、出力 S は「1 の入力が奇数個」、Cout は「1 の入力が2個以上」と読める。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="半加算器と全加算器の回路。入力が自動で切り替わり、1の導線に色が付く。右に真理値表"></svg></div>
+    <figcaption>図5　左が回路（段階1・2は半加算器、段階3以降は全加算器）。入力は約1.5秒ごとに次の組み合わせへ。右の表は、いまの入力の行に色が付く。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 4ビット加算器 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="4ビット" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>4ビット加算器 — 桁上がりが伝わる</h2>
+    <p class="sh-meta"><span class="chip">リップルキャリー</span><span class="chip">0101 + 0011</span><span class="chip">2 の補数</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">全加算器を4個並べ、各桁の桁上がり出力を左隣の桁上がり入力につなぐ。入力を与えると、右端の桁から順に答えが確定していく。この「順に」が遅延の正体で、CPU の速さの限界に直結する。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図では1桁の確定に約0.9秒かけているが、実際は1段あたり数十ピコ秒。それでも 64 桁を順に伝えると数ナノ秒になり、クロック1周期（4 GHz で 0.25 ナノ秒）に収まらないため、CPU は桁上がりを先読みする回路（桁上げ先見・並列プレフィックス加算器）を使う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="4つの全加算器をつないだ加算器。入力を与えると桁上がりが右から左へ順に伝わり、下の時間図に確定の時刻が並ぶ"></svg></div>
+    <figcaption>図6　右端が最下位の桁（ビット0）。上の箱が入力 A と B、中央が全加算器、下が和 S。箱の間の矢印が桁上がり。最下段は各桁が確定した時刻。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — スイッチが計算になるまで</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>ビットは電圧の「高い側か低い側か」。しきい値の間に禁止帯があるので、ノイズが乗っても読み違えず、何段通しても値が作り直される（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>pMOS 2個を並列、nMOS 2個を直列につなぐと NAND。どの入力でも VDD か GND の一方にだけつながり、定常時の電流はゼロ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>NAND を組み合わせれば NOT・AND・OR・XOR、ひいては任意の真理値表が作れる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>2進数は重みが 2 倍ずつの位取り。1 を足すと右端が反転し、1→0 のとき左へ桁上がりする。n ビットで 2ⁿ 通り（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>1桁の足し算は XOR（和）と AND（桁上がり）。桁上がり入力を加えた全加算器が加算器の単位（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>全加算器を桁数ぶん並べると加算器。桁上がりは右から左へ順に伝わり、その遅延を減らす工夫が CPU の速さを決める（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>ビット</th><td>情報の最小単位。導線の電圧が VDD 側なら 1、0 V 側なら 0。8 ビットで 1 バイト。</td></tr>
+        <tr><th>しきい値・禁止帯</th><td>受け手が 0／1 を分ける境目。CMOS の目安は 0.3 VDD 以下が 0、0.7 VDD 以上が 1。その間は読まない。</td></tr>
+        <tr><th>ノイズ余裕</th><td>送り手が出す電圧と受け手のしきい値の差。これだけのノイズまで耐える。</td></tr>
+        <tr><th>論理ゲート</th><td>入力ビットの組み合わせから出力ビットを決める回路。NOT・AND・OR・NAND・NOR・XOR。</td></tr>
+        <tr><th>真理値表</th><td>入力の全組み合わせと出力を並べた表。2 入力なら 4 行、3 入力なら 8 行。</td></tr>
+        <tr><th>NAND の完全性</th><td>NAND だけで任意の論理関数が作れる性質。NOR も同じ。</td></tr>
+        <tr><th>位取り記数法</th><td>桁の位置に重みを持たせる数の書き方。2 進は重み 1, 2, 4, 8…、16 進は 4 ビットごとに 0〜F。</td></tr>
+        <tr><th>半加算器・全加算器</th><td>1 桁の加算回路。半加算器は 2 入力（S, C）、全加算器は桁上がり入力を含む 3 入力（S, Cout）。</td></tr>
+        <tr><th>リップルキャリー</th><td>桁上がりを隣へ順に伝える加算器。遅延が桁数に比例。桁上げ先見で log 段に減らせる。</td></tr>
+        <tr><th>2 の補数</th><td>負の数の表し方。−B はビットを反転して 1 を足す。加算器だけで引き算ができる。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 配線。1（高い電圧）なら h の太線、0 なら薄い線（第5章と同じ色の約束） */
+  function wireP(parent, d) { return S.path(d, { cls: 'f-none s-dim w2 round' }, parent); }
+  function setLvl(els, v) {
+    (Array.isArray(els) ? els : [els]).forEach((el) => el.setAttribute('class', v ? 'f-none s-h w3 round' : 'f-none s-dim w2 round'));
+  }
+  /* 値の箱。set(v) で 0/1/'?'/文字 */
+  function bitBox(parent, x, y, w, h, label, opts) {
+    opts = opts || {};
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const r = S.rect(-w / 2, -h / 2, w, h, { rx: 5, cls: 'f-in s-rule w1' }, g);
+    const t = S.text(0, (opts.fs || 18) * 0.36, '0', { cls: 't-c t-mono t-b', style: { fontSize: (opts.fs || 18) + 'px' } }, g);
+    if (label) S.text(0, -h / 2 - 7, label, { cls: 't-c t-xs t-dim ' + (opts.lcls || '') }, g);
+    const api = {
+      g, r, t, v: 0,
+      set(v) {
+        api.v = v;
+        t.textContent = String(v);
+        if (v === '?') { r.setAttribute('class', 'f-x-soft s-x w1'); t.setAttribute('class', 't-c t-mono t-b t-x'); }
+        else if (v === 1 || v === '1') { r.setAttribute('class', 'f-h-soft s-h w2'); t.setAttribute('class', 't-c t-mono t-b t-h'); }
+        else { r.setAttribute('class', 'f-in s-rule w1'); t.setAttribute('class', 't-c t-mono t-b t-dim'); }
+        return api;
+      }
+    };
+    return api.set(opts.v == null ? 0 : opts.v);
+  }
+  /* ゲートの記号（MIL）。x,y は本体の左端の中央。in1/in2/out は接続点 */
+  function gNAND(parent, x, y, label, noBubble) {
+    const g = S.g({}, parent);
+    S.path(`M${x},${y - 24} H${x + 24} A24,24 0 0 1 ${x + 24},${y + 24} H${x} Z`, { cls: 'f-sf s-fg w2' }, g);
+    if (!noBubble) S.circle(x + 54, y, 6, { cls: 'f-sf s-fg w2' }, g);
+    if (label) S.text(x + 18, y + 4, label, { cls: 't-c t-xs t-dim t-mono' }, g);
+    return { g, in1: { x, y: y - 11 }, in2: { x, y: y + 11 }, out: { x: x + (noBubble ? 48 : 60), y } };
+  }
+  function gAND(parent, x, y, label) { return gNAND(parent, x, y, label, true); }
+  function gOR(parent, x, y, label, xor, bubble) {
+    const g = S.g({}, parent);
+    S.path(`M${x},${y - 24} Q${x + 28},${y - 24} ${x + 50},${y} Q${x + 28},${y + 24} ${x},${y + 24} Q${x + 10},${y} ${x},${y - 24} Z`, { cls: 'f-sf s-fg w2' }, g);
+    if (xor) S.path(`M${x - 6},${y - 24} Q${x + 4},${y} ${x - 6},${y + 24}`, { cls: 'f-none s-fg w2' }, g);
+    if (bubble) S.circle(x + 56, y, 6, { cls: 'f-sf s-fg w2' }, g);
+    if (label) S.text(x + 20, y + 4, label, { cls: 't-c t-xs t-dim t-mono' }, g);
+    const ix = xor ? x - 6 : x + 2;
+    return { g, in1: { x: ix, y: y - 11 }, in2: { x: ix, y: y + 11 }, out: { x: x + (bubble ? 62 : 50), y } };
+  }
+  function gNOT(parent, x, y, label) {
+    const g = S.g({}, parent);
+    S.path(`M${x},${y - 16} L${x + 32},${y} L${x},${y + 16} Z`, { cls: 'f-sf s-fg w2' }, g);
+    S.circle(x + 38, y, 6, { cls: 'f-sf s-fg w2' }, g);
+    if (label) S.text(x + 10, y + 4, label, { cls: 't-c t-xs t-dim t-mono' }, g);
+    return { g, in1: { x, y }, in2: { x, y }, out: { x: x + 44, y } };
+  }
+  /* 真理値表。cols = ['A','B','Y']、rows = [[0,0,1],…]。hl(i) で行に色 */
+  function truthTable(parent, x, y, cols, rows, colW, title) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const w = colW * cols.length + 20, rowH = 30;
+    S.rect(0, 0, w, 44 + rows.length * rowH, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+    if (title) S.text(w / 2, -10, title, { cls: 't-c t-b t-sm' }, g);
+    cols.forEach((c, k) => S.text(10 + colW * k + colW / 2, 26, c, { cls: 't-c t-b t-sm t-mono' }, g));
+    S.line(8, 36, w - 8, 36, { cls: 's-rule w1' }, g);
+    const hls = [], cells = [];
+    rows.forEach((r, i) => {
+      const yy = 44 + i * rowH;
+      hls.push(S.rect(6, yy - 2, w - 12, rowH - 2, { rx: 4, cls: 'f-in', style: { opacity: 0 } }, g));
+      cells.push(r.map((v, k) => S.text(10 + colW * k + colW / 2, yy + 19, String(v), { cls: 't-c t-mono ' + (k === r.length - 1 ? 't-b' : '') + (v === 1 ? ' t-h' : v === 0 ? ' t-dim' : '') }, g)));
+    });
+    return { g, hls, cells, hl(i) { hls.forEach((h, k) => { h.style.opacity = k === i ? 1 : 0; }); } };
+  }
+
+  /* ================================================================
+     場面1 ビット＝電圧
+     ================================================================ */
+  const BITS = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0];
+  const s1 = {
+    steps: [
+      { title: '1 ビットは「高い」か「低い」か', text: '導線の電圧が電源電圧 VDD（ここでは 1.0 V）に近ければ {h|1}、0 V に近ければ 0。値の大きさそのものではなく、2つの側のどちらにあるかだけを情報として使う。これが**ビット**。' },
+      { title: 'しきい値と禁止帯', text: '受け手は 0.3 VDD 以下を 0、0.7 VDD 以上を 1 と読み、その間（禁止帯）は読まない。送り手は 0.1 VDD 以下か 0.9 VDD 以上を出す約束なので、差の 0.2 VDD がノイズに耐えられる幅＝**ノイズ余裕**になる。' },
+      { title: 'ノイズに強く、劣化しない', text: '波形に乗ったノイズが余裕より小さければ、読んだ値は変わらない。しかも受け手のゲートは、読んだ 0／1 からきれいな電圧を出し直す。だから何段つないでも値は劣化しない。アナログ信号との決定的な違いはこの「作り直し」にある。' },
+      { title: '切り替わりには時間がかかる', text: '導線とゲート入力には容量があり、その充放電に時間がかかるので電圧は一瞬では変わらない（立ち上がり・立ち下がり時間）。禁止帯を通過している最中に読むと値が決まらないため、読む時刻を決める信号（クロック、第5章）が要る。' },
+      { title: 'ビット列とバス', text: '1本の導線で時間順に送れば**ビット列**、8本を並べれば同時に 1 バイト（8 ビット）を運べる。並べた導線の束が**バス**。図の 8 本は上から重み 128, 64, …, 1 で、いまの値は 10 進で右に示す（[[4|2進数と桁上がり]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      // 導線
+      S.rect(40, 60, 130, 60, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(105, 86, '送り手', { cls: 't-c t-b' }, g);
+      S.text(105, 104, 'ゲートの出力', { cls: 't-c t-xs t-dim' }, g);
+      S.rect(760, 60, 130, 60, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(825, 86, '受け手', { cls: 't-c t-b' }, g);
+      S.text(825, 104, '次のゲートの入力', { cls: 't-c t-xs t-dim' }, g);
+      st.wire = S.line(170, 90, 760, 90, { cls: 's-dim w6 round' }, g);
+      st.readBig = S.text(920, 100, '1', { cls: 't-c t-mono t-b t-h', style: { fontSize: '34px' } }, g);
+      S.text(920, 126, '読んだ値', { cls: 't-c t-xs t-dim' }, g);
+      // 波形
+      const gw = st.gw = S.g({ transform: 'translate(70,160)' }, g);
+      S.line(0, 240, 800, 240, { cls: 's-rule w1' }, gw);
+      S.line(0, 40, 0, 240, { cls: 's-rule w1' }, gw);
+      S.text(-8, 44, '1.0 V', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      S.text(-8, 244, '0 V', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      S.text(-8, 142, 'VDD/2', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gw);
+      st.band = S.rect(0, 100, 800, 80, { cls: 'f-x-soft fade hide' }, gw);
+      st.vih = S.line(0, 100, 800, 100, { cls: 's-x w1 dash fade hide' }, gw);
+      st.vil = S.line(0, 180, 800, 180, { cls: 's-x w1 dash fade hide' }, gw);
+      st.bandTxt = S.text(806, 104, '0.7 VDD', { cls: 't-xs t-mono t-x fade hide' }, gw);
+      st.bandTxt2 = S.text(806, 184, '0.3 VDD', { cls: 't-xs t-mono t-x fade hide' }, gw);
+      st.bandTxt3 = S.text(400, 146, '禁止帯（読まない）', { cls: 't-c t-xs t-x t-b fade hide' }, gw);
+      st.marginH = S.rect(0, 60, 800, 40, { cls: 'f-in fade hide' }, gw);
+      st.marginL = S.rect(0, 180, 800, 40, { cls: 'f-in fade hide' }, gw);
+      st.marginTxt = S.text(400, 84, 'ノイズ余裕 0.2 VDD（送り手は 0.9 VDD 以上）', { cls: 't-c t-xs t-mid t-b fade hide' }, gw);
+      st.marginTxt2 = S.text(400, 206, 'ノイズ余裕 0.2 VDD（送り手は 0.1 VDD 以下）', { cls: 't-c t-xs t-mid t-b fade hide' }, gw);
+      st.sig = S.path('', { cls: 'f-none s-fg w2 round' }, gw);
+      st.cursor = S.line(640, 30, 640, 250, { cls: 's-x w2' }, gw);
+      S.text(640, 24, '受け手が見ている値', { cls: 't-c t-xs t-x' }, gw);
+      st.dot = S.circle(640, 100, 6, { cls: 'f-x' }, gw);
+      st.riseTxt = S.text(400, 270, '', { cls: 't-c t-sm t-dim' }, gw);
+      st.riseArrow = S.g({ cls: 'fade hide' }, gw);
+      S.text(400, 300, '', { cls: 't-c t-xs' }, st.riseArrow);
+      // 段階5: バス
+      const gb = st.gb = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 60, '8 本の導線を並べる＝ 1 バイトのバス', { cls: 't-c t-b t-lg' }, gb);
+      st.busLines = []; st.busVals = [];
+      const W = [128, 64, 32, 16, 8, 4, 2, 1];
+      for (let k = 0; k < 8; k++) {
+        const y = 110 + k * 46;
+        S.text(96, y + 4, 'ビット ' + (7 - k), { cls: 't-mono t-xs t-dim', 'text-anchor': 'end' }, gb);
+        st.busLines.push(S.line(110, y, 640, y, { cls: 's-dim w4 round' }, gb));
+        S.text(670, y + 4, '重み ' + W[k], { cls: 't-mono t-xs t-dim' }, gb);
+        st.busVals.push(S.text(760, y + 5, '0', { cls: 't-c t-mono t-b t-lg' }, gb));
+      }
+      st.busDec = S.text(860, 300, '', { cls: 't-c t-mono t-b', style: { fontSize: '30px' } }, gb);
+      S.text(860, 325, '10 進の値', { cls: 't-c t-xs t-dim' }, gb);
+      st.busHex = S.text(860, 365, '', { cls: 't-c t-mono t-mid t-lg' }, gb);
+      S.text(860, 386, '16 進', { cls: 't-c t-xs t-dim' }, gb);
+      st.serialTxt = S.text(480, 520, '', { cls: 't-c t-sm t-dim' }, gb);
+      st.busValue = 0;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const thr = i >= 1 && i <= 3;
+      [st.band, st.vih, st.vil, st.bandTxt, st.bandTxt2, st.bandTxt3].forEach((e) => S.fade(e, thr));
+      [st.marginH, st.marginL, st.marginTxt, st.marginTxt2].forEach((e) => S.fade(e, i === 1));
+      S.fade(st.g, i <= 3);
+      S.fade(st.gb, i === 4);
+      st.riseTxt.textContent = i === 3 ? '立ち上がり時間（図では引き伸ばした）。実際は数ピコ秒〜数十ピコ秒' : i === 2 ? 'ノイズ（小さな揺れ）が乗っても、読む値は変わらない' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i <= 3) {
+        const slow = i === 3;
+        const pxPerBit = slow ? 300 : 90;
+        const rise = slow ? 110 : 18;
+        const noise = i >= 2 ? 0.07 : 0.015;
+        const speed = slow ? 60 : 70;
+        const off = t * speed;
+        const V = (x) => {
+          const u = (x + off) / pxPerBit;
+          const k = Math.floor(u), f = u - k;
+          const b0 = BITS[U.mod(k, BITS.length)], b1 = BITS[U.mod(k + 1, BITS.length)];
+          const edge = (pxPerBit - rise) / pxPerBit;
+          let v = b0;
+          if (f > edge) { const p = (f - edge) / (1 - edge); v = b0 + (b1 - b0) * U.ease.inOut(p); }
+          v += noise * (Math.sin(x * 0.37 + t * 9) * 0.6 + Math.sin(x * 1.3 - t * 23) * 0.4);
+          return U.clamp(v, -0.05, 1.05);
+        };
+        let d = '';
+        for (let x = 0; x <= 800; x += 4) d += (x ? 'L' : 'M') + x + ',' + (240 - V(x) * 200).toFixed(1);
+        st.sig.setAttribute('d', d);
+        const v = V(640);
+        st.dot.setAttribute('cy', (240 - v * 200).toFixed(1));
+        const read = v >= 0.7 ? '1' : v <= 0.3 ? '0' : (i >= 1 ? '？' : (v > 0.5 ? '1' : '0'));
+        st.readBig.textContent = read;
+        st.readBig.setAttribute('class', 't-c t-mono t-b ' + (read === '1' ? 't-h' : read === '0' ? 't-dim' : 't-x'));
+        st.wire.setAttribute('class', read === '1' ? 's-h w6 round' : read === '0' ? 's-dim w6 round' : 's-x w6 round dash');
+      } else {
+        const n = Math.floor(t / 1.8);
+        if (n !== st.busN) {
+          st.busN = n;
+          st.busValue = [0b10110010, 0b00000001, 0b11111111, 0b01000001, 0b00101010, 0b10000000][n % 6];
+          for (let k = 0; k < 8; k++) {
+            const b = (st.busValue >> (7 - k)) & 1;
+            st.busLines[k].setAttribute('class', b ? 's-h w4 round' : 's-dim w4 round');
+            st.busVals[k].textContent = String(b);
+            st.busVals[k].setAttribute('class', 't-c t-mono t-b t-lg ' + (b ? 't-h' : 't-dim'));
+          }
+          st.busDec.textContent = String(st.busValue);
+          st.busHex.textContent = '0x' + st.busValue.toString(16).toUpperCase().padStart(2, '0');
+          st.serialTxt.textContent = '同じ値を1本で送るなら、時間順に ' + st.busValue.toString(2).padStart(8, '0').split('').join(' ') + ' の 8 ビット列';
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 NAND / NOR を CMOS で
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '部品は第3章のスイッチ4個', text: '上の2個が pMOS（入力が 0 のとき閉じる）、下の2個が nMOS（入力が {h|1} のとき閉じる）。入力 A は P1 と N1、入力 B は P2 と N2 の両方につながる。上は並列、下は直列。出力 Y は上下の間の配線。' },
+      { title: 'A=0, B=0 → 出力 1', text: 'pMOS は入力 0 で閉じるので P1 も P2 も閉じ、出力 Y は VDD につながって {h|1} になる。下の N1・N2 は入力 0 で開いたまま。切り替わった直後だけ、出力配線を VDD の電圧まで充電する電流が流れる（粒）。' },
+      { title: 'A=1, B=0 → やはり 1', text: 'A=1 で P1 は開くが、並列なので P2 が閉じていれば Y は VDD につながる。下は N1 が閉じても直列の N2 が開いているので、GND への経路は切れたまま。A=0, B=1 でも左右が入れ替わるだけで同じ結果になる。' },
+      { title: 'A=1, B=1 → 出力 0', text: '上は P1・P2 とも開いて VDD から切れ、下は N1・N2 とも閉じて直列の経路がつながる。Y は GND に放電されて 0。両方が 1 のときだけ 0、それ以外は 1。これが **NAND**（AND の否定）の真理値表そのもの。' },
+      { title: '上下を入れ替えると NOR', text: 'pMOS を直列、nMOS を並列にすると、どちらかの入力が 1 なら下の経路がつながって 0、両方 0 のときだけ 1。これが **NOR**（OR の否定）。NAND も NOR もトランジスタ4個で、どちらも単独で他の全ゲートを作れる。' },
+      { title: '止まっているときは電流が流れない', text: 'どの入力でも、閉じているのは VDD 側か GND 側の一方だけなので、VDD から GND への貫通路はない。電流が流れるのは出力の配線を充放電する切り替えの瞬間だけ。チップの消費電力と発熱が「切り替えの回数（クロック）」で決まるのはこのため（第3章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.gN = S.g({}, svg);
+      st.gR = S.g({ cls: 'fade hide' }, svg);
+      st.nand = buildGate(st.gN, false);
+      st.nor = buildGate(st.gR, true);
+      st.note = S.text(480, 545, '', { cls: 't-c t-sm t-dim' }, svg);
+
+      /* 回路図を組み立てる。nor が真なら上が直列・下が並列 */
+      function buildGate(parent, nor) {
+        const o = { parent, nor, sw: {}, nets: {} };
+        S.text(480, 30, nor ? 'CMOS NOR ゲート' : 'CMOS NAND ゲート', { cls: 't-c t-b t-lg' }, parent);
+        // 電源
+        S.line(300, 80, 660, 80, { cls: 's-h w3' }, parent);
+        S.text(290, 85, 'VDD 1 V', { cls: 't-h t-b t-sm', 'text-anchor': 'end' }, parent);
+        S.line(300, 500, 660, 500, { cls: 's-fg w3' }, parent);
+        S.text(290, 505, 'GND 0 V', { cls: 't-b t-sm', 'text-anchor': 'end' }, parent);
+        // 出力ノード
+        const outD = nor ? 'M560,260 H600 V330 H630' : 'M380,260 H620';
+        o.outWire = S.path(outD, { cls: 'f-none s-dim w3 round' }, parent);
+        o.outBox = bitBox(parent, nor ? 660 : 650, nor ? 330 : 260, 60, 44, '出力 Y', { fs: 22 });
+        o.outLbl = S.text(nor ? 660 : 650, nor ? 370 : 300, '', { cls: 't-c t-xs t-dim' }, parent);
+        // 入力（A は左から、B は右から。配線が別のスイッチを横切らないようにする）
+        o.inA = bitBox(parent, 110, 330, 50, 40, '入力 A', { fs: 20 });
+        o.inB = bitBox(parent, 850, nor ? 440 : 450, 50, 40, '入力 B', { fs: 20 });
+        const sw = (name, x, y0, y1, type, gateFromX, gateY, side) => {
+          const g = S.g({}, parent);
+          const mid = (y0 + y1) / 2;
+          const dir = side === 'r' ? 1 : -1;
+          const top = S.line(x, y0, x, mid - 22, { cls: 'f-none s-dim w2 round' }, g);
+          const bot = S.line(x, mid + 22, x, y1, { cls: 'f-none s-dim w2 round' }, g);
+          S.circle(x, mid - 22, 4, { cls: 'f-fg' }, g);
+          S.circle(x, mid + 22, 4, { cls: 'f-fg' }, g);
+          const blade = S.line(x, mid - 22, x, mid + 22, { cls: 's-fg w3 round' }, g);
+          // ゲート（side が r なら右側）
+          const gl = S.path(`M${gateFromX},${gateY} H${x + dir * 34}`, { cls: 'f-none s-dim w2 round' }, g);
+          S.line(x + dir * 20, mid - 14, x + dir * 20, mid + 14, { cls: 's-fg w3' }, g);
+          if (type === 'p') S.circle(x + dir * 27, mid, 6, { cls: 'f-sf s-fg w2' }, g);
+          else S.line(x + dir * 34, mid, x + dir * 20, mid, { cls: 's-dim w2' }, g);
+          const anchor = side === 'r' ? 'end' : 'start';
+          S.text(x - dir * 14, mid + 4, name, { cls: 't-mono t-b t-sm', 'text-anchor': anchor }, g);
+          S.text(x - dir * 14, mid + 18, type === 'p' ? 'pMOS：0 で閉' : 'nMOS：1 で閉', { cls: 't-xs t-dim', 'text-anchor': anchor }, g);
+          return { g, top, bot, blade, gl, x, mid, type, set(closed) { blade.setAttribute('transform', closed ? '' : `rotate(${-35 * dir} ${x} ${mid - 22})`); blade.setAttribute('class', closed ? 's-e w3 round' : 's-fg w3 round'); } };
+        };
+        if (!nor) {
+          // NAND: P1,P2 並列（VDD→ノード）、N1,N2 直列（ノード→GND）
+          S.path('M380,80 V260', { cls: 'f-none s-dim w2' }, parent);
+          o.sw.P1 = sw('P1', 380, 80, 260, 'p', 200, 170, 'l');
+          o.sw.P2 = sw('P2', 560, 80, 260, 'p', 720, 170, 'r');
+          o.sw.N1 = sw('N1', 470, 260, 400, 'n', 200, 330, 'l');
+          o.sw.N2 = sw('N2', 470, 400, 500, 'n', 720, 450, 'r');
+          o.nets.A = [S.path('M135,330 H200 V170 H346', { cls: 'f-none s-dim w2 round' }, parent), S.path('M200,330 H436', { cls: 'f-none s-dim w2 round' }, parent)];
+          o.nets.B = [S.path('M825,450 H504', { cls: 'f-none s-dim w2 round' }, parent), S.path('M720,450 V170 H594', { cls: 'f-none s-dim w2 round' }, parent)];
+          S.circle(200, 330, 4, { cls: 'f-dim' }, parent);
+          S.circle(720, 450, 4, { cls: 'f-dim' }, parent);
+          o.paths = { up1: 'M380,80 V260 H620', up2: 'M560,80 V260 H620', down: 'M620,260 H470 V500' };
+        } else {
+          // NOR: P1,P2 直列（VDD→ノード）、N1,N2 並列（ノード→GND）
+          o.sw.P1 = sw('P1', 470, 80, 170, 'p', 200, 125, 'l');
+          o.sw.P2 = sw('P2', 470, 170, 260, 'p', 720, 215, 'r');
+          o.sw.N1 = sw('N1', 380, 260, 500, 'n', 200, 380, 'l');
+          o.sw.N2 = sw('N2', 560, 260, 500, 'n', 720, 380, 'r');
+          S.path('M380,260 H560', { cls: 'f-none s-dim w2' }, parent);
+          o.nets.A = [S.path('M135,330 H200 V125 H436', { cls: 'f-none s-dim w2 round' }, parent), S.path('M200,330 V380 H346', { cls: 'f-none s-dim w2 round' }, parent)];
+          o.nets.B = [S.path('M825,440 H720 V380 H594', { cls: 'f-none s-dim w2 round' }, parent), S.path('M720,380 V215 H504', { cls: 'f-none s-dim w2 round' }, parent)];
+          S.circle(200, 330, 4, { cls: 'f-dim' }, parent);
+          S.circle(720, 380, 4, { cls: 'f-dim' }, parent);
+          o.paths = { up1: 'M470,80 V260 H600 V330 H630', up2: 'M470,80 V260 H600 V330 H630', down1: 'M630,330 H600 V260 H380 V500', down2: 'M630,330 H600 V260 H560 V500' };
+        }
+        // 経路の強調と充放電の流れ
+        o.hl = S.path('', { cls: 'f-none s-e w6 round', style: { opacity: 0.35 } }, parent);
+        o.flowPath = S.path('', { cls: 'f-none s-none' }, parent);
+        o.flow = A.flow(o.flowPath, { count: 14, speed: 160, r: 4, parent, fade: true });
+        o.flow.show(false);
+        o.set = (a, b) => {
+          o.inA.set(a); o.inB.set(b);
+          setLvl(o.nets.A, a); setLvl(o.nets.B, b);
+          o.sw.P1.set(!a); o.sw.P2.set(!b); o.sw.N1.set(!!a); o.sw.N2.set(!!b);
+          let y, d;
+          if (!nor) { y = (a && b) ? 0 : 1; d = y ? (a ? o.paths.up2 : o.paths.up1) : o.paths.down; }
+          else { y = (a || b) ? 0 : 1; d = y ? o.paths.up1 : (a ? o.paths.down1 : o.paths.down2); }
+          o.hl.setAttribute('d', d);
+          o.hl.setAttribute('class', y ? 'f-none s-h w6 round' : 'f-none s-e w6 round');
+          o.flowPath.setAttribute('d', y ? d : d);
+          o.flow.reset();
+          o.flow.set('reverse', !y);     // 充電は VDD→Y、放電は Y→GND（電子の向きは逆だが、ここでは電流の向きで描く）
+          o.flow.set('cls', y ? 'f-h' : 'f-e');
+          o.outWire.setAttribute('class', y ? 'f-none s-h w3 round' : 'f-none s-dim w3 round');
+          o.outBox.set(y);
+          o.outLbl.textContent = y ? 'VDD につながる' : 'GND につながる';
+          o.y = y;
+        };
+        return o;
+      }
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const nor = i === 4;
+      S.fade(st.gN, !nor);
+      S.fade(st.gR, nor);
+      const combos = [[0, 0], [0, 0], [1, 0], [1, 1], [0, 1], [1, 1]];
+      const [a, b] = combos[i];
+      (nor ? st.nor : st.nand).set(a, b);
+      st.cur = nor ? st.nor : st.nand;
+      st.note.textContent = i === 0 ? '太い色付きの線＝閉じた経路。いまは A=0, B=0' : i === 5 ? 'VDD→GND の直通路は、どの入力の組み合わせでもできない' : '';
+      st.cycleT = -1; st.ts0 = 0;
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const o = st.cur;
+      if (i >= 4) {
+        // NOR（段階5）と貫通路の確認（段階6）は4通りを自動で巡る
+        const k = Math.floor(U.mod(ctx.ts, 10) / 2.5);
+        if (k !== st.cycleT) { st.cycleT = k; const c = [[0, 0], [1, 0], [0, 1], [1, 1]][k]; o.set(c[0], c[1]); st.ts0 = ctx.ts; }
+      }
+      const since = i >= 4 ? ctx.ts - (st.ts0 || 0) : ctx.ts;
+      const charging = since < 1.3 && i >= 1;
+      o.flow.show(charging);
+      if (charging) { o.flow.update(dt); o.flow.g.style.opacity = (1 - since / 1.3).toFixed(2); }
+    }
+  };
+
+  /* ================================================================
+     場面3 NAND から全部
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '真理値表がゲートの定義', text: '2入力なら入力は 4 通りで、それぞれの出力を書けば表は完成する。NAND は「両方 1 のときだけ 0」。ゲートの中身がトランジスタでも別の素子でも、この表が同じなら同じゲートとして扱える。' },
+      { title: 'NOT：両方の入力を束ねる', text: 'NAND の2つの入力に同じ信号 A を入れると、A=1 のときだけ 0 になる。つまり NOT A。表は 2 行。実際の回路では、トランジスタ 2 個のインバータ（第3章）をそのまま使うほうが小さい。' },
+      { title: 'AND：NAND のあとに NOT', text: 'NAND の出力を NOT で反転すると AND になる。NAND 2 個、トランジスタ 8 個（インバータなら 6 個）。「否定の否定」で元に戻す、という使い方はこのあと何度も出てくる。' },
+      { title: 'OR：入力を反転してから NAND', text: 'ド・モルガンの法則 A または B ＝ NOT（NOT A かつ NOT B）。そのまま回路にすると、A と B をそれぞれ NOT し、その 2 つを NAND に入れればよい。NAND 3 個。' },
+      { title: 'XOR：NAND 4 個', text: '「どちらか一方だけ 1」の XOR は、NAND(A,B) を n1 として、NAND(A, n1) と NAND(B, n1) を NAND したもの。次の場面の足し算の「和の桁」がこの XOR になる。' },
+      { title: '記号と、万能であること', text: '以後の回路図では、トランジスタの代わりにこの記号を使う。NAND だけで NOT・AND・OR が作れ、AND と OR と NOT があればどんな真理値表も作れる（積和形）。だから NAND は**万能**。設計ツールは、人が書いた論理式をこの種の標準セルの並びに変換する。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.circ = S.g({}, svg);
+      st.tableG = S.g({}, svg);
+      st.symG = S.g({ cls: 'fade hide' }, svg);
+      // 記号一覧（段階6）
+      const syms = [
+        ['NOT', (p, x, y) => gNOT(p, x, y), 'Y = ¬A', '入力を反転'],
+        ['AND', (p, x, y) => gAND(p, x, y), 'Y = A·B', '両方 1 で 1'],
+        ['OR', (p, x, y) => gOR(p, x, y), 'Y = A+B', 'どちらか 1 で 1'],
+        ['NAND', (p, x, y) => gNAND(p, x, y), 'Y = ¬(A·B)', '両方 1 で 0'],
+        ['NOR', (p, x, y) => gOR(p, x, y, null, false, true), 'Y = ¬(A+B)', '両方 0 で 1'],
+        ['XOR', (p, x, y) => gOR(p, x, y, null, true), 'Y = A⊕B', '一方だけ 1 で 1']
+      ];
+      syms.forEach(([name, fn, eq, desc], k) => {
+        const col = k % 3, row = Math.floor(k / 3);
+        const x = 120 + col * 300, y = 140 + row * 220;
+        S.rect(x - 70, y - 90, 260, 180, { rx: 8, cls: 'f-sf s-rule w1' }, st.symG);
+        S.text(x + 60, y - 62, name, { cls: 't-c t-b t-lg' }, st.symG);
+        const gg = fn(st.symG, x, y);
+        S.line(gg.in1.x - 30, gg.in1.y, gg.in1.x, gg.in1.y, { cls: 's-fg w2' }, st.symG);
+        if (name !== 'NOT') S.line(gg.in2.x - 30, gg.in2.y, gg.in2.x, gg.in2.y, { cls: 's-fg w2' }, st.symG);
+        S.line(gg.out.x, gg.out.y, gg.out.x + 30, gg.out.y, { cls: 's-fg w2' }, st.symG);
+        S.text(gg.in1.x - 36, gg.in1.y + 4, 'A', { cls: 't-mono t-sm', 'text-anchor': 'end' }, st.symG);
+        if (name !== 'NOT') S.text(gg.in2.x - 36, gg.in2.y + 4, 'B', { cls: 't-mono t-sm', 'text-anchor': 'end' }, st.symG);
+        S.text(gg.out.x + 36, gg.out.y + 4, 'Y', { cls: 't-mono t-sm' }, st.symG);
+        S.text(x + 60, y + 48, eq, { cls: 't-c t-mono t-sm' }, st.symG);
+        S.text(x + 60, y + 68, desc, { cls: 't-c t-xs t-dim' }, st.symG);
+      });
+      S.text(480, 545, 'NOT・AND・OR がそろえば、どんな真理値表も「1 になる行の AND を OR でまとめる」形で作れる', { cls: 't-c t-sm t-dim' }, st.symG);
+      st.built = -1;
+    },
+    /* 段階ごとの回路を組み立てる。nets: {名前: [配線]}、eval(a,b) → {名前: 値, Y} */
+    build(ctx, i) {
+      const st = ctx.state;
+      S.clear(st.circ); S.clear(st.tableG);
+      const P = st.circ;
+      const title = ['NAND', 'NOT（NAND の入力を束ねる）', 'AND（NAND ＋ NOT）', 'OR（NOT ×2 ＋ NAND）', 'XOR（NAND ×4）'][i];
+      S.text(640, 50, title, { cls: 't-c t-b t-lg' }, P);
+      const inA = bitBox(P, 390, 200, 44, 36, '入力 A', { fs: 18 });
+      const inB = bitBox(P, 390, 300, 44, 36, '入力 B', { fs: 18 });
+      const outY = bitBox(P, 890, 250, 48, 40, '出力 Y', { fs: 20 });
+      const nets = { A: [], B: [], Y: [] };
+      const w = (name, d) => { const p = wireP(P, d); (nets[name] = nets[name] || []).push(p); return p; };
+      let evalF, rows, cols = ['A', 'B', 'Y'];
+      if (i === 0) {
+        gNAND(P, 600, 250, 'NAND');
+        w('A', 'M412,200 H560 V239 H600'); w('B', 'M412,300 H560 V261 H600'); w('Y', 'M660,250 H866');
+        evalF = (a, b) => ({ Y: 1 - (a & b) });
+        rows = [[0, 0, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]];
+      } else if (i === 1) {
+        inB.g.style.display = 'none';
+        gNAND(P, 600, 250, 'NAND');
+        w('A', 'M412,200 H520 V239 H600'); w('A', 'M520,239 V261 H600'); w('Y', 'M660,250 H866');
+        S.circle(520, 239, 4, { cls: 'f-dim' }, P);
+        evalF = (a) => ({ Y: 1 - a });
+        rows = [[0, 1], [1, 0]]; cols = ['A', 'Y'];
+      } else if (i === 2) {
+        gNAND(P, 520, 250, 'NAND'); gNAND(P, 700, 250, 'NOT');
+        w('A', 'M412,200 H480 V239 H520'); w('B', 'M412,300 H480 V261 H520');
+        w('n1', 'M580,250 H650 V239 H700'); w('n1', 'M650,239 V261 H700'); w('Y', 'M760,250 H866');
+        S.circle(650, 239, 4, { cls: 'f-dim' }, P);
+        evalF = (a, b) => ({ n1: 1 - (a & b), Y: a & b });
+        rows = [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 1]];
+      } else if (i === 3) {
+        gNAND(P, 500, 200, 'NOT'); gNAND(P, 500, 300, 'NOT'); gNAND(P, 700, 250, 'NAND');
+        w('A', 'M412,200 H460 V189 H500'); w('A', 'M460,189 V211 H500');
+        w('B', 'M412,300 H460 V289 H500'); w('B', 'M460,289 V311 H500');
+        w('nA', 'M560,200 H640 V239 H700'); w('nB', 'M560,300 H640 V261 H700'); w('Y', 'M760,250 H866');
+        S.circle(460, 189, 4, { cls: 'f-dim' }, P); S.circle(460, 289, 4, { cls: 'f-dim' }, P);
+        S.text(600, 190, '¬A', { cls: 't-c t-xs t-mono t-dim' }, P); S.text(600, 318, '¬B', { cls: 't-c t-xs t-mono t-dim' }, P);
+        evalF = (a, b) => ({ nA: 1 - a, nB: 1 - b, Y: a | b });
+        rows = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]];
+      } else {
+        gNAND(P, 500, 250, 'n1'); gNAND(P, 640, 180, 'n2'); gNAND(P, 640, 320, 'n3'); gNAND(P, 780, 250, 'n4');
+        w('A', 'M412,200 H450 V239 H500'); w('A', 'M450,200 V169 H640');
+        w('B', 'M412,300 H450 V261 H500'); w('B', 'M450,300 V331 H640');
+        w('n1', 'M560,250 H600 V191 H640'); w('n1', 'M600,250 V309 H640');
+        w('n2', 'M700,180 H740 V239 H780'); w('n3', 'M700,320 H740 V261 H780'); w('Y', 'M840,250 H866');
+        [[450, 200], [450, 300], [600, 250]].forEach(([x, y]) => S.circle(x, y, 4, { cls: 'f-dim' }, P));
+        evalF = (a, b) => { const n1 = 1 - (a & b); const n2 = 1 - (a & n1); const n3 = 1 - (b & n1); return { n1, n2, n3, Y: 1 - (n2 & n3) }; };
+        rows = [[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 0]];
+      }
+      st.tbl = truthTable(st.tableG, 40, 120, cols, rows, 70, '真理値表');
+      st.cur = { inA, inB, outY, nets, evalF, rows, cols, n: rows.length };
+      st.combo = -1;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const sym = i === 5;
+      S.fade(st.symG, sym);
+      st.circ.style.display = sym ? 'none' : '';
+      st.tableG.style.display = sym ? 'none' : '';
+      if (!sym) { this.build(ctx, i); st.combo = -1; }
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 5 || !st.cur) return;
+      const c = st.cur;
+      const k = Math.floor(U.mod(ctx.ts, 1.6 * c.n) / 1.6);
+      if (k === st.combo) return;
+      st.combo = k;
+      let a, b;
+      if (c.n === 2) { a = k; b = 0; } else { a = k >> 1; b = k & 1; }
+      const v = c.evalF(a, b);
+      c.inA.set(a); c.inB.set(b); c.outY.set(v.Y);
+      setLvl(c.nets.A, a); setLvl(c.nets.B, b);
+      Object.keys(c.nets).forEach((name) => { if (name in v) setLvl(c.nets[name], v[name]); });
+      st.tbl.hl(k);
+    }
+  };
+
+  /* ================================================================
+     場面4 2進数と桁上がり
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '位取り：重みが 2 倍ずつ', text: '10 進数 203 は 2×100 + 0×10 + 3×1。2 進数も同じで、右端の桁の重みが 1、左へ行くほど 2 倍。1011 は 1×8 + 0×4 + 1×2 + 1×1 = 11。各桁が 0 か 1 なので、桁の重みを「足すか足さないか」で数が決まる。' },
+      { title: '1 を足すと右端が反転する', text: '0 から順に数えると、右端の桁（重み 1）は 1 足すたびに 0→1→0 と反転する。1 だった桁に 1 を足すと 0 に戻り、同時に左隣へ**桁上がり**する。これは 10 進の 9 の次に 10 になるのと同じ現象で、2 進では 1 の次がもう桁上がり。' },
+      { title: '桁上がりの連鎖', text: '00000111（7）に 1 を足すと 00001000（8）。右の 3 桁が同時に 1→0 になり、桁上がりが 3 回続いて 4 桁めが 1 になる。11111111（255）に 1 を足すと 8 桁全部が 0 になって 9 桁めへあふれる。8 ビットの箱ではこれを表せない（オーバーフロー）。' },
+      { title: 'ビット数と表せる範囲', text: 'n ビットで 2ⁿ 通り。4 ビットで 16、8 ビットで 256（0〜255）、16 ビットで 65,536、32 ビットで約 43 億、64 ビットで約 1,845 京。IPv4 アドレスが 32 ビットで約 43 億個しかない話は第18章で、64 ビット CPU のレジスタは第6章で出てくる。' },
+      { title: '16 進表記：4 ビットを 1 文字に', text: '2 進を書き写すのは長いので、4 ビットずつまとめて 0〜9, A〜F の 16 文字で書く。10110010 → 1011 と 0010 → B と 2 → 0xB2（178）。1 バイトはちょうど 2 文字。MAC アドレス、色コード、メモリの番地はこの書き方。' },
+      { title: '筆算：各桁は 0 か 1 の足し算', text: '0101（5）+ 0011（3）を右の桁から。1+1 = 10 なので 0 を書いて桁上がり 1。次は 0+1+桁上がり 1 = 10 でまた 0 と桁上がり。次は 1+0+1 = 10、最後は 0+0+1 = 1。答え 1000（8）。各桁でやっているのは「3 つのビットを足して、和と桁上がりを出す」こと。これを回路にする。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      const W = [128, 64, 32, 16, 8, 4, 2, 1];
+      st.boxes = [];
+      st.carry = [];
+      for (let k = 0; k < 8; k++) {
+        const x = 150 + k * 90;
+        S.text(x, 92, String(W[k]), { cls: 't-c t-mono t-sm t-dim' }, g);
+        S.text(x, 76, '2' + '⁷⁶⁵⁴³²¹⁰'[k], { cls: 't-c t-mono t-xs t-dim' }, g);
+        st.boxes.push(bitBox(g, x, 150, 70, 70, null, { fs: 34 }));
+        if (k > 0) st.carry.push(S.path(`M${x - 40},110 H${x - 50}`, { cls: 'f-none s-x w3', 'marker-end': mk('x'), style: { opacity: 0 } }, g));
+        S.text(x, 212, 'ビット ' + (7 - k), { cls: 't-c t-xs t-dim t-mono' }, g);
+      }
+      st.ovf = S.path('M110,110 H70', { cls: 'f-none s-x w3', 'marker-end': mk('x'), style: { opacity: 0 } }, g);
+      st.ovfTxt = S.text(60, 150, '', { cls: 't-c t-xs t-x t-b' }, g);
+      st.decTxt = S.text(480, 290, '', { cls: 't-c t-mono t-b', style: { fontSize: '36px' } }, g);
+      st.decLbl = S.text(480, 312, '10 進', { cls: 't-c t-xs t-dim' }, g);
+      st.sumTxt = S.text(480, 350, '', { cls: 't-c t-mono t-sm t-mid' }, g);
+      st.hexG = S.g({ cls: 'fade hide' }, g);
+      [0, 1].forEach((h) => {
+        const x0 = 150 + h * 360 - 35, x1 = x0 + 340;
+        S.path(`M${x0},232 V246 H${x1} V232`, { cls: 'f-none s-d w2' }, st.hexG);
+      });
+      st.hexDigits = [S.text(285, 280, '', { cls: 't-c t-mono t-b t-d', style: { fontSize: '30px' } }, st.hexG), S.text(645, 280, '', { cls: 't-c t-mono t-b t-d', style: { fontSize: '30px' } }, st.hexG)];
+      st.hexTxt = S.text(480, 350, '', { cls: 't-c t-mono t-lg' }, st.hexG);
+      // 範囲の表（段階4）
+      const gr = st.gr = S.g({ transform: 'translate(120,380)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 720, 160, { rx: 8, cls: 'f-sf s-rule w1' }, gr);
+      const rowsR = [['4 ビット', '16', '0〜15', '16 進 1 文字'], ['8 ビット', '256', '0〜255', '1 バイト、画素の明るさ'], ['16 ビット', '65,536', '0〜65,535', 'ポート番号（第19章）'], ['32 ビット', '約 43 億', '0〜4,294,967,295', 'IPv4 アドレス（第18章）'], ['64 ビット', '約 1,845 京', '', 'CPU のレジスタ（第6章）']];
+      ['ビット数', '2ⁿ 通り', '範囲', '例'].forEach((h, k) => S.text([20, 130, 260, 460][k], 24, h, { cls: 't-b t-sm t-dim' }, gr));
+      rowsR.forEach((r, i) => r.forEach((c, k) => S.text([20, 130, 260, 460][k], 50 + i * 24, c, { cls: 't-sm ' + (k < 3 ? 't-mono' : '') }, gr)));
+      // 筆算（段階6）
+      const gc = st.gc = S.g({ transform: 'translate(300,380)', cls: 'fade hide' }, svg);
+      S.rect(0, -300, 360, 460, { rx: 8, cls: 'f-sf s-rule w1' }, gc);
+      S.text(180, -270, '0101 + 0011 の筆算', { cls: 't-c t-b t-lg' }, gc);
+      st.colX = [100, 160, 220, 280];
+      st.calcCarry = st.colX.map((x) => S.text(x, -200, '', { cls: 't-c t-mono t-x t-b t-lg' }, gc));
+      // 行の名前は左端に寄せ、＋ は B の数字のすぐ左に置く（名前と重ならないように）
+      S.text(16, -200, '桁上がり', { cls: 't-xs t-dim' }, gc);
+      [0, 1, 0, 1].forEach((v, k) => S.text(st.colX[k], -150, String(v), { cls: 't-c t-mono', style: { fontSize: '30px' } }, gc));
+      S.text(16, -150, 'A = 5', { cls: 't-xs t-dim' }, gc);
+      [0, 0, 1, 1].forEach((v, k) => S.text(st.colX[k], -100, String(v), { cls: 't-c t-mono', style: { fontSize: '30px' } }, gc));
+      S.text(16, -100, 'B = 3', { cls: 't-xs t-dim' }, gc);
+      S.text(66, -106, '+', { cls: 't-c t-mono t-lg' }, gc);
+      S.line(60, -80, 320, -80, { cls: 's-fg w2' }, gc);
+      st.calcSum = st.colX.map((x) => S.text(x, -40, '', { cls: 't-c t-mono t-b t-d', style: { fontSize: '30px' } }, gc));
+      S.text(16, -40, '和', { cls: 't-xs t-dim' }, gc);
+      st.calcHl = S.rect(0, -230, 56, 230, { rx: 6, cls: 'f-x-soft', style: { opacity: 0 } }, gc);
+      st.calcNote = S.text(180, 20, '', { cls: 't-c t-sm t-mid' }, gc);
+      st.calcNote2 = S.text(180, 44, '', { cls: 't-c t-sm t-dim' }, gc);
+      st.calcAns = S.text(180, 110, '', { cls: 't-c t-mono t-b t-lg' }, gc);
+      st.value = 0b1011;
+    },
+    render(ctx, v, carries) {
+      const st = ctx.state;
+      for (let k = 0; k < 8; k++) st.boxes[k].set((v >> (7 - k)) & 1);
+      st.carry.forEach((c, k) => { c.style.opacity = carries && carries.has(7 - k - 1 + 1) ? 1 : 0; });
+      st.decTxt.textContent = String(v & 255);
+      const terms = [];
+      for (let k = 0; k < 8; k++) if ((v >> (7 - k)) & 1) terms.push(String([128, 64, 32, 16, 8, 4, 2, 1][k]));
+      st.sumTxt.textContent = terms.length ? terms.join(' + ') + ' = ' + (v & 255) : '0';
+      st.hexDigits[0].textContent = ((v >> 4) & 15).toString(16).toUpperCase();
+      st.hexDigits[1].textContent = (v & 15).toString(16).toUpperCase();
+      st.hexTxt.textContent = '0x' + (v & 255).toString(16).toUpperCase().padStart(2, '0') + ' = ' + (v & 255);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g, i !== 5);
+      S.fade(st.gr, i === 3);
+      S.fade(st.hexG, i === 4);
+      S.fade(st.gc, i === 5);
+      st.sumTxt.style.display = i === 4 ? 'none' : '';
+      st.ovf.style.opacity = 0; st.ovfTxt.textContent = '';
+      st.lastN = -1;
+      if (i === 0) { st.value = 0b00001011; this.render(ctx, st.value); }
+      if (i === 3) { st.value = 0b11111111; this.render(ctx, st.value); }
+      if (i === 4) { st.value = 0b10110010; this.render(ctx, st.value); }
+      if (i === 5) { st.calcN = -1; }
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 1 || i === 2) {
+        const n = Math.floor(ctx.ts / 0.8);
+        if (n !== st.lastN) {
+          st.lastN = n;
+          const seqv = i === 1 ? n % 16 : [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 252, 253, 254, 255, 0][n % 16];
+          const prev = st.value;
+          st.value = seqv;
+          // 桁上がり: 1→0 になった桁の左隣へ
+          const carries = new Set();
+          for (let bit = 0; bit < 8; bit++) if (((prev >> bit) & 1) === 1 && ((seqv >> bit) & 1) === 0 && seqv === ((prev + 1) & 255)) carries.add(bit + 1);
+          this.render(ctx, seqv, carries);
+          const ovf = i === 2 && prev === 255 && seqv === 0;
+          st.ovf.style.opacity = ovf ? 1 : 0;
+          st.ovfTxt.textContent = ovf ? '9 桁めへあふれる' : '';
+        }
+      } else if (i === 5) {
+        const q = U.seq(ctx.ts, [2.4, 2.4, 2.4, 2.4, 3], true);
+        if (q.i !== st.calcN) {
+          st.calcN = q.i;
+          const A = [0, 1, 0, 1], B = [0, 0, 1, 1];
+          const sums = ['', '', '', ''], car = ['', '', '', ''];
+          let c = 0;
+          const notes = [
+            ['ビット 0：1 + 1 = 10（2）', '和は 0、桁上がり 1 を左へ'],
+            ['ビット 1：0 + 1 + 桁上がり 1 = 10', '和は 0、また桁上がり 1'],
+            ['ビット 2：1 + 0 + 1 = 10', '和は 0、桁上がり 1'],
+            ['ビット 3：0 + 0 + 1 = 1', '和は 1、桁上がりなし'],
+            ['答え 1000 = 8', '各桁は「3 つのビットの足し算」']
+          ];
+          for (let k = 3; k >= 0; k--) {
+            const s = A[k] + B[k] + c;
+            if (3 - k <= q.i || q.i === 4) { sums[k] = String(s & 1); c = s >> 1; if (c && k > 0) car[k - 1] = '1'; } else break;
+          }
+          st.calcSum.forEach((e, k) => { e.textContent = sums[k]; });
+          st.calcCarry.forEach((e, k) => { e.textContent = car[k]; });
+          const col = q.i < 4 ? 3 - q.i : -1;
+          st.calcHl.style.opacity = col >= 0 ? 1 : 0;
+          if (col >= 0) st.calcHl.setAttribute('x', st.colX[col] - 28);
+          st.calcNote.textContent = notes[q.i][0];
+          st.calcNote2.textContent = notes[q.i][1];
+          st.calcAns.textContent = q.i === 4 ? '0101 + 0011 = 1000　（5 + 3 = 8）' : '';
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 半加算器・全加算器
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '1 桁の足し算は 4 通り', text: '0+0=0、0+1=1、1+0=1、1+1=10。和の桁（S）を見ると「一方だけ 1 のとき 1」で XOR、桁上がり（C）は「両方 1 のとき 1」で AND と一致する。足し算の規則そのものが、2 つのゲートで書けてしまう。' },
+      { title: '半加算器：XOR と AND', text: '入力 A・B を XOR と AND の両方に入れ、XOR の出力を和 S、AND の出力を桁上がり C とする。これが**半加算器**。「半」なのは、下の桁からの桁上がりを受け取る入力がないから。最下位の桁にはこれで足りる。' },
+      { title: '下の桁からの桁上がりも足す', text: '2 桁め以降は、A・B に加えて下の桁からの桁上がり Cin の 3 つを足す。3 つの 1 の個数で結果が決まる。S は「1 が奇数個なら 1」、Cout は「1 が 2 個以上なら 1」。入力 3 つの回路が**全加算器**。' },
+      { title: '全加算器の中身：半加算器 2 個と OR', text: 'まず A と B を半加算器で足し（S1, C1）、その S1 と Cin をもう 1 つの半加算器で足す（S, C2）。桁上がりは C1 か C2 のどちらかしか立たないので、OR でまとめて Cout にする。XOR 2 個、AND 2 個、OR 1 個。' },
+      { title: '8 通りすべてを確かめる', text: '入力は 2³ = 8 通り。表の S の列は A⊕B⊕Cin、Cout の列は A·B + Cin·(A⊕B)。この 1 個の回路を桁数ぶん並べれば、何桁の足し算でもできる。次の場面で 4 個つなぐ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 半加算器
+      const gh = st.gh = S.g({}, svg);
+      S.text(300, 50, '半加算器', { cls: 't-c t-b t-lg' }, gh);
+      st.hA = bitBox(gh, 100, 200, 44, 36, 'A', { fs: 18 });
+      st.hB = bitBox(gh, 100, 320, 44, 36, 'B', { fs: 18 });
+      const hx = gOR(gh, 300, 220, 'XOR', true);
+      const ha = gAND(gh, 300, 340, 'AND');
+      st.hNets = {
+        A: [wireP(gh, 'M122,200 H200 V209 H294'), wireP(gh, 'M200,200 V329 H300')],
+        B: [wireP(gh, 'M122,320 H240 V231 H294'), wireP(gh, 'M240,320 V351 H300')],
+        S: [wireP(gh, `M${hx.out.x},220 H480`)],
+        C: [wireP(gh, `M${ha.out.x},340 H480`)]
+      };
+      [[200, 200], [240, 320]].forEach(([x, y]) => S.circle(x, y, 4, { cls: 'f-dim' }, gh));
+      st.hS = bitBox(gh, 510, 220, 48, 40, '和 S', { fs: 20 });
+      st.hC = bitBox(gh, 510, 340, 48, 40, '桁上がり C', { fs: 20 });
+      S.text(300, 420, 'S = A ⊕ B　　C = A · B', { cls: 't-c t-mono t-sm' }, gh);
+      st.hTbl = truthTable(gh, 640, 110, ['A', 'B', 'S', 'C'], [[0, 0, 0, 0], [0, 1, 1, 0], [1, 0, 1, 0], [1, 1, 0, 1]], 60, '半加算器の真理値表');
+      // 全加算器
+      const gf = st.gf = S.g({ cls: 'fade hide' }, svg);
+      S.text(310, 36, '全加算器', { cls: 't-c t-b t-lg' }, gf);
+      st.fA = bitBox(gf, 60, 150, 40, 34, 'A', { fs: 16 });
+      st.fB = bitBox(gf, 60, 250, 40, 34, 'B', { fs: 16 });
+      st.fCin = bitBox(gf, 60, 430, 40, 34, 'Cin', { fs: 16 });
+      const x1 = gOR(gf, 220, 170, 'XOR1', true);
+      const a1 = gAND(gf, 220, 300, 'AND1');
+      const x2 = gOR(gf, 400, 190, 'XOR2', true);
+      const a2 = gAND(gf, 400, 420, 'AND2');
+      const o1 = gOR(gf, 540, 330, 'OR');
+      st.fNets = {
+        A: [wireP(gf, 'M80,150 H150 V159 H214'), wireP(gf, 'M150,150 V289 H220')],
+        B: [wireP(gf, 'M80,250 H180 V181 H214'), wireP(gf, 'M180,250 V311 H220')],
+        S1: [wireP(gf, `M${x1.out.x},170 H330 V179 H394`), wireP(gf, 'M330,170 V409 H400')],
+        Cin: [wireP(gf, 'M80,430 H360 V201 H394'), wireP(gf, 'M360,430 V431 H400')],
+        C1: [wireP(gf, `M${a1.out.x},300 H500 V319 H542`)],
+        C2: [wireP(gf, `M${a2.out.x},420 H500 V341 H542`)],
+        S: [wireP(gf, `M${x2.out.x},190 H600`)],
+        Cout: [wireP(gf, `M${o1.out.x},330 H600`)]
+      };
+      [[150, 150], [180, 250], [330, 170], [360, 430]].forEach(([x, y]) => S.circle(x, y, 4, { cls: 'f-dim' }, gf));
+      st.fS = bitBox(gf, 630, 190, 48, 40, 'S', { fs: 20 });
+      st.fCout = bitBox(gf, 630, 330, 48, 40, 'Cout', { fs: 20 });
+      S.rect(190, 120, 120, 220, { rx: 8, cls: 'f-none s-rule w1 dash' }, gf);
+      S.text(250, 112, '半加算器 1', { cls: 't-c t-xs t-dim' }, gf);
+      S.rect(380, 140, 100, 320, { rx: 8, cls: 'f-none s-rule w1 dash' }, gf);
+      S.text(430, 132, '半加算器 2', { cls: 't-c t-xs t-dim' }, gf);
+      S.text(230, 80, 'S1 = A⊕B', { cls: 't-mono t-xs t-dim' }, gf);
+      S.text(310, 500, 'S = A ⊕ B ⊕ Cin　　Cout = A·B + Cin·(A⊕B)', { cls: 't-c t-mono t-sm' }, gf);
+      const rows8 = [];
+      for (let k = 0; k < 8; k++) { const a = k >> 2 & 1, b = k >> 1 & 1, c = k & 1; const s = a + b + c; rows8.push([a, b, c, s & 1, s >> 1]); }
+      st.fTbl = truthTable(gf, 690, 100, ['A', 'B', 'Cin', 'S', 'Cout'], rows8, 48, '全加算器の真理値表');
+      st.fTbl.g.classList.add('fade');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const full = i >= 2;
+      S.fade(st.gh, !full);
+      S.fade(st.gf, full);
+      st.fTbl.g.classList.toggle('hide', i < 3);
+      st.combo = -1;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i < 2) {
+        const k = Math.floor(U.mod(ctx.ts, 6) / 1.5);
+        if (k === st.combo) return;
+        st.combo = k;
+        const a = k >> 1, b = k & 1;
+        st.hA.set(a); st.hB.set(b);
+        setLvl(st.hNets.A, a); setLvl(st.hNets.B, b);
+        setLvl(st.hNets.S, a ^ b); setLvl(st.hNets.C, a & b);
+        st.hS.set(a ^ b); st.hC.set(a & b);
+        st.hTbl.hl(k);
+      } else {
+        const k = Math.floor(U.mod(ctx.ts, 12) / 1.5);
+        if (k === st.combo) return;
+        st.combo = k;
+        const a = k >> 2 & 1, b = k >> 1 & 1, c = k & 1;
+        const s1 = a ^ b, c1 = a & b, s = s1 ^ c, c2 = s1 & c, co = c1 | c2;
+        st.fA.set(a); st.fB.set(b); st.fCin.set(c);
+        const N = st.fNets;
+        setLvl(N.A, a); setLvl(N.B, b); setLvl(N.Cin, c); setLvl(N.S1, s1); setLvl(N.C1, c1); setLvl(N.C2, c2); setLvl(N.S, s); setLvl(N.Cout, co);
+        st.fS.set(s); st.fCout.set(co);
+        st.fTbl.hl(k);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 4ビット加算器
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '全加算器を 4 個並べる', text: '右端がビット 0（重み 1）、左端がビット 3（重み 8）。各桁の Cout を左隣の Cin につなぎ、ビット 0 の Cin は 0 に固定する。入力 A と B の 4 桁を上から与えると、和 S の 4 桁と最上位の桁上がり Cout（5 桁め）が出る。' },
+      { title: '0101 + 0011 を入れる：まず右端', text: 'ビット 0 は A=1, B=1, Cin=0 なので S=0、Cout=1。この時点で他の桁はまだ確定していない。左の桁の Cin は右の桁の Cout が決まるまで分からないから。箱の「?」は未確定を表す。' },
+      { title: '桁上がりが右から左へ伝わる', text: 'ビット 1 は 0+1+1 で S=0, Cout=1。ビット 2 は 1+0+1 で S=0, Cout=1。ビット 3 は 0+0+1 で S=1, Cout=0。答え 1000（8）。下の時間図のとおり、各桁は 1 段ぶんずつ遅れて確定する。これが**リップル（さざ波）キャリー**。' },
+      { title: '最悪の場合：0111 + 0001', text: '右端で生じた桁上がりが全部の桁を通り抜ける。4 桁なら 4 段、64 桁なら 64 段の遅延。1 段が数十ピコ秒でも 64 段では数ナノ秒となり、4 GHz のクロック周期 0.25 ナノ秒に収まらない。CPU は桁上がりを並列に先読みする回路で log₂n 段程度に縮める。' },
+      { title: '引き算も同じ回路で：2 の補数', text: '5 − 3 は 5 + (−3)。−3 は 0011 の各ビットを反転した 1100 に 1 を足した 1101。反転は XOR で、+1 は Cin=1 で入れられるので、加算器に少しの回路を足すだけで引き算になる。結果 0010（2）、あふれた 5 桁めは捨てる。' },
+      { title: 'ここまでの積み上げ', text: 'トランジスタ 4 個で NAND、NAND 4 個で XOR、XOR・AND・OR で全加算器（約 28 トランジスタ）、4 個で 4 ビット加算器（約 110 個）。64 ビットでは約 1,800 個。これに AND・OR・XOR・シフトを並べて選べるようにしたものが CPU の **ALU**（第6章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      st.fa = [];
+      // ビット3 が左。x 位置
+      const X = [160, 360, 560, 760];     // bit3, bit2, bit1, bit0 の中心
+      for (let k = 0; k < 4; k++) {
+        const bit = 3 - k, x = X[k];
+        const fa = {};
+        S.rect(x - 70, 200, 140, 90, { rx: 8, cls: 'f-sf s-fg w2' }, g);
+        S.text(x, 238, '全加算器', { cls: 't-c t-b t-sm' }, g);
+        S.text(x, 258, 'ビット ' + bit + '（重み ' + (1 << bit) + '）', { cls: 't-c t-xs t-dim' }, g);
+        fa.A = bitBox(g, x - 30, 130, 40, 36, 'A' + bit, { fs: 18 });
+        fa.B = bitBox(g, x + 30, 130, 40, 36, 'B' + bit, { fs: 18 });
+        fa.wA = wireP(g, `M${x - 30},148 V200`);
+        fa.wB = wireP(g, `M${x + 30},148 V200`);
+        fa.S = bitBox(g, x, 360, 44, 40, null, { fs: 20 });
+        S.text(x, 395, 'S' + bit, { cls: 't-c t-xs t-dim t-mono' }, g);
+        fa.wS = wireP(g, `M${x},290 V340`);
+        // 桁上がり: 右の箱の左辺 → この箱の右辺（左向き）
+        fa.cin = S.path(`M${x + 130},245 H${x + 72}`, { cls: 'f-none s-dim w2 round', 'marker-end': mk('dim') }, g);
+        fa.cinLbl = S.text(x + 100, 236, k === 3 ? 'Cin = 0' : '', { cls: 't-c t-xs t-mono t-dim' }, g);
+        fa.cinVal = S.text(x + 100, 268, '', { cls: 't-c t-mono t-b t-sm' }, g);
+        st.fa.push(fa);
+      }
+      st.cout = S.path('M90,245 H40', { cls: 'f-none s-dim w2 round', 'marker-end': mk('dim') }, g);
+      st.coutLbl = S.text(60, 236, 'Cout', { cls: 't-c t-xs t-mono t-dim' }, g);
+      st.coutVal = S.text(60, 268, '', { cls: 't-c t-mono t-b t-sm' }, g);
+      // 式の 2 行は、入力の箱の名前（A2・B2・A1…、y≈105）から離す
+      st.eq = S.text(480, 62, '', { cls: 't-c t-mono t-lg t-b' }, g);
+      st.eq2 = S.text(480, 84, '', { cls: 't-c t-sm t-dim' }, g);
+      // 時間図
+      const gt = st.gt = S.g({ transform: 'translate(120,430)' }, g);
+      S.text(0, -6, '確定した時刻（図の 1 段 ≒ 0.9 秒、実際は数十ピコ秒）', { cls: 't-xs t-dim' }, gt);
+      st.lanes = [];
+      for (let k = 0; k < 4; k++) {
+        const y = 14 + k * 24;
+        S.text(-8, y + 12, 'ビット ' + (3 - k), { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gt);
+        S.line(0, y + 16, 720, y + 16, { cls: 's-rule w1' }, gt);
+        st.lanes.push({ bar: S.rect(0, y + 2, 0, 14, { rx: 2, cls: 'f-x-soft' }, gt), ok: S.rect(0, y + 2, 0, 14, { rx: 2, cls: 'f-d-soft' }, gt), lbl: S.text(0, y + 13, '', { cls: 't-xs t-mono' }, gt) });
+      }
+      S.line(0, 10, 0, 110, { cls: 's-rule w1' }, gt);
+      st.tNow = S.line(0, 10, 0, 110, { cls: 's-x w1' }, gt);
+      st.subG = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 545, '−3 = ¬0011 + 1 = 1100 + 1 → B を反転して 1100、Cin に 1 を入れる', { cls: 't-c t-sm t-d' }, st.subG);
+    },
+    load(ctx, A, B, cin0, eq, eq2) {
+      const st = ctx.state;
+      st.A = A; st.B = B; st.cin0 = cin0;
+      // 期待値
+      st.res = [];
+      let c = cin0;
+      for (let bit = 0; bit < 4; bit++) { const s = A[bit] + B[bit] + c; st.res[bit] = { s: s & 1, c: s >> 1, cin: c }; c = s >> 1; }
+      st.coutFinal = c;
+      st.fa.forEach((fa, k) => { const bit = 3 - k; fa.A.set(A[bit]); fa.B.set(B[bit]); setLvl(fa.wA, A[bit]); setLvl(fa.wB, B[bit]); });
+      st.fa[3].cinLbl.textContent = 'Cin = ' + cin0;
+      st.eq.textContent = eq; st.eq2.textContent = eq2;
+    },
+    /* settled = 確定した桁の数（0〜4） */
+    show(ctx, settled, tsec) {
+      const st = ctx.state;
+      st.fa.forEach((fa, k) => {
+        const bit = 3 - k, r = st.res[bit], done = bit < settled;
+        fa.S.set(done ? r.s : '?');
+        setLvl(fa.wS, done && r.s);
+        const cinKnown = bit === 0 || bit - 1 < settled;
+        fa.cin.setAttribute('class', cinKnown && r.cin ? 'f-none s-x w3 round' : 'f-none s-dim w2 round');
+        fa.cinVal.textContent = cinKnown ? String(r.cin) : '?';
+        fa.cinVal.setAttribute('class', 't-c t-mono t-b t-sm ' + (cinKnown && r.cin ? 't-x' : 't-dim'));
+        const lane = st.lanes[k];
+        const px = 720 / 5;
+        lane.bar.setAttribute('width', (Math.min(tsec, (bit + 1) * 0.9) / 4.5 * 720).toFixed(1));
+        lane.ok.setAttribute('x', ((bit + 1) * 0.9 / 4.5 * 720).toFixed(1));
+        lane.ok.setAttribute('width', done ? Math.max(0, (Math.min(tsec, 4.5) - (bit + 1) * 0.9) / 4.5 * 720).toFixed(1) : 0);   // 時間図の右端（4.5 秒）で止める
+        lane.lbl.setAttribute('x', ((bit + 1) * 0.9 / 4.5 * 720 + 6).toFixed(1));
+        lane.lbl.textContent = done ? 'S=' + r.s + (r.c ? ' 桁上がり' : '') : '';
+        void px;
+      });
+      st.cout.setAttribute('class', settled >= 4 && st.coutFinal ? 'f-none s-x w3 round' : 'f-none s-dim w2 round');
+      st.coutVal.textContent = settled >= 4 ? String(st.coutFinal) : '?';
+      st.tNow.setAttribute('x1', (Math.min(tsec, 4.5) / 4.5 * 720).toFixed(1));
+      st.tNow.setAttribute('x2', (Math.min(tsec, 4.5) / 4.5 * 720).toFixed(1));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.subG, i === 4);
+      if (i === 0) this.load(ctx, [1, 0, 1, 0], [1, 1, 0, 0], 0, 'A = 0101 (5)　B = 0011 (3)', '上の箱が入力。右端のビット 0 から計算が始まる');
+      if (i === 1 || i === 2) this.load(ctx, [1, 0, 1, 0], [1, 1, 0, 0], 0, '0101 + 0011 = ?', '右端から順に確定していく');
+      if (i === 3) this.load(ctx, [1, 1, 1, 0], [1, 0, 0, 0], 0, '0111 + 0001 = ?', '桁上がりが 4 段すべてを通り抜ける');
+      if (i === 4) this.load(ctx, [1, 0, 1, 0], [0, 0, 1, 1], 1, '0101 + 1100 + 1 = ?（5 − 3）', 'B を反転し、Cin = 1。5 桁めの桁上がりは捨てる');
+      if (i === 5) this.load(ctx, [1, 0, 1, 0], [1, 1, 0, 0], 0, '0101 + 0011 = 1000', 'トランジスタ約 110 個の 4 ビット加算器');
+      st.gt.style.opacity = i === 0 || i === 5 ? 0.35 : 1;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // 進行: 段階0 は全部確定済みを表示、段階1 は右端だけ、他は時間で進む（8 秒で繰り返す）
+      let tsec;
+      if (i === 0 || i === 5) tsec = 4.5;
+      else if (i === 1) tsec = Math.min(ctx.ts, 1.6);
+      else tsec = U.mod(ctx.ts, 8);
+      const settled = i === 1 ? (tsec >= 0.9 ? 1 : 0) : Math.min(4, Math.floor(tsec / 0.9));
+      this.show(ctx, settled, tsec);
+      if (i >= 1 && i <= 4) {
+        const done = settled >= 4;
+        const res = st.res.map((r) => r.s).reverse().join('');
+        const val = st.res.reduce((a, r, b) => a + r.s * (1 << b), 0);
+        st.eq.textContent = (i === 4 ? '0101 + 1100 + 1 = ' : (i === 3 ? '0111 + 0001 = ' : '0101 + 0011 = ')) + (done ? res + ' (' + val + ')' + (st.coutFinal ? '、Cout = 1' : '') : '?');
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第II部 計算機 ／ 第4章',
+      title: '論理ゲートと2進数',
+      home: '../index.html',
+      prev: { href: '03-transistor.html', title: 'トランジスタ' },
+      next: { href: '05-kioku.html', title: '記憶' },
+      legend: [{ c: 'h', label: '1（高い電圧）・VDD' }, { c: 'dim', label: '0（低い電圧）' }, { c: 'e', label: '電流・閉じたスイッチ' }, { c: 'd', label: 'ビット列・16進' }, { c: 'x', label: '桁上がり・注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

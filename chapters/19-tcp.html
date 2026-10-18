@@ -1,0 +1,1532 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>TCP・UDP・QUIC — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第V部 約束ごと ／ 第19章 ／ 全25章</p>
+    <h1 id="h-s0">TCP・UDP・QUIC</h1>
+    <p class="standfirst">IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（<a class="xref" href="18-ip.html">第18章</a>）。その上で、機器の中のどのプログラム宛てかをポート番号で分けるのがトランスポート層の TCP・UDP・QUIC で、TCP と QUIC は抜けた分を送り直し、送る速さを網の混み具合にも合わせる。この章では、ポート、TCP の接続の始め方・番号と再送・速さの決め方、何も足さない UDP、UDP の上で TCP と TLS の仕事をまとめた QUIC を順に見る。Chrome で YouTube を見るとき、動画の断片は多くの場合 QUIC で届く。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のパケットの動きは、見やすいように実際よりずっと遅くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>ポート</a><p>16 ビットの番号で機器の中のソケットを指す。決まった番号と一時的な番号、5 つ組。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>3-way ハンドシェイク</a><p>SYN・SYN/ACK・ACK で番号の始まりを伝え合う。状態の名前と閉じ方。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>シーケンス番号と ACK・再送</a><p>バイトごとの番号、累積 ACK、並べ直し、高速再送とタイムアウト、SACK。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>ウィンドウと輻輳制御</a><p>速さ ≒ ウィンドウ ÷ 往復時間。受信ウィンドウ、スロースタート、CUBIC と BBR。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>UDP</a><p>8 バイトのヘッダだけ。接続も順番も再送も無く、足りない仕事は使う側が作る。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>QUIC</a><p>UDP の上で TLS 1.3 と一体になり 1 往復で始まる。独立したストリーム、接続 ID、暗号化されたヘッダ。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（TLS）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。PC 192.168.1.10:51234、NAT の後の 203.0.113.5:40001、YouTube の 142.250.196.110:443 は全章で共通の例（第14章）。動画の配信元 198.51.100.80 などは説明用に予約された範囲（RFC 5737）の値。往復時間は、手元の回線から www.youtube.com までの実測（約 7〜12 ms、2026 年 10 月）から 10 ms とした。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 ポート ================= -->
+<section class="scene sc-anim" id="s1" data-tab="ポート" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>ポート — 機器の中の受け取り手を 16 ビットで指す</h2>
+    <p class="sh-meta"><span class="chip">16 ビット</span><span class="chip">443 ／ 53</span><span class="chip">5 つ組</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IP アドレスが指すのは機器まで。機器の中のどのソケットに渡すかは、TCP・UDP のヘッダの先頭にある 16 ビットの<b>ポート番号</b>で決まる。1 本の通信は、プロトコルと両端の IP・ポートの 5 つの値で見分ける。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Linux は <code>ss -tunap</code>、Windows は <code>netstat -ano</code> で、5 つ組とソケットの持ち主が一覧できる。NAT（<a class="xref" href="14-router.html#s4">第14章</a>）を通ると、サーバーから見た組は 203.0.113.5:40001 → 142.250.196.110:443 に替わる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC に届いたパケットの先頭のポート番号、PC のソケットの表とプロセス、相手のサーバー、ポート番号 0〜65535 の使い分け"></svg></div>
+    <figcaption>図1　上は PC に届いたパケットの先頭（欄の幅はバイト数に比例しない）。中段は PC のソケットの表とプロセス、右は相手。下はポート番号 0〜65,535 の使い分け。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 3-way ハンドシェイク ================= -->
+<section class="scene sc-anim" id="s2" data-tab="ハンドシェイク" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>3-way ハンドシェイク — 番号の始まりを伝え合ってから送る</h2>
+    <p class="sh-meta"><span class="chip">SYN → SYN/ACK → ACK</span><span class="chip">ISN 32 ビット</span><span class="chip">TIME_WAIT</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">TCP はデータの前に、SYN・SYN/ACK・ACK の 3 個のパケットで、両端の番号の始まり（<b>初期シーケンス番号</b>）と、1 個で受け取れる大きさを伝え合う。そのため最初のデータは、少なくとも 1 往復待たされる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">家のルーターの状態表（<a class="xref" href="14-router.html#s5">第14章</a>）は、通るパケットを見て 1 行を SYN_SENT → SYN_RECV → ESTABLISHED と進める。両端の状態の名前を借りて、接続を途中から見た段階を表している。両端の状態は <code>ss -tan</code> で見える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC と YouTube のサーバーの間で SYN・SYN/ACK・ACK を交わし、TLS と HTTP の要求が続き、最後に FIN で閉じるまでの時間の流れと、両端の状態の名前"></svg></div>
+    <figcaption>図2　縦が時間で、下へ進む。斜めの矢印がパケット、両端の文字がその時点の状態。QUIC が使えず TCP で接続する場合の例。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 シーケンス番号と ACK・再送 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="番号と再送" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>シーケンス番号と ACK・再送 — 抜けた所だけ送り直す</h2>
+    <p class="sh-meta"><span class="chip">累積 ACK</span><span class="chip">重複 ACK 3 個</span><span class="chip">SACK</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">TCP はデータの 1 バイトごとに番号を振り、受け手は次に欲しい番号を ACK で返す。送り手は ACK が来ない所だけを送り直す。途中で順番が入れ替わっても失われても、アプリには元の順のバイト列が渡る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">受け手はチェックサムが合わないセグメントも黙って捨てる。壊れたときも失われたときと同じく、ACK が来ないことから送り手が送り直す。Ethernet の FCS で捨てたフレーム（<a class="xref" href="13-ethernet.html#s3">第13章</a>）も、こうして TCP が埋める。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="サーバーの送信バッファから PC の受信バッファへ番号付きのセグメントが下り、ACK が上る図。途中のルーターで失われたセグメント、重複 ACK、再送、SACK"></svg></div>
+    <figcaption>図3　上がサーバーの送信バッファ、下が PC の受信バッファ。データ（seq の番号）は下へ、ACK は上へ進む。番号は ISN を引いた相対の値で、時間は大きく引き延ばしてある。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 ウィンドウと輻輳制御 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="ウィンドウ" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>ウィンドウと輻輳制御 — ACK を待たずに送れる量を決める</h2>
+    <p class="sh-meta"><span class="chip">速さ ≒ ウィンドウ ÷ 往復時間</span><span class="chip">初期 10 個</span><span class="chip">CUBIC ／ BBR</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">送り手は ACK を待たずに、<b>ウィンドウ</b>の分だけ先に送る。速さはおよそウィンドウ ÷ 往復時間。ウィンドウは、受け手の空きと、網の混み具合から送り手が見積もる量の小さいほうで決まる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">QUIC も同じ考え方の輻輳制御を、カーネルではなくブラウザとサーバーのプログラムの中に持つ（初期ウィンドウは同じく 10 個分、RFC 9002）。再生する画質は、こうして決まる速さの変化を見て選ぶ（<a class="xref" href="24-streaming.html#s3">第24章</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="サーバーから PC への道に、ウィンドウの数だけデータと ACK が並ぶ図と、輻輳ウィンドウがスロースタート・輻輳回避・損失で変わるグラフ、CUBIC と BBR の形"></svg></div>
+    <figcaption>図4　上はサーバーから PC への道で、点の数がウィンドウ（データとその ACK）。下は輻輳ウィンドウの変化の模式図。道は 86 個で満杯、ルーターには 20 個分の待ち行列がある例。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 UDP ================= -->
+<section class="scene sc-anim" id="s5" data-tab="UDP" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>UDP — 番号と長さだけを付けて送る</h2>
+    <p class="sh-meta"><span class="chip">ヘッダ 8 バイト</span><span class="chip">RFC 768（1980）</span><span class="chip">DNS・通話・ゲーム・QUIC</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">UDP は、ポート番号と長さとチェックサムの 8 バイトだけを付けて、データを 1 個ずつ IP に渡す。接続の手順も、順番の保証も、再送も無い。足りない仕事は、使う側のプログラムが自分の都合で作る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">行を消すまでの時間は機器で違う。RFC 4787 は 2 分以上を求めるが、30 秒で消える例もあると RFC 9308 は書く。UDP を通さない網も数 %（2016 年の調査で 3〜5%）あり、そこでは QUIC が使えない（<a class="xref" href="#s6" data-go="6">6「QUIC」</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="UDP と TCP のヘッダの大きさの比較、6 個のデータグラムが失われたり入れ替わったりして届く様子、UDP を使うもの、ルーターの変換表の行が時間で消える様子"></svg></div>
+    <figcaption>図5　上は UDP と TCP のヘッダ（1 行が 32 ビット、同じ縮尺）。中段は 6 個のデータグラムの届き方、下は UDP を使うものと、ルーターの変換表の行の寿命（時間は縮めてある）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 QUIC ================= -->
+<section class="scene sc-anim" id="s6" data-tab="QUIC" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>QUIC — UDP の上で、TCP と TLS の仕事をまとめる</h2>
+    <p class="sh-meta"><span class="chip">UDP 443</span><span class="chip">TLS 1.3 を組み込む</span><span class="chip">RFC 9000（2021）</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">QUIC は UDP 443 番の上で、TCP の仕事と TLS 1.3 の暗号化をまとめて行う。HTTP/3 はこの上で動く。Chrome で YouTube を見るとき、動画の断片は多くの場合 QUIC で届く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Google が 2013 年に公開した独自の QUIC を IETF が作り直し、RFC 9000〜9002（2021 年）になった。実装は Chrome と Google のサーバーで共通の QUICHE。鍵の決め方と証明書は<a class="xref" href="20-tls.html">第20章</a>で見る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="TCP と TLS 1.3 の組み合わせと QUIC を、動く場所、接続までの往復、失われたときの止まり方、回線が替わったとき、途中から見える欄、YouTube での使い分けの順に並べて比べる図"></svg></div>
+    <figcaption>図6　左は TCP＋TLS 1.3、右は QUIC。段階ごとに 1 つの性質を並べて比べる（段階2 の往復は左右で同じ縦の目盛）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 届け先を分け、抜けを埋め、速さを合わせる</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>ポート番号は 16 ビットで機器の中のソケットを指し、サーバーは決まった番号、送り手は一時ポートを使う。1 本の通信は 5 つ組で決まる（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>TCP は SYN・SYN/ACK・ACK で初期シーケンス番号を伝え合ってから送るので、データは 1 往復後、TLS を足すと要求は 2 往復後になる（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>番号はバイトごとに振り、ACK は次に欲しい番号を返す。重複 ACK 3 個かタイムアウトで、抜けた所だけを送り直す（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>速さ ≒ ウィンドウ ÷ 往復時間。輻輳ウィンドウは倍々に増やして損失で減らし、送るのは受信ウィンドウとの小さいほう（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>UDP はポート・長さ・チェックサムの 8 バイトだけで、接続も順番も再送も無い。ルーターは UDP の行を時間で消す（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>QUIC は UDP 443 の上で TLS 1.3 と一体になって 1 往復で始まり、独立したストリームと接続 ID を持つ。UDP が通らなければ TCP に戻る（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>ポート番号</th><td>16 ビット（0〜65,535）。0〜1023 はよく知られたポート（443 HTTPS、53 DNS）。送り手の一時ポートは OS が選ぶ（Linux 32768〜60999、Windows・macOS 49152〜65535）。</td></tr>
+        <tr><th>5 つ組</th><td>プロトコル・送信元 IP・送信元ポート・宛先 IP・宛先ポート。カーネルはこれでパケットをソケットへ振り分ける。</td></tr>
+        <tr><th><i class="sw d"></i>シーケンス番号・ISN</th><td>データの 1 バイトごとの 32 ビットの番号。初めの値（ISN）は接続ごとに予測しにくく選ぶ。SYN と FIN も番号を 1 つ使う。</td></tr>
+        <tr><th>TCP の状態</th><td>LISTEN・SYN_SENT・SYN_RECV・ESTABLISHED・FIN_WAIT_1/2・CLOSE_WAIT・LAST_ACK・TIME_WAIT など。TIME_WAIT は Linux で 60 秒。</td></tr>
+        <tr><th>ACK・SACK</th><td>ACK は次に受け取りたいバイトの番号で、それより前を全部確かめる（累積 ACK）。SACK は届いた範囲を最大 4 つ（時刻のオプションと併せると 3 つ）添える（RFC 2018）。</td></tr>
+        <tr><th><i class="sw x"></i>再送</th><td>重複 ACK 3 個で行う高速再送と、RTO が切れて行う再送。RTO の最小は RFC 6298 で 1 秒、Linux は 200 ms。</td></tr>
+        <tr><th>ウィンドウ</th><td>ACK を待たずに送ってよい量。受信ウィンドウ（受け手の空き）と輻輳ウィンドウ（送り手の見積もり）の小さいほう。</td></tr>
+        <tr><th>輻輳制御</th><td>網の混み具合に合わせて輻輳ウィンドウを変える仕組み。初期 10 個（RFC 6928）、スロースタート、輻輳回避、CUBIC（RFC 9438）、BBR。</td></tr>
+        <tr><th>UDP</th><td>ヘッダ 8 バイト（ポート 2 つ・長さ・チェックサム）。接続・順番・再送なし。RFC 768（1980 年）。</td></tr>
+        <tr><th>QUIC</th><td>UDP の上で TLS 1.3 を組み込んだトランスポート。接続 ID は最大 20 バイト、最初のパケットは 1,200 バイト以上。RFC 9000（2021 年）。HTTP/3 が使う。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱。g.rect が枠、g.title / g.sub が文字 */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: o.cls || 'f-sf s-rule w15' }, g);
+    if (title) g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs ' + (o.scls == null ? 't-dim t-mono' : o.scls) }, g);
+    return g;
+  }
+  /* 荷札（パケット）。中央が原点で、S.place や move で動かす。cls は箱、tcls は文字 */
+  function pkt(p, text, cls, tcls, fs) {
+    fs = fs || 10;
+    const g = S.g({ cls: 'pkt' }, p);
+    const w0 = tw(text, fs + 0.5) + 14;
+    /* 薄い塗りの札でも下の線が透けないよう、不透明な下地を敷く */
+    const u = S.rect(-w0 / 2, -10, w0, 20, { rx: 4, cls: 'f-sf' }, g);
+    const r = S.rect(-w0 / 2, -10, w0, 20, { rx: 4, cls: cls || 'f-d' }, g);
+    const t = S.text(0, 3.5, text, { cls: 't-c t-b t-mono ' + (fs >= 11 ? 't-sm ' : 't-xs ') + (tcls || 't-sf') }, g);
+    g.set = (s, c, tc) => {
+      if (s != null && s !== t.textContent) {
+        t.textContent = s;
+        const nw = tw(s, fs + 0.5) + 14;
+        [u, r].forEach((e) => { e.setAttribute('x', -nw / 2); e.setAttribute('width', nw); });
+      }
+      if (c) r.setAttribute('class', c);
+      if (tc) t.setAttribute('class', 't-c t-b t-mono ' + (fs >= 11 ? 't-sm ' : 't-xs ') + tc);
+    };
+    g.at = (x, y) => { g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`); };
+    return g;
+  }
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 表示する・しない（display） */
+  const vis = (el, on) => { el.style.display = on ? '' : 'none'; };
+  /* 動きを止めているときは、段階のいちばん分かりやすい瞬間を見せる */
+  const playing = () => YT.motion.playing;
+  /* 折れ線 pts の上の、全長に対する f（0..1）の位置 */
+  function polyAt(pts, f) {
+    let L = 0;
+    const seg = [];
+    for (let k = 1; k < pts.length; k++) { const d = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); seg.push(d); L += d; }
+    let s = U.clamp(f, 0, 1) * L;
+    for (let k = 0; k < seg.length; k++) {
+      if (s <= seg[k] || k === seg.length - 1) {
+        const u = seg[k] ? U.clamp(s / seg[k], 0, 1) : 0;
+        return [U.lerp(pts[k][0], pts[k + 1][0], u), U.lerp(pts[k][1], pts[k + 1][1], u)];
+      }
+      s -= seg[k];
+    }
+    return pts[pts.length - 1];
+  }
+
+  /* ================================================================
+     場面1 ポート
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'ポートは 16 ビットの番号 2 つ', text: 'TCP と UDP のヘッダは、どちらも先頭の 4 バイトが{d|送信元ポート}と{d|宛先ポート}（各 16 ビット、0〜65,535）。カーネルは IP ヘッダのプロトコル欄（6＝TCP、17＝UDP）で種類を選び、ポートで機器の中の受け取り手を選ぶ。図は YouTube から PC に届いた QUIC のパケット。' },
+      { title: 'サーバーは決まった番号で待つ', text: 'サーバーは、役割ごとに決まった番号でソケットを開いて待つ（TCP なら LISTEN）。HTTPS は 443（QUIC も UDP の 443）、DNS は 53、HTTP は 80。0〜1023 は**よく知られたポート**で、対応は IANA が登録する。ブラウザは URL の https から 443 を決める。' },
+      { title: '送り手の番号は OS が選ぶ', text: '接続する側の送信元ポートは、OS が空いている番号から通信ごとに選ぶ（**一時ポート**）。既定の範囲は OS で違い、Linux は 32768〜60999、Windows と macOS は 49152〜65535。返事はこの番号宛てに戻るので、通信が続く間は変えない。例の 51234 もその 1 つ。' },
+      { title: '5 つ組で 1 本を見分ける', text: '1 本の通信は、プロトコル・送信元 IP・送信元ポート・宛先 IP・宛先ポートの{x|5 つ組}で決まる。表の 1 行目と 2 行目は数字が全部同じでも、UDP と TCP で別の通信になる。サーバーの 443 番には無数の接続が同時に来るが、相手の IP とポートで区別できる。' },
+      { title: 'カーネルがソケットへ振り分ける', text: '届いたパケットは、カーネルが 5 つ組でソケットの表を引き、合ったソケットの受信キューにつなぐ（第9章）。YouTube の QUIC のソケットは、ブラウザのネットワークサービスが持つ。合うソケットが無ければ、TCP は RST で断り、UDP は捨てて ICMP の「ポートに届かない」を返す（第18章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+
+      /* 上段: PC に届いたパケットの先頭 */
+      const gs = st.strip = S.g({ cls: 'fade' }, svg);
+      S.text(30, 12, 'PC に届いたパケットの先頭（YouTube のサーバーから、QUIC）', { cls: 't-xs t-dim' }, gs);
+      const cells = [
+        ['ip', 120, '版・長さ・TTL ほか', '…'],
+        ['proto', 84, 'プロトコル', '17（UDP）'],
+        ['sip', 140, '送信元 IP', '142.250.196.110'],
+        ['dip', 130, '宛先 IP', '192.168.1.10'],
+        ['sport', 92, '送信元ポート', '443'],
+        ['dport', 92, '宛先ポート', '51234'],
+        ['len', 70, '長さ', '1358'],
+        ['csum', 84, 'チェックサム', '0x9b2e'],
+        ['data', 88, '中身', 'QUIC（暗号）']
+      ];
+      st.cells = {};
+      let x = 30;
+      cells.forEach(([k, w, name, val]) => {
+        const r = S.rect(x, 40, w, 46, { cls: 'f-in s-rule w1' }, gs);
+        S.text(x + w / 2, 56, name, { cls: 't-c t-xs t-dim' }, gs);
+        const v = S.text(x + w / 2, 76, val, { cls: 't-c t-sm t-mono t-b' }, gs);
+        st.cells[k] = { r, v };
+        x += w;
+      });
+      /* 層の区切り（IP 30〜504、UDP 504〜842、中身 842〜930） */
+      [[30, 504, 'IP ヘッダ 20 B（第18章）'], [504, 842, 'UDP ヘッダ 8 B'], [842, 930, '']].forEach(([a, b, s]) => {
+        S.path(`M${a + 3},38 V33 H${b - 3} V38`, { cls: 'f-none s-dim w1' }, gs);
+        if (s) S.text((a + b) / 2, 29, s, { cls: 't-c t-xs t-b t-mid' }, gs);
+      });
+
+      /* 中段左: PC（プロセスとソケットの表） */
+      const gp = st.pc = S.g({ cls: 'fade' }, svg);
+      S.rect(20, 104, 630, 332, { rx: 8, cls: 'f-sf s-rule w15' }, gp);
+      S.text(36, 126, 'PC 192.168.1.10', { cls: 't-md t-b' }, gp);
+      /* プロセス */
+      const proc = (x0, w, title, chips) => {
+        S.rect(x0, 136, w, 78, { rx: 6, cls: 'f-in s-rule w1' }, gp);
+        S.text(x0 + 10, 154, title, { cls: 't-sm t-b' }, gp);
+        return chips.map(([cx, label]) => {
+          const g = S.g({}, gp);
+          g.rect = S.rect(cx - 46, 166, 92, 34, { rx: 4, cls: 'f-sf s-dim w1' }, g);
+          S.text(cx, 181, 'ソケット', { cls: 't-c t-xs t-dim' }, g);
+          S.text(cx, 195, label, { cls: 't-c t-xs t-mono t-b' }, g);
+          g.cx = cx;
+          return g;
+        });
+      };
+      const c1 = proc(36, 360, 'ブラウザ（ネットワークサービス、第9・10章）', [[96, 'fd 23'], [206, 'fd 27'], [316, 'fd 31']]);
+      const c2 = proc(408, 186, 'スタブリゾルバ（第17章）', [[501, 'fd 9']]);
+      st.chips = [c1[0], c1[1], c1[2], c2[0]];
+      S.line(30, 228, 640, 228, { cls: 's-dim w1 dash' }, gp);
+      S.text(636, 223, 'ユーザー空間', { cls: 't-xs t-dim t-end' }, gp);
+      S.text(636, 243, 'カーネル', { cls: 't-xs t-dim t-end' }, gp);
+      S.text(36, 250, 'ソケットの表', { cls: 't-sm t-b' }, gp);
+      /* 表 */
+      const cols = [46, 92, 240, 396];
+      ['種類', '自分（PC 側）', '相手', '持ち主'].forEach((s, k) => S.text(cols[k], 272, s, { cls: 't-xs t-b t-dim' }, gp));
+      S.line(36, 278, 632, 278, { cls: 's-soft w1' }, gp);
+      const rows = [
+        ['UDP', '192.168.1.10:', '51234', '142.250.196.110:443', 'ブラウザ fd 23'],
+        ['TCP', '192.168.1.10:', '51234', '142.250.196.110:443', 'ブラウザ fd 27'],
+        ['UDP', '192.168.1.10:', '51236', '198.51.100.80:443', 'ブラウザ fd 31'],
+        ['UDP', '192.168.1.10:', '51600', '192.168.1.1:53', 'スタブリゾルバ fd 9']
+      ];
+      st.rows = rows.map((r, k) => {
+        const y = 284 + k * 27;
+        const g = S.g({}, gp);
+        g.bg = S.rect(38, y, 594, 24, { rx: 3, cls: 'f-x-soft s-x w1' }, g);
+        S.text(cols[0], y + 16, r[0], { cls: 't-sm t-mono t-b' }, g);
+        const t = S.text(cols[1], y + 16, '', { cls: 't-sm t-mono' }, g);
+        S.el('tspan', { text: r[1] }, t);
+        g.port = S.el('tspan', { text: r[2], cls: 't-b' }, t);
+        S.text(cols[2], y + 16, r[3], { cls: 't-sm t-mono' }, g);
+        S.text(cols[3], y + 16, r[4], { cls: 't-sm' }, g);
+        g.y = y + 12;
+        return g;
+      });
+      /* NIC（パケットの入口） */
+      S.rect(588, 398, 52, 26, { rx: 4, cls: 'f-in s-dim w1' }, gp);
+      S.text(614, 415, 'NIC', { cls: 't-c t-xs t-b' }, gp);
+      S.text(580, 415, 'ドライバ → IP → UDP／TCP（第9章）', { cls: 't-xs t-dim t-end' }, gp);
+
+      /* 中段右: 相手 */
+      const gh = st.hosts = S.g({ cls: 'fade' }, svg);
+      st.h = [
+        box(gh, 690, 104, 250, 64, 'YouTube のサーバー', '', {}),
+        box(gh, 690, 182, 250, 64, '動画の配信元（ISP 内の GGC）', '', {}),
+        box(gh, 690, 260, 250, 64, 'ルーター（DNS の転送）', '', {})
+      ];
+      st.hPort = [['142.250.196.110 ', 'UDP 443 ・ TCP 443'], ['198.51.100.80 ', 'UDP 443'], ['192.168.1.1 ', 'UDP 53']].map(([ip, port], k) => {
+        const t = S.text(815, 104 + k * 78 + 50, '', { cls: 't-c t-xs t-mono' }, st.h[k]);
+        S.el('tspan', { text: ip, cls: 't-dim' }, t);
+        return S.el('tspan', { text: port, cls: 't-b' }, t);
+      });
+      st.h.forEach((g) => g.title.setAttribute('y', Number(g.title.getAttribute('y')) - 4));
+      /* NAT の注記（段階4） */
+      st.nat = S.g({ cls: 'fade hide' }, svg);
+      S.rect(690, 340, 250, 70, { rx: 6, cls: 'f-sf s-dim w1 dash' }, st.nat);
+      S.text(702, 360, 'サーバーから見た 1 行目（NAT の後）', { cls: 't-xs t-b' }, st.nat);
+      S.text(702, 380, 'UDP 203.0.113.5:40001', { cls: 't-xs t-mono' }, st.nat);
+      S.text(702, 398, '  → 142.250.196.110:443', { cls: 't-xs t-mono' }, st.nat);
+
+      /* 下段: ポート番号の使い分け */
+      const gl = st.line = S.g({ cls: 'fade' }, svg);
+      const X0 = 60, X1 = 900, px = (p) => X0 + (X1 - X0) * p / 65535;
+      S.text(30, 458, 'ポート番号 0〜65,535 の使い分け（IANA）', { cls: 't-xs t-b' }, gl);
+      st.seg = [[0, 1023], [1024, 49151], [49152, 65535]].map(([a, b]) => S.rect(px(a), 494, Math.max(2, px(b + 1) - px(a)), 16, { cls: 'f-in s-rule w1' }, gl));
+      S.text(60, 548, '0〜1023 よく知られた', { cls: 't-xs t-dim' }, gl);
+      S.text(px(25088), 548, '1024〜49151 登録済み', { cls: 't-c t-xs t-dim' }, gl);
+      S.text(900, 548, '49152〜65535 動的・私用', { cls: 't-xs t-dim t-end' }, gl);
+      /* Linux の一時ポートの範囲 */
+      st.linux = S.g({}, gl);
+      S.path(`M${px(32768)},490 V482 H${px(60999)} V490`, { cls: 'f-none s-mid w15' }, st.linux);
+      S.text((px(32768) + px(60999)) / 2, 476, 'Linux の一時ポート 32768〜60999', { cls: 't-c t-xs t-b t-mid' }, st.linux);
+      /* 目印 */
+      const mark = (p, label, anchor) => {
+        const g = S.g({}, gl);
+        S.line(px(p), 490, px(p), 516, { cls: 's-fg w2' }, g);
+        g.t = S.text(px(p), 530, label, { cls: 't-xs t-mono t-b ' + (anchor || 't-c') }, g);
+        return g;
+      };
+      st.mWell = mark(443, '53 ・ 80 ・ 443', '');
+      st.mWell.t.setAttribute('x', 58);
+      st.mEph = mark(51234, '51234（PC）');
+      st.mNat = mark(40001, '40001（NAT の外側）');
+
+      /* 振り分けを見せるパケット（段階5） */
+      st.flow = [
+        { from: 0, row: 0, chip: 0, text: 'UDP 443→51234' },
+        { from: 0, row: 1, chip: 1, text: 'TCP 443→51234' },
+        { from: 1, row: 2, chip: 2, text: 'UDP 443→51236' },
+        { from: 2, row: 3, chip: 3, text: 'UDP 53→51600' }
+      ].map((f) => {
+        const hy = 104 + f.from * 78 + 32;
+        f.p1 = [[690, hy], [666, hy], [666, 411], [640, 411]];
+        f.p2 = [[640, 411], [580, st.rows[f.row].y]];
+        f.p3 = [[580, st.rows[f.row].y], [st.chips[f.chip].cx, 183]];
+        f.g = pkt(svg, f.text, 'f-d');
+        return f;
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const hot = {
+        0: ['sport', 'dport'],
+        2: ['dport'],
+        3: ['proto', 'sip', 'dip', 'sport', 'dport']
+      }[i] || [];
+      Object.keys(st.cells).forEach((k) => {
+        const on = hot.indexOf(k) >= 0;
+        st.cells[k].r.setAttribute('class', on ? 'f-x-soft s-x w15' : 'f-in s-rule w1');
+        st.cells[k].v.setAttribute('class', 't-c t-sm t-mono t-b' + (on ? ' t-x' : ''));
+      });
+      op(st.strip, i === 1 || i === 4 ? 0.35 : 1);
+      op(st.pc, i === 0 || i === 1 ? 0.3 : 1);
+      op(st.hosts, i === 1 || i >= 3 ? 1 : 0.3);
+      op(st.line, i === 1 || i === 2 ? 1 : 0.3);
+      st.hPort.forEach((t) => t.setAttribute('class', 't-b' + (i === 1 ? ' t-x' : '')));
+      st.rows.forEach((r, k) => {
+        r.port.setAttribute('class', 't-b' + (i === 2 ? ' t-x' : ''));
+        r.bg.style.opacity = i === 3 && k <= 1 ? 1 : 0;
+      });
+      S.fade(st.nat, i === 3);
+      st.seg.forEach((r, k) => r.setAttribute('class', (i === 1 && k === 0) || (i === 2 && k === 2) ? 'f-x-soft s-x w1' : 'f-in s-rule w1'));
+      st.mWell.t.setAttribute('class', 't-xs t-mono t-b' + (i === 1 ? ' t-x' : ''));
+      st.mEph.t.setAttribute('class', 't-c t-xs t-mono t-b' + (i === 2 ? ' t-x' : ''));
+      op(st.linux, i === 2 ? 1 : 0.4);
+      st.flow.forEach((f) => vis(f.g, false));
+      st.chips.forEach((c) => c.rect.setAttribute('class', 'f-sf s-dim w1'));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i !== 4) return;
+      /* 4 個のパケットが順に入口から表を通ってソケットへ（2.2 秒ずつずらす） */
+      const T = playing() ? U.mod(ctx.ts, 8.8) : 1.7;
+      const rowOn = [0, 0, 0, 0], chipOn = [0, 0, 0, 0];
+      st.flow.forEach((f, k) => {
+        const u = T - k * 2.2;
+        let pos = null;
+        if (u >= 0 && u < 0.9) pos = polyAt(f.p1, U.ease.inOut(u / 0.9));
+        else if (u >= 0.9 && u < 1.4) pos = polyAt(f.p2, U.ease.inOut((u - 0.9) / 0.5));
+        else if (u >= 1.4 && u < 1.9) pos = f.p2[1];
+        else if (u >= 1.9 && u < 2.5) pos = polyAt(f.p3, U.ease.inOut((u - 1.9) / 0.6));
+        if (u >= 0.9 && u < 2.5) rowOn[f.row] = 1;
+        if (u >= 1.9 && u < 3.0) chipOn[f.chip] = 1;
+        vis(f.g, !!pos);
+        if (pos) f.g.at(pos[0], pos[1]);
+      });
+      st.rows.forEach((r, k) => { r.bg.style.opacity = rowOn[k] ? 1 : 0; });
+      st.chips.forEach((c, k) => c.rect.setAttribute('class', chipOn[k] ? 'f-x-soft s-x w15' : 'f-sf s-dim w1'));
+    }
+  };
+
+  /* ================================================================
+     場面2 3-way ハンドシェイク
+     ================================================================ */
+  /* 時間を縦にとったやり取りの図の、1 本の矢印。線は線の層、札は札の層に置く */
+  function msg(lyLine, lyLab, xa, xb, from, y0, y1, label, f, kind) {
+    const x0 = from === 'a' ? xa : xb, x1 = from === 'a' ? xb : xa;
+    const gl = S.g({ cls: 'fade hide' }, lyLine), gt = S.g({ cls: 'fade hide' }, lyLab);
+    const ln = S.line(x0, y0, x1 + (x1 > x0 ? -2 : 2), y1, { cls: 's-dim w15' }, gl);
+    const lb = pkt(gt, label, 'f-sf s-rule w1', 't-mid');
+    const lf = f == null ? 0.5 : f;
+    lb.at(U.lerp(x0, x1, lf), U.lerp(y0, y1, lf));
+    return { gl, gt, ln, lb, x0, y0, x1, y1, kind: kind || 'tcp' };
+  }
+  /* 矢印の見た目: 'hide' 出さない ／ 'past' 済んだもの ／ 'now' この段階のもの */
+  function msgState(m, state, mk) {
+    S.fade(m.gl, state !== 'hide');
+    S.fade(m.gt, state !== 'hide');
+    const now = state === 'now', tls = m.kind === 'tls';
+    m.ln.setAttribute('class', now ? 's-d w2' : 's-dim w15');
+    m.ln.setAttribute('marker-end', mk(now ? 'd' : 'dim'));
+    m.lb.set(null, now ? (tls ? 'f-d-soft s-d w1' : 'f-d') : 'f-sf s-rule w1', now ? (tls ? 't-d' : 't-sf') : 't-mid');
+  }
+
+  const s2 = {
+    steps: [
+      { title: 'SYN：自分の番号の始まりを知らせる', text: 'PC は 443 番へ {d|SYN} を送る。データは無く、自分の**初期シーケンス番号**（ISN）x と、1 個で受け取れる最大の量（MSS、1,460 バイト）や SACK を使えるかなどのオプションを載せる。ISN は 32 ビットの予測しにくい値。PC の状態は SYN_SENT になる。' },
+      { title: 'SYN/ACK：受け取りの印と相手の番号', text: 'サーバーは自分の ISN y を載せた SYN と、「x＋1 番から待つ」という ACK を 1 個にまとめて返す。SYN はデータが無くても番号を 1 つ使う決まりなので、受け取りの印は x＋1 になる。サーバーの状態は SYN_RECV（RFC の表記は SYN-RECEIVED）。' },
+      { title: 'ACK：両端が ESTABLISHED に', text: 'PC が y＋1 への ACK を返すと、両端とも ESTABLISHED になる。PC は SYN から 1 往復で ESTABLISHED に入り、この ACK に続けてデータを送れる。ISN を接続ごとに変え、予測しにくくするのは、前の接続の遅れたパケットや、第三者の偽のパケットと番号が合わないようにするため。' },
+      { title: '要求までに 2 往復', text: '最初のデータは SYN から 1 往復後にやっと出せる。YouTube の通信は暗号化するので、TCP の 1 往復のあとに TLS 1.3 の 1 往復（第20章）が続き、HTTP の要求は 2 往復目の後になる。往復 10 ms なら 20 ms。遠いサーバーほど、この待ちが伸びる。' },
+      { title: '閉じる：FIN と TIME_WAIT', text: '終えるときは、送り終えた側が {d|FIN} を送り、相手が ACK で受け取る。向きごとに閉じるので計 4 個。先に閉じた側は、最後の ACK が失われて相手が FIN を送り直す場合と、遅れて届く古いパケットに備えて **TIME_WAIT** で待つ。途中で打ち切るときは RST 1 個で終わる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      const XA = 230, XB = 730;
+      /* 両端 */
+      box(svg, 140, 12, 180, 46, 'PC', '192.168.1.10:51234');
+      box(svg, 640, 12, 180, 46, 'YouTube のサーバー', '142.250.196.110:443');
+      const gk = S.g({}, svg);
+      S.rect(352, 14, 256, 42, { rx: 5, cls: 'f-in s-rule w1' }, gk);
+      S.text(364, 31, 'x = 3105962281（PC の ISN）', { cls: 't-xs t-mono' }, gk);
+      S.text(364, 48, 'y = 1520447019（サーバーの ISN）', { cls: 't-xs t-mono' }, gk);
+      /* 時間の軸（途中を省く） */
+      [XA, XB].forEach((x) => {
+        S.line(x, 60, x, 352, { cls: 's-mid w2' }, svg);
+        st.brk = st.brk || S.g({ cls: 'fade hide' }, svg);
+        S.line(x, 356, x, 380, { cls: 's-mid w2 dash2' }, st.brk);
+        S.line(x, 384, x, 550, { cls: 's-mid w2' }, st.brk);
+      });
+      S.text((XA + XB) / 2, 372, '…  暗号化した HTTP のやり取りが続く  …', { cls: 't-c t-xs t-dim' }, st.brk);
+      S.text(930, 548, '時間 ↓', { cls: 't-xs t-dim t-end' }, svg);
+
+      const lyLine = S.g({}, svg), lyDot = S.g({}, svg), lyLab = S.g({}, svg);
+      const M = (from, y0, y1, label, f, kind) => msg(lyLine, lyLab, XA, XB, from, y0, y1, label, f, kind);
+      st.m = {
+        syn: M('a', 84, 128, 'SYN  seq=x'),
+        synack: M('b', 128, 172, 'SYN/ACK  seq=y  ack=x+1'),
+        ack: M('a', 172, 216, 'ACK  ack=y+1', 0.33),
+        ch: null,
+        sh: M('b', 216, 260, 'ServerHello … Finished（TLS）', 0.5, 'tls'),
+        req: M('a', 260, 304, 'Finished ＋ HTTP の要求（暗号化）'),
+        res: M('b', 304, 348, '応答（動画の断片など）'),
+        fin1: M('a', 396, 440, 'FIN'),
+        ack1: M('b', 440, 484, 'ACK', 0.3),
+        fin2: M('b', 456, 500, 'FIN', 0.7),
+        ack2: M('a', 500, 544, 'ACK')
+      };
+      /* ClientHello は ACK と同じ時刻に出るので、同じ矢印の後ろ寄りに札だけ足す */
+      st.chLab = S.g({ cls: 'fade hide' }, lyLab);
+      st.chPkt = pkt(st.chLab, '続けて ClientHello（TLS）', 'f-d-soft s-d w1', 't-d');
+      st.chPkt.at(U.lerp(XA, XB, 0.74), U.lerp(172, 216, 0.74));
+      st.opt = S.text(430, 131, 'オプション：MSS 1460・SACK 可・ウィンドウの倍率・時刻', { cls: 't-c t-xs t-dim fade hide' }, lyLab);
+
+      /* 状態の名前。[側, y, 文字, 出す段階, 色を付ける段階] */
+      const states = [
+        ['a', 78, 'CLOSED', 0, -1], ['a', 132, 'SYN_SENT', 0, 0], ['a', 192, 'ESTABLISHED', 2, 2],
+        ['a', 416, 'FIN_WAIT_1', 4, 4], ['a', 494, 'FIN_WAIT_2', 4, 4], ['a', 514, 'TIME_WAIT', 4, 4],
+        ['b', 104, 'LISTEN', 0, 0], ['b', 152, 'SYN_RECV', 1, 1], ['b', 236, 'ESTABLISHED', 2, 2],
+        ['b', 452, 'CLOSE_WAIT', 4, 4], ['b', 474, 'LAST_ACK', 4, 4], ['b', 548, 'CLOSED', 4, 4]
+      ];
+      st.states = states.map(([side, y, s, from, hot]) => {
+        const t = S.text(side === 'a' ? XA - 12 : XB + 12, y, s, { cls: 't-sm t-mono t-b' + (side === 'a' ? ' t-end' : '') }, svg);
+        return { t, side, from, hot };
+      });
+      st.tw = S.g({ cls: 'fade hide' }, svg);
+      S.line(XA - 6, 502, XA - 6, 548, { cls: 's-x w3 round' }, st.tw);
+      S.text(XA - 12, 532, 'Linux は 60 秒', { cls: 't-xs t-dim t-end' }, st.tw);
+      S.text(XA - 12, 546, '→ CLOSED', { cls: 't-xs t-mono t-dim t-end' }, st.tw);
+      /* 往復の数（段階4） */
+      st.rtt = S.g({ cls: 'fade hide' }, svg);
+      [[84, 172, '1 往復目', 'TCP'], [172, 260, '2 往復目', 'TLS 1.3']].forEach(([a, b, s1, s2]) => {
+        S.path(`M44,${a + 2} H36 V${b - 2} H44`, { cls: 'f-none s-x w15' }, st.rtt);
+        S.text(50, (a + b) / 2 - 2, s1, { cls: 't-xs t-b t-x' }, st.rtt);
+        S.text(50, (a + b) / 2 + 13, s2, { cls: 't-xs t-x' }, st.rtt);
+      });
+      S.text(50, 290, '要求はここから', { cls: 't-xs t-b t-x' }, st.rtt);
+      S.line(120, 286, XA - 8, 262, { cls: 's-x w15', 'marker-end': mk('x') }, st.rtt);
+      /* 動く点（パケット） */
+      st.dot = S.circle(0, 0, 6, { cls: 'f-d s-sf w2' }, lyDot);
+      st.plan = [
+        [['syn', 0, 1.4]], [['synack', 0, 1.4]], [['ack', 0, 1.4]],
+        [['ack', 0, 1.2], ['sh', 1.2, 1.2], ['req', 2.4, 1.2], ['res', 3.6, 1.2]],
+        [['fin1', 0, 1.2], ['ack1', 1.2, 1.2], ['fin2', 1.6, 1.2], ['ack2', 2.8, 1.2]]
+      ];
+      st.dot2 = S.circle(0, 0, 6, { cls: 'f-d s-sf w2' }, lyDot);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, m = st.m;
+      const show = { syn: 0, synack: 1, ack: 2, sh: 3, req: 3, res: 3, fin1: 4, ack1: 4, fin2: 4, ack2: 4 };
+      Object.keys(show).forEach((k) => msgState(m[k], i < show[k] ? 'hide' : (i === show[k] ? 'now' : 'past'), st.mk));
+      S.fade(st.chLab, i >= 3);
+      st.chPkt.set(null, i === 3 ? 'f-d-soft s-d w1' : 'f-sf s-rule w1', i === 3 ? 't-d' : 't-mid');
+      S.fade(st.opt, i <= 1);
+      S.fade(st.brk, i >= 3);
+      S.fade(st.tw, i >= 4);
+      S.fade(st.rtt, i === 3);
+      st.states.forEach((s) => {
+        s.t.style.display = i >= s.from ? '' : 'none';
+        s.t.setAttribute('class', 't-sm t-mono t-b' + (s.side === 'a' ? ' t-end' : '') + (s.hot === i ? ' t-x' : ' t-mid'));
+      });
+      vis(st.dot, false);
+      vis(st.dot2, false);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      const plan = st.plan[i];
+      const total = plan.reduce((a, p) => Math.max(a, p[1] + p[2]), 0) + 0.9;
+      const T = U.mod(ctx.ts, total);
+      /* 同時に飛ぶのは最大 2 個（閉じる段階で ACK と FIN が重なる） */
+      const live = playing() ? plan.filter((p) => T >= p[1] && T < p[1] + p[2]) : [];
+      [st.dot, st.dot2].forEach((d, k) => {
+        const p = live[k];
+        vis(d, !!p);
+        if (!p) return;
+        const mm = st.m[p[0]], f = U.ease.inOut((T - p[1]) / p[2]);
+        d.setAttribute('cx', U.lerp(mm.x0, mm.x1, f).toFixed(1));
+        d.setAttribute('cy', U.lerp(mm.y0, mm.y1, f).toFixed(1));
+      });
+    }
+  };
+
+  /* ================================================================
+     場面3 シーケンス番号と ACK・再送
+     ================================================================ */
+  const MSS = 1460, D3 = 1.2;                       // 1 個のバイト数、図の上での片道の秒数
+  const segX = (k) => 100 + k * 110;                // 枠の左端
+  const segC = (k) => segX(k) + 51;                 // 枠の中心
+  const seqOf = (k) => 1 + k * MSS;
+  /* 段階ごとの筋書き。送信（損失・遅れ・再送）を決め、ACK はそこから計算する */
+  function plan3(i) {
+    const send = (k, t0, o) => Object.assign({ k, t0, dur: D3, lost: false, rtx: false }, o || {});
+    const sends = [0, 1, 2, 3, 4, 5].map((k) => send(k, 0.4 * k));
+    let period = 5.6, rep = 1.5, rto = 0, ackLost = [], showAck = true;
+    if (i === 0) { showAck = false; period = 5.0; rep = 1.5; }
+    if (i === 1) { ackLost = [1]; rep = 3.25; }
+    if (i === 2) { sends[2] = send(2, 0.8, { dur: 2.15 }); rep = 2.9; }
+    if (i === 3) { sends[2] = send(2, 0.8, { lost: true }); sends.push(send(2, 4.45, { rtx: true })); period = 8.0; rep = 5.3; }
+    if (i === 4) { sends[5] = send(5, 2.0, { lost: true }); sends.push(send(5, 6.6, { rtx: true })); rto = 2.6; period = 10.2; rep = 6.9; }
+    if (i === 5) { sends[1] = send(1, 0.4, { lost: true }); sends[3] = send(3, 1.2, { lost: true }); sends.push(send(1, 4.45, { rtx: true }), send(3, 4.65, { rtx: true })); period = 8.2; rep = 5.35; }
+    const arr = sends.filter((x) => !x.lost).map((x) => ({ k: x.k, t: x.t0 + x.dur })).sort((a, b) => a.t - b.t);
+    const got = new Set(), acks = [];
+    arr.forEach((a, n) => {
+      got.add(a.k);
+      let c = 0;
+      while (got.has(c)) c++;
+      const blocks = [];
+      for (let k = c; k < 6;) {
+        if (got.has(k)) { const k0 = k; while (got.has(k)) k++; blocks.push([seqOf(k0), seqOf(k)]); } else k++;
+      }
+      acks.push({ k: a.k, t: a.t, value: seqOf(c), c, blocks, lost: ackLost.indexOf(n) >= 0 });
+    });
+    acks.forEach((a, n) => { a.dup = n > 0 && acks[n - 1].value === a.value ? acks[n - 1].dup + 1 : 0; });
+    return { sends, acks, period, rep, rto, showAck };
+  }
+
+  const s3 = {
+    steps: [
+      { title: '番号はバイトに振る', text: '1 個のセグメントには最大 1,460 バイト（MSS）が入り、ヘッダの**シーケンス番号**は中身の先頭バイトの番号。2 個目は 1＋1,460＝1461 から始まる。実際の番号は ISN からの続きの 32 ビットの値で、Wireshark などは ISN を引いた相対の番号で表示する。図の番号も相対。' },
+      { title: 'ACK は次に欲しい番号', text: 'PC は受け取るたびに、次に欲しいバイトの番号を**確認応答番号**として返す。ACK 4381 は「4380 番まで全部届いた」の意味なので、途中の ACK 2921 が失われても、次の ACK 4381 がそれも含めて確かめる（**累積 ACK**）。実際は 2 個に 1 回まとめて返すことが多い。' },
+      { title: '順番が入れ替わったら並べ直す', text: '2921 番からのセグメントだけが途中で遅れ、後ろの 2 個が先に着いた。PC はそれを受信バッファに取り置き、ACK は 2921 のまま返す。抜けが埋まった時点で、並んだ所までをまとめてブラウザに渡す。アプリが入れ替わりを見ることはない。' },
+      { title: '失われたら：重複 ACK 3 個で高速再送', text: 'ルーターで 2921 番が捨てられた。後ろの 3 個が届くたびに PC は ACK 2921 を繰り返す（{x|重複 ACK}）。送り手は重複 ACK が 3 個届いたら、タイマーを待たずにその 1 個だけを送り直す（**高速再送**）。2 個までなら入れ替わりかもしれないので待つ。' },
+      { title: '後ろが無ければタイムアウト', text: '最後の 1 個が失われると、後ろが無いので重複 ACK も来ない。送り手は**再送タイマー**（RTO）が切れてから送り直す。RTO は往復時間の平均とばらつきから決め、再送のたびに倍に延ばす。速さも大きく落とす（[[4|ウィンドウと輻輳制御]]）。Linux などは RTO の前に、最後の 1 個を早めに送り直して確かめる（TLP）。' },
+      { title: 'SACK：届いた範囲も知らせる', text: 'ACK の番号だけでは、最初の抜けしか伝わらない。**SACK**（SYN で使うと決めた場合）は、ACK に「届いたバイトの範囲」を最大 4 つ添える。送り手は 1461 番と 4381 番の 2 か所が抜けていると分かり、両方を送り直せる。QUIC の ACK も同じく範囲で知らせる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.plans = [0, 1, 2, 3, 4, 5].map(plan3);
+      /* 送り手と受け手の枠 */
+      S.text(100, 30, '送り手：YouTube のサーバー（送信バッファ、1 個 1,460 バイト）', { cls: 't-xs t-b' }, svg);
+      S.text(100, 476, '受け手：PC 192.168.1.10:51234（受信バッファ）', { cls: 't-xs t-b' }, svg);
+      const slot = (k, y) => {
+        const g = S.g({}, svg);
+        g.r = S.rect(segX(k), y, 102, 44, { rx: 5, cls: 'f-sf s-rule w15' }, g);
+        g.t1 = S.text(segC(k), y + 19, 'seq ' + seqOf(k), { cls: 't-c t-sm t-mono t-b' }, g);
+        g.t2 = S.text(segC(k), y + 35, seqOf(k) + '〜' + (seqOf(k + 1) - 1), { cls: 't-c t-xs t-mono t-dim' }, g);
+        return g;
+      };
+      st.sendSlots = [0, 1, 2, 3, 4, 5].map((k) => slot(k, 40));
+      st.recvSlots = [0, 1, 2, 3, 4, 5].map((k) => slot(k, 412));
+      /* 途中のルーター */
+      S.line(96, 250, 756, 250, { cls: 's-dim w1 dash' }, svg);
+      S.text(22, 246, '途中の', { cls: 't-xs t-dim' }, svg);
+      S.text(22, 260, 'ルーター', { cls: 't-xs t-dim' }, svg);
+      S.text(22, 150, 'データ ↓', { cls: 't-xs t-b t-d' }, svg);
+      S.text(22, 350, 'ACK ↑', { cls: 't-xs t-b t-d' }, svg);
+      /* ブラウザへ渡した量 */
+      S.text(100, 496, 'ブラウザへ渡した（並び順どおり）', { cls: 't-xs t-b' }, svg);
+      st.appTxt = S.text(752, 496, '', { cls: 't-xs t-mono t-end' }, svg);
+      S.rect(100, 502, 652, 14, { rx: 3, cls: 'f-in s-rule w1' }, svg);
+      st.appBar = S.rect(100, 502, 0, 14, { rx: 3, cls: 'f-d' }, svg);
+
+      /* 右: サーバーに届いた ACK */
+      const ga = S.g({}, svg);
+      S.rect(768, 40, 176, 176, { rx: 6, cls: 'f-sf s-rule w15' }, ga);
+      S.text(780, 60, 'サーバーに届いた ACK', { cls: 't-xs t-b' }, ga);
+      st.iAck = S.text(780, 90, '', { cls: 't-lg t-mono t-b' }, ga);
+      st.iDup = S.text(780, 112, '', { cls: 't-sm t-b t-x' }, ga);
+      st.iS1 = S.text(780, 136, '', { cls: 't-xs t-mono' }, ga);
+      st.iS2 = S.text(810, 152, '', { cls: 't-xs t-mono' }, ga);
+      st.iAct = S.text(780, 180, '', { cls: 't-xs t-b' }, ga);
+      st.iAct2 = S.text(780, 198, '', { cls: 't-xs t-b' }, ga);
+      /* 右: 再送タイマー（段階5） */
+      st.gRto = S.g({ cls: 'fade hide' }, svg);
+      S.rect(768, 230, 176, 100, { rx: 6, cls: 'f-sf s-rule w15' }, st.gRto);
+      S.text(780, 250, '再送タイマー（RTO）', { cls: 't-xs t-b' }, st.gRto);
+      S.rect(780, 264, 152, 14, { rx: 3, cls: 'f-in s-rule w1' }, st.gRto);
+      st.rtoBar = S.rect(780, 264, 152, 14, { rx: 3, cls: 'f-mid' }, st.gRto);
+      st.rtoTxt = S.text(780, 300, '', { cls: 't-xs t-b' }, st.gRto);
+      S.text(780, 318, '（図の長さは模式）', { cls: 't-xs t-dim' }, st.gRto);
+      /* 右下: 受信バッファの見方 */
+      const gl = S.g({}, svg);
+      S.rect(768, 412, 176, 104, { rx: 6, cls: 'f-sf s-rule w1' }, gl);
+      [['f-d s-d w15', '届いて渡した'], ['f-d-soft s-d w15 dash', '届いたが取り置き'], ['f-sf s-rule w15 dash', 'まだ届かない']].forEach(([c, s0], k) => {
+        S.rect(780, 424 + k * 30, 26, 18, { rx: 3, cls: c }, gl);
+        S.text(816, 437 + k * 30, s0, { cls: 't-xs' }, gl);
+      });
+
+      /* 飛んでいるパケット（使い回す） */
+      st.dPool = [0, 1, 2, 3, 4, 5, 6].map(() => pkt(svg, '0000', 'f-d'));
+      st.aPool = [0, 1, 2, 3, 4, 5, 6].map(() => pkt(svg, 'ACK 0000', 'f-sf s-d w15', 't-d'));
+      st.xPool = [0, 1, 2].map(() => S.text(0, 0, '×', { cls: 't-c t-xl t-b t-x' }, svg));
+    },
+    onStep(ctx, i) {
+      S.fade(ctx.state.gRto, i === 4);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, P = st.plans[i];
+      const T = playing() ? U.mod(ctx.ts, P.period) : P.rep;
+      const Y0 = 88, Y1 = 410;
+      /* 飛んでいるデータ */
+      let nd = 0, nx = 0;
+      P.sends.forEach((x) => {
+        const end = x.lost ? x.dur / 2 : x.dur, u = T - x.t0;
+        if (u >= 0 && u < end && nd < st.dPool.length) {
+          const g = st.dPool[nd++];
+          g.set(String(seqOf(x.k)), x.rtx ? 'f-x' : 'f-d', 't-sf');
+          g.at(segC(x.k) - 20, U.lerp(Y0, Y1, u / x.dur));
+        }
+        if (x.lost && u >= end && nx < st.xPool.length) {
+          const m = st.xPool[nx++];
+          m.setAttribute('x', segC(x.k) - 20); m.setAttribute('y', 257);
+        }
+      });
+      /* 飛んでいる ACK */
+      let na = 0;
+      if (P.showAck) P.acks.forEach((a) => {
+        const end = a.lost ? D3 / 2 : D3, u = T - a.t;
+        if (u >= 0 && u < end && na < st.aPool.length) {
+          const g = st.aPool[na++];
+          g.set('ACK ' + a.value, 'f-sf ' + (a.dup ? 's-x' : 's-d') + ' w15', a.dup ? 't-x' : 't-d');
+          g.at(segC(a.k) + 32, U.lerp(Y1, Y0, u / D3));
+        }
+        if (a.lost && u >= end && nx < st.xPool.length) {
+          const m = st.xPool[nx++];
+          m.setAttribute('x', segC(a.k) + 32); m.setAttribute('y', 257);
+        }
+      });
+      st.dPool.forEach((g, k) => vis(g, k < nd));
+      st.aPool.forEach((g, k) => vis(g, k < na));
+      st.xPool.forEach((m, k) => vis(m, k < nx));
+
+      /* 受け手: 届いたか、渡したか */
+      const arrived = (k) => P.sends.some((x) => x.k === k && !x.lost && T >= x.t0 + x.dur);
+      let c = 0;
+      while (c < 6 && arrived(c)) c++;
+      st.recvSlots.forEach((g, k) => {
+        const a = arrived(k), done = k < c;
+        g.r.setAttribute('class', done ? 'f-d s-d w15' : a ? 'f-d-soft s-d w15 dash' : 'f-sf s-rule w15 dash');
+        g.t1.setAttribute('class', 't-c t-sm t-mono t-b' + (done ? ' t-sf' : a ? '' : ' t-dim'));
+        g.t2.setAttribute('class', 't-c t-xs t-mono' + (done ? ' t-sf' : ' t-dim'));
+      });
+      st.appBar.setAttribute('width', (652 * c / 6).toFixed(1));
+      st.appTxt.textContent = U.fmt(c * MSS) + ' / 8,760 バイト';
+
+      /* 送り手: サーバーに届いた最後の ACK */
+      const seen = P.showAck ? P.acks.filter((a) => !a.lost && T >= a.t + D3) : [];
+      const last = seen[seen.length - 1];
+      const prev = seen[seen.length - 2];
+      /* 届いた範囲（SACK）を送り手が使うのは段階6 だけ */
+      const sacked = (k) => i === 5 && !!last && last.blocks.some(([a, b]) => seqOf(k) >= a && seqOf(k) < b);
+      st.sendSlots.forEach((g, k) => {
+        const acked = !!last && last.value > seqOf(k), sk = sacked(k);
+        const rtxSent = P.sends.some((x) => x.k === k && x.rtx && T >= x.t0);
+        const sent = P.sends.some((x) => x.k === k && T >= x.t0);
+        const cls = acked || sk ? 'f-in s-rule w15' : rtxSent ? 'f-x-soft s-x w15' : sent ? 'f-d-soft s-d w15' : 'f-sf s-rule w15';
+        g.r.setAttribute('class', cls);
+        g.t1.setAttribute('class', 't-c t-sm t-mono t-b' + (acked || sk ? ' t-dim' : ''));
+      });
+      st.iAck.textContent = last ? 'ACK ' + last.value : (P.showAck ? '（まだ届かない）' : '（この段階では省く）');
+      st.iAck.setAttribute('class', last ? 't-lg t-mono t-b' + (last.dup ? ' t-x' : '') : 't-xs t-dim');
+      st.iDup.textContent = last && last.dup ? '重複 ' + last.dup + ' 個目' : '';
+      /* 届いたバイトの範囲を、受け手の枠と同じく両端を含む形で書く（SACK の欄そのものは右端の次の番号を運ぶ） */
+      st.iS1.textContent = last && last.blocks.length && i === 5 ? 'SACK ' + last.blocks[0][0] + '〜' + (last.blocks[0][1] - 1) : '';
+      st.iS2.textContent = last && last.blocks.length > 1 && i === 5 ? last.blocks[1][0] + '〜' + (last.blocks[1][1] - 1) : '';
+      let act = '', act2 = '';
+      if (last) {
+        const holes = [];
+        if (last.blocks.length) for (let k = last.c; k < 6; k++) if (!sacked(k) && seqOf(k) < last.blocks[last.blocks.length - 1][1]) holes.push(seqOf(k));
+        if (last.value === seqOf(6)) act = '8760 番まで全部届いた';
+        else if (last.dup >= 3) { act = '→ ' + (i === 5 ? holes.join(' と ') : last.value) + ' を'; act2 = '送り直す（高速再送）'; }
+        else if (last.dup >= 1) { act = 'まだ待つ'; act2 = '（入れ替わりかもしれない）'; }
+        else if (prev && last.c - prev.c >= 2) { act = '1〜' + (last.value - 1) + ' を'; act2 = 'まとめて確かめた'; }
+      }
+      /* 段階5: 再送タイマー */
+      if (i === 4) {
+        const starts = [0].concat(seen.map((a) => a.t + D3)).concat(P.sends.filter((x) => x.rtx && T >= x.t0).map((x) => x.t0)).filter((t) => t <= T);
+        const t0 = Math.max.apply(null, starts);
+        const allDone = last && last.value === seqOf(6);
+        const rtx = P.sends.find((x) => x.rtx);
+        const expired = T >= rtx.t0 && T < rtx.t0 + 0.9;      // 切れた直後は空のまま見せる
+        const f = allDone ? 1 : expired ? 0 : U.clamp(1 - (T - t0) / P.rto, 0, 1);
+        st.rtoBar.setAttribute('width', (152 * f).toFixed(1));
+        st.rtoBar.setAttribute('class', f < 0.25 && !allDone ? 'f-x' : 'f-mid');
+        st.rtoTxt.textContent = allDone ? '止める（全部 ACK 済み）' : expired ? '時間切れ → 7301 を再送' : '動いている';
+        st.rtoTxt.setAttribute('class', 't-xs t-b' + (expired ? ' t-x' : ''));
+        if (last && last.value === seqOf(5)) { act = '後ろが無いので'; act2 = '重複 ACK も来ない'; }
+      }
+      st.iAct.textContent = act;
+      st.iAct2.textContent = act2;
+      st.iAct.setAttribute('class', 't-xs t-b' + (last && last.dup >= 3 ? ' t-x' : ''));
+      st.iAct2.setAttribute('class', 't-xs t-b' + (last && last.dup >= 3 ? ' t-x' : ''));
+    }
+  };
+
+  /* ================================================================
+     場面4 ウィンドウと輻輳制御
+     ================================================================ */
+  /* 例の道: 往復 10 ms・100 Mbps → 86 個（1,460 バイト）で満杯。ルーターには 20 個分の待ち行列 */
+  const BDP = 86, QMAX = 20, OVER = BDP + QMAX;
+  const GX0 = 100, GX1 = 930, GY = (W) => 520 - W * 2.1;
+  const mbps = (W) => Math.min(W, BDP) * MSS * 8 / 0.01 / 1e6;
+  /* 3 つの形。x（100..930）でのウィンドウ（個）と、損失の位置 */
+  function curves() {
+    const ss = (x, x1) => 10 * Math.pow(11, (x - GX0) / (x1 - GX0));     // 10 個から 110 個まで倍々
+    const reno = (x) => {
+      if (x <= 170) return ss(x, 170);
+      let x0 = 170, w0 = 55;
+      while (x > x0 + 300) { x0 += 300; w0 = Math.floor(OVER / 2); }
+      return w0 + (OVER - w0) * (x - x0) / 300;
+    };
+    const cubic = (x) => {
+      if (x <= 170) return ss(x, 170);
+      let x0 = 170, w0 = 77;
+      while (x > x0 + 170) { x0 += 170; w0 = 0.7 * (OVER + 2); }
+      const u = x - x0;
+      return u <= 140 ? OVER - (OVER - w0) * Math.pow(1 - u / 140, 3) : OVER + 2 * Math.pow((u - 140) / 30, 3);
+    };
+    const bbr = (x) => {
+      if (x <= 165) return 10 * Math.pow(11, (x - GX0) / 65);
+      if (x <= 185) return 110 - 24 * (x - 165) / 20;
+      const u = U.mod(x - 185, 120);
+      if (u < 12) return BDP + 14 * Math.sin(Math.PI * u / 12);
+      if (u < 24) return BDP - 14 * Math.sin(Math.PI * (u - 12) / 12);
+      return BDP;
+    };
+    return { reno, cubic, bbr, renoLoss: [170, 470, 770], cubicLoss: [170, 340, 510, 680, 850] };
+  }
+  /* 関数 fw の形を path の d にする（損失の位置では縦に落とす） */
+  function curveD(fw, x0, x1, losses) {
+    let d = '';
+    for (let x = x0; x <= x1; x += 2) {
+      const lo = (losses || []).find((L) => L > x - 2 && L <= x && L > x0);
+      if (lo) d += 'L' + lo + ',' + GY(fw(lo)).toFixed(1) + 'L' + lo + ',' + GY(fw(lo + 0.01)).toFixed(1);
+      d += (d ? 'L' : 'M') + x + ',' + GY(fw(x)).toFixed(1);
+    }
+    return d;
+  }
+
+  const s4 = {
+    steps: [
+      { title: '速さ ≒ ウィンドウ ÷ 往復時間', text: '送り手は、まだ ACK の来ていないデータをウィンドウの分まで抱えてよい。ACK で確かめた分だけ次を出すので、1 往復に送れるのはウィンドウ 1 つ分。10 個（14,600 バイト）で往復 10 ms なら約 11.7 Mbps。同じウィンドウでも往復が 10 倍なら、速さは 1/10。' },
+      { title: '受信ウィンドウ：受け手の空き', text: '受け手は ACK のたびに、受信バッファの空きを 16 ビットの**ウィンドウ**欄で知らせる。SYN で決めた倍率（最大 2¹⁴）を掛けるので約 1 GB まで表せ、OS はバッファを数 MB まで自動で広げる。ブラウザが読み出さずに空きが 0 になると、送り手は止まる（フロー制御）。' },
+      { title: 'スロースタート：10 個から 1 往復ごとに倍', text: '網の空きは送り手には見えない。そこで**輻輳ウィンドウ**を初期値 10 個（RFC 6928）から始め、ACK で確かめた 1 個ごとに 1 個増やす。1 往復ごとに倍になり、往復 10 ms で 100 Mbps を満たす 86 個（125 KB）には 4 往復目に届く。送るのは受信ウィンドウとの小さいほう。' },
+      { title: '損失を混雑の印として減らす', text: '満杯を超えた分はルーターの待ち行列に並び、速さは増えずに遅れだけが増える。あふれると捨てられる。送り手は損失を混雑の印と見てウィンドウを半分にし、以後は 1 往復に 1 個ずつ増やす（**輻輳回避**）。タイムアウトなら 1 個からスロースタートをやり直す。' },
+      { title: 'CUBIC と BBR', text: '**CUBIC** は損失で 7 割に減らし、前の損失の高さまでは急ぎ、近くではゆっくり増やす。Linux・Windows・macOS の既定（2023 年時点）。**BBR** は届く速さと最小の往復時間を測り、その積の量を保つので待ち行列を溜めにくい。Google は YouTube の配信に BBR を使う（2024 年時点）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.cv = curves();
+      /* 上: 道 */
+      S.text(160, 14, 'サーバーから PC への道（往復 10 ms、図では 4 秒）', { cls: 't-xs t-dim' }, svg);
+      S.rect(150, 56, 660, 76, { rx: 10, cls: 'f-in s-rule w15' }, svg);
+      S.line(156, 94, 804, 94, { cls: 's-rule w1 dash' }, svg);
+      S.text(480, 150, '上の列：データ（← PC へ）　下の列：ACK（サーバーへ →）', { cls: 't-c t-xs t-dim' }, svg);
+      /* PC と受信バッファ */
+      const gpc = S.g({}, svg);
+      S.rect(16, 50, 128, 88, { rx: 6, cls: 'f-sf s-rule w15' }, gpc);
+      S.text(80, 70, 'PC', { cls: 't-c t-md t-b' }, gpc);
+      st.bufBox = S.rect(28, 84, 104, 18, { rx: 3, cls: 'f-sf s-rule w1' }, gpc);
+      st.bufFill = S.rect(28, 84, 10, 18, { rx: 3, cls: 'f-d' }, gpc);
+      S.text(80, 118, '受信バッファ', { cls: 't-c t-xs t-dim' }, gpc);
+      st.bufTxt = S.text(80, 132, '', { cls: 't-c t-xs t-b' }, gpc);
+      /* サーバー */
+      const gsv = S.g({}, svg);
+      S.rect(816, 50, 128, 88, { rx: 6, cls: 'f-sf s-rule w15' }, gsv);
+      S.text(880, 70, 'サーバー', { cls: 't-c t-md t-b' }, gsv);
+      st.wTxt = S.text(880, 100, '', { cls: 't-c t-lg t-mono t-b t-x' }, gsv);
+      S.text(880, 120, 'ウィンドウ（個）', { cls: 't-c t-xs t-dim' }, gsv);
+      /* ルーターの待ち行列 */
+      st.gq = S.g({}, svg);
+      S.text(700, 30, 'ルーターの待ち行列（20 個分）', { cls: 't-c t-xs t-dim' }, st.gq);
+      S.rect(638, 36, 124, 14, { rx: 2, cls: 'f-sf s-rule w1' }, st.gq);
+      st.qs = [];
+      for (let k = 0; k < QMAX; k++) st.qs.push(S.rect(641 + k * 6, 39, 5, 8, { cls: 'f-d' }, st.gq));
+      S.line(700, 50, 700, 56, { cls: 's-rule w1' }, st.gq);
+      st.qx = S.text(778, 48, '×', { cls: 't-lg t-b t-x' }, st.gq);
+      st.qxTxt = S.text(795, 46, 'あふれて捨てる', { cls: 't-xs t-b t-x' }, st.gq);
+      /* 道の上の点（データは四角、ACK は丸） */
+      st.dDots = []; st.aDots = [];
+      for (let k = 0; k < Math.ceil(BDP / 2); k++) {
+        st.dDots.push(S.rect(0, 70, 9, 9, { rx: 1, cls: 'f-d' }, svg));
+        st.aDots.push(S.circle(0, 113, 3.5, { cls: 'f-sf s-d w15' }, svg));
+      }
+      /* 式 */
+      st.f1 = S.text(480, 178, '', { cls: 't-c t-md t-b' }, svg);
+      st.f2 = S.text(480, 200, '', { cls: 't-c t-xs' }, svg);
+
+      /* 下: グラフ */
+      const gg = st.gg = S.g({ cls: 'fade' }, svg);
+      S.text(30, 236, '輻輳ウィンドウの変化（時間の目盛は模式）', { cls: 't-xs t-b' }, gg);
+      S.line(GX0, 520, GX1, 520, { cls: 's-mid w15' }, gg);
+      S.line(GX0, 520, GX0, 262, { cls: 's-mid w15' }, gg);
+      S.text(GX1, 540, '時間 →', { cls: 't-xs t-dim t-end' }, gg);
+      S.text(94, 268, '個', { cls: 't-xs t-dim t-end' }, gg);
+      [[10, '初期 10'], [BDP, '満杯 86'], [OVER, 'あふれる 106']].forEach(([W, s0]) => {
+        S.line(GX0, GY(W), GX1, GY(W), { cls: 's-rule w1 dash' }, gg);
+        S.text(94, GY(W) + 4, s0, { cls: 't-xs t-mono t-end' }, gg);
+      });
+      const cv = st.cv;
+      st.pReno = S.path(curveD(cv.reno, GX0, GX1, cv.renoLoss), { cls: 'f-none s-mid w2 round' }, gg);
+      st.pSS = S.path(curveD(cv.reno, GX0, 170, []), { cls: 'f-none s-fg w3 round' }, gg);
+      st.pCubic = S.path(curveD(cv.cubic, GX0, GX1, cv.cubicLoss), { cls: 'f-none s-fg w2 round' }, gg);
+      st.pBbr = S.path(curveD(cv.bbr, GX0, GX1, []), { cls: 'f-none s-d w3 round' }, gg);
+      st.lossR = S.g({}, gg);
+      cv.renoLoss.forEach((x) => S.text(x, GY(cv.reno(x)) - 4, '×', { cls: 't-c t-md t-b t-x' }, st.lossR));
+      st.lossC = S.g({}, gg);
+      cv.cubicLoss.forEach((x) => S.text(x, GY(cv.cubic(x)) - 4, '×', { cls: 't-c t-md t-b t-x' }, st.lossC));
+      /* 形の名札 */
+      st.lSS = S.text(182, 286, 'スロースタート：1 往復ごとに倍', { cls: 't-xs t-b' }, gg);
+      st.lCA = S.text(250, 412, '輻輳回避：1 往復ごとに 1 個', { cls: 't-xs t-b' }, gg);
+      st.lMD = S.text(462, 380, '損失 → 半分', { cls: 't-xs t-b t-x t-end' }, gg);
+      /* 損失の × （y ≒ 289）より上に置く */
+      st.lCubic = S.text(330, 267, 'CUBIC：7 割に減らし、元の高さへ急いで戻る', { cls: 't-xs t-b' }, gg);
+      st.lBbr = S.text(560, 420, 'BBR：満杯の量に保ち、時々少し増やして測る', { cls: 't-xs t-b t-d' }, gg);
+      st.cur = S.circle(0, 0, 6, { cls: 'f-x s-sf w2' }, gg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.gg, i <= 1 ? 0.35 : 1);
+      vis(st.pSS, i === 2);
+      vis(st.pReno, i >= 3);
+      st.pReno.setAttribute('class', i === 4 ? 'f-none s-dim w15 dash round' : 'f-none s-mid w2 round');
+      vis(st.lossR, i === 3);
+      vis(st.pCubic, i === 4);
+      vis(st.lossC, i === 4);
+      vis(st.pBbr, i === 4);
+      vis(st.lSS, i === 2 || i === 3);
+      vis(st.lCA, i === 3);
+      vis(st.lMD, i === 3);
+      vis(st.lCubic, i === 4);
+      vis(st.lBbr, i === 4);
+      st.bufBox.setAttribute('class', i === 1 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, cv = st.cv, ts = ctx.ts;
+      let W = 10, rw = 56, occ = 8, cx = -1, alg = '', f1 = '', f2 = '';
+      if (i === 1) {
+        /* ブラウザが読み出さない間に空きが減り、0 で止まり、読み出すと戻る（12 秒で一巡） */
+        const T = playing() ? U.mod(ts, 12) : 8;
+        occ = T < 3 ? 8 : T < 7.5 ? 8 + 56 * (T - 3) / 4.5 : T < 9 ? 64 : 64 - 56 * U.prog(T, 9, 1.5);
+        rw = Math.round(64 - occ);
+        W = Math.min(40, rw);
+        f1 = `送ってよい量 = min( 受信ウィンドウ ${rw}, 輻輳ウィンドウ 40 ) = ${W} 個`;
+        f2 = T < 3 ? 'ブラウザが読み出している' : T < 7.5 ? 'ブラウザが読み出さない → 空きが減る' : T < 9 ? '空きが 0 → 送り手は止まる（フロー制御）' : '読み出すと空きが戻り、また送れる';
+      } else if (i >= 2) {
+        let fw = cv.reno, x;
+        if (i === 2) x = playing() ? GX0 + 70 * U.prog(U.mod(ts, 8), 0, 6) : 162;
+        else if (i === 3) x = playing() ? GX0 + (GX1 - GX0) * U.cycle(ts, 16) : 440;
+        else {
+          const T = playing() ? U.mod(ts, 16) : 12;
+          fw = T < 8 ? cv.cubic : cv.bbr;
+          alg = T < 8 ? 'CUBIC' : 'BBR';
+          x = GX0 + (GX1 - GX0) * (T < 8 ? T : T - 8) / 8;
+        }
+        cx = x;
+        W = Math.round(fw(x));
+        st.cur.setAttribute('cx', x.toFixed(1));
+        st.cur.setAttribute('cy', GY(fw(x)).toFixed(1));
+        f1 = (alg ? alg + '　' : '') + `W = ${W} 個 → 速さ ≈ ${Math.round(mbps(W))} Mbps` + (W >= BDP ? '（上限）' : '');
+        if (i === 2) f2 = '確かめた 1 個ごとに 1 個増やす → 1 往復ごとに倍';
+        else if (W > OVER) f2 = '待ち行列があふれた → 捨てられる（損失）';
+        else if (W > BDP) f2 = '満杯を超えた分は待ち行列に並ぶ：速さは増えず、遅れが増える';
+        else f2 = i === 3 ? '1 往復ごとに 1 個ずつ増やす' : (alg === 'BBR' ? '待ち行列をほぼ空に保つ' : '前の損失の高さへ戻る');
+      } else {
+        f1 = '速さ ≈ 10 個 × 1,460 B ÷ 10 ms ≈ 11.7 Mbps';
+        f2 = '1 往復に、ウィンドウの数のデータを送り、同じ数の ACK が戻る';
+      }
+      vis(st.cur, cx >= 0);
+      st.f1.textContent = f1;
+      st.f2.textContent = f2;
+      st.f2.setAttribute('class', 't-c t-xs' + (W > BDP || (i === 1 && W === 0) ? ' t-x t-b' : ' t-dim'));
+      st.wTxt.textContent = String(W);
+      /* 受信バッファ（64 個分として描く） */
+      st.bufFill.setAttribute('width', (104 * occ / 64).toFixed(1));
+      st.bufTxt.textContent = i === 1 ? '空き ' + rw + ' 個分' : '';
+      st.bufTxt.setAttribute('class', 't-c t-xs t-b' + (i === 1 ? ' t-x' : ''));
+      /* 道の上: 満杯までが道に、超えた分が待ち行列に */
+      const n = Math.round(Math.min(W, BDP) / 2), q = U.clamp(W - BDP, 0, QMAX);
+      const ph = U.mod(t / 2.0, 1);
+      st.dDots.forEach((d, k) => {
+        vis(d, k < n);
+        if (k < n) d.setAttribute('x', (U.lerp(796, 158, U.mod(ph + k / n, 1)) - 4.5).toFixed(1));
+      });
+      st.aDots.forEach((d, k) => {
+        vis(d, k < n);
+        if (k < n) d.setAttribute('cx', U.lerp(158, 796, U.mod(ph + k / n, 1)).toFixed(1));
+      });
+      st.qs.forEach((r, k) => vis(r, k < q));
+      vis(st.qx, W > OVER);
+      vis(st.qxTxt, W > OVER);
+    }
+  };
+
+  /* ================================================================
+     場面5 UDP
+     ================================================================ */
+  /* ヘッダの 1 欄。name は欄の名前、val は値（無ければ名前だけ） */
+  function field(p, x, y, w, h, name, val, cls) {
+    const g = S.g({}, p);
+    g.r = S.rect(x, y, w, h, { cls: cls || 'f-sf s-rule w1' }, g);
+    const t = S.text(x + w / 2, y + h / 2 + 4, '', { cls: 't-c t-xs' }, g);
+    S.el('tspan', { text: name, cls: val ? 't-dim' : '' }, t);
+    if (val) S.el('tspan', { text: '  ' + val, cls: 't-mono t-b' }, t);
+    return g;
+  }
+
+  const s5 = {
+    steps: [
+      { title: 'ヘッダは 8 バイト', text: 'UDP のヘッダは、送信元ポート・宛先ポート・長さ・チェックサムの 16 ビット 4 つだけ。長さはヘッダを含むバイト数で、第17章の DNS の問い合わせなら 8＋33＝41。チェックサムは IPv4 では省けるが（0）、IPv6 では必須。TCP のヘッダは 20〜60 バイトある。' },
+      { title: '接続も順番も再送も無い', text: '最初のパケットからデータを運び、手順の往復は無い。`sendto()` 1 回が 1 個のデータグラムになり、区切りのまま相手に届く（TCP はバイトの流れで、区切りが無い）。失われても入れ替わっても UDP は何もせず、届いた順にアプリへ渡す。' },
+      { title: '足りない仕事は使う側が作る', text: 'DNS は 1 問 1 答なので、答えが来なければアプリが聞き直す。通話やゲームは、遅れて届いた音や位置はもう使えないので、再送を待たずに次へ進む。順番が要るものは中身に自分で番号を入れる（通話の RTP など）。QUIC は順番・再送・輻輳制御を UDP の上に全部作る（[[6|QUIC]]）。' },
+      { title: 'NAT とファイアウォールは時間で扱う', text: 'UDP には始まりと終わりの合図が無い。家のルーターは内から出た最初のパケットで変換表に行を作り、最後に通ってから一定時間（30 秒〜数分）で消す（第14章）。消えた後に届いた戻りは捨てる。QUIC の実装は、長く黙るときに小さなパケットを送って行を保つことがある。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      /* 上: ヘッダ（1 行 32 ビット = 400px、1 行の高さ 26px で同じ縮尺） */
+      const gu = st.gu = S.g({ cls: 'fade' }, svg);
+      S.text(40, 22, 'UDP ヘッダ 8 バイト（RFC 768）', { cls: 't-sm t-b' }, gu);
+      const ruler = (p, x0) => {
+        S.text(x0, 40, '0', { cls: 't-xs t-mono t-dim' }, p);
+        S.text(x0 + 200, 40, '16', { cls: 't-xs t-mono t-dim' }, p);
+        S.text(x0 + 400, 40, '31 ビット', { cls: 't-xs t-mono t-dim t-end' }, p);
+      };
+      ruler(gu, 40);
+      st.uF = [
+        field(gu, 40, 46, 200, 26, '送信元ポート', '51600'),
+        field(gu, 240, 46, 200, 26, '宛先ポート', '53'),
+        field(gu, 40, 72, 200, 26, '長さ', '41'),
+        field(gu, 240, 72, 200, 26, 'チェックサム', '0x19b5')   // 第17章の問い合わせ（ID 0x5A3C、RD=1、www.youtube.com A）と擬似ヘッダから計算した値
+      ];
+      field(gu, 40, 106, 400, 26, 'データ：DNS の問い合わせ 33 バイト（第17章）', '', 'f-d-soft s-d w1');
+      S.text(40, 150, 'PC 192.168.1.10:51600 → ルーター 192.168.1.1:53 の例', { cls: 't-xs t-dim' }, gu);
+      const gt = st.gt = S.g({ cls: 'fade' }, svg);
+      S.text(520, 22, 'TCP ヘッダ 20〜60 バイト（場面2・3）', { cls: 't-sm t-b' }, gt);
+      ruler(gt, 520);
+      st.tF0 = [field(gt, 520, 46, 200, 26, '送信元ポート', ''), field(gt, 720, 46, 200, 26, '宛先ポート', '')];
+      field(gt, 520, 72, 400, 26, 'シーケンス番号', '');
+      field(gt, 520, 98, 400, 26, '確認応答番号', '');
+      field(gt, 520, 124, 200, 26, '長さ・フラグ', '');
+      field(gt, 720, 124, 200, 26, 'ウィンドウ', '');
+      field(gt, 520, 150, 200, 26, 'チェックサム', '');
+      field(gt, 720, 150, 200, 26, '緊急ポインタ', '');
+      field(gt, 520, 176, 400, 20, 'オプション（0〜40 バイト：MSS・SACK・時刻 など）', '', 'f-none s-dim w1 dash');
+
+      /* 中段: データグラムの届き方 */
+      const gm = st.gm = S.g({ cls: 'fade' }, svg);
+      S.text(30, 226, 'データグラムの届き方：失われても入れ替わっても、UDP は何もしない', { cls: 't-xs t-b' }, gm);
+      S.text(930, 226, '1〜6 は説明用（UDP のヘッダに番号は無い）', { cls: 't-xs t-dim t-end' }, gm);
+      box(gm, 30, 240, 110, 70, '送り手', 'sendto() を 6 回', { scls: 't-dim' });
+      box(gm, 820, 240, 110, 70, '受け手', 'recvfrom()', { scls: 't-dim t-mono' });
+      S.line(140, 275, 820, 275, { cls: 's-rule w2' }, gm);
+      S.line(480, 248, 480, 302, { cls: 's-dim w15 dash' }, gm);
+      S.text(480, 318, '途中のルーター', { cls: 't-c t-xs t-dim' }, gm);
+      st.dg = [0, 1, 2, 3, 4, 5].map((k) => {
+        const g = pkt(gm, String(k + 1), 'f-d', 't-sf', 11);
+        return { g, k, t0: 0.45 * k, dur: 2.0, lost: k === 2, extra: k === 4 ? 0.9 : 0 };
+      });
+      st.dgX = S.text(480, 270, '×', { cls: 't-c t-xl t-b t-x' }, gm);
+      S.text(140, 352, 'アプリが受け取った順', { cls: 't-xs t-b' }, gm);
+      st.got = [0, 1, 2, 3, 4].map((j) => {
+        const g = S.g({}, gm);
+        g.r = S.rect(270 + j * 40, 336, 32, 24, { rx: 4, cls: 'f-d' }, g);
+        g.t = S.text(286 + j * 40, 353, '', { cls: 't-c t-sm t-mono t-b t-sf' }, g);
+        return g;
+      });
+      st.gotNote = S.text(480, 353, '3 は来ない。UDP は知らせも送り直しもしない', { cls: 't-xs t-b t-x' }, gm);
+
+      /* 下左: UDP を使うもの */
+      const gs = st.gs = S.g({ cls: 'fade' }, svg);
+      S.text(30, 404, 'UDP を使うもの', { cls: 't-xs t-b' }, gs);
+      [['DNS 53', '1 問 1 答。答えが無ければアプリが聞き直す'], ['通話（WebRTC）', '遅れた音は待たずに飛ばす（RTP に番号）'], ['ゲーム', '最新の位置を送り続ける'], ['QUIC 443', '順番・再送・暗号を自前で作る（場面6）']].forEach(([a, b], k) => {
+        const y = 414 + k * 32;
+        S.rect(30, y, 118, 24, { rx: 4, cls: 'f-d-soft s-d w1' }, gs);
+        S.text(89, y + 16, a, { cls: 't-c t-xs t-b' }, gs);
+        S.text(158, y + 16, b, { cls: 't-xs' }, gs);
+      });
+
+      /* 下右: ルーターの変換表の行の寿命 */
+      const gn = st.gn = S.g({ cls: 'fade' }, svg);
+      S.text(500, 404, '家のルーターの変換表の 1 行（第14章）', { cls: 't-xs t-b' }, gn);
+      st.row = S.rect(500, 414, 430, 26, { rx: 4, cls: 'f-sf s-rule w1' }, gn);
+      st.rowT = S.text(512, 431, 'UDP 192.168.1.10:51234 ↔ 142.250.196.110:443（外側 40001）', { cls: 't-xs t-mono' }, gn);
+      S.rect(500, 448, 430, 12, { rx: 3, cls: 'f-in s-rule w1' }, gn);
+      st.life = S.rect(500, 448, 430, 12, { rx: 3, cls: 'f-mid' }, gn);
+      st.lifeT = S.text(500, 478, '', { cls: 't-xs t-b' }, gn);
+      S.line(500, 508, 930, 508, { cls: 's-rule w2' }, gn);
+      S.rect(711, 492, 8, 32, { rx: 2, cls: 'f-mid' }, gn);
+      S.text(500, 540, 'LAN 側（PC）', { cls: 't-xs t-dim' }, gn);
+      S.text(715, 540, 'ルーター', { cls: 't-c t-xs t-dim' }, gn);
+      S.text(930, 540, '外（YouTube）', { cls: 't-xs t-dim t-end' }, gn);
+      st.nPkt = pkt(gn, '', 'f-d');
+      st.nX = S.text(738, 514, '×', { cls: 't-c t-xl t-b t-x' }, gn);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.gu, i === 0 ? 1 : 0.35);
+      op(st.gt, i === 0 ? 1 : 0.35);
+      st.uF.forEach((f) => f.r.setAttribute('class', i === 0 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      st.tF0.forEach((f) => f.r.setAttribute('class', i === 0 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      op(st.gm, i === 1 ? 1 : 0.35);
+      op(st.gs, i === 2 ? 1 : 0.35);
+      op(st.gn, i === 3 ? 1 : 0.35);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      /* 中段: 6 個が 0.45 秒おきに出て 2 秒で着く。3 はルーターで失われ、5 は遅れる */
+      const T1 = i === 1 && playing() ? U.mod(ctx.ts, 7.5) : 6.0;
+      const arr = [];
+      st.dg.forEach((d) => {
+        const u = T1 - d.t0, dur = d.dur + d.extra, end = d.lost ? dur / 2 : dur;
+        const on = u >= 0 && u < end;
+        vis(d.g, on);
+        if (on) d.g.at(U.lerp(160, 800, u / dur), 275);
+        if (!d.lost && u >= dur) arr.push([d.t0 + dur, d.k + 1]);
+      });
+      arr.sort((a, b) => a[0] - b[0]);
+      st.got.forEach((g, j) => { vis(g, j < arr.length); if (j < arr.length) g.t.textContent = String(arr[j][1]); });
+      vis(st.dgX, T1 >= st.dg[2].t0 + 1.0);
+      vis(st.gotNote, arr.length >= 5);
+      /* 下右: 行は通るたびに寿命が戻り、5 秒（図の上で）黙ると消える */
+      const T = i === 3 && playing() ? U.mod(ctx.ts, 13) : 12;
+      const ev = [[0, 'out', '最初のパケット'], [1.4, 'in', '戻り'], [4.6, 'out', 'PING'], [10.8, 'in', '戻り']];
+      const pass = [0.6, 2.0, 5.2];            // ルーターを通って寿命が戻る時刻
+      const L = 5.0;
+      let last = -1;
+      pass.forEach((p) => { if (T >= p) last = p; });
+      const alive = last >= 0 && T < last + L;
+      const f = alive ? 1 - (T - last) / L : 0;
+      st.life.setAttribute('width', (430 * f).toFixed(1));
+      st.life.setAttribute('class', f < 0.25 ? 'f-x' : 'f-mid');
+      st.row.setAttribute('class', alive ? 'f-sf s-d w15' : 'f-none s-dim w1 dash');
+      st.rowT.textContent = alive ? 'UDP 192.168.1.10:51234 ↔ 142.250.196.110:443（外側 40001）' : T < 0.6 ? '（まだ行は無い）' : '（行は消えた）';
+      st.rowT.setAttribute('class', 't-xs' + (alive ? ' t-mono' : ' t-dim'));
+      let msg = '何も通らない：残りが減る';
+      if (T < 0.6) msg = '内から最初のパケットが出る';
+      else if (T < 1.4) msg = '行を作り、時計を始める';
+      else if (T < 2.6) msg = '戻りは行に一致して通る（時計が戻る）';
+      else if (T >= 4.6 && T < 5.8) msg = 'QUIC は小さなパケットで行を保つことがある';
+      else if (T >= 10.2 && T < 10.8) msg = '時間切れ：行を消す';
+      else if (T >= 10.8) msg = '消えた後の戻りは捨てる';
+      st.lifeT.textContent = msg;
+      st.lifeT.setAttribute('class', 't-xs t-b' + (T >= 10.2 ? ' t-x' : ''));
+      let shown = false;
+      ev.forEach(([t0, dir, label]) => {
+        const u = T - t0;
+        const blocked = t0 > 10;                 // 行が消えた後の戻りは、ルーターの手前で止まったまま
+        if (u < 0 || (!blocked && u >= 1.2)) return;
+        const fx = dir === 'out' ? U.lerp(510, 920, u / 1.2) : blocked ? U.lerp(920, 772, Math.min(1, u / 0.6)) : U.lerp(920, 510, u / 1.2);
+        st.nPkt.set(label, dir === 'out' ? 'f-d' : 'f-sf s-d w15', dir === 'out' ? 't-sf' : 't-d');
+        st.nPkt.at(fx, 508);
+        shown = true;
+      });
+      vis(st.nPkt, shown);
+      vis(st.nX, T >= 11.4);
+    }
+  };
+
+  /* ================================================================
+     場面6 QUIC（左 TCP＋TLS 1.3、右 QUIC を並べて比べる）
+     ================================================================ */
+  const CX = [24, 504];                 // 左右の列の左端（幅 432）
+  const s6 = {
+    steps: [
+      { title: 'UDP の上で、ブラウザの中で動く', text: '途中の NAT やファイアウォールの多くは、TCP（6）や UDP（17）など知っている種類しか通さず、新しいプロトコルは届きにくい。QUIC は UDP に載り、番号・再送・輻輳制御・暗号をブラウザの中（ユーザー空間）で行う。カーネルは UDP までしか見ない（第9章）ので、改良はブラウザとサーバーの更新で配れる。' },
+      { title: '1 往復で、暗号つきの接続になる', text: 'QUIC は最初の送信（Initial パケット）に TLS 1.3 の ClientHello を入れ、接続と鍵の取り決めが同じ 1 往復で済む。要求は TCP＋TLS より 1 往復早く出せ、前に接続した相手なら要求も ClientHello と一緒に送れる（0-RTT。再送攻撃への注意は第20章）。' },
+      { title: 'ストリームが独立：先頭の詰まりが無い', text: 'TCP は 1 本のバイト列なので、1 個失われると、後ろに続く別の要求のデータまで並べ直し待ちで止まる（head-of-line blocking）。QUIC は 1 つの接続の中に独立した**ストリーム**を何本も持ち、データの位置もストリームごとに数える。止まるのは失われたストリームだけ。使い方は第21章。' },
+      { title: '接続 ID：回線が替わっても続く', text: 'TCP の接続は 5 つ組そのものなので、PC の IP やポートが変わると相手は別の通信と見なし、接続は切れる。QUIC の接続は**接続 ID** で見分けるので、Wi-Fi からテザリングに替わっても同じ接続と分かる。新しい道では前もって受け取った別の ID に替え、道を確かめてから続ける。' },
+      { title: 'ヘッダの大半も暗号化', text: 'TCP のシーケンス番号・ACK・ウィンドウは平文で、途中の機器が読み、書き換えることもある。QUIC で途中から読めるのは、接続の確立後は IP と UDP のヘッダ、先頭 1 バイトの一部、宛先の接続 ID だけ。パケット番号も ACK も暗号の中にあるので、途中の機器が仕組みを前提にできず、改良を続けやすい。' },
+      { title: 'YouTube では QUIC、通らなければ TCP', text: 'Chrome は Alt-Svc や HTTPS レコード（第21章）で HTTP/3 を知った相手には、QUIC と TCP＋TLS を並べて試し、先に使えた方で話す。UDP 443 が通らなければ TCP で続け、その失敗をしばらく覚える。DevTools の Protocol 列に h3 か h2 と出る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      /* 列の見出し（全段階で同じ） */
+      box(svg, CX[0], 8, 432, 32, 'TCP ＋ TLS 1.3（HTTP/2）', '', { cls: 'f-in s-rule w15' });
+      box(svg, CX[1], 8, 432, 32, 'QUIC（HTTP/3）', '', { cls: 'f-d-soft s-d w15' });
+      st.div = S.line(480, 48, 480, 548, { cls: 's-rule w1' }, svg);
+      st.p = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      /* ---- 段階1: 動く場所 ---- */
+      {
+        const g = st.p[0];
+        const col = (x0, items, note) => {
+          S.text(x0 + 8, 64, 'ブラウザ（ユーザー空間）', { cls: 't-xs t-dim' }, g);
+          S.line(x0, 200, x0 + 432, 200, { cls: 's-dim w1 dash' }, g);
+          S.text(x0 + 8, 214, 'カーネル（OS）', { cls: 't-xs t-dim' }, g);
+          items.forEach(([s0, y0, y1, c]) => {
+            S.rect(x0 + 60, y0, 312, y1 - y0, { rx: 5, cls: c }, g);
+            S.lines(x0 + 216, (y0 + y1) / 2 + 4 - (s0.length - 1) * 8, s0, { cls: 't-c t-sm t-b' }, g, 16);
+          });
+          S.text(x0 + 216, 322, note, { cls: 't-c t-xs t-b' }, g);
+        };
+        col(CX[0], [[['HTTP/2'], 72, 106, 'f-sf s-rule w1'], [['TLS 1.3：暗号'], 112, 146, 'f-sf s-rule w1'], [['TCP：番号・再送・輻輳制御'], 222, 258, 'f-in s-mid w15'], [['IP'], 264, 296, 'f-in s-rule w1']], '改良は OS の更新を待つ');
+        col(CX[1], [[['HTTP/3'], 72, 106, 'f-sf s-rule w1'], [['QUIC：番号・再送・輻輳制御・ストリーム', '＋ TLS 1.3 の暗号'], 112, 190, 'f-d-soft s-d w15'], [['UDP：ポートと長さだけ'], 222, 258, 'f-in s-mid w15'], [['IP'], 264, 296, 'f-in s-rule w1']], '改良はブラウザとサーバーの更新で配れる');
+        /* 途中の機器が通すもの（列をまたぐ） */
+        st.mbBg = S.rect(16, 346, 928, 196, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+        S.text(30, 366, '途中の NAT・ファイアウォールが通すもの（IP ヘッダのプロトコル番号で見分ける）', { cls: 't-xs t-b' }, g);
+        S.rect(560, 376, 14, 150, { rx: 3, cls: 'f-mid' }, g);
+        S.text(567, 538, 'NAT・ファイアウォール', { cls: 't-c t-xs t-dim' }, g);
+        st.mb = [['6　TCP', 400, true], ['17　UDP（QUIC はここ）', 446, true], ['132　SCTP など新しい種類', 492, false]].map(([s0, y, ok]) => {
+          S.line(60, y, ok ? 900 : 560, y, { cls: 's-rule w1 dash' }, g);
+          const pk = pkt(g, s0, ok ? 'f-d' : 'f-sf s-x w15', ok ? 't-sf' : 't-x');
+          return { pk, y, ok };
+        });
+        st.mbX = S.text(586, 498, '× 変換・通過できず捨てられることが多い', { cls: 't-xs t-b t-x' }, g);
+      }
+
+      /* ---- 段階2: 接続までの往復 ---- */
+      {
+        const g = st.p[1];
+        /* 線 → 動く点 → 札の順に重ねる（点が札の文字を隠さないように） */
+        const lyL = S.g({}, g), lyD = S.g({}, g), lyT = S.g({}, g);
+        const lad = (x0, msgs, kinds) => {
+          const xa = x0 + 40, xb = x0 + 392;
+          S.text(xa, 62, 'PC', { cls: 't-c t-xs t-b' }, g);
+          S.text(xb, 62, 'サーバー', { cls: 't-c t-xs t-b' }, g);
+          S.line(xa, 68, xa, 304, { cls: 's-mid w2' }, g);
+          S.line(xb, 68, xb, 304, { cls: 's-mid w2' }, g);
+          return msgs.map(([from, y0, label, kind]) => {
+            const m = msg(lyL, lyT, xa, xb, from, y0, y0 + 36, label, 0.5, kind === 'tls' ? 'tls' : 'tcp');
+            msgState(m, kind === 'past' ? 'past' : 'now', mk);
+            return m;
+          });
+        };
+        st.lad = [
+          lad(CX[0], [['a', 76, 'SYN', 'past'], ['b', 112, 'SYN/ACK', 'past'], ['a', 148, 'ACK ＋ ClientHello', 'tls'], ['b', 184, 'ServerHello … Finished', 'tls'], ['a', 220, 'Finished ＋ HTTP の要求', 'req'], ['b', 256, '応答', 'req']]),
+          lad(CX[1], [['a', 76, 'Initial（ClientHello）', 'tls'], ['b', 112, 'Initial ＋ Handshake（… Finished）', 'tls'], ['a', 148, 'Finished ＋ HTTP の要求', 'req'], ['b', 184, '応答', 'req']])
+        ];
+        /* 往復の目盛（左右で共通） */
+        [[148, '1 往復'], [220, '2 往復'], [292, '3 往復']].forEach(([y, s0]) => {
+          S.line(20, y, 940, y, { cls: 's-rule w1 dash' }, g);
+          S.text(474, y - 4, s0, { cls: 't-xs t-dim t-end' }, g);
+        });
+        S.text(CX[0] + 216, 330, '要求を出せるのは 2 往復の後', { cls: 't-c t-sm t-b t-x' }, g);
+        S.text(CX[1] + 216, 330, '要求を出せるのは 1 往復の後', { cls: 't-c t-sm t-b t-x' }, g);
+        /* 2 回目以降 */
+        S.rect(CX[0], 354, 432, 120, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(CX[0] + 14, 376, '2 回目以降の接続', { cls: 't-xs t-b' }, g);
+        S.lines(CX[0] + 14, 400, ['TLS 1.3 にも 0-RTT はあるが、その前に', 'TCP の 1 往復（SYN → SYN/ACK）が要る'], { cls: 't-xs' }, g, 18);
+        S.rect(CX[1], 354, 432, 120, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(CX[1] + 14, 376, '2 回目以降の接続（0-RTT）', { cls: 't-xs t-b' }, g);
+        {
+          /* 枠より後ろに作った層に描く（枠の塗りに隠れないように） */
+          const lyL2 = S.g({}, g), lyT2 = S.g({}, g);
+          const xa = CX[1] + 40, xb = CX[1] + 392;
+          S.line(xa, 386, xa, 466, { cls: 's-mid w15' }, lyL2);
+          S.line(xb, 386, xb, 466, { cls: 's-mid w15' }, lyL2);
+          const a1 = msg(lyL2, lyT2, xa, xb, 'a', 392, 424, 'Initial ＋ 0-RTT（要求）', 0.5, 'tcp');
+          const a2 = msg(lyL2, lyT2, xa, xb, 'b', 424, 456, '応答', 0.5, 'tcp');
+          msgState(a1, 'now', mk); msgState(a2, 'now', mk);
+        }
+        S.text(CX[1] + 216, 500, '最初の Initial は詰め物で 1,200 バイト以上（第18章）', { cls: 't-c t-xs t-dim' }, g);
+        /* 2026-10-17 の netlog の実測（ML-KEM を含む鍵交換の値で ClientHello が約 1,877 バイト） */
+        S.text(CX[1] + 216, 518, 'Chrome 155 の ClientHello は約 1,900 バイトで、Initial 2 個に分かれる', { cls: 't-c t-xs t-dim' }, g);
+        S.text(CX[0] + 216, 500, 'TLS 1.2 なら、TLS だけで 2 往復かかる', { cls: 't-c t-xs t-dim' }, g);
+        st.ladDot = [0, 1].map(() => S.circle(0, 0, 5, { cls: 'f-d s-sf w2' }, lyD));
+      }
+
+      /* ---- 段階3: 先頭の詰まり ---- */
+      {
+        const g = st.p[2];
+        const names = ['映像1', '音声1', '画像1', '映像2', '音声2', '画像2'];
+        const lane = [0, 1, 2, 0, 1, 2], idx = [0, 0, 0, 1, 1, 1];
+        st.hol = CX.map((x0, c) => {
+          S.text(x0 + 8, 64, '送った順（1 本の接続の中）', { cls: 't-xs t-dim' }, g);
+          names.forEach((s0, k) => {
+            S.rect(x0 + 6 + k * 71, 72, 64, 24, { rx: 4, cls: 'f-in s-rule w1' }, g);
+            S.text(x0 + 38 + k * 71, 88, s0, { cls: 't-c t-xs t-b' }, g);
+          });
+          S.text(x0 + 8, 160, c ? '受け手：ストリームごとに並べる' : '受け手：1 本のバイト列として並べる', { cls: 't-xs t-dim' }, g);
+          const slots = [];
+          ['映像', '音声', '画像'].forEach((s0, L) => {
+            const y = 172 + L * 44;
+            S.text(x0 + 12, y + 22, s0 + (c ? '（ストリーム）' : ''), { cls: 't-xs t-b' }, g);
+            for (let j = 0; j < 2; j++) {
+              const r = S.rect(x0 + 160 + j * 92, y, 84, 30, { rx: 4, cls: 'f-sf s-rule w15 dash' }, g);
+              const t = S.text(x0 + 202 + j * 92, y + 20, s0 + (j + 1), { cls: 't-c t-xs t-b' }, g);
+              slots[L * 2 + j] = { r, t, x: x0 + 202 + j * 92, y: y + 15 };
+            }
+          });
+          const res = S.text(x0 + 216, 330, '', { cls: 't-c t-sm t-b' }, g);
+          /* × は札より先に作って下に置く（再送の札が上を通るとき、文字に × が重ならない） */
+          const xm = S.text(0, 0, '×', { cls: 't-c t-xl t-b t-x' }, g);
+          const pk = names.map((s0) => pkt(g, s0, 'f-d', 't-sf'));
+          return { x0, slots, res, pk, xm };
+        });
+        st.holMeta = { names, lane, idx };
+        S.text(CX[0] + 216, 372, 'HTTP/2 は 1 本の TCP に複数の要求を混ぜる（第21章）', { cls: 't-c t-xs t-dim' }, g);
+        S.text(CX[1] + 216, 372, 'HTTP/3 は要求ごとにストリームを使う（第21章）', { cls: 't-c t-xs t-dim' }, g);
+      }
+
+      /* ---- 段階4: 回線が替わる ---- */
+      {
+        const g = st.p[3];
+        st.mig = CX.map((x0, c) => {
+          box(g, x0 + 136, 56, 160, 44, 'サーバー', '142.250.196.110:443');
+          S.rect(x0 + 40, 108, 352, 56, { rx: 5, cls: 'f-in s-rule w1' }, g);
+          S.text(x0 + 52, 126, c ? '接続を見分ける鍵：接続 ID' : '接続を見分ける鍵：5 つ組', { cls: 't-xs t-b' }, g);
+          const key = S.text(x0 + 52, 146, '', { cls: 't-xs t-mono' }, g);
+          const LA = x0 + 90, LB = x0 + 342;
+          const pA = [[x0 + 186, 470], [LA, 352], [LA, 300], [LA, 164]];
+          const pB = [[x0 + 246, 470], [LB, 352], [LB, 300], [LB, 164]];
+          S.poly(pA, { cls: 'f-none s-rule w3 round' }, g);
+          S.poly(pB, { cls: 'f-none s-rule w3 round' }, g);
+          box(g, x0 + 16, 300, 148, 52, '家の Wi-Fi', '203.0.113.5:40001');
+          box(g, x0 + 268, 300, 148, 52, 'テザリング', '192.0.2.77:61000');
+          box(g, x0 + 136, 470, 160, 40, 'PC', '');
+          const cut = S.g({}, g);
+          S.text(x0 + 138, 418, '×', { cls: 't-c t-xl t-b t-x' }, cut);
+          S.text(x0 + 154, 434, 'Wi-Fi から外れた', { cls: 't-xs t-b t-x' }, cut);
+          const res = S.text(x0 + 206, 200, '', { cls: 't-c t-sm t-b' }, g);
+          const pk = pkt(g, '', 'f-d', 't-sf');
+          return { x0, key, pA, pB, cut, res, pk, c };
+        });
+        S.text(CX[1] + 216, 536, '規格の仕組み。使うかどうかは実装による', { cls: 't-c t-xs t-dim' }, g);
+        S.text(CX[0] + 216, 536, '同じ相手でも、つなぎ直して 2 往復待つ', { cls: 't-c t-xs t-dim' }, g);
+      }
+
+      /* ---- 段階5: 途中から見える欄 ---- */
+      {
+        const g = st.p[4];
+        const rows = [
+          [['IP ヘッダ（送信元・宛先の IP）', 1], ['TCP：ポート', 1], ['TCP：シーケンス番号・ACK', 1], ['TCP：フラグ・ウィンドウ', 1], ['TLS：レコードの種類・長さ', 1], ['HTTP の中身', 0]],
+          [['IP ヘッダ（送信元・宛先の IP）', 1], ['UDP：ポート・長さ', 1], ['QUIC：先頭 1 バイトの一部', 1], ['QUIC：宛先の接続 ID', 1], ['QUIC：パケット番号（ヘッダ保護）', 0], ['QUIC：ACK・ストリーム・中身', 0]]
+        ];
+        rows.forEach((rs, c) => {
+          const x0 = CX[c];
+          S.text(x0 + 8, 64, '1 個のパケットの欄（上から順に）', { cls: 't-xs t-dim' }, g);
+          rs.forEach(([s0, seen], r) => {
+            const y = 72 + r * 40;
+            S.rect(x0 + 8, y, 416, 32, { rx: 4, cls: seen ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1' }, g);
+            S.text(x0 + 20, y + 21, s0, { cls: 't-xs t-b' }, g);
+            S.text(x0 + 412, y + 21, seen ? '途中から読める' : '暗号化', { cls: 't-xs t-b t-end ' + (seen ? 't-x' : 't-d') }, g);
+          });
+        });
+        S.lines(CX[0] + 216, 334, ['番号・ACK・ウィンドウを途中の機器が読み、', '書き換えることもある'], { cls: 't-c t-xs' }, g, 16);
+        S.lines(CX[1] + 216, 334, ['途中の機器は番号も ACK も読めない', '（接続中の短いヘッダの場合）'], { cls: 't-c t-xs' }, g, 16);
+      }
+
+      /* ---- 段階6: YouTube での使い分け ---- */
+      {
+        const g = st.p[5];
+        const lyL = S.g({}, g), lyD = S.g({}, g), lyT = S.g({}, g);
+        [[52, 'UDP が通る網（多くの家庭）'], [268, 'UDP 443 を通さない網（一部の会社・学校など）']].forEach(([py, label]) => {
+          S.label(lyT, 480, py, label, { cls: 't-xs t-b', box: 'f-sf s-mid w1', w: tw(label, 10) + 24, h: 20 });
+        });
+        const ends = (x0, y0, y1) => {
+          const xa = x0 + 40, xb = x0 + 392;
+          S.text(xa, y0 - 8, 'Chrome', { cls: 't-c t-xs t-b' }, g);
+          S.text(xb, y0 - 8, 'YouTube', { cls: 't-c t-xs t-b' }, g);
+          S.line(xa, y0, xa, y1, { cls: 's-mid w15' }, g);
+          S.line(xb, y0, xb, y1, { cls: 's-mid w15' }, g);
+          return [xa, xb];
+        };
+        const M = (x0, y0, y1, list) => {
+          const [xa, xb] = ends(x0, y0, y1);
+          return list.map(([from, ya, label, state, kind]) => {
+            const m = msg(lyL, lyT, xa, xb, from, ya, ya + 28, label, 0.5, kind || 'tcp');
+            msgState(m, state, st.mk);
+            return m;
+          });
+        };
+        /* 上段: QUIC が先に使える（TCP は少し遅れて始める） */
+        const aL = M(CX[0], 84, 170, [['a', 98, 'SYN', 'past'], ['b', 126, 'SYN/ACK', 'past']]);
+        const aR = M(CX[1], 84, 170, [['a', 84, 'Initial', 'now', 'tls'], ['b', 112, 'Initial ＋ Handshake', 'now', 'tls'], ['a', 140, '要求（HTTP/3）', 'now']]);
+        /* 下段: QUIC の Initial は途中で捨てられ、TCP＋TLS で続ける */
+        const bL = M(CX[0], 300, 446, [['a', 300, 'SYN', 'now'], ['b', 328, 'SYN/ACK', 'now'], ['a', 356, 'ACK ＋ ClientHello', 'now', 'tls'], ['b', 384, '… Finished', 'now', 'tls'], ['a', 412, '要求（HTTP/2）', 'now']]);
+        const [qa] = ends(CX[1], 300, 446);
+        const wx = CX[1] + 216;
+        S.rect(wx - 5, 290, 10, 100, { rx: 2, cls: 'f-mid' }, g);
+        S.text(wx, 406, 'UDP 443 を捨てる機器', { cls: 't-c t-xs t-dim' }, g);
+        const bR = [[300, 'Initial'], [342, 'Initial（再送）']].map(([y, label]) => {
+          S.line(qa, y, wx - 8, y + 14, { cls: 's-d w2' }, lyL);
+          S.text(wx + 16, y + 20, '×', { cls: 't-c t-xl t-b t-x' }, lyL);
+          const lb = pkt(lyT, label, 'f-d-soft s-d w1', 't-d');
+          lb.at((qa + wx) / 2, y + 7);
+          return { x0: qa, y0: y, x1: wx - 8, y1: y + 14 };
+        });
+        S.text(CX[0] + 216, 212, 'このときは使わない', { cls: 't-c t-sm t-b t-dim' }, g);
+        S.text(CX[1] + 216, 212, '先に使えた → HTTP/3（h3）', { cls: 't-c t-sm t-b t-d' }, g);
+        S.text(CX[0] + 216, 486, 'TCP＋TLS で続ける → HTTP/2（h2）', { cls: 't-c t-sm t-b t-d' }, g);
+        S.text(CX[1] + 216, 486, '応答が無い → しばらく QUIC を使わない', { cls: 't-c t-sm t-b t-x' }, g);
+        /* 動く点: 列ごとに [矢印, 出る秒]。TCP は少し遅れて始め、捨てられた Initial は 1.2 秒後に送り直す */
+        const legs = (ms, t0, gap) => ms.map((m, k) => [m, t0 + k * gap]);
+        st.ytRuns = [legs(aL, 0.5, 0.8), legs(aR, 0, 0.8), legs(bL, 0, 0.8), legs(bR, 0, 1.2)];
+        st.ytDots = st.ytRuns.map(() => S.circle(0, 0, 5, { cls: 'f-d s-sf w2' }, lyD));
+      }
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.p.forEach((g, k) => S.fade(g, k === i));
+      vis(st.div, i !== 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      if (i === 0) {
+        /* 3 種類のパケットが右へ進み、新しい種類だけ壁で止まる */
+        const T = playing() ? U.mod(ts, 5) : 3.5;
+        st.mb.forEach((m, k) => {
+          const u = U.clamp((T - k * 0.4) / 2.6, 0, 1);
+          const x = m.ok ? U.lerp(130, 820, u) : U.lerp(130, 470, u);
+          m.pk.at(x, m.y);
+        });
+        vis(st.mbX, T >= 0.8 + 2.6);
+      }
+      if (i === 1) {
+        /* 左右で同時に始め、片道 0.9 秒で順に進む点。要求の矢印に早く着くのは右 */
+        const T = U.mod(ts, 6.4);
+        st.lad.forEach((ms, c) => {
+          const d = st.ladDot[c], k = Math.floor(T / 0.9), m = ms[k];
+          vis(d, playing() && !!m);
+          if (!playing() || !m) return;
+          const f = (T - k * 0.9) / 0.9;
+          d.setAttribute('cx', U.lerp(m.x0, m.x1, f).toFixed(1));
+          d.setAttribute('cy', U.lerp(m.y0, m.y1, f).toFixed(1));
+        });
+      }
+      if (i === 2) {
+        /* 映像2 が失われ、2.9 秒後に再送が届く。TCP は全体が待ち、QUIC は映像だけ待つ */
+        const T = playing() ? U.mod(ts, 7) : 3.3;
+        const M = st.holMeta;
+        st.hol.forEach((h, c) => {
+          const arrived = (k) => k === 3 ? T >= 4.8 : T >= k * 0.3 + 1.0;
+          h.pk.forEach((p, k) => {
+            const t0 = k === 3 && T >= 3.8 ? 3.8 : k * 0.3, u = (T - t0) / 1.0;
+            const lost = k === 3 && t0 < 3.8;
+            const show = u >= 0 && u < (lost ? 0.5 : 1);
+            vis(p, show);
+            if (show) {
+              const sl = h.slots[M.lane[k] * 2 + M.idx[k]];
+              const x0 = h.x0 + 38 + k * 71;
+              p.at(U.lerp(x0, sl.x, u), U.lerp(100, sl.y, u));
+              p.set(null, k === 3 && t0 >= 3.8 ? 'f-x' : 'f-d', 't-sf');
+            }
+          });
+          vis(h.xm, T >= 0.9 + 0.5 && T < 4.8);
+          h.xm.setAttribute('x', (h.x0 + 38 + 3 * 71 + (h.slots[1].x - (h.x0 + 38 + 3 * 71)) * 0.5).toFixed(1));
+          h.xm.setAttribute('y', '142');
+          /* どこまで渡せるか */
+          const order = [0, 1, 2, 3, 4, 5];
+          let prefix = 0;
+          while (prefix < 6 && arrived(order[prefix])) prefix++;
+          order.forEach((k) => {
+            const sl = h.slots[M.lane[k] * 2 + M.idx[k]];
+            const a = arrived(k);
+            const done = c === 0 ? k < prefix : a && (M.idx[k] === 0 || arrived(k - 3));
+            sl.r.setAttribute('class', done ? 'f-d s-d w15' : a ? 'f-d-soft s-d w15 dash' : 'f-sf s-rule w15 dash');
+            sl.t.setAttribute('class', 't-c t-xs t-b' + (done ? ' t-sf' : a ? '' : ' t-dim'));
+          });
+          const waiting = T >= 1.5 && T < 4.8;
+          h.res.textContent = waiting ? (c === 0 ? '映像2 が届くまで、音声と画像も止まる' : '止まるのは映像だけ') : (T >= 4.8 ? '再送が届き、全部渡せた' : '');
+          h.res.setAttribute('class', 't-c t-sm t-b ' + (waiting && c === 0 ? 't-x' : 't-d'));
+        });
+      }
+      if (i === 3) {
+        /* 0〜3 秒 Wi-Fi、3 秒で切れ、3.6 秒からテザリング */
+        const T = playing() ? U.mod(ts, 9) : 7;
+        st.mig.forEach((m) => {
+          const onA = T < 3, onB = T >= 3.6;
+          vis(m.cut, T >= 3);
+          let pos = null;
+          if (onA) { const u = U.mod(T, 1.5) / 1.2; if (u < 1) pos = polyAt(m.pA, u); }
+          else if (onB) pos = polyAt(m.pB, Math.min(0.8, (T - 3.6) / 1.2));   // 着いたら鍵の表の手前に置いたまま
+          vis(m.pk, !!pos);
+          if (pos) m.pk.at(pos[0], pos[1]);
+          if (m.c === 0) {
+            m.pk.set(onA ? 'TCP 40001→443' : 'TCP 61000→443', onA ? 'f-d' : 'f-x', 't-sf');
+            m.key.textContent = T < 4.8 ? '203.0.113.5:40001 → …:443' : '192.0.2.77:61000 → 表に無い';
+            m.res.textContent = T >= 4.8 ? '知らない組 → RST。接続は切れる' : '';
+            m.res.setAttribute('class', 't-c t-sm t-b t-x');
+          } else {
+            m.pk.set(onA ? 'ID 7c1e…' : 'ID 52a9…', 'f-d', 't-sf');
+            m.key.textContent = T < 4.8 ? '7c1e…（ほかに 52a9… も渡してある）' : '52a9… → 同じ接続';
+            m.res.textContent = T >= 4.8 ? '同じ接続：道を確かめて続ける' : '';
+            m.res.setAttribute('class', 't-c t-sm t-b t-d');
+          }
+        });
+      }
+      if (i === 5) {
+        /* 各列の矢印を、出る秒から 0.8 秒でたどる点（6 秒で一巡） */
+        const T = U.mod(ts, 6);
+        st.ytRuns.forEach((run, k) => {
+          const d = st.ytDots[k];
+          const leg = playing() ? run.find(([, t0]) => T >= t0 && T < t0 + 0.8) : null;
+          vis(d, !!leg);
+          if (!leg) return;
+          const [m, t0] = leg, f = (T - t0) / 0.8;
+          d.setAttribute('cx', U.lerp(m.x0, m.x1, f).toFixed(1));
+          d.setAttribute('cy', U.lerp(m.y0, m.y1, f).toFixed(1));
+        });
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第V部 約束ごと ／ 第19章',
+      title: 'TCP・UDP・QUIC',
+      home: '../index.html',
+      prev: { href: '18-ip.html', title: 'IP' },
+      next: { href: '20-tls.html', title: 'TLS' },
+      legend: [{ c: 'd', label: 'データ・パケット' }, { c: 'x', label: '注目・損失' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

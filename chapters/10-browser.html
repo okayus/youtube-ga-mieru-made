@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>ブラウザ — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .t-code { font-family: var(--mono); font-size: 10.5px; white-space: pre; }
+  .t-code.cur { font-weight: 600; }
+  .nw { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第III部 ソフトウェア ／ 第10章 ／ 全25章</p>
+    <h1 id="h-s0">ブラウザ</h1>
+    <p class="standfirst">アドレスバーに URL を打ってから動画が映るまでに、ブラウザは文字列を分解し、別プロセスに通信を頼み、届いた HTML を木（DOM）にし、CSS で大きさと位置を決め、画素に塗って GPU で重ねる。再生ボタンを押すと JavaScript がイベントループの上で動き、<code>&lt;video&gt;</code> と Media Source Extensions を通して動画の断片をデコーダに流し込む。この章は、第9章の OS の上で動くこの一連の処理を、Chromium の構成で追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の HTML・CSS・JS は説明用に短くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>URL を打つ</a><p>文字列の部品、HSTS、ブラウザ・ネットワーク・レンダラの各プロセスへの受け渡し。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>HTML → DOM</a><p>バイト列を文字に、トークンに、木に。<code>&lt;script&gt;</code> で止まる理由とプリロードスキャナ。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>CSS → スタイル → レイアウト</a><p>CSSOM、カスケードと継承、ボックスの位置と大きさ。動画の箱 1280×720 が決まる。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>ペイント → 合成</a><p>描画命令、レイヤー、タイルのラスタライズ、コンポジタ、垂直同期で画面へ。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>JavaScript とイベントループ</a><p>V8 の JIT、1本のメインスレッド、タスクとマイクロタスク、クリックと fetch の道。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>&lt;video&gt; と MSE</a><p>SourceBuffer に断片を入れ、復号して合成層へ。再生の時計とバッファリング。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（ネットワークの層）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>プロセスの分け方・スレッド名・コンパイラ名は Chromium（Chrome・Edge）のもの。Firefox・Safari も同じ段取りだが部品の名前が違う。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 URL を打つ ================= -->
+<section class="scene sc-anim" id="s1" data-tab="URL" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>URL を打つ</h2>
+    <p class="sh-meta"><span class="chip">https://www.youtube.com/watch?v=…</span><span class="chip">HSTS</span><span class="chip">IPC</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">アドレスバーの文字列は、まず部品に分解され、送る前に <code>https</code> に直され、通信専用のプロセスに渡される。描画を担当するプロセスは、ネットワークにも UI にも直接触れない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">デスクトップ版 Chromium の主なプロセスは、ブラウザ・ネットワーク（第9章のネットワークサービス）・GPU が1つずつと、サイトごとのレンダラ。レンダラが落ちても巻き込むのはそのサイトのタブだけで、乗っ取られても他サイトのデータには届きにくい（サイト分離）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="アドレスバーに URL を打ち、部品に分け、ブラウザプロセスからネットワークプロセス、OS、インターネットへ要求が渡り、応答がレンダラプロセスに届く図"></svg></div>
+    <figcaption>図1　上はアドレスバーと URL の部品。下は Chromium のプロセスで、要求はブラウザ→ネットワーク→OS→外へ、応答はネットワークからレンダラへ流れる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 HTML → DOM ================= -->
+<section class="scene sc-anim" id="s2" data-tab="DOM" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>HTML → DOM</h2>
+    <p class="sh-meta"><span class="chip">UTF-8</span><span class="chip">トークナイザ</span><span class="chip">ツリー構築</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">届いた HTML は、文字 → トークン → 木、の順に組み立てられる。この木が <b>DOM</b>（Document Object Model）で、JavaScript が触るのも、次の場面でレイアウトされるのもこの木。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">YouTube の視聴ページの HTML は圧縮前で 1 MB を超える（2026 年時点）が、大半は埋め込みの JSON と JS。最終的に数千個になる要素の多くは、あとから JS が作る。パーサの手順は HTML 仕様が状態機械として定めていて、どのブラウザでも同じ木になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="HTML のソースを上から読み、トークンに切り、右側に DOM の木が育っていく図"></svg></div>
+    <figcaption>図2　左が HTML、中央がいま切り出したトークン、右が DOM の木。段階4では <code>&lt;script&gt;</code> の行でパーサが止まり、プリロードスキャナ（点線）だけが先へ進む。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 CSS → スタイル → レイアウト ================= -->
+<section class="scene sc-anim" id="s3" data-tab="レイアウト" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>CSS → スタイル → レイアウト</h2>
+    <p class="sh-meta"><span class="chip">CSSOM</span><span class="chip">カスケード</span><span class="chip">1280 × 720</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">DOM には見た目の情報がない。CSS の規則を各ノードに当てはめて<b>計算済みスタイル</b>を作り、それをもとに<b>レイアウト</b>で位置と大きさ（px）を決める。動画が映る矩形はここで決まる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">計算済みスタイルは全ノード × 全プロパティ（数百個）あるので、ブラウザは同じ値の塊を共有して持つ。レイアウトは木を上から下へ1回なぞるのが基本で、フロート・テーブル・グリッドなど種類ごとに別のアルゴリズムが走る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CSS の規則、各ノードの計算済みスタイル、縮尺した窓の中のボックスの位置と大きさを並べた図"></svg></div>
+    <figcaption>図3　左が CSS、中央が各ノードの計算済みスタイル、右が幅 1280px の窓を 1/4 に縮めたレイアウト。段階5では窓の幅を 1280 → 960px に変えて再レイアウトする。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 ペイント → 合成 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="合成" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>ペイント → 合成</h2>
+    <p class="sh-meta"><span class="chip">表示リスト</span><span class="chip">レイヤー</span><span class="chip">タイル</span><span class="chip">16.7 ms</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">レイアウトで決まった箱を、描画命令 → レイヤー → 画素のタイル → 1枚のフレーム、と変えていく。動画のように毎フレーム変わる部分と、変わらない本文を<b>別のレイヤー</b>にするのが、滑らかさの要。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Chromium ではメインスレッドがペイントまで、コンポジタスレッドが合成、GPU プロセスがラスタライズと表示を担当する。この分業のおかげで、JS が重くてもスクロールと動画は止まりにくい。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="描画命令のリスト、3枚のレイヤー、タイルのラスタライズ、コンポジタから GPU と画面への流れ、垂直同期の時間軸"></svg></div>
+    <figcaption>図4　左が表示リスト、中央が3枚のレイヤー（上から操作パネル・動画・本文）、右がコンポジタ → GPU → 画面。下の時間軸は 60 Hz の垂直同期。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 JavaScript とイベントループ ================= -->
+<section class="scene sc-anim" id="s5" data-tab="JS" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>JavaScript とイベントループ</h2>
+    <p class="sh-meta"><span class="chip">V8</span><span class="chip">タスク／マイクロタスク</span><span class="chip">rAF</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">YouTube のプレーヤーは JavaScript。メインスレッド1本の上で、<b>イベントループ</b>がクリック・タイマー・通信の応答を1つずつ処理し、合間に描画を挟む。再生ボタンのクリックも、動画の断片の取得も、ここを通る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">タスクは1つ終わるまで割り込まれない（run-to-completion）。50 ms を超えるものは「長いタスク」と呼ばれ、その間に届いたクリックやキー入力は、終わるまで待たされる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="V8 のコンパイルの流れ、イベントループの輪とタスクキュー・コールスタック・マイクロタスク・レンダリング、クリックと fetch が届く道"></svg></div>
+    <figcaption>図5　上が V8 の流れ、左下がイベントループ（タスクキュー → コールスタック → マイクロタスク → レンダリング）。右は段階ごとに、長いタスク、クリックの道、fetch、Worker を示す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 video と MSE ================= -->
+<section class="scene sc-anim" id="s6" data-tab="video と MSE" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>&lt;video&gt; と Media Source Extensions</h2>
+    <p class="sh-meta"><span class="chip">MediaSource</span><span class="chip">SourceBuffer</span><span class="chip">appendBuffer</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">動画は <code>&lt;video&gt;</code> 要素に映る。YouTube は数秒分ずつの断片を JS で取り、<b>MSE</b>（Media Source Extensions）の口から流し込む。画質の切り替えや先読みをブラウザ任せにしないためだ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">YouTube の映像は VP9 か AV1（古い端末は H.264）、音声は Opus か AAC で、容器は WebM か MP4。VP9・AV1 のハードウェアデコードに対応していない GPU では CPU で復号するため、高解像度で発熱が増える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="プレーヤーのコード、video 要素と MediaSource の2本の SourceBuffer に溜まる区間、fetch からデコーダ、合成層への流れ"></svg></div>
+    <figcaption>図6　左がプレーヤーの JS、中央が <code>&lt;video&gt;</code> と MediaSource（映像・音声の SourceBuffer に溜まった区間と再生位置）、右が断片が復号されて合成層に届くまで。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — URL から動画の箱まで</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>URL はスキーム・ホスト・パス・クエリに分かれ、HSTS で送信前に https に直り、ブラウザプロセスからネットワークプロセスへ IPC で渡る。描画担当のレンダラは通信に直接触れない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>HTML はバイト列 → 文字 → トークン → 木（DOM）。同期の <code>&lt;script&gt;</code> でパーサは止まり、プリロードスキャナが先読みする（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>CSS を CSSOM にし、カスケードと継承で計算済みスタイルを作り、レイアウトで px の矩形を決める。動画の箱 1280×720 はここで決まる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>ペイントで描画命令を作り、レイヤーに分け、タイルを GPU で画素にし、コンポジタが 16.7 ms ごとに1枚に重ねる。動画は専用レイヤー（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>JS は V8 がバイトコードと JIT の機械語で走らせ、イベントループがタスク → マイクロタスク → レンダリングを繰り返す。クリックも fetch の応答もタスク（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>プレーヤーは MSE の SourceBuffer に断片を <code>appendBuffer</code> し、ブラウザが復号して合成層へ。再生位置が溜めた区間の先端に追いつくと止まる（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>HSTS</th><td>HTTP Strict Transport Security。サイトが「以後 https だけで来い」と宣言する仕組み。プリロードリストに載ったドメインは初回から書き換える。</td></tr>
+        <tr><th>サイト分離</th><td>Chromium がサイトごとに別のレンダラプロセスを使うこと。別サイトのデータが同じプロセスのメモリに載らない。</td></tr>
+        <tr><th><i class="sw d"></i>DOM</th><td>HTML から作る文書の木。要素・文字・コメントがノードで、属性は要素に付く。JS の <code>document</code> がその根。</td></tr>
+        <tr><th>CSSOM・<span class="nw">計算済みスタイル</span></th><td>CSS の規則の木と、各ノードに全プロパティの値を確定させたもの。カスケード（出所→詳細度→順序）と継承で決まる。</td></tr>
+        <tr><th>レイアウト</th><td>各ボックスの位置と大きさを px で決める処理。幅は親から、高さは中身から。変更部分だけやり直す。</td></tr>
+        <tr><th>レイヤー・合成</th><td>別々に動く部分を別の層に描き、コンポジタが重ねて1枚にする。スクロール、動画、transform・opacity のアニメーションは合成だけで動く。</td></tr>
+        <tr><th>イベントループ</th><td>タスクを1つ実行 → マイクロタスクを全部 → 必要なら描画、の繰り返し。メインスレッド1本で回る。</td></tr>
+        <tr><th>V8・JIT</th><td>Chromium の JS エンジン。バイトコード（Ignition）で始め、よく走る関数ほど段階的に機械語にする（Sparkplug → Maglev → TurboFan）。</td></tr>
+        <tr><th>MSE・SourceBuffer</th><td>Media Source Extensions。JS が <code>appendBuffer</code> で動画・音声のバイト列を入れる口。<code>buffered</code> に再生可能な区間が増える。</td></tr>
+        <tr><th>PTS</th><td>Presentation Time Stamp。各フレームの表示時刻。<code>currentTime</code>（音声の時計）が追いついたフレームを合成に出す。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+  /* 枠付きの箱。title は中央、sub は小さく下に */
+  function box(p, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({ transform: `translate(${x},${y})` }, p);
+    g.__rect = S.rect(0, 0, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    if (title) S.text(w / 2, sub ? h / 2 - 3 : h / 2 + 4.5, title, { cls: 't-c t-b ' + (tcls || 't-md') }, g);
+    if (sub) S.text(w / 2, h / 2 + 13, sub, { cls: 't-c t-xs t-dim' }, g);
+    return g;
+  }
+  /* 小さな札（データの塊、タスクなど）。(0,0) が中心 */
+  function token(p, label, cls, w) {
+    const g = S.g({}, p);
+    w = w || Math.max(34, label.length * 7.5 + 14);
+    S.rect(-w / 2, -10, w, 20, { rx: 4, cls: cls || 'f-d' }, g);
+    S.text(0, 4, label, { cls: 't-c t-xs t-b t-sf' }, g);
+    g.__w = w;
+    return g;
+  }
+  /* 等幅の行の列 */
+  function codeLines(p, x, y, lines, lh, cls) {
+    return lines.map((s, i) => S.text(x, y + i * (lh || 20), s, { cls: 't-code ' + (cls || '') }, p));
+  }
+  /* 進み具合の帯 */
+  function bar(p, x, y, w, h, cls) {
+    S.rect(x, y, w, h, { rx: 3, cls: 'f-in s-rule w1' }, p);
+    return S.rect(x, y, 0, h, { rx: 3, cls: cls || 'f-d' }, p);
+  }
+  const setOp = (el, v) => { el.style.opacity = v; };
+
+  /* ================================================================
+     場面1 URL を打つ
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'アドレスバーに打つ', text: '文字はブラウザプロセスの UI スレッドが受け取る。1文字打つごとに履歴・ブックマークを照合し、既定の設定では検索エンジンにも候補を問い合わせる。ページの要求はまだ送っていない。Enter で「URL か検索語か」を判定する。' },
+      { title: 'URL の部品に分ける', text: 'URL はスキーム `https`、ホスト `www.youtube.com`、パス `/watch`、クエリ `?v=…` に分かれる。ホストは第17章の DNS で番号（IP アドレス）に変わり、パスとクエリは第21章の HTTP の要求に入る。' },
+      { title: 'HSTS：送る前に https に直す', text: 'youtube.com は HSTS プリロードリストに入っているので、`http://` と打っても送信前に `https://` に書き換える。平文で1回も送らないため、途中で書き換えられる余地がない（第20章）。' },
+      { title: 'ネットワークプロセスに依頼する', text: 'ブラウザプロセスは IPC（Chromium では Mojo）で要求をネットワークプロセスへ渡す。そこが DNS・接続・TLS・HTTP を担当し、OS のソケット（第9章）を呼ぶ。描画担当のプロセスにはネットワークを直接触らせない。' },
+      { title: '応答が来たらレンダラを用意する', text: '応答の先頭が届くと、ブラウザプロセスは youtube.com 専用のレンダラプロセス（サイト分離）を起動または再利用し、本文のバイト列をデータパイプで流し込む。ここでアドレスバーの表示が確定（コミット）する。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // アドレスバー
+      const bar = S.g({}, svg);
+      S.rect(40, 32, 880, 44, { rx: 22, cls: 'f-sf s-rule w15' }, bar);
+      S.rect(62, 53, 12, 10, { rx: 2, cls: 'f-dim' }, bar);
+      S.path('M64,53 v-4 a4,4 0 0 1 8,0 v4', { cls: 'f-none s-dim w2' }, bar);
+      st.url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+      st.urlTxt = S.text(88, 60, '', { cls: 't-mono t-lg' }, bar);
+      st.cursor = S.rect(88, 42, 2, 24, { cls: 'f-fg' }, bar);
+      S.text(900, 60, 'Enter ↵', { cls: 't-sm t-dim t-mono', 'text-anchor': 'end' }, bar);
+      // 候補（段階1）
+      st.sugg = S.g({ cls: 'fade' }, svg);
+      S.rect(40, 84, 880, 118, { rx: 8, cls: 'f-sf s-rule w1' }, st.sugg);
+      [['www.youtube.com', '履歴'], ['www.youtube.com/watch?v=dQw4w9WgXcQ — 動画の題名', '履歴'], ['youtube — Google 検索', '検索']].forEach(([tx, k], i) => {
+        if (i === 0) S.rect(48, 92, 864, 32, { rx: 5, cls: 'f-in' }, st.sugg);
+        S.text(70, 113 + i * 36, tx, { cls: 't-mono t-md' }, st.sugg);
+        S.text(900, 113 + i * 36, k, { cls: 't-sm t-dim', 'text-anchor': 'end' }, st.sugg);
+      });
+      st.suggNote = S.text(480, 236, '', { cls: 't-c t-sm t-dim' }, st.sugg);   // 文は frame が入力の進みに合わせて書く
+      // URL の部品（段階2〜）
+      st.parts = S.g({ cls: 'fade hide' }, svg);
+      const cw = 9.0, x0 = 88;
+      const segs = [['スキーム', 0, 5, 'https', 'どう話すか。TLS の上の HTTP（第20・21章）'], ['ホスト', 8, 23, 'www.youtube.com', '誰に。DNS で IP アドレスへ（第17章）'], ['パス', 23, 29, '/watch', '何を。HTTP の要求に入る（第21章）'], ['クエリ', 29, 43, '?v=dQw4w9WgXcQ', '条件。動画の ID をサーバーに渡す']];
+      segs.forEach(([name, a, b, val, note], i) => {
+        const xa = x0 + a * cw + 1, xb = x0 + b * cw - 1;
+        S.line(xa, 86, xb, 86, { cls: 's-fg w3 round' }, st.parts);
+        S.text((xa + xb) / 2, 104, name, { cls: 't-c t-sm t-b' }, st.parts);
+        const y = 150 + i * 30;
+        S.text(96, y, name, { cls: 't-sm t-b' }, st.parts);
+        S.text(170, y, val, { cls: 't-mono t-sm' }, st.parts);
+        S.text(330, y, note, { cls: 't-sm t-dim' }, st.parts);
+      });
+      // HSTS（段階3）
+      st.hsts = S.g({ cls: 'fade hide', transform: 'translate(600,150)' }, svg);
+      S.rect(0, -22, 320, 100, { rx: 8, cls: 'f-sf s-x w1' }, st.hsts);
+      S.text(160, 0, 'HSTS プリロードリスト', { cls: 't-c t-b t-sm t-x' }, st.hsts);
+      S.text(20, 28, 'http://youtube.com/', { cls: 't-mono t-md t-dim', style: { 'text-decoration': 'line-through' } }, st.hsts);
+      S.text(20, 56, 'https://youtube.com/', { cls: 't-mono t-md t-b' }, st.hsts);
+      S.path('M190,20 q24,14 0,28', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.hsts);
+      S.text(210, 44, '送信前に書き換え', { cls: 't-xs t-x' }, st.hsts);
+      // プロセス（段階4〜）
+      const gp = st.procs = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 300, 'Chromium のプロセス', { cls: 't-b t-md' }, gp);
+      st.bBrowser = box(gp, 60, 316, 240, 84, 'ブラウザプロセス', 'UI・アドレスバー・タブの管理');
+      st.bNet = box(gp, 360, 316, 240, 84, 'ネットワークプロセス', 'DNS・接続・TLS・HTTP');
+      st.bRend = box(gp, 660, 316, 240, 84, 'レンダラプロセス', 'youtube.com のタブ：DOM・JS・描画');
+      st.bOs = box(gp, 360, 452, 240, 64, 'OS カーネル', 'ソケット・NIC（第9章・第7章）', 'f-in s-rule w1');
+      st.bWorld = box(gp, 660, 452, 240, 64, 'インターネット', 'Wi-Fi・光回線・ISP・Google（第11章〜）', 'f-in s-rule w1');
+      // 矢印
+      S.path('M300,348 H356', { cls: 'f-none s-fg w2', 'marker-end': mk('fg') }, gp);   // 呼び出し・依頼は無彩色
+      S.text(328, 340, 'IPC', { cls: 't-c t-xs t-b' }, gp);
+      S.path('M460,400 V448', { cls: 'f-none s-fg w2', 'marker-end': mk('fg') }, gp);
+      S.text(510, 428, 'システムコール', { cls: 't-xs' }, gp);
+      S.path('M600,476 H656', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gp);
+      S.path('M656,492 H600', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gp);
+      S.path('M500,448 V400', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gp);
+      st.arrRend = S.path('M600,364 H656', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, gp);
+      st.txtRend = S.lines(630, 386, ['データ', 'パイプ'], { cls: 't-c t-xs t-d t-b' }, gp, 12);
+      st.arrCommit = S.path('M180,316 V290 H780 V312', { cls: 'f-none s-dim w15 dash', 'marker-end': mk('dim') }, gp);
+      st.txtCommit = S.text(480, 284, '起動／再利用、コミット', { cls: 't-c t-xs t-dim' }, gp);
+      // 要求と応答の道（端は箱どうしの隙間に置き、止めたときに箱の文字を隠さない）
+      st.reqPath = S.path('M330,372 H460 V484 H630', { cls: 'f-none s-none' }, gp);
+      st.resPath = S.path('M630,484 H500 V364 H630', { cls: 'f-none s-none' }, gp);
+      st.reqTok = token(gp, '要求', 'f-d');
+      st.resTok = token(gp, '応答', 'f-d');
+      st.flowTxt = S.text(480, 544, '', { cls: 't-c t-sm t-dim' }, gp);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.sugg, i === 0);
+      S.fade(st.parts, i >= 1 && i <= 2);
+      S.fade(st.hsts, i === 2);
+      S.fade(st.procs, i >= 3);
+      st.cursor.style.display = i === 0 ? '' : 'none';
+      if (i >= 1) st.urlTxt.textContent = st.url;
+      const em = (g, on) => g.__rect.setAttribute('class', on ? 'f-d-soft s-d w2' : 'f-sf s-rule w1');
+      em(st.bBrowser, i === 3); em(st.bNet, i === 3); em(st.bRend, i === 4);
+      setOp(st.arrRend, i === 4 ? 1 : 0.25); setOp(st.txtRend, i === 4 ? 1 : 0.25);
+      setOp(st.arrCommit, i === 4 ? 1 : 0.25); setOp(st.txtCommit, i === 4 ? 1 : 0.25);
+      st.flowTxt.textContent = i === 3 ? '要求は ブラウザ → ネットワーク → OS → 外へ。レンダラは通信に直接触れない' :i === 4 ? '応答は OS → ネットワーク → レンダラへ。ブラウザプロセスがレンダラを選んで結びつける' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) {
+        const n = Math.min(st.url.length, Math.floor(ctx.ts * 14));
+        st.urlTxt.textContent = st.url.slice(0, n);
+        st.cursor.setAttribute('x', 88 + n * 9);
+        st.cursor.style.opacity = Math.floor(t * 2) % 2 ? 0.2 : 1;
+        const rows = n < 6 ? 1 : 3;
+        st.suggNote.textContent = n < st.url.length ? `入力 ${n} 文字。候補を ${rows} 件照合中` : 'Enter：URL と判定。スキームがあるので検索語ではない';
+      }
+      if (i === 3) {
+        const f = U.ease.inOut(U.cycle(t, 3));
+        S.place(st.reqTok, st.reqPath, f);
+        st.reqTok.style.opacity = f > 0.97 ? 0 : 1;
+        st.resTok.style.opacity = 0;
+      } else if (i === 4) {
+        const f = U.ease.inOut(U.cycle(t, 3));
+        S.place(st.resTok, st.resPath, f);
+        st.resTok.style.opacity = f > 0.97 ? 0 : 1;
+        st.reqTok.style.opacity = 0;
+      } else { st.reqTok.style.opacity = 0; st.resTok.style.opacity = 0; }
+    }
+  };
+
+  /* ================================================================
+     場面2 HTML → DOM
+     ================================================================ */
+  const LINES = [
+    ['<!doctype html>', ['DOCTYPE トークン'], null],
+    ['<html>', ['開始タグ html'], 'html'],
+    ['<head>', ['開始タグ head'], 'head'],
+    ['  <title>YouTube</title>', ['開始タグ title', '文字 "YouTube"', '終了タグ title'], 'title'],
+    ['  <link rel="stylesheet" href="main.css">', ['開始タグ link', '属性 rel, href'], 'link'],
+    ['  <script src="player.js"><\/script>', ['開始タグ script（src）', '終了タグ script'], 'script'],
+    ['</head>', ['終了タグ head'], null],
+    ['<body>', ['開始タグ body'], 'body'],
+    ['  <div id="player">', ['開始タグ div', '属性 id="player"'], 'div'],
+    ['    <video></video>', ['開始タグ video', '終了タグ video'], 'video'],
+    ['  </div>', ['終了タグ div'], null],
+    ['  <h1>動画の題名</h1>', ['開始タグ h1', '文字 "動画の題名"', '終了タグ h1'], 'h1'],
+    ['</body>', ['終了タグ body'], null],
+    ['</html>', ['終了タグ html'], null]
+  ];
+  const NODES = {
+    html: [780, 90, null, 'html'], head: [690, 160, 'html', 'head'], body: [870, 160, 'html', 'body'],
+    title: [628, 230, 'head', 'title'], link: [692, 230, 'head', 'link'], script: [756, 230, 'head', 'script'],
+    div: [836, 230, 'body', 'div#player'], h1: [912, 230, 'body', 'h1'], video: [836, 300, 'div', 'video']
+  };
+  const s2 = {
+    steps: [
+      { title: 'バイト列を文字にする', text: '届くのは UTF-8 のバイト列。レンダラは `3C 21 64 6F …` を文字 `<!do…` に戻し、届いた分から順にパーサへ渡す。全部そろうのを待たないので、長いページでも先頭から組み立てが始まる。' },
+      { title: 'トークンに切る', text: 'トークナイザは文字を1つずつ読み、状態機械で「開始タグ（名前・属性）」「文字」「終了タグ」「コメント」に切る。`<div id="player">` は、名前 div・属性 id=player の開始タグトークン1個になる。' },
+      { title: '木を組み立てる', text: 'ツリー構築器は、開いている要素のスタックで親子を決める。開始タグで子を作って積み、終了タグで降ろす。閉じ忘れや順序違いも仕様どおりに修復するので、壊れた HTML でも必ず木ができる。' },
+      { title: '<script> で止まる', text:'同期の `<script>` に出会うとパーサは止まり、取得して実行し終えるまで進まない。スクリプトが DOM を書き換えうるからだ。`defer`・`async` なら止まらない。並行して**プリロードスキャナ**が先を読み、CSS や画像の取得を先に始める。' },
+      { title: 'DOM ができた', text: 'できた木が DOM。JS からは `document.getElementById("player")` のように触れる。ただし DOM は文書の構造であって見た目ではない。どこに何 px で出るかは、次の場面のスタイル計算とレイアウトで決まる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: ソース
+      S.text(30, 44, 'HTML（ネットワークから届く）', { cls: 't-b t-md' }, svg);
+      S.rect(30, 56, 300, 352, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      st.hl = S.rect(34, 60, 292, 22, { rx: 3, cls: 'f-d-soft' }, svg);
+      st.pre = S.rect(34, 60, 292, 22, { rx: 3, cls: 'f-none s-d w1 dash' }, svg);
+      st.lineEls = codeLines(svg, 40, 75, LINES.map((l) => l[0]), 24);
+      // 段階1: バイト列
+      st.bytes = S.g({ cls: 'fade' }, svg);
+      S.text(30, 440, 'バイト列（16進）', { cls: 't-sm t-b' }, st.bytes);
+      const hex = '3C 21 64 6F 63 74 79 70 65 20 68 74 6D 6C 3E 0A 3C 68 74 6D 6C 3E'.split(' ');
+      const chs = ['<', '!', 'd', 'o', 'c', 't', 'y', 'p', 'e', '␠', 'h', 't', 'm', 'l', '>', '␊', '<', 'h', 't', 'm', 'l', '>'];
+      st.hexEls = hex.map((h, k) => S.text(30 + k * 27, 466, h, { cls: 't-mono t-sm t-dim' }, st.bytes));
+      st.chEls = chs.map((c, k) => S.text(30 + k * 27 + 7, 500, c, { cls: 't-mono t-md t-b' }, st.bytes));
+      S.text(30, 530, 'UTF-8 でデコード。1 バイト＝1 文字（ASCII）、日本語はほぼ 3 バイト＝1 文字', { cls: 't-xs t-dim' }, st.bytes);
+      st.byteCur = S.rect(26, 448, 26, 62, { rx: 3, cls: 'f-none s-x w15' }, st.bytes);
+      // 中央: トークナイザ
+      const gm = st.gm = S.g({ cls: 'fade' }, svg);
+      box(gm, 352, 56, 236, 40, 'トークナイザ', null, 'f-in s-rule w1');
+      S.path('M330,100 H350', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gm);
+      st.tokBox = S.rect(352, 110, 236, 84, { rx: 6, cls: 'f-sf s-d w15' }, gm);
+      st.tokTxt = S.lines(470, 138, [''], { cls: 't-c t-sm t-mono' }, gm, 18);
+      box(gm, 352, 220, 236, 40, 'ツリー構築器', '開いている要素のスタック', 'f-in s-rule w1');
+      S.path('M470,194 V216', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gm);
+      S.path('M588,240 H608', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gm);
+      st.stackTxt = S.lines(470, 290, [''], { cls: 't-c t-xs t-mono t-dim' }, gm, 14);
+      // 段階4: script で停止
+      st.stop = S.g({ cls: 'fade hide' }, svg);
+      S.rect(352, 330, 236, 96, { rx: 6, cls: 'f-sf s-x w15' }, st.stop);
+      S.text(470, 352, 'パーサ停止中', { cls: 't-c t-b t-sm t-x' }, st.stop);
+      S.text(470, 372, 'player.js を取得して実行', { cls: 't-c t-xs' }, st.stop);
+      st.stopBar = bar(st.stop, 372, 384, 196, 10, 'f-x');
+      S.text(470, 414, 'プリロードスキャナは先へ（点線）', { cls: 't-c t-xs t-dim' }, st.stop);
+      // 右: DOM の木
+      S.text(620, 44, 'DOM（文書の木）', { cls: 't-b t-md' }, svg);
+      st.nodeEls = {}; st.edgeEls = {};
+      const gt = S.g({}, svg);
+      Object.keys(NODES).forEach((k) => {
+        const [x, y, parent, label] = NODES[k];
+        if (parent) {
+          const [px, py] = NODES[parent];
+          st.edgeEls[k] = S.line(px, py + 12, x, y - 12, { cls: 's-dim w1' }, gt);
+        }
+      });
+      Object.keys(NODES).forEach((k) => {
+        const [x, y, , label] = NODES[k];
+        const w = label.length > 6 ? 74 : label.length > 5 ? 64 : 52;
+        const g = S.g({}, gt);
+        S.rect(x - w / 2, y - 12, w, 24, { rx: 5, cls: 'f-d-soft s-d w1' }, g);
+        S.text(x, y + 4, label, { cls: 't-c t-xs t-mono t-b' }, g);
+        st.nodeEls[k] = g;
+      });
+      // 段階5: JS からのアクセス
+      st.js = S.g({ cls: 'fade hide' }, svg);
+      S.rect(600, 400, 340, 60, { rx: 6, cls: 'f-sf s-rule w1' }, st.js);
+      S.text(616, 424, 'document.getElementById("player")', { cls: 't-mono t-sm t-b' }, st.js);
+      S.text(616, 446, '→ div#player のノード。見た目はまだ無い', { cls: 't-xs t-dim' }, st.js);
+      S.path('M700,398 V262 H818 V247', { cls: 'f-none s-x w15 dash', 'marker-end': mk('x') }, st.js);
+      st.caption = S.text(480, 548, '', { cls: 't-c t-sm t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.bytes, i === 0);
+      S.fade(st.gm, i >= 1 && i <= 3);
+      st.stop.style.opacity = '';   // 段階4の frame が付けた濃さを外してから出し入れする
+      S.fade(st.stop, i === 3);
+      S.fade(st.js, i === 4);
+      st.pre.style.display = i === 3 ? '' : 'none';
+      st.caption.textContent = i === 0 ? '先頭から順に文字に戻す。全部届くのを待たない' : i === 1 ? '1 行ずつトークンに。属性はトークンの中に入る' : i === 2 ? '開始タグで子を積み、終了タグで降ろす' : i === 3 ? '同期 script で止まる。プリロードスキャナは先読みだけ続ける' : '木が完成。構造はあるが、位置も大きさも色もまだ無い';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const n = LINES.length;
+      let cur = n - 1, preIdx = -1, prog = 0, paused = false;
+      if (i === 0) {
+        cur = 0;
+        const k = Math.floor(U.cycle(t, 6) * 22);
+        st.byteCur.setAttribute('x', 26 + k * 27);
+        st.hexEls.forEach((e, j) => e.setAttribute('class', j <= k ? 't-mono t-sm t-b' : 't-mono t-sm t-dim'));
+        st.chEls.forEach((e, j) => setOp(e, j <= k ? 1 : 0.15));
+      } else if (i === 1 || i === 2) {
+        cur = Math.floor(U.cycle(t, 14) * n);
+      } else if (i === 3) {
+        // 0〜5 行を 0.6 秒ずつ → script で 3 秒止まる（先読みは進む）→ 残りを 0.6 秒ずつ → 1.5 秒休む
+        const q = U.seq(ctx.ts, [3.6, 3.0, 4.8, 1.5], true);
+        if (q.i === 0) cur = Math.min(5, Math.floor(q.f * 6));
+        else if (q.i === 1) { cur = 5; paused = true; prog = q.f; preIdx = Math.min(n - 1, 6 + Math.floor(q.f * 9)); }
+        else if (q.i === 2) cur = Math.min(n - 1, 6 + Math.floor(q.f * 8));
+        else cur = n - 1;
+      }
+      st.hl.setAttribute('y', 60 + cur * 24);
+      st.hl.setAttribute('class', paused ? 'f-x-soft' : 'f-d-soft');
+      if (preIdx >= 0) { st.pre.style.display = ''; st.pre.setAttribute('y', 60 + preIdx * 24); } else if (i === 3) st.pre.style.display = 'none';
+      st.lineEls.forEach((e, j) => e.setAttribute('class', 't-code' + (j === cur ? ' cur' : '') + (i >= 1 && i <= 3 && j > cur ? ' t-dim' : '')));
+      // トークン
+      if (i >= 1 && i <= 3) {
+        const toks = LINES[cur][1];
+        S.clear(st.tokTxt);
+        toks.forEach((s, k) => S.el('tspan', { x: 470, dy: k ? 18 : 0, text: s }, st.tokTxt));
+        st.tokTxt.setAttribute('y', 156 - (toks.length - 1) * 9);
+        // スタック（開いている要素）
+        const stack = [];
+        for (let j = 1; j <= cur; j++) {
+          const s = LINES[j][0].trim();
+          const m = /^<(\w+)/.exec(s);
+          const close = /<\/(\w+)>$/.exec(s);
+          if (m && !/^<\//.test(s)) stack.push(m[1]);
+          if (close && stack[stack.length - 1] === close[1]) stack.pop();
+          else if (close && stack.indexOf(close[1]) >= 0) { while (stack.length && stack[stack.length - 1] !== close[1]) stack.pop(); stack.pop(); }
+        }
+        S.clear(st.stackTxt);
+        S.el('tspan', { x: 470, dy: 0, text: 'スタック: ' + (stack.length ? stack.join(' > ') : '（空）') }, st.stackTxt);
+      }
+      if (i === 3) { st.stopBar.setAttribute('width', (prog * 196).toFixed(1)); setOp(st.stop, paused ? 1 : 0.35); }
+      // 木のノード
+      Object.keys(NODES).forEach((k) => {
+        const li = LINES.findIndex((l) => l[2] === k);
+        const on = i === 4 || i === 0 ? (i === 4) : li <= cur;
+        setOp(st.nodeEls[k], on ? 1 : 0.12);
+        if (st.edgeEls[k]) setOp(st.edgeEls[k], on ? 1 : 0.12);
+        if (i === 4 && k === 'div') st.nodeEls[k].firstChild.setAttribute('class', 'f-x-soft s-x w2');
+        else st.nodeEls[k].firstChild.setAttribute('class', 'f-d-soft s-d w1');
+      });
+    }
+  };
+
+  /* ================================================================
+     場面3 CSS → スタイル → レイアウト
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'CSS も木にする（CSSOM）', text: '`<link>` で取った CSS を解析し、セレクタと宣言の集まり（CSSOM）にする。CSS が届くまで描画は始めない（レンダリングブロック）。見た目が途中で変わるのを避けるためで、だからプリロードスキャナが CSS を急いで取る。' },
+      { title: 'スタイル計算', text: 'DOM の各ノードについて、マッチする規則を全部集め、カスケード（出所 → 詳細度 → 書かれた順）で勝ちを決め、指定の無い値は継承か初期値で埋める。結果が「計算済みスタイル」で、全プロパティに値が入る。' },
+      { title: 'レイアウト：位置と大きさを決める', text: '計算済みスタイルからレイアウトツリー（`display: none` は除く）を作り、各ボックスの位置と大きさを決める。通常フローでは、幅は親から下へ、高さは中身から上へ決まる。' },
+      { title: '動画の箱が決まる', text: '`#player { width: 100%; aspect-ratio: 16 / 9 }` なら、幅 1280px の窓で 1280 × 720px の箱になる。この矩形が「動画が映る場所」で、次の場面で合成層になり、デコーダが出したフレーム（第24章）がここに貼られる。' },
+      { title: '変わった所だけやり直す', text: '窓の幅が変わる、要素が増える、文字が変わると再レイアウトする。ブラウザは変わったノードに印（dirty）を付け、影響する範囲だけ計算し直す。JS が書き換えた直後に大きさを読むと、その場でレイアウトが走る（強制同期レイアウト）。これを交互に繰り返すと遅くなる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: CSS
+      S.text(30, 44, 'CSS（main.css）', { cls: 't-b t-md' }, svg);
+      S.rect(30, 56, 290, 196, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      const rules = [
+        ['body { margin: 0;', '  font: 14px sans-serif; }'],
+        ['#player { width: 100%;', '  aspect-ratio: 16 / 9; }'],
+        ['video { width: 100%;', '  height: 100%; }'],
+        ['h1 { font-size: 20px;', '  margin: 12px 16px; }']
+      ];
+      st.ruleHl = [];
+      rules.forEach((r, k) => {
+        st.ruleHl.push(S.rect(34, 62 + k * 46, 282, 42, { rx: 3, cls: 'f-d-soft', style: { opacity: 0 } }, svg));
+        codeLines(svg, 42, 78 + k * 46, r, 18);
+      });
+      st.cssom = S.g({ cls: 'fade' }, svg);
+      S.text(30, 280, 'CSSOM：規則の木', { cls: 't-sm t-b' }, st.cssom);
+      ['body', '#player', 'video', 'h1'].forEach((sel, k) => {
+        box(st.cssom, 30 + k * 72, 292, 64, 30, sel, null, 'f-d-soft s-d w1', 't-xs t-mono');
+      });
+      S.text(30, 344, '届くまで描画を始めない（レンダリングブロック）', { cls: 't-xs t-dim' }, st.cssom);
+      // 中央: 計算済みスタイル
+      const gm = st.gm = S.g({ cls: 'fade hide' }, svg);
+      S.text(340, 44, '計算済みスタイル（抜粋）', { cls: 't-b t-md' }, gm);
+      const comp = [
+        ['body', ['margin: 0px', 'font-size: 14px', 'width: 1280px（窓）']],
+        ['div#player', ['width: 1280px ← 100%', 'aspect-ratio: 16 / 9', 'display: block']],
+        ['video', ['width: 1280px ← 親', 'height: 720px ← 親']],
+        ['h1', ['font-size: 20px', 'font-family: 継承 ← body', 'margin: 12px 16px']]
+      ];
+      st.compChips = [];
+      comp.forEach(([name, props], k) => {
+        const y = 60 + k * 96;
+        S.rect(340, y, 250, 88, { rx: 6, cls: 'f-sf s-rule w1' }, gm);
+        S.text(352, y + 20, name, { cls: 't-mono t-sm t-b' }, gm);
+        props.forEach((p, j) => st.compChips.push(S.text(352, y + 40 + j * 16, p, { cls: 't-code t-dim' }, gm)));
+      });
+      st.compNote = S.text(465, 456, '', { cls: 't-c t-xs t-dim' }, gm);
+      // 右: レイアウト（1/4 縮尺）
+      const gl = st.gl = S.g({}, svg);
+      S.text(612, 44, 'レイアウト（窓を 1/4 に縮小）', { cls: 't-b t-md' }, gl);
+      st.vp = S.rect(612, 60, 320, 225, { rx: 2, cls: 'f-in s-fg w15' }, gl);
+      st.bBody = S.rect(612, 60, 320, 225, { cls: 'f-sf s-dim w1', style: { opacity: 0 } }, gl);
+      st.bPlayer = S.rect(612, 60, 320, 180, { cls: 'f-fg', style: { opacity: 0 } }, gl);
+      st.bVideo = S.rect(612, 60, 320, 180, { cls: 'f-none s-x w1 dash', style: { opacity: 0 } }, gl);
+      st.bH1 = S.rect(616, 243, 100, 8, { rx: 2, cls: 'f-mid', style: { opacity: 0 } }, gl);
+      st.lblPlayer = S.text(772, 155, '', { cls: 't-c t-sm t-b t-sf t-mono' }, gl);
+      st.lblH1 = S.text(724, 251, '', { cls: 't-xs t-dim t-mono' }, gl);
+      st.dimW = S.text(772, 300, '', { cls: 't-c t-xs t-mono t-dim' }, gl);
+      st.flowNote = S.lines(612, 330, [''], { cls: 't-xs t-dim' }, gl, 16);
+      // 再レイアウトの表示
+      st.relayout = S.g({ cls: 'fade hide' }, svg);
+      S.text(612, 400, '窓の幅 1280px ⇄ 960px', { cls: 't-sm t-b' }, st.relayout);
+      st.dirty = S.text(612, 422, '', { cls: 't-xs t-x' }, st.relayout);
+      S.text(612, 444, '変わった箱だけ計算し直す（dirty な部分木）', { cls: 't-xs t-dim' }, st.relayout);
+      S.text(612, 466, 'JS で offsetWidth を読む → 直前の変更を今すぐ反映する', { cls: 't-xs t-dim' }, st.relayout);
+      S.text(612, 482, '必要があり、強制同期レイアウトが起きる', { cls: 't-xs t-dim' }, st.relayout);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.cssom, i === 0);
+      S.fade(st.gm, i >= 1);
+      S.fade(st.relayout, i === 4);
+      st.ruleHl.forEach((r) => setOp(r, i === 1 ? 1 : 0));
+      st.compChips.forEach((c) => c.setAttribute('class', 't-code' + (i >= 1 ? '' : ' t-dim')));
+      st.compNote.textContent = i === 1 ? '全ノード × 全プロパティに値が入る' : i >= 2 ? '値は決まったが、位置はまだ無い → レイアウトへ' : '';
+      st.vp.setAttribute('width', 320);   // 段階5で縮めた窓を元に戻す
+      [st.bBody, st.bPlayer, st.bVideo, st.bH1].forEach((b) => setOp(b, 0));
+      st.lblPlayer.textContent = ''; st.lblH1.textContent = ''; st.dimW.textContent = '';
+      S.clear(st.flowNote);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i < 2) return;
+      // 窓の幅（段階5 では 1280 ⇄ 960 を往復）
+      let W = 1280;
+      if (i === 4) {
+        const f = U.ease.inOut(U.pulse(t, 6));
+        W = Math.round(1280 - 320 * f);
+      }
+      const sc = 0.25, vw = W * sc, ph = vw * 9 / 16;
+      // 段階3: 箱が順に置かれる。段階4以降は全部置かれた状態
+      const q = i === 2 ? U.seq(ctx.ts, [1.0, 1.4, 1.0, 2.0], true) : { i: 3, f: 1 };
+      const showBody = q.i >= 0, showPlayer = q.i >= 1, showH1 = q.i >= 2;
+      const pf = q.i === 1 ? U.ease.out(q.f) : (q.i > 1 ? 1 : 0);
+      st.vp.setAttribute('width', vw);
+      st.bBody.setAttribute('width', vw); setOp(st.bBody, showBody ? 1 : 0);
+      st.bPlayer.setAttribute('width', (vw * pf).toFixed(1)); st.bPlayer.setAttribute('height', (ph * (q.i === 1 ? Math.min(1, pf * 1.6) : 1)).toFixed(1)); setOp(st.bPlayer, showPlayer ? 1 : 0);
+      st.bVideo.setAttribute('width', vw); st.bVideo.setAttribute('height', ph); setOp(st.bVideo, showPlayer && pf >= 1 && i >= 3 ? 1 : 0);
+      st.bH1.setAttribute('y', 60 + ph + 3); st.bH1.setAttribute('x', 616); setOp(st.bH1, showH1 ? 1 : 0);
+      st.lblPlayer.setAttribute('x', 612 + vw / 2); st.lblPlayer.setAttribute('y', 60 + ph / 2 + 5);
+      st.lblPlayer.textContent = showPlayer && pf >= 1 ? `#player ${W} × ${Math.round(W * 9 / 16)}` : '';
+      st.lblH1.setAttribute('y', 60 + ph + 11); st.lblH1.setAttribute('x', 616 + 108);
+      st.lblH1.textContent = showH1 ? `h1 (16, ${Math.round(W * 9 / 16) + 12})` : '';
+      st.dimW.setAttribute('x', 612 + vw / 2);
+      st.dimW.textContent = `窓の幅 ${W}px → 1/4 で ${Math.round(vw)}px`;
+      S.clear(st.flowNote);
+      const notes = i === 2 ? ['幅は親から下へ：窓 → body → #player → video', '高さは中身から上へ：16:9 の比で 720px、h1 は文字の高さ'] : i === 3 ? ['この矩形 (0, 0, 1280, 720) に動画が映る。', 'デコーダのフレーム（第24章）を合成層（場面4）で貼る'] : [];
+      notes.forEach((s, k) => S.el('tspan', { x: 612, dy: k ? 16 : 0, text: s }, st.flowNote));
+      if (i === 4) st.dirty.textContent = W !== 1280 ? `dirty: body・#player・video（幅 ${W}）と h1（位置）` : 'dirty: なし';
+    }
+  };
+
+  /* ================================================================
+     場面4 ペイント → 合成
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'ペイント：描画命令のリストにする', text: 'レイアウトの箱を「矩形を塗れ」「文字を描け」「画像を貼れ」という描画命令の列（表示リスト）に変える。順番は重なり順（スタッキング文脈、`z-index`）で、まだ画素にはしない。' },
+      { title: 'レイヤーに分ける', text: '動画、スクロールする本文、重ねる操作パネルのように別々に動く部分は別の合成層にする。動画は毎秒 24〜60 回変わるが本文は変わらない。層を分ければ、変わった層だけ描き直して重ねるだけで済む。' },
+      { title: 'ラスタライズ：タイルを画素にする', text: '各層を 256 × 256 画素などのタイルに分け、描画命令を GPU（Skia）で画素にする。見えている範囲とその周辺のタイルを優先する。ここで初めて、画素ごとの数値（RGB、第8章）ができる。' },
+      { title: '合成：1枚に重ねる', text: 'コンポジタスレッドが各層のタイルを位置・透明度・変形に従って重ね、1枚のフレームにする。スクロールや transform・opacity の CSS アニメーションは、JS を待たずにこの段階だけで動く。メインスレッドが忙しくてもスクロールが止まりにくい理由。' },
+      { title: '画面へ', text: 'GPU プロセスが完成したフレームを OS のウィンドウ合成（第8章）へ渡し、垂直同期（60 Hz なら 16.7 ms ごと）に合わせて表示する。動画層にはデコーダが出した映像フレームのテクスチャが直接貼られる（第24章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: 表示リスト
+      S.text(30, 44, '表示リスト（描画命令）', { cls: 't-b t-md' }, svg);
+      S.rect(30, 56, 250, 230, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      const ops = ['drawRect(0,0,1280,900, 白)  body', 'drawRect(0,0,1280,720, 黒)  #player', 'drawVideoFrame(0,0,1280,720)', 'drawText(16,748,"動画の題名")', 'drawRect(…, 半透明)  操作パネル', 'drawText(…, "0:00 / 3:33")'];
+      st.opEls = codeLines(svg, 40, 80, ops, 30);
+      st.opHl = S.rect(34, 62, 242, 26, { rx: 3, cls: 'f-d-soft' }, svg);
+      st.opNote = S.text(30, 310, '重なり順（z-index・スタッキング文脈）に並ぶ', { cls: 't-xs t-dim' }, svg);
+      // 中央: レイヤー
+      const gl = st.gl = S.g({ cls: 'fade' }, svg);
+      S.text(310, 44, 'レイヤー（合成層）', { cls: 't-b t-md' }, gl);
+      const layers = [['操作パネル層', 'ボタン・時刻（半透明）', 'f-sf s-rule w1', 90], ['動画層', '毎秒 24〜60 回変わる', 'f-fg s-fg w1', 200], ['本文層', 'h1・説明・コメント', 'f-sf s-rule w1', 310]];
+      st.layerEls = layers.map(([name, sub, cls, y]) => {
+        const g = S.g({ transform: `translate(360,${y}) skewX(-28)` }, gl);
+        S.rect(0, 0, 240, 90, { rx: 3, cls }, g);
+        return { g, name, y };
+      });
+      layers.forEach(([name, sub, , y]) => { S.text(612, y + 40, name, { cls: 't-sm t-b' }, gl); S.text(612, y + 56, sub, { cls: 't-xs t-dim' }, gl); });
+      // タイル（本文層の上）
+      st.tiles = S.g({ cls: 'fade hide', transform: 'translate(360,310) skewX(-28)' }, gl);
+      st.tileEls = [];
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) st.tileEls.push(S.rect(c * 40, r * 30, 40, 30, { cls: 'f-d-soft s-d w1', style: { opacity: 0 } }, st.tiles));
+      st.tileNote = S.text(420, 428, '', { cls: 't-c t-xs t-dim' }, gl);
+      // 右: コンポジタ → GPU → 画面
+      const gr = st.gr = S.g({ cls: 'fade hide' }, svg);
+      box(gr, 730, 60, 210, 70, 'コンポジタスレッド', '位置・透明度・変形で重ねる');
+      box(gr, 730, 170, 210, 70, 'GPU プロセス', 'ラスタライズ（Skia）と表示');
+      box(gr, 730, 280, 210, 70, 'OS のウィンドウ合成', '他の窓と重ねる（第8章）', 'f-in s-rule w1');
+      S.path('M835,130 V166', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gr);
+      S.path('M835,240 V276', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gr);
+      S.path('M835,350 V376', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gr);
+      // 画面（合成結果）
+      st.screen = S.g({ transform: 'translate(740,380)' }, gr);
+      S.rect(0, 0, 190, 108, { rx: 3, cls: 'f-in s-fg w15' }, st.screen);
+      S.rect(0, 0, 190, 86, { cls: 'f-fg' }, st.screen);
+      st.scrBar = S.rect(6, 70, 178, 10, { rx: 2, cls: 'f-sf', style: { opacity: 0.7 } }, st.screen);
+      st.scrProg = S.rect(6, 70, 40, 10, { rx: 2, cls: 'f-x' }, st.screen);
+      S.rect(6, 92, 70, 6, { rx: 2, cls: 'f-mid' }, st.screen);
+      st.frameTxt = S.text(835, 506, '', { cls: 't-c t-xs t-mono t-dim' }, gr);
+      S.text(846, 370, '画面', { cls: 't-xs t-dim' }, gr);
+      // 下: 垂直同期の時間軸
+      st.vs = S.g({ cls: 'fade hide' }, svg);
+      S.line(300, 520, 640, 520, { cls: 's-rule w1' }, st.vs);
+      for (let k = 0; k <= 5; k++) { S.line(300 + k * 68, 512, 300 + k * 68, 528, { cls: 's-dim w1' }, st.vs); S.text(300 + k * 68, 544, (k * 1000 / 60).toFixed(1) + ' ms', { cls: 't-c t-xs t-mono t-dim' }, st.vs); }
+      st.vsCur = S.line(300, 506, 300, 534, { cls: 's-x w2' }, st.vs);
+      S.text(300, 480, '垂直同期（60 Hz）', { cls: 't-xs t-b' }, st.vs);
+      st.vsNote = S.text(300, 497, '', { cls: 't-xs t-dim' }, st.vs);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gl, i >= 1);
+      S.fade(st.tiles, i === 2);
+      S.fade(st.gr, i >= 3);
+      S.fade(st.vs, i >= 3);
+      st.opHl.style.display = i === 0 ? '' : 'none';
+      st.layerEls.forEach((l, k) => setOp(l.g, i === 1 || i >= 3 ? 1 : (i === 2 && k === 2 ? 1 : 0.35)));
+      st.layerEls[1].g.firstChild.setAttribute('class', 'f-fg s-fg w1');   // 段階4・5の明滅を戻す
+      st.tileNote.textContent = i === 2 ? 'タイルごとに GPU で画素化。見えている所から' : i === 1 ? '層ごとに別のテクスチャ。動画層だけが毎フレーム変わる' : '';
+      st.vsNote.textContent = i === 4 ? '動画層は 60 fps の映像なら毎回、30 fps なら 2 回に 1 回新しいフレーム' : i === 3 ? '16.7 ms ごとに 1 枚を合成。間に合わなければその回は前の絵のまま' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) {
+        const k = Math.floor(U.cycle(t, 6) * 6);
+        st.opHl.setAttribute('y', 62 + k * 30);
+        st.opEls.forEach((e, j) => e.setAttribute('class', 't-code' + (j === k ? ' cur' : '') + (j > k ? ' t-dim' : '')));
+      }
+      if (i === 2) {
+        const k = Math.floor(U.cycle(t, 5) * 20);
+        st.tileEls.forEach((e, j) => setOp(e, j < k ? 1 : 0));
+      }
+      if (i >= 3) {
+        const f = U.cycle(t, 5.0 / 3);      // 100 ms を 5/3 秒で（1/60 を 0.28 秒に誇張）
+        st.vsCur.setAttribute('x1', 300 + f * 340); st.vsCur.setAttribute('x2', 300 + f * 340);
+        st.frameTxt.textContent = `フレーム ${Math.floor(t * 3.6)}　合成 ≦ 16.7 ms`;
+        st.scrProg.setAttribute('width', 40 + U.cycle(t, 20) * 138);
+        if (i === 1 || i >= 3) st.layerEls[1].g.firstChild.setAttribute('class', Math.floor(t * 3.6) % 2 ? 'f-fg s-fg w1' : 'f-mid s-fg w1');
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 JavaScript とイベントループ
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'JS が届いて機械語になる', text: 'プレーヤーの JS は数 MB ある。V8 は解析してバイトコード（Ignition）にし、まずインタプリタで実行する。何度も走る関数は Sparkplug がそのまま機械語（第6章）にし、さらに型の統計を使って Maglev・TurboFan が最適化する。' },
+      { title: 'メインスレッドは1本', text: 'レンダラのメインスレッドは、JS の実行・スタイル計算・レイアウト・ペイントを1本で順番に行う。JS が1つのタスクで長く走れば、その間フレームは出ない。メインスレッドで動かすものを 60 Hz で滑らかに見せるには、JS と描画を合わせて 16.7 ms に収める。' },
+      { title: 'イベントループ', text: 'タスクキュー（クリック、タイマー、ネットワーク応答）から1つ取って実行し、終わったらマイクロタスク（Promise の続き）を全部片付け、描画が必要なら rAF → スタイル → レイアウト → ペイントを1回行い、次のタスクへ。' },
+      { title: 'クリックが届くまで', text: '第7章の USB → OS → ブラウザプロセス → IPC → レンダラ。入力はタスクとしてキューに入り、順番が来るとメインスレッドがヒットテストで押された要素を決め、`click` のハンドラを呼ぶ。これでプレーヤーの「再生」が始まる。' },
+      { title: 'fetch は依頼して待つ', text: '`fetch()` は IPC でネットワークプロセスに依頼してすぐ戻り、応答はストリームで戻ってくる。Promise の解決はマイクロタスクとして続きを走らせる。プレーヤーはこれで動画の断片を取りに行く（次の場面）。' },
+      { title: 'Web Worker で逃がす', text: '重い計算は Web Worker（別スレッド）に送り、`postMessage` で結果だけ受け取る。Worker から DOM には触れないが、メインスレッドの 16.7 ms を空けられる。解析・圧縮・暗号のような重い処理は、この形で逃がせる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 上: V8
+      const gv = st.gv = S.g({}, svg);
+      S.text(30, 40, 'V8（JS エンジン）', { cls: 't-b t-md' }, gv);
+      const chain = [['JS ソース', '数 MB'], ['パーサ', 'AST'], ['バイトコード', 'Ignition（解釈実行）'], ['最適化コンパイラ', 'Maglev → TurboFan'], ['機械語', 'CPU が直接実行']];
+      st.v8Boxes = chain.map(([a, b], k) => box(gv, 30 + k * 186, 52, 160, 50, a, b, k === 4 ? 'f-in s-mid w1' : 'f-sf s-rule w1', 't-sm'));
+      for (let k = 0; k < 4; k++) S.path(`M${190 + k * 186},77 H${212 + k * 186}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gv);
+      st.v8Tok = token(gv, 'play()', 'f-d');
+      st.v8Path = S.path('M110,110 H850', { cls: 'f-none s-none' }, gv);
+      st.v8Note = S.text(480, 128, '', { cls: 't-c t-xs t-dim' }, gv);
+      // 左下: イベントループ
+      const ge = st.ge = S.g({}, svg);
+      const cx = 300, cy = 350, r = 78;
+      S.circle(cx, cy, r, { cls: 'f-none s-rule w3' }, ge);
+      st.loopArrow = S.path('', { cls: 'f-none s-fg w3', 'marker-end': mk('fg') }, ge);
+      S.text(cx, cy - 4, 'イベントループ', { cls: 't-c t-sm t-b' }, ge);
+      S.text(cx, cy + 14, 'メインスレッド 1 本', { cls: 't-c t-xs t-dim' }, ge);
+      // 停留所（タスクキューは題を上、説明を下に置き、間に札を並べる）
+      S.rect(40, 290, 130, 120, { rx: 6, cls: 'f-sf s-rule w1' }, ge);
+      S.text(105, 310, 'タスクキュー', { cls: 't-c t-sm t-b' }, ge);
+      S.text(105, 401, '先頭から 1 つずつ', { cls: 't-c t-xs t-dim' }, ge);
+      st.queueSlot = S.g({}, ge);
+      box(ge, 240, 212, 120, 56, 'コールスタック', '実行中の関数', 'f-sf s-rule w1', 't-sm');
+      st.stackTok = token(ge, '', 'f-d', 64);
+      st.stackTok.setAttribute('transform', 'translate(300,286)'); setOp(st.stackTok, 0);
+      st.micro = box(ge, 230, 440, 140, 50, 'マイクロタスク', 'Promise の then', 'f-sf s-rule w1', 't-sm');
+      st.render = S.g({}, ge);
+      box(st.render, 420, 268, 150, 164, '', null, 'f-sf s-rule w1');
+      S.text(495, 290, 'レンダリング', { cls: 't-c t-sm t-b' }, st.render);
+      ['rAF', 'スタイル', 'レイアウト', 'ペイント'].forEach((s, k) => box(st.render, 436, 302 + k * 31, 118, 24, s, null, 'f-in s-rule w1', 't-xs'));
+      S.path('M170,350 H218', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, ge);
+      S.text(194, 342, '取る', { cls: 't-c t-xs t-dim' }, ge);
+      S.path('M380,350 H416', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, ge);
+      S.text(398, 342, '必要なら', { cls: 't-c t-xs t-dim' }, ge);
+      st.loopTxt = S.text(300, 530, '', { cls: 't-c t-sm t-dim' }, ge);
+      // 右: 段階ごとの図
+      // 段階2: 長いタスク
+      const gl = st.gLong = S.g({ cls: 'fade hide' }, svg);
+      S.text(620, 200, '長いタスクが画面を止める', { cls: 't-sm t-b' }, gl);
+      S.line(620, 290, 930, 290, { cls: 's-rule w1' }, gl);
+      for (let k = 0; k <= 12; k++) S.line(620 + k * 25.8, 284, 620 + k * 25.8, 296, { cls: 's-dim w1' }, gl);
+      S.text(620, 312, '0 ms', { cls: 't-xs t-mono t-dim' }, gl);
+      S.text(930, 312, '200 ms（1 目盛 16.7 ms）', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gl);
+      S.rect(620, 240, 258, 34, { rx: 4, cls: 'f-x-soft s-x w1' }, gl);
+      S.text(749, 261, 'JS 実行 166 ms（1 タスク）', { cls: 't-c t-xs t-x t-b' }, gl);
+      S.rect(878, 240, 50, 34, { rx: 4, cls: 'f-d-soft s-d w1' }, gl);
+      S.text(903, 261, '描画', { cls: 't-c t-xs t-d t-b' }, gl);
+      for (let k = 1; k <= 10; k++) S.text(620 + k * 25.8, 338, '×', { cls: 't-c t-xs t-x t-b' }, gl);
+      S.text(775, 362, '10 回ぶんのフレームが落ちる（カクつき）', { cls: 't-c t-xs t-dim' }, gl);
+      S.text(775, 380, '入力にも反応できない：50 ms 以内が目安', { cls: 't-c t-xs t-dim' }, gl);
+      // 段階4: クリックの道
+      const gc = st.gClick = S.g({ cls: 'fade hide' }, svg);
+      S.text(620, 200, '再生ボタンのクリックが届くまで', { cls: 't-sm t-b' }, gc);
+      const hops = [['USB → OS', '第7章・第9章'], ['ブラウザプロセス', '座標 (x, y) を受け取る'], ['レンダラ（IPC）', 'コンポジタ → メインスレッドへ'], ['入力のタスクを投入', '実行時にヒットテスト → click']];
+      hops.forEach(([a, b], k) => box(gc, 620, 216 + k * 66, 300, 50, a, b, k === 3 ? 'f-d-soft s-d w1' : 'f-sf s-rule w1', 't-sm'));
+      for (let k = 0; k < 3; k++) S.path(`M770,${266 + k * 66} V${280 + k * 66}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gc);
+      // 札の道: 箱の下を回ってタスクキューの末尾（下端）へ。レンダリングの箱を横切らない
+      st.clickPath = S.path('M770,273 V500 H105 V416', { cls: 'f-none s-none' }, gc);
+      st.clickTok = token(gc, 'click', 'f-d');
+      S.text(770, 484, 'ハンドラ：player.play() → 次の場面の appendBuffer が始まる', { cls: 't-c t-xs t-dim' }, gc);
+      // 段階5: fetch
+      const gf = st.gFetch = S.g({ cls: 'fade hide' }, svg);
+      S.text(620, 200, 'fetch(segmentUrl)', { cls: 't-sm t-b t-mono' }, gf);
+      box(gf, 620, 216, 300, 50, 'ネットワークプロセス', 'DNS と接続は初回だけ。HTTP の要求（第17〜21章）', 'f-sf s-rule w1', 't-sm');
+      box(gf, 620, 300, 300, 50, '応答のストリーム', '届いた分から読める（ReadableStream）', 'f-sf s-rule w1', 't-sm');
+      box(gf, 620, 384, 300, 50, 'Promise の解決 → then()', 'マイクロタスクで続きが走る', 'f-d-soft s-d w1', 't-sm');
+      S.path('M770,266 V296', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gf);
+      S.path('M770,350 V380', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gf);
+      // fetch() を呼ぶのはコールスタックの上の JS。応答の続きはマイクロタスクへ（レンダリングの箱を避ける）
+      st.fetchOut = S.path('M390,240 H612', { cls: 'f-none s-none' }, gf);
+      st.fetchIn = S.path('M612,409 H596 V465 H380', { cls: 'f-none s-none' }, gf);
+      st.fetchTok = token(gf, 'fetch', 'f-mid');   // 呼び出しは無彩色、応答（データ）は d
+      st.respTok = token(gf, '断片 2.1 MB', 'f-d');
+      S.text(770, 470, '呼んだ側はすぐ戻る。待っている間も他のタスクが動く', { cls: 't-c t-xs t-dim' }, gf);
+      S.text(770, 490, '応答が来たら、続きは「次のタスクの後ではなく」すぐ（マイクロタスク）', { cls: 't-c t-xs t-dim' }, gf);
+      // 段階6: Worker
+      const gw = st.gWorker = S.g({ cls: 'fade hide' }, svg);
+      S.text(620, 200, 'Web Worker（別スレッド）', { cls: 't-sm t-b' }, gw);
+      S.rect(620, 216, 300, 190, { rx: 8, cls: 'f-sf s-rule w1' }, gw);
+      S.circle(770, 310, 52, { cls: 'f-none s-rule w3' }, gw);
+      st.wArrow = S.path('', { cls: 'f-none s-fg w3', 'marker-end': mk('fg') }, gw);
+      S.text(770, 306, '自分のループ', { cls: 't-c t-xs t-b' }, gw);
+      S.text(770, 322, 'DOM は触れない', { cls: 't-c t-xs t-dim' }, gw);
+      S.text(770, 390, '重い計算・解析・暗号処理', { cls: 't-c t-xs t-dim' }, gw);
+      // 仕事はコールスタックの上の JS から Worker へ。結果は message のタスクとしてキューの末尾へ（レンダリングの箱を避ける）
+      st.wOut = S.path('M390,236 H612', { cls: 'f-none s-none' }, gw);
+      st.wIn = S.path('M612,396 H590 V500 H105 V416', { cls: 'f-none s-none' }, gw);
+      S.text(500, 220, 'postMessage(仕事)', { cls: 't-c t-xs t-mono' }, gw);
+      S.text(480, 486, 'postMessage(結果)', { cls: 't-c t-xs t-mono' }, gw);
+      st.wTok1 = token(gw, '仕事', 'f-d'); st.wTok2 = token(gw, '結果', 'f-d');
+      S.text(770, 440, 'メインスレッドの 16.7 ms が空く', { cls: 't-c t-xs t-dim' }, gw);
+      S.text(770, 458, '→ 入力への反応と 60 fps を保てる', { cls: 't-c t-xs t-dim' }, gw);
+      // キューの札
+      st.qTokens = ['click', 'timer', 'fetch 応答'].map((s, k) => { const g = token(st.queueSlot, s, 'f-d', 76); g.setAttribute('transform', `translate(105,${330 + k * 22})`); return g; });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      setOp(st.gv, i === 0 ? 1 : 0.35);
+      setOp(st.ge, i === 0 ? 0.35 : 1);
+      S.fade(st.gLong, i === 1);
+      S.fade(st.gClick, i === 3);
+      S.fade(st.gFetch, i === 4);
+      S.fade(st.gWorker, i === 5);
+      st.v8Note.textContent = i === 0 ? 'よく走る関数だけが右端まで進む。型が変わると最適化を捨ててやり直す' : '';
+      st.loopTxt.textContent = i === 1 ? '1 つのタスクが終わるまで他は待つ' : i === 2 ? 'タスク → マイクロタスク全部 → 描画 → 次のタスク' : i === 3 ? 'click の入力がキューに入り、順番が来たら実行' :i === 4 ? 'fetch の応答はタスク、then の続きはマイクロタスク' : i === 5 ? '結果の受け取りはタスクとして届く' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      // V8 の札
+      if (i === 0) {
+        const f = U.cycle(t, 5);
+        S.place(st.v8Tok, st.v8Path, Math.min(1, f * 1.15));
+        setOp(st.v8Tok, f > 0.93 ? 0 : 1);
+        st.v8Boxes.forEach((b, k) => b.__rect.setAttribute('class', Math.floor(f * 5.2) === k ? 'f-d-soft s-d w2' : (k === 4 ? 'f-in s-mid w1' : 'f-sf s-rule w1')));
+      } else setOp(st.v8Tok, 0);
+      // ループの矢印（回る）
+      const cx = 300, cy = 350, r = 78;
+      const a0 = (i === 1 ? t * 0.35 : t * 1.4) % TAU;
+      const a1 = a0 + 1.2;
+      st.loopArrow.setAttribute('d', `M${cx + r * Math.cos(a0)},${cy + r * Math.sin(a0)} A${r},${r} 0 0 1 ${cx + r * Math.cos(a1)},${cy + r * Math.sin(a1)}`);
+      // タスクの消費: 2.4 秒に 1 つ
+      const q = U.seq(ctx.ts, [0.5, 1.0, 0.4, 0.5], true);
+      const idx = Math.floor(ctx.ts / 2.4) % 3;
+      st.qTokens.forEach((g, k) => {
+        const pos = (k - idx + 3) % 3;
+        const taken = pos === 0 && q.i >= 1;
+        g.setAttribute('transform', `translate(105,${330 + pos * 22})`);
+        setOp(g, taken ? 0 : (pos === 0 ? 1 : 0.5));
+      });
+      const label = ['click', 'timer', 'fetch 応答'][idx];
+      st.stackTok.querySelector('text').textContent = label;
+      setOp(st.stackTok, q.i === 1 ? 1 : 0);
+      st.micro.__rect.setAttribute('class', q.i === 2 ? 'f-d-soft s-d w2' : 'f-sf s-rule w1');
+      st.render.firstChild.setAttribute('class', q.i === 3 ? 'f-d-soft s-d w2' : 'f-sf s-rule w1');
+      // 右側の札
+      if (i === 3) { const f = U.cycle(t, 4); S.place(st.clickTok, st.clickPath, U.ease.inOut(f)); setOp(st.clickTok, f > 0.96 ? 0 : 1); }
+      if (i === 4) {
+        const qq = U.seq(ctx.ts, [1.2, 1.6, 1.2, 0.8], true);
+        setOp(st.fetchTok, qq.i === 0 ? 1 : 0); setOp(st.respTok, qq.i === 2 ? 1 : 0);
+        if (qq.i === 0) S.place(st.fetchTok, st.fetchOut, U.ease.inOut(qq.f));
+        if (qq.i === 2) S.place(st.respTok, st.fetchIn, U.ease.inOut(qq.f));
+      }
+      if (i === 5) {
+        const b0 = (t * 1.8) % TAU, b1 = b0 + 1.2;
+        st.wArrow.setAttribute('d', `M${770 + 52 * Math.cos(b0)},${310 + 52 * Math.sin(b0)} A52,52 0 0 1 ${770 + 52 * Math.cos(b1)},${310 + 52 * Math.sin(b1)}`);
+        const qq = U.seq(ctx.ts, [1.2, 1.4, 1.2, 0.6], true);
+        setOp(st.wTok1, qq.i === 0 ? 1 : 0); setOp(st.wTok2, qq.i === 2 ? 1 : 0);
+        if (qq.i === 0) S.place(st.wTok1, st.wOut, U.ease.inOut(qq.f));
+        if (qq.i === 2) S.place(st.wTok2, st.wIn, U.ease.inOut(qq.f));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 <video> と MSE
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '<video src> だけの再生', text:'`<video src="movie.webm">` と書けば、ブラウザが自分でファイルを取り、復号して出す。だが画質の切り替え、先読み量の調整、途中への差し込みを JS から細かく制御できない。YouTube のプレーヤーは次の MSE を使う。' },
+      { title: 'MSE：JS がデータを入れる口', text: '`new MediaSource()` を作り、`URL.createObjectURL` で `<video>` に結びつける。`addSourceBuffer` で映像用（`video/mp4; codecs="av01.0.05M.08"`）と音声用（`audio/webm; codecs="opus"`）の2本の受け口を作る。' },
+      { title: '断片を取って入れる', text: 'プレーヤー JS が `fetch` で数秒分の断片（セグメント、第24章）を取り、`appendBuffer` で SourceBuffer に渡す。`buffered` に再生できる区間が増える。YouTube では映像と音声が 1 つの応答で届き、JS が分けて 2 本の SourceBuffer に入れる（第21章）。' },
+      { title: '容器を解いて復号する', text: 'ブラウザは WebM・MP4 の容器を解き（デマルチプレクス）、映像は対応していればハードウェアデコーダ（GPU 内）へ、音声はソフトウェアデコーダへ渡す。復号した映像フレームは合成層にテクスチャとして直接貼られる（第8章）。' },
+      { title: '再生の時計', text: '`currentTime` は音声の時計に合わせて進む。各映像フレームは自分の表示時刻（PTS）が来たら合成に出す。`buffered` の先端に追いつくと再生は止まる（バッファリング）。JS は先端との差を見て次の断片を急ぐ。' },
+      { title: 'ここから先の道', text: 'どの画質の断片を、いつ取るかを決めるのが ABR（第24章）。`fetch` の要求は HTTP として QUIC・TLS に包まれ（第19〜21章）、Wi-Fi・ルーター・光回線・ISP（第12〜16章）を通ってサーバーと往復する。DNS と接続の確立（第17・19・20章）は最初の1回だけ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: コード
+      S.text(30, 44, 'プレーヤーの JS（要点だけ）', { cls: 't-b t-md' }, svg);
+      S.rect(30, 56, 316, 236, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      const code = [
+        'const ms = new MediaSource();',
+        'video.src = URL.createObjectURL(ms);',
+        'const sbV = ms.addSourceBuffer(',
+        '  \'video/mp4; codecs="av01.0.05M.08"\');',
+        'const sbA = ms.addSourceBuffer(',
+        '  \'audio/webm; codecs="opus"\');',
+        'const r = await fetch(segmentUrl);',
+        'const [v, a] = split(await r.arrayBuffer());',
+        'sbV.appendBuffer(v); sbA.appendBuffer(a);',
+        'video.play();   // currentTime が進む'
+      ];
+      st.codeEls = codeLines(svg, 40, 78, code, 21);
+      st.codeHl = S.rect(34, 62, 308, 20, { rx: 3, cls: 'f-d-soft', style: { opacity: 0 } }, svg);
+      // 段階1: 素の video
+      st.plain = S.g({ cls: 'fade' }, svg);
+      S.text(30, 330, '<video src="movie.webm">', { cls: 't-mono t-sm t-b' }, st.plain);
+      ['取得・復号・表示をブラウザが全部行う', '× 画質を途中で切り替えられない', '× 先読みの量を JS が決められない', '× 広告や別の断片を差し込めない'].forEach((s, k) => S.text(30, 356 + k * 20, s, { cls: 't-xs ' + (k ? 't-x' : 't-dim') }, st.plain));
+      // 中央: video 要素と MediaSource
+      const gv = st.gv = S.g({}, svg);
+      S.text(370, 44, '<video> 要素', { cls: 't-b t-md t-mono' }, gv);
+      S.rect(370, 56, 272, 153, { rx: 4, cls: 'f-fg' }, gv);
+      st.pic = S.g({}, gv);
+      st.ball = S.circle(400, 130, 16, { cls: 'f-d' }, st.pic);
+      st.picTxt = S.text(506, 196, '', { cls: 't-c t-xs t-mono t-sf' }, gv);
+      st.playIcon = S.polygon([[490, 112], [490, 152], [526, 132]], { cls: 'f-sf', style: { opacity: 0.9 } }, gv);
+      const gm = st.gm = S.g({ cls: 'fade hide' }, svg);
+      S.rect(370, 226, 272, 170, { rx: 6, cls: 'f-sf s-d w15' }, gm);
+      S.text(506, 248, 'MediaSource', { cls: 't-c t-sm t-b t-d' }, gm);
+      S.text(380, 276, 'SourceBuffer 映像 av01', { cls: 't-xs t-mono' }, gm);
+      S.text(380, 334, 'SourceBuffer 音声 opus', { cls: 't-xs t-mono' }, gm);
+      st.laneV = S.rect(380, 284, 252, 16, { rx: 3, cls: 'f-in s-rule w1' }, gm);
+      st.laneA = S.rect(380, 342, 252, 16, { rx: 3, cls: 'f-in s-rule w1' }, gm);
+      st.bufV = S.rect(380, 284, 0, 16, { rx: 3, cls: 'f-d' }, gm);
+      st.bufA = S.rect(380, 342, 0, 16, { rx: 3, cls: 'f-d' }, gm);
+      st.head = S.path('M380,280 V304 M380,338 V362', { cls: 'f-none s-x w2' }, gm);   // 再生位置。2本の帯の上だけに引き、札の文字に掛けない
+      S.text(380, 380, '0 s', { cls: 't-xs t-mono t-dim' }, gm);
+      S.text(632, 380, '60 s', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gm);
+      st.bufTxt = S.text(506, 318, '', { cls: 't-c t-xs t-mono t-dim' }, gm);
+      st.stateTxt = S.text(506, 420, '', { cls: 't-c t-sm t-b' }, gm);
+      st.stateSub = S.text(506, 440, '', { cls: 't-c t-xs t-dim' }, gm);
+      // 右: パイプライン
+      const gr = st.gr = S.g({}, svg);
+      st.pFetch = box(gr, 670, 56, 260, 48, 'fetch（ネットワークプロセス）', '第11〜21章の道を往復', 'f-sf s-rule w1', 't-sm');
+      st.pAppend = box(gr, 670, 132, 260, 44, 'appendBuffer(bytes)', 'JS → SourceBuffer', 'f-d-soft s-d w1', 't-sm');
+      st.pDemux = box(gr, 670, 204, 260, 44, 'デマルチプレクサ', 'WebM / MP4 の容器を解く', 'f-sf s-rule w1', 't-sm');
+      st.pDecV = box(gr, 670, 276, 124, 54, '映像デコーダ', 'GPU 内（対応時）', 'f-sf s-rule w1', 't-xs');
+      st.pDecA = box(gr, 806, 276, 124, 54, '音声デコーダ', 'CPU', 'f-sf s-rule w1', 't-xs');
+      st.pComp = box(gr, 670, 360, 124, 54, '合成層へ', '第8章の GPU 合成', 'f-d-soft s-d w1', 't-xs');
+      st.pAud = box(gr, 806, 360, 124, 54, '音声出力へ', '第8章の DAC', 'f-sf s-rule w1', 't-xs');
+      [[800, 104, 128], [800, 176, 200], [732, 248, 272], [868, 248, 272], [732, 330, 356], [868, 330, 356]].forEach(([x, y1, y2]) => S.path(`M${x},${y1} V${y2}`, { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gr));
+      S.path('M732,248 H868', { cls: 'f-none s-dim w15' }, gr);
+      st.segPath = S.path('M670,80 H656 V154 H670', { cls: 'f-none s-none' }, gr);
+      st.segTok = token(gr, '断片', 'f-d');
+      st.framePath = S.path('M732,330 V380 H600 V140', { cls: 'f-none s-none' }, gr);
+      st.frameTok = token(gr, 'フレーム', 'f-d', 54);
+      st.ptsTxt = S.text(800, 450, '', { cls: 't-c t-xs t-mono t-dim' }, gr);
+      S.text(800, 470, '映像は PTS が来たフレームだけ合成に出す', { cls: 't-c t-xs t-dim' }, gr);
+      // 段階6: 道
+      st.road = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 460, 900, 80, { rx: 8, cls: 'f-sf s-rule w1' }, st.road);
+      S.text(50, 486, '断片を取りに行く道と約束ごと（第12〜22章）', { cls: 't-sm t-b' }, st.road);
+      const stops = ['Wi-Fi 12', 'ルーター 14', '光回線 15', 'ISP 16', 'DNS 17', 'IP 18', 'QUIC 19', 'TLS 20', 'HTTP 21', 'サーバー 22'];
+      stops.forEach((s, k) => box(st.road, 50 + k * 88, 500, 80, 26, s, null, 'f-in s-rule w1', 't-xs'));
+      st.roadPath = S.path('M90,528 H880', { cls: 'f-none s-none' }, st.road);
+      st.roadTok = token(st.road, '要求', 'f-d', 40);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.plain, i === 0);
+      S.fade(st.gm, i >= 1);
+      S.fade(st.road, i === 5);
+      const hlLine = [-1, 0, 6, 8, 9, 6][i];
+      setOp(st.codeHl, hlLine >= 0 ? 1 : 0);
+      if (hlLine >= 0) { st.codeHl.setAttribute('y', 62 + hlLine * 21); st.codeHl.setAttribute('height', 20); }
+      if (i === 1) { st.codeHl.setAttribute('y', 62); st.codeHl.setAttribute('height', 125); }
+      if (i === 2) st.codeHl.setAttribute('height', 62);   // fetch → 分ける → 2 本に入れる
+      st.codeEls.forEach((e, k) => e.setAttribute('class', 't-code' + (i >= 1 && (k === hlLine || (i === 1 && k < 6) || (i === 2 && k >= 6 && k <= 8)) ? ' cur' : '')));
+      const em = (g, on, base) => g.__rect.setAttribute('class', on ? 'f-d-soft s-d w2' : base);
+      em(st.pFetch, i === 2 || i === 5, 'f-sf s-rule w1'); em(st.pAppend, i === 2, 'f-d-soft s-d w1'); em(st.pDemux, i === 3, 'f-sf s-rule w1');
+      em(st.pDecV, i === 3, 'f-sf s-rule w1'); em(st.pDecA, i === 3, 'f-sf s-rule w1');
+      setOp(st.gr, i === 0 ? 0.3 : 1);
+      setOp(st.playIcon, i >= 3 ? 0 : 0.9);
+      st.pic.style.display = i >= 3 ? '' : 'none';
+      st.picTxt.textContent = i >= 1 && i < 3 ? 'まだフレームは無い' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) { setOp(st.segTok, 0); setOp(st.frameTok, 0); st.ptsTxt.textContent = ''; return; }
+      // バッファと再生位置（60 秒を 252px に）。段階ごとのシナリオ
+      const px = 252 / 60;
+      let bufEnd = 0, head = 0, state = '', sub = '';
+      const T = ctx.ts;
+      if (i === 1) { bufEnd = 0; head = 0; state = '受け口を 2 本作った'; sub = 'buffered は空。まだ何も入っていない'; }
+      else if (i === 2) { const c = U.mod(T, 12); bufEnd = Math.min(60, 5 * Math.floor(c / 1.5 + 1)); head = 0; state = `appendBuffer × ${Math.floor(c / 1.5) + 1}`; sub = '1.5 秒ごとに 5 秒分の断片が入る（図の時間）'; }
+      else if (i === 3) { const c = U.mod(T, 24); bufEnd = Math.min(60, 10 + c * 2.2); head = Math.min(bufEnd, c * 1.6); state = '復号して表示中'; sub = '映像は GPU、音声は CPU で復号'; }
+      else if (i === 4) {
+        const c = U.mod(T, 20);
+        // 10 秒ぶん溜めて再生。断片が遅れて先端に追いつき、2 秒止まり、再開
+        bufEnd = c < 8 ? 10 + c * 0.6 : (c < 12 ? 14.8 : Math.min(60, 14.8 + (c - 12) * 3.5));
+        head = c < 8 ? c * 1.85 : (c < 12 ? 14.8 : Math.min(bufEnd, 14.8 + (c - 12) * 1.0));
+        const stalled = c >= 8 && c < 12;
+        state = stalled ? 'バッファリング（先端に追いついた）' : '再生中';
+        sub = stalled ? '次の断片を待つ。画質を下げて取り戻す' : `先読み ${(bufEnd - head).toFixed(1)} 秒ぶん`;
+      } else { const c = U.mod(T, 10); bufEnd = Math.min(60, 20 + c * 3); head = c * 1.5; state = 'ABR が次の画質を決める'; sub = '帯域の推定と先読み量で判断（第24章）'; }
+      st.bufV.setAttribute('width', (bufEnd * px).toFixed(1));
+      st.bufA.setAttribute('width', (bufEnd * px).toFixed(1));
+      const hx = (380 + head * px).toFixed(1);
+      st.head.setAttribute('d', `M${hx},280 V304 M${hx},338 V362`);
+      st.bufTxt.textContent = `buffered: 0 〜 ${bufEnd.toFixed(1)} s　currentTime: ${head.toFixed(1)} s`;
+      st.stateTxt.textContent = state;
+      st.stateSub.textContent = sub;
+      st.stateTxt.setAttribute('class', /バッファリング/.test(state) ? 't-c t-sm t-b t-x' : 't-c t-sm t-b');
+      // 断片の札（fetch → appendBuffer）
+      if (i === 2 || i === 5) { const f = U.cycle(t, 1.5); S.place(st.segTok, st.segPath, U.ease.inOut(f)); setOp(st.segTok, 1); } else setOp(st.segTok, 0);
+      // フレームの札（デコーダ → 画面）と絵
+      if (i >= 3) {
+        const f = U.cycle(t, 1.0);
+        S.place(st.frameTok, st.framePath, U.ease.inOut(f));
+        setOp(st.frameTok, i === 4 && /バッファリング/.test(state) ? 0 : 1);
+        const moving = !(i === 4 && /バッファリング/.test(state));
+        if (moving) st.ball.setAttribute('cx', (400 + U.pulse(head, 4) * 212).toFixed(1));
+        st.picTxt.textContent = `PTS ${head.toFixed(2)} s　${moving ? '30 fps' : '止まっている'}`;
+        st.ptsTxt.textContent = `次のフレーム PTS ${(Math.floor(head * 30) / 30 + 1 / 30).toFixed(3)} s`;
+      } else { setOp(st.frameTok, 0); st.ptsTxt.textContent = ''; }
+      if (i === 5) { const f = U.cycle(t, 4); S.place(st.roadTok, st.roadPath, f < 0.5 ? U.ease.inOut(f * 2) : U.ease.inOut(2 - f * 2)); st.roadTok.querySelector('text').textContent = f < 0.5 ? '要求' : '断片'; }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第III部 ソフトウェア ／ 第10章',
+      title: 'ブラウザ',
+      home: '../index.html',
+      prev: { href: '09-os.html', title: 'OS' },
+      next: { href: '11-sou.html', title: 'ネットワークの層' },
+      legend: [{ c: 'd', label: 'データ・DOM・断片・フレーム' }, { c: 'x', label: '注目・停止' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

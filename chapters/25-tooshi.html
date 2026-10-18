@@ -1,0 +1,957 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>通しで見る — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg a { cursor: pointer; }
+  svg a .lnk { transition: stroke 0.15s; }
+  svg a:hover .lnk, svg a:focus-visible .lnk { stroke: var(--fg); stroke-width: 2; }
+  svg a:hover text { text-decoration: underline; }
+  .pkt text { pointer-events: none; }
+  .halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+  table.gloss caption { text-align: left; font-size: 0.8rem; color: var(--fg-dim); padding: 0 0 0.45rem; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VI部 YouTube ／ 第25章 ／ 全25章</p>
+    <h1 id="h-s0">通しで見る</h1>
+    <p class="standfirst">動画へのリンクをクリックしてから最初の画が出るまで、手元の計測では約 2.4 秒だった。この章は、その間に起きることを 1 本の時間軸に並べ、各段にかかる時間と、それを扱った章の場面へのリンクを置く。仕組みの説明は各章に任せ、ここで足すのは順番と所要時間と章どうしのつながりだけ。往復の 0.01 秒から全体の 2.4 秒まで桁が違うので、場面ごとに時間軸の一部を拡大して見せる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の上の帯は 0〜2.5 秒の全体で、枠で囲んだ区間を下に拡大している。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>再生ボタンを押す</a><p>時刻 0 の決め方と、クリックが要求になるまでの数 ms。USB・割り込み・OS・ブラウザ。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>名前解決と接続</a><p>最初の 0.13 秒。名前・TCP・TLS・要求の 4 往復とサーバーの時間。配信元へは最初から QUIC。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>要求が旅する</a><p>家から Google まで片道 約 5.5 ms の内訳。Wi-Fi と光回線の上りの待ちが半分近くを占める。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>応答が帰る</a><p>断片の応答 1.65 MB が約 1,400 個のパケットで逆向きに通り、PC の中を上る。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>復号して表示する</a><p>暗号をほどき、SourceBuffer に入れ、解いて、次の書き換えで画面へ。最初の画は 2.37 秒。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>全体と各章</a><p>2.37 秒の内訳と、全 24 章への入口。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と、時間軸の区切りと代表値。目次へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>時刻の土台は、2026 年 10 月 12 日にログインしないヘッドレス Chrome 155（Linux、日本の固定回線）で視聴ページを開いた第21章 場面6 の記録。内訳の一部は、10 月 17 日に同じ回線と Chrome で取った別の回の計測（netlog とページの中の時刻）の値。主な値には「実測」「例」「推定」のどれかを添えた。住所と道は第11章以降で共通の例（道は第18章の例）。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 再生ボタンを押す ================= -->
+<section class="scene sc-anim" id="s1" data-tab="クリック" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>再生ボタンを押す — クリックが要求になるまで数 ms</h2>
+    <p class="sh-meta"><span class="chip">0〜6 ms</span><span class="chip">例</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">この章の時刻 0 は、動画へのリンクのクリック。ボタンを離した信号が USB・割り込み・OS・ブラウザと渡り、視聴ページの要求になるまでの数 ms を、全体の時間軸から 400 倍ほど拡大して見る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">読み込み済みのページで一時停止中の再生ボタンを押すときは、溜めた断片があれば通信を待たない。JS が再生を指示し、次の画面の書き換えで画が動く（<a class="xref" href="24-streaming.html#s6">第24章 場面6</a>・<a class="xref" href="08-display.html#s3">第8章 場面3</a>）。この章は、ページを開くほうの 2.4 秒を追う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="全体の時間軸の帯と、クリックから要求を出すまでの 6 ms を拡大した図"></svg></div>
+    <figcaption>図1　上の帯は 0〜2.5 秒の全体（第21章の記録）で、枠の区間を下に拡大した。下は 0〜6 ms に起きることの例（8 ms 周期のマウス、メインスレッドが空いているとき）。下端の札は関係する章の場面へのリンク。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 名前解決と接続 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="名前と接続" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>名前解決と接続 — 最初の 0.13 秒は 4 往復とサーバーの時間</h2>
+    <p class="sh-meta"><span class="chip">0〜0.13 秒</span><span class="chip">1.51 秒〜</span><span class="chip">往復 約 10 ms</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">要求を出してから応答のヘッダが届くまで、実測で 0.13 秒。その間に名前・TCP・TLS・要求の 4 往復が順に並び、残りはサーバーの中の時間。配信元へは 1.51 秒に、最初から QUIC の 1 往復でつなぐ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">2 回目に開くと、名前はキャッシュにあることが多く、www.youtube.com にも覚えた Alt-Svc で QUIC の 1 往復でつなぎ、JS などの多くはブラウザのキャッシュから出る（<a class="xref" href="17-dns.html#s4">第17章 場面4</a>・<a class="xref" href="20-tls.html#s5">第20章 場面5</a>・<a class="xref" href="21-http.html#s5">第21章 場面5</a>）。この章の時間軸は 1 回目。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="最初の 0.13 秒の往復を、フルリゾルバ・PC・サーバーの 3 本の線の間の矢印で示した図"></svg></div>
+    <figcaption>図2　上の帯の枠を下に拡大した。3 本の横線はフルリゾルバ・PC・サーバーで、斜めの矢印が片道（往復 10 ms として描いた例）。段階6 では同じ物差しのまま、1.51 秒からの配信元への接続に替わる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 要求が旅する ================= -->
+<section class="scene sc-anim" id="s3" data-tab="行き" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>要求が旅する — 家から Google まで片道 約 5.5 ms</h2>
+    <p class="sh-meta"><span class="chip">片道 約 5.5 ms（例）</span><span class="chip">ルーター 9 台</span><span class="chip">TTL 64 → 55</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">0.03 秒ごろ PC を出た要求は、第18章の例の道でルーター 9 台を越えて Google に着く。片道 約 5.5 ms（例）の半分近くは Wi-Fi の順番待ちと光回線の上りの許可待ちで、光が進む時間はわずか。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">区間ごとの時間は、第11章 場面6 の目安と第15章 場面6 の値から置いた例で、測った値ではない。光は 1 km を約 5 µs で進むので、県内の数十 km でも 0.1〜0.3 ms にとどまる（<a class="xref" href="15-hikari.html#s6">第15章 場面6</a>）。区間ごとの仕組みは<a class="xref" href="11-sou.html#s6">第11章 場面6</a>の地図からたどれる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家から Google の拠点までの道と、片道の時間を区間ごとに割り振った帯"></svg></div>
+    <figcaption>図3　上は 0〜6 ms に拡大した片道の時間で、色は区間の媒体。中は第18章の例の道（台数は例）で、パケットは時間に比例して進み、札に TTL を出す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 応答が帰る ================= -->
+<section class="scene sc-anim" id="s4" data-tab="帰り" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>応答が帰る — 1.65 MB を約 1,400 個のパケットで</h2>
+    <p class="sh-meta"><span class="chip">1.69〜2.29 秒</span><span class="chip">1,250 B × 約 1,400</span><span class="chip">片道 約 4.5 ms（例）</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">1.69 秒に出した断片の要求に、音声 20 秒・映像 17.4 秒ぶん 1.65 MB の応答が返り、2.29 秒に受け取り終えた（実測）。約 1,400 個のパケットが来た道を逆にたどり、PC の中を上る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">区間ごとの時間は場面3 と同じく例。帰りは光回線の上りの許可待ちが無いので、行きより約 1 ms 短くした。途中の装置は暗号の中を読まず、IP と UDP のヘッダだけを見て転送する（<a class="xref" href="20-tls.html#s6">第20章 場面6</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="断片の応答のパケットが、Google の拠点から家の PC まで来た道を逆にたどる図"></svg></div>
+    <figcaption>図4　上の帯の枠が 1.69〜2.29 秒。中は場面3 と同じ道を配信元から逆向きに流れる断片のパケット（粒の数と間隔は誇張）で、道の上の数字は区間ごとの片道（例）。段階5 は PC の中で 1 個が上る順。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 復号して表示する ================= -->
+<section class="scene sc-anim" id="s5" data-tab="表示" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>復号して表示する — 最初の画は 2.37 秒</h2>
+    <p class="sh-meta"><span class="chip">0〜60 ms（別の回）</span><span class="chip">60 Hz = 16.7 ms</span><span class="chip">25 fps = 40 ms</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">届いたパケットは暗号をほどかれ、JS が断片に分けて SourceBuffer に入れ、デコーダが 1 フレームずつ解き、合成されて次の画面の書き換えで光になる。映像を入れてから再生が始まるまでは数 ms だった。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">この場面の目盛りは 2026 年 10 月 17 日の別の回（ヘッドレス Chrome、ハードウェアデコーダを使わない環境）の値で、最初の映像を入れた時刻を 0 にし、最初の画を第21章の回の 2.37 秒にそろえて置いた。解く時間と書き換えの待ちは、端末と画面で変わる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="届いたパケットが復号され、断片に分けられ、デコードされ、合成されて画面と音になるまでの道と、最初の 60 ms の時刻"></svg></div>
+    <figcaption>図5　上の帯の枠が最初の画の前後。その下は別の回の 0〜60 ms（最初の映像を入れた時刻が 0）。中は届いたパケットが画と音になる道で、上の段が映像、下の段が音声。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 全体のタイムライン ================= -->
+<section class="scene sc-anim" id="s6" data-tab="全体と章" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>全体のタイムライン — 2.37 秒と 24 の章</h2>
+    <p class="sh-meta"><span class="chip">0〜2.5 秒</span><span class="chip">全 24 章</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">2.37 秒を通して見ると、往復そのものの待ちは 0.1 秒に満たず（推定）、大半は HTML と JS を受け取って動かす時間と、断片を受け取る時間だった。図6 の札は全 24 章への入口で、段階ごとに働く章を示す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">札はそれぞれの章の表紙へのリンク。どの章も、この時間軸のどこかを拡大して中身を見せている（第1〜8章の部品は、どの瞬間にも働く）。場面1〜5 の図の札は、その区間を扱う章の場面へ直接つながる。同じ道を空間で並べたのが<a class="xref" href="../index.html#s1">目次の地図</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="0〜2.5 秒の全体の時間軸と、第1〜24章への札"></svg></div>
+    <figcaption>図6　上は 0〜2.5 秒の全体（第21章の記録、主なものだけ）。下の札は第1〜24章で、行は部。段階ごとに、そのとき働く時間帯と章を強調する。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 2.4 秒を 1 本の線で</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>時刻 0 は動画へのリンクのクリック。USB の読み取り待ち（0〜8 ms）と割り込み・OS・ブラウザを経て、数 ms で視聴ページの要求になる（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>最初の 0.13 秒は、名前・TCP・TLS・要求の 4 往復（1 回 約 10 ms）とサーバーの中の時間。配信元へは HTTPS レコードを見て、最初から QUIC の 1 往復でつなぐ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>家から Google までの片道は約 5.5 ms（例）。半分近くは Wi-Fi の順番待ちと光回線の上りの許可待ちで、ルーター 9 台が TTL を 64 から 55 に減らす（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>1.69 秒に頼んだ断片 1.65 MB は約 1,400 個のパケットで逆向きに届き、NAT が宛先を戻し、PC の中を DMA・割り込み・ソケットと上る（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>暗号をほどき、SourceBuffer に入れ、解いて合成し、次の書き換えで出す。映像を入れてから再生が始まるまでは数 ms で、時刻は音声の時計で決まる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>2.37 秒のうち往復そのものの待ちは 0.1 秒に満たず（推定）、残りは作る・運ぶ・動かす時間と内訳の分からない待ち。どの区間にも、それを拡大して見せた章がある（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <caption>時間軸の区切りと代表値（実測は第21章の回、2026 年 10 月 12 日）</caption>
+      <tbody>
+        <tr><th>起点 0 秒</th><td>動画へのリンクの click が成立した時刻。実測の記録は要求を出した時刻を 0 にしていて、差は数 ms。場面2 から先は記録の時刻をそのまま使う。</td></tr>
+        <tr><th>クリック → 要求</th><td>数 ms（例）。USB の読み取り待ち 0〜8 ms（8 ms 周期）、割り込み 約 1 µs。</td></tr>
+        <tr><th>往復時間（RTT）</th><td>約 7〜12 ms（ping、2026 年 10 月の実測）。図では 10 ms とした。</td></tr>
+        <tr><th>名前解決</th><td>キャッシュにあればほぼ 0、フルリゾルバまでなら 1 往復。www.youtube.com の TTL は 300 秒。</td></tr>
+        <tr><th>接続と暗号</th><td>1 回目の www.youtube.com は TCP 1 往復 ＋ TLS 1.3 1 往復。配信元は QUIC で合わせて 1 往復。</td></tr>
+        <tr><th>最初の応答</th><td>要求から 0.13 秒（実測）。うち約 0.09 秒はサーバーの中（推定）。</td></tr>
+        <tr><th>片道（家 → Google）</th><td>約 5.5 ms（例）。Wi-Fi 約 1.5 ms、光回線の上り 約 1 ms、ISP と Google の網 約 3 ms。帰りは約 4.5 ms。</td></tr>
+        <tr><th>HTML と JS</th><td>HTML は 0.13〜1.53 秒、主な JS は 0.84〜1.50 秒（実測）。</td></tr>
+        <tr><th>断片の取得</th><td>1.69 秒に POST、1.65 MB を 2.29 秒まで（実測）。1,250 バイトのデータグラムで約 1,400 個。</td></tr>
+        <tr><th><i class="sw x"></i>最初の画</th><td>2.37 秒（video の playing、実測）。測り直しでは約 2.3 秒。以後 40 ms ごとに次の画。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const playing = () => YT.motion.playing;
+  const op = (el, v) => { el.style.opacity = (v === 1 || v === '') ? '' : String(v); };
+
+  /* ---------- 時間軸の土台：第21章 場面6 の回（2026-10-12）。単位は秒、要求を出した時刻が 0 ---------- */
+  const RUN = { hdr: 0.13, jsA: 0.84, jsB: 1.50, g204: 1.51, htmlEnd: 1.53, post: 1.69, postEnd: 2.29, first: 2.37 };
+  const T_MAX = 2.5;
+  const BX0 = 120, BX1 = 900;
+  const XB = (t) => BX0 + (BX1 - BX0) * t / T_MAX;
+  const ZY = 112;          // 拡大した時間軸の線の高さ
+
+  /* 章の一覧（場面6 と札で使う） */
+  const CH = [
+    ['01-denshi', '電子と電流'], ['02-handoutai', '半導体とダイオード'], ['03-transistor', 'トランジスタ'], ['04-ronri', '論理ゲートと2進数'],
+    ['05-kioku', '記憶'], ['06-cpu', 'CPU'], ['07-shuuhen', '入出力と周辺機器'], ['08-display', '画面と音'], ['09-os', 'OS'], ['10-browser', 'ブラウザ'],
+    ['11-sou', 'ネットワークの層'], ['12-wifi', 'Wi-Fi'], ['13-ethernet', 'Ethernet とスイッチ'], ['14-router', 'ホームルーター'], ['15-hikari', '光回線'],
+    ['16-internet', 'インターネットの骨格'], ['17-dns', 'DNS'], ['18-ip', 'IP'], ['19-tcp', 'TCP・UDP・QUIC'], ['20-tls', 'TLS'], ['21-http', 'HTTP'],
+    ['22-server', 'YouTube のサーバー側'], ['23-codec', '動画の圧縮'], ['24-streaming', 'ストリーミングと再生']
+  ];
+  /* 章の場面への札の定義。k が段階の強調に使う名前 */
+  const L = (n, s, title) => ({ k: n + '-' + s, href: CH[n - 1][0] + '.html#s' + s, a: '第' + n + '章 場面' + s, b: title });
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 上の帯：全体の時間軸（0〜2.5 秒、第21章の回）と、下に拡大している区間の枠。
+     setWin(区間の配列 [[a, b, x0, x1], …]) で枠と、拡大した軸への 2 本の線を引き直す */
+  function band(svg) {
+    const g = S.g({}, svg);
+    const links = S.g({}, g);   // 枠から拡大した軸への 2 本の線。目盛りの数字（縁取り付き）の下を通す
+    const bar =(a, b, y, cls) => S.rect(XB(a), y - 4, Math.max(2, XB(b) - XB(a)), 8, { rx: 2, cls }, g);
+    [['HTML', 26], ['JS・CSS', 40], ['断片', 54]].forEach(([n, y]) => S.text(BX0 - 8, y + 4, n, { cls: 't-xs t-dim t-end' }, g));
+    bar(0, RUN.htmlEnd, 26, 'f-d-soft s-d w1');
+    S.line(XB(RUN.hdr), 19, XB(RUN.hdr), 33, { cls: 's-d w2' }, g);
+    bar(RUN.jsA, RUN.jsB, 40, 'f-d-soft s-d w1');
+    S.line(XB(RUN.g204), 47, XB(RUN.g204), 61, { cls: 's-d w2' }, g);
+    bar(RUN.post, RUN.postEnd, 54, 'f-d');
+    S.line(BX0, 66, BX1, 66, { cls: 's-mid w1' }, g);
+    [0, 0.5, 1, 1.5, 2, 2.5].forEach((t) => {
+      S.line(XB(t), 66, XB(t), 70, { cls: 's-mid w1' }, g);
+      S.text(XB(t), 81, t === 2.5 ? '2.5 秒' : t.toFixed(t ? 1 : 0), { cls: 't-c t-xs t-mono t-dim halo' }, g);
+    });
+    S.line(XB(RUN.first), 14, XB(RUN.first), 66, { cls: 's-x w15' }, g);
+    const wins = S.g({}, g);
+    /* 札は、場面4・5 の枠（1.69〜2.29 秒・2.36〜2.42 秒）にかからない右側に置く */
+    S.text(XB(RUN.first) + 23, 24, '最初の画', { cls: 't-xs t-x t-b' }, g);
+    S.text(XB(RUN.first) + 23, 37, '2.37 秒', { cls: 't-xs t-x t-mono' }, g);
+    S.line(XB(RUN.first), 20, XB(RUN.first) + 19, 20, { cls: 's-x w1' }, g);
+    return {
+      g,
+      setWin(list) {
+        S.clear(wins);
+        S.clear(links);
+        list.forEach(([a, b, x0, x1]) => {
+          const xa = XB(a), xb = Math.max(XB(b), xa + 3);
+          S.rect(xa - 1, 15, xb - xa + 2, 51, { rx: 2, cls: 'f-x-soft s-x w15' }, wins);
+          S.line(xa - 1, 66, x0, ZY, { cls: 's-x w1 dash2' }, links);
+          S.line(xb + 1, 66, x1, ZY, { cls: 's-x w1 dash2' }, links);
+        });
+      }
+    };
+  }
+
+  /* 拡大した時間軸。ticks は [値, 文字] の配列、X は値から x を返す関数 */
+  function zoomAxis(svg, x0, x1, ticks, X) {
+    const g = S.g({}, svg);
+    S.line(x0, ZY, x1, ZY, { cls: 's-mid w1' }, g);
+    g.labels = ticks.map(([v, s]) => {
+      S.line(X(v), ZY, X(v), ZY + 4, { cls: 's-mid w1' }, g);
+      return S.text(X(v), ZY + 15, s, { cls: 't-c t-xs t-mono t-dim' }, g);
+    });
+    return g;
+  }
+
+  /* 下端の札（他の章の場面へのリンク）。2 行に分けて並べ、hl(keys) で強調する */
+  function chips(svg, list) {
+    const per = Math.ceil(list.length / 2), W = 168, GAP = 10, map = {};
+    list.forEach((c, i) => {
+      const row = i < per ? 0 : 1, col = row ? i - per : i;
+      const cols = row ? list.length - per : per;
+      const x = 480 - (cols * W + (cols - 1) * GAP) / 2 + col * (W + GAP), y = 476 + row * 40;
+      const a = S.el('a', { href: c.href, 'aria-label': c.a + ' ' + c.b }, svg);
+      const r = S.rect(x, y, W, 32, { rx: 4, cls: 'lnk f-sf s-rule w1' }, a);
+      S.text(x + 9, y + 13, c.a, { cls: 't-xs t-dim' }, a);
+      const t = S.text(x + 9, y + 26, c.b, { cls: 't-xs t-b' }, a);
+      map[c.k] = { a, r, t };
+    });
+    return {
+      map,
+      hl(keys) {
+        Object.keys(map).forEach((k) => {
+          const on = keys.indexOf(k) >= 0;
+          map[k].r.setAttribute('class', 'lnk ' + (on ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+          map[k].t.setAttribute('class', 't-xs t-b' + (on ? ' t-x' : ''));
+        });
+      }
+    };
+  }
+
+  /* 経過の折れ線を、時刻つきの点の列 [[t, x, y], …] から作る。at(t) でその時刻の位置を返す */
+  function timedPath(pts) {
+    return {
+      pts,
+      at(t) {
+        if (t <= pts[0][0]) return { x: pts[0][1], y: pts[0][2] };
+        for (let k = 1; k < pts.length; k++) {
+          const [t1, x1, y1] = pts[k], [t0, x0, y0] = pts[k - 1];
+          if (t <= t1) { const f = t1 > t0 ? (t - t0) / (t1 - t0) : 1; return { x: U.lerp(x0, x1, f), y: U.lerp(y0, y1, f) }; }
+        }
+        const p = pts[pts.length - 1];
+        return { x: p[1], y: p[2] };
+      }
+    };
+  }
+
+  /* ================================================================
+     場面1 再生ボタンを押す（クリック → 要求）
+     ================================================================ */
+  const X1 = (ms) => 120 + 130 * ms;          // 0〜6 ms を 120〜900 に
+  const LANES = [['マウス', 156], ['USB', 196], ['CPU・カーネル', 236], ['ブラウザ', 276], ['レンダラ（JS）', 316], ['ネットワークサービス', 356], ['Wi-Fi カード', 396]];
+  /* 例の時刻（ms）。USB の読み取り待ちは 8 ms 周期の平均 4 ms とした */
+  const EV1 = { poll: 4.0, drv: 4.15, br1: 4.3, rnd: 4.55, br2: 4.7, net: 4.85, nic: 5.0 };
+  const s1 = {
+    steps: [
+      { where: '0 ms ／ 起点', title: 'リンクのクリックを 0 秒とする', text: '動画へのリンク（検索サイトの結果や共有されたリンク）を押して視聴ページを開く操作を、この章の「再生ボタンを押す」とする。YouTube の中のリンクなら HTML は取り直さない（第21章 場面6）。計測した回は、開くとそのまま再生が始まった。click は押して離したときに成立するので、離した瞬間を 0 秒とした。' },
+      { where: '0〜4 ms ／ 例（8 ms 周期のマウス）', title: 'USB は読みに来るまで待つ', text: 'マウスはボタンの状態を HID レポートにして待ち、ホストが一定の周期で読みに来る（第7章 場面5）。周期は多くの機器で 8 ms、ゲーム用は 1 ms。だから最初の遅れは 0〜8 ms のどこかになる。図は平均の 4 ms とした。' },
+      { where: '約 4.0〜4.3 ms ／ 例', title: '割り込みで OS へ、OS からブラウザへ', text: 'レポートを受けたホストコントローラは割り込みで CPU を呼び、保存して飛ぶまで約 1 µs（第7章 場面3）。ドライバと入力の層を通り、ポインタの下のウィンドウ、つまりブラウザのプロセスにイベントが届く。CPU が空いていれば 1 ms より十分短い（推定）。' },
+      { where: '約 4.3〜4.6 ms ／ 例', title: 'レンダラが click を出し、JS が動く', text: 'ブラウザはイベントをレンダラに渡し、メインスレッドが押された要素を決めて click を発火する（第10章 場面5）。ページの JS のハンドラが先に動き、止められなければリンクの既定の動作として移動が始まる。長いタスクの途中なら、終わるまで待たされる。' },
+      { where: '約 4.6〜5 ms ／ 例', title: '移動が始まり、最初のパケットが出る', text: '移動はブラウザのプロセスが受け持ち、要求をネットワークサービスに頼む（第10章 場面1）。最初の仕事は名前を引くこと。DNS の問い合わせを UDP のシステムコールでカーネルに渡し、Wi-Fi カードが電波で送る（第9章 場面3・6）。ここまで数 ms。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.band = band(svg);
+      st.band.setWin([[0, 0.006, X1(0), X1(6)]]);
+      zoomAxis(svg, X1(0), X1(6), [0, 1, 2, 3, 4, 5, 6].map((v) => [v, v === 6 ? '6 ms' : String(v)]), X1);
+      S.text(112, ZY + 4, '拡大', { cls: 't-xs t-x t-b t-end' }, svg);
+      st.lane = LANES.map(([n, y]) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        S.text(112, y + 4, n, { cls: 't-sm t-end' }, g);
+        S.line(X1(0), y, X1(6), y, { cls: 's-soft w1' }, g);
+        return g;
+      });
+      const Y = (k) => LANES[k][1];
+      /* 0: ボタンを離す */
+      const gm = st.lane[0];
+      S.circle(X1(0), Y(0), 6, { cls: 'f-e' }, gm);
+      S.text(X1(0) + 12, Y(0) + 4, 'ボタンを離す（click が成立）', { cls: 't-xs' }, gm);
+      /* 1: USB の読み取り待ち */
+      const gu = st.lane[1];
+      S.rect(X1(0), Y(1) - 8, X1(EV1.poll) - X1(0), 16, { rx: 3, cls: 'f-in' }, gu);
+      S.text(X1(0) + 10, Y(1) - 13, 'ホストが読みに来るまで待つ（8 ms 周期なら 0〜8 ms）', { cls: 't-xs t-mid' }, gu);
+      S.line(X1(EV1.poll), Y(1) - 11, X1(EV1.poll), Y(1) + 11, { cls: 's-e w2' }, gu);
+      S.text(X1(EV1.poll) + 6, Y(1) - 4, '読む', { cls: 't-xs t-e t-b' }, gu);
+      /* 2〜6: OS とブラウザの中の受け渡し */
+      const act = (k, a, b, label, left) => {
+        const g = st.lane[k];
+        S.rect(X1(a), Y(k) - 7, Math.max(4, X1(b) - X1(a)), 14, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text(left ? X1(a) - 6 : X1(b) + 6, Y(k) + 4, label, { cls: 't-xs' + (left ? ' t-end' : '') }, g);
+      };
+      act(2, EV1.poll, EV1.drv, '割り込み 約 1 µs → ドライバ・入力の層');
+      act(3, EV1.drv, EV1.br1, '入力イベントを受けてレンダラへ', true);
+      act(4, EV1.br1, EV1.rnd, '押された要素を決め、click → JS', true);
+      st.br2 = S.g({ cls: 'fade' }, svg);
+      S.rect(X1(EV1.rnd), Y(3) - 7, X1(EV1.br2) - X1(EV1.rnd), 14, { rx: 3, cls: 'f-d-soft s-d w1' }, st.br2);
+      S.text(X1(EV1.br2) + 6, Y(3) + 4, '移動を始める', { cls: 't-xs' }, st.br2);
+      act(5, EV1.br2, EV1.net, '名前を引く（DNS を UDP で）');
+      act(6, EV1.net, EV1.nic, '電波で送る', true);
+      S.text(X1(6) - 4, Y(6) - 9, '場面2 へ', { cls: 't-xs t-d t-b t-end' }, st.lane[6]);
+      /* 経過の折れ線と、それに沿って進む印 */
+      st.tp = timedPath([
+        [0, X1(0), Y(0)], [0.05, X1(0.05), Y(1)], [EV1.poll, X1(EV1.poll), Y(1)], [EV1.poll + 0.01, X1(EV1.poll), Y(2)], [EV1.drv, X1(EV1.drv), Y(2)],
+        [EV1.drv + 0.01, X1(EV1.drv), Y(3)], [EV1.br1, X1(EV1.br1), Y(3)], [EV1.br1 + 0.01, X1(EV1.br1), Y(4)], [EV1.rnd, X1(EV1.rnd), Y(4)],
+        [EV1.rnd + 0.01, X1(EV1.rnd), Y(3)], [EV1.br2, X1(EV1.br2), Y(3)], [EV1.br2 + 0.01, X1(EV1.br2), Y(5)], [EV1.net, X1(EV1.net), Y(5)],
+        [EV1.net + 0.01, X1(EV1.net), Y(6)], [EV1.nic, X1(EV1.nic), Y(6)], [6, X1(6), Y(6)]
+      ]);
+      const pts = st.tp.pts;
+      S.poly(pts.slice(0, 3).map((p) => [p[1], p[2]]), { cls: 'f-none s-e w2 round' }, svg);
+      S.poly(pts.slice(2, 15).map((p) => [p[1], p[2]]), { cls: 'f-none s-d w2 round' }, svg);
+      S.arrow(svg, X1(EV1.nic), Y(6), X1(6) - 4, Y(6), 'd', { cls: 's-d w2 dash' });
+      st.dot = S.circle(X1(0), Y(0), 6, { cls: 'f-x' }, svg);
+      st.cursor = S.line(X1(0), 136, X1(0), 412, { cls: 's-x w1 dash2' }, svg);
+      st.now = S.text(892, 147, '', { cls: 't-sm t-x t-mono t-b t-end' }, svg);   // 止めたときの縦線（x = 900）にかからない位置
+      S.text(X1(0), 446, '例：8 ms 周期のマウスで、メインスレッドが空いているとき。4 ms から先の各段の長さは推定。', { cls: 't-xs t-dim' }, svg);
+      st.chips = chips(svg, [
+        L(7, 5, 'キーボードとマウス'), L(7, 1, 'バスの階層（USB）'), L(7, 3, '割り込み'), L(9, 1, 'カーネルとユーザー空間'), L(10, 5, 'JS とイベントループ'),
+        L(10, 1, 'URL を打つ'), L(9, 3, 'システムコール'), L(9, 6, 'ネットワークスタック'), L(24, 6, '一時停止・再開'), L(8, 3, 'vsync と押してからの遅れ')
+      ]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const on = [[0], [0, 1], [2, 3], [4], [5, 6]][i];
+      st.lane.forEach((g, k) => op(g, on.indexOf(k) >= 0 ? 1 : 0.32));
+      op(st.br2, i === 4 ? 1 : 0.32);
+      st.chips.hl([['7-5'], ['7-5', '7-1'], ['7-3', '9-1'], ['10-5'], ['10-1', '9-3', '9-6']][i]);
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      /* 1 ms を 1 秒で進め、6 ms まで行ったら 2 秒止まって繰り返す。止めているときは 6 ms の姿 */
+      let ms = 6;
+      if (playing()) { const q = U.seq(ctx.ts, [6, 2], true); ms = q.i === 0 ? q.f * 6 : 6; }
+      const p = st.tp.at(ms);
+      st.dot.setAttribute('cx', p.x.toFixed(1));
+      st.dot.setAttribute('cy', p.y.toFixed(1));
+      st.dot.style.display = ms > EV1.nic + 0.6 ? 'none' : '';
+      const x = X1(ms).toFixed(1);
+      st.cursor.setAttribute('x1', x); st.cursor.setAttribute('x2', x);
+      st.now.textContent = 'いま ' + ms.toFixed(2) + ' ms';
+    }
+  };
+
+  /* ================================================================
+     場面2 名前解決と接続（往復 10 ms として描いた例）
+     ================================================================ */
+  const X2 = (ms) => 120 + 6 * ms;            // 0〜130 ms を 120〜900 に
+  const LY = { R: 180, P: 280, S: 380 };     // フルリゾルバ・PC・サーバー
+  /* [始まり ms, 終わり ms, 出る線, 着く線]。同じ線なら、その線の上の処理 */
+  const SEG_W = {
+    dns: [[0, 5, 'P', 'R'], [5, 10, 'R', 'P']],
+    tcp: [[10, 15, 'P', 'S'], [15, 20, 'S', 'P']],
+    tls: [[20, 25, 'P', 'S'], [25, 30, 'S', 'P']],
+    req: [[30, 35, 'P', 'S'], [35, 125, 'S', 'S'], [125, 130, 'S', 'P']]
+  };
+  const SEG_G = [[0, 5, 'P', 'R'], [5, 10, 'R', 'P'], [10, 15, 'P', 'S'], [15, 20, 'S', 'P'], [20, 25, 'P', 'S'], [25, 30, 'S', 'S'], [30, 35, 'S', 'P']];
+  function segAt(segs, ms) {
+    for (const [a, b, f, t] of segs) {
+      if (ms <= b) { const k = U.clamp((ms - a) / (b - a), 0, 1); return { x: U.lerp(X2(a), X2(b), k), y: U.lerp(LY[f], LY[t], k) }; }
+    }
+    const l = segs[segs.length - 1];
+    return { x: X2(l[1]), y: LY[l[3]] };
+  }
+  const MSG2 = [
+    '名前 → TCP → TLS → 要求と応答。どれも 1 往復ずつ、前が終わってから次へ進む',
+    '問い合わせ（A・AAAA・HTTPS）→ 答え（A 8 個・AAAA 8 個、TTL 300 秒。2026 年 10 月）',
+    'SYN → SYN/ACK → ACK（ACK のすぐ後に ClientHello を送る）',
+    'ClientHello → ServerHello・EncryptedExtensions・証明書・CertificateVerify・Finished → Finished',
+    'GET /watch → 200 のヘッダ（Alt-Svc: h3）→ HTML の本文が 1.53 秒まで続く',
+    '名前（CNAME → HTTPS alpn="h3"）→ Initial × 2（各 1,250 B）→ Initial・Handshake → Finished・GET /generate_204 → 204'
+  ];
+  const s2 = {
+    steps: [
+      { where: '0〜0.13 秒 ／ 合計は実測、内訳は例', title: '0.13 秒の中身', text: '第21章の回では、要求を出してから 0.13 秒で応答のヘッダが届いた。図は往復を 10 ms として内訳を割り振った例で、往復 4 回が約 0.04 秒、残りの約 0.09 秒がサーバーの中（推定）。別の回の netlog 4 回では、要求を送ってからヘッダまで 0.12〜0.27 秒だった。' },
+      { where: '0〜0.01 秒 ／ 例', title: '名前を引く：往復は 0 回か 1 回', text: 'Chrome は A・AAAA・HTTPS の 3 種類を同時に問い合わせた（別の回の netlog、第17章 場面6）。どこかの段のキャッシュにあれば待ちはほぼ 0、ISP のフルリゾルバまでなら 1 往復、その先まで聞けば数往復かかる（第17章 場面3・4）。答えの TTL は 300 秒。' },
+      { where: '0.01〜0.02 秒 ／ 例', title: 'TCP で 1 往復', text: 'www.youtube.com の HTTPS レコードには HTTP/3 の印が無く、初めての接続は TCP で始まる。3-way ハンドシェイクで 1 往復（第19章 場面2）、別の回の netlog では 8 ms だった。家のルーターの NAT と状態表に、この接続の行ができる（第14章 場面4・5）。' },
+      { where: '0.02〜0.03 秒 ／ 例', title: 'TLS 1.3 で 1 往復', text: '続けて ClientHello を送ると、ServerHello から Finished までが 1 回で返り、鍵交換・証明書・HTTP の版（h2）が決まる（第20章 場面5）。別の回の netlog では ClientHello から ServerHello まで 13 ms。その直後に要求を出せる。' },
+      { where: '0.03〜0.13 秒 ／ 合計は実測', title: '要求から応答のヘッダまで', text: 'GET /watch は HTTP/2 で送り、拠点の GFE が受けて奥のサーバーへ渡す（第22章 場面3）。ヘッダの Alt-Svc で HTTP/3 を知ると、Chrome はすぐ QUIC の接続も張り始め（別の回の netlog で 10 ms 後）、以後の要求の多くがそちらへ移る（第21章 場面4）。' },
+      { where: '1.51 秒〜 ／ 例', title: '配信元へは最初から QUIC', text: '1.51 秒、プレーヤーは配信元へ本文の無い要求を送る。名前の答えに HTTPS レコード（alpn="h3"）があるので最初から QUIC で、接続と暗号が 1 往復でそろう（第17章 場面6、第19章 場面6）。第21章の回の応答は 1.89 秒で、図の例より 0.3 秒余り遅い（内訳は記録に無い）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.band = band(svg);
+      st.axis = zoomAxis(svg, X2(0), X2(130), [0, 20, 40, 60, 80, 100, 120].map((v) => [v, '']), X2);
+      S.text(112, ZY + 4, '拡大', { cls: 't-xs t-x t-b t-end' }, svg);
+      /* 3 本の線 */
+      [['フルリゾルバ', 'R', 'ISP（例）'], ['PC', 'P', '192.168.1.10'], ['サーバー', 'S', '']].forEach(([n, k, sub]) => {
+        S.line(X2(0), LY[k], X2(130), LY[k], { cls: 's-rule w1' }, svg);
+        S.text(112, LY[k] - 1, n, { cls: 't-sm t-b t-end' }, svg);
+        const t = S.text(112, LY[k] + 13, sub, { cls: 't-xs t-dim t-end t-mono' }, svg);
+        if (k === 'S') st.srvSub = t;
+      });
+      /* www.youtube.com への 4 往復 */
+      const mk = (segs) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        segs.forEach(([a, b, f, t]) => {
+          if (f === t) S.rect(X2(a), LY[f] - 9, X2(b) - X2(a), 18, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+          else S.arrow(g, X2(a), LY[f], X2(b), LY[t], 'd', { cls: 's-d w2' });
+        });
+        return g;
+      };
+      st.gw = {};
+      Object.keys(SEG_W).forEach((k) => { st.gw[k] = mk(SEG_W[k]); });
+      /* 往復の名前（V の内側） */
+      const vlab = (g, x, y, s) => S.text(x, y, s, { cls: 't-c t-xs t-b' }, g);
+      vlab(st.gw.dns, X2(5), LY.P - 16, '名前');
+      vlab(st.gw.tcp, X2(15), LY.P + 25, 'TCP');
+      vlab(st.gw.tls, X2(25), LY.P + 25, 'TLS');
+      vlab(st.gw.req, X2(80), LY.P + 25, '要求と応答');
+      S.text(X2(80), LY.S - 14, 'サーバーの中（約 90 ms、推定）', { cls: 't-c t-xs' }, st.gw.req);   // 帯の上。サーバーの線が文字を横切らない
+      S.text(X2(129), LY.P - 9, 'HTML は 1.53 秒まで流れ続ける →', { cls: 't-xs t-dim t-end' }, st.gw.req);
+      /* 段階ごとのメッセージの名前（図の下の 1 行） */
+      st.msg = S.text(X2(0), 414, '', { cls: 't-xs t-d t-b' }, svg);
+      /* 1.51 秒からの配信元への接続（例） */
+      st.gg = S.g({ cls: 'fade hide' }, svg);
+      SEG_G.forEach(([a, b, f, t]) => {
+        if (f === t) S.rect(X2(a), LY[f] - 9, X2(b) - X2(a), 18, { rx: 3, cls: 'f-d-soft s-d w1' }, st.gg);
+        else S.arrow(st.gg, X2(a), LY[f], X2(b), LY[t], 'd', { cls: 's-d w2' });
+      });
+      vlab(st.gg, X2(5), LY.P - 16, '名前');
+      vlab(st.gg, X2(15), LY.P + 25, 'QUIC');
+      vlab(st.gg, X2(27.5), LY.P + 25, '要求');
+      S.text(X2(129), LY.P - 9, '実測（第21章の回）：応答は 1.89 秒 →', { cls: 't-xs t-x t-b t-end' }, st.gg);
+      /* 進む印と、いまの時刻 */
+      st.dot = S.circle(X2(0), LY.P, 6, { cls: 'f-x' }, svg);
+      st.cursor = S.line(X2(0), 136, X2(0), 400, { cls: 's-x w1 dash2' }, svg);
+      st.now = S.text(892, 160, '', { cls: 't-sm t-x t-mono t-b t-end' }, svg);   // 止めたときの縦線（x = 900）にかからない位置
+      st.note = S.text(X2(0), 440, '', { cls: 't-xs t-dim' }, svg);
+      st.chips = chips(svg, [
+        L(21, 6, '実際の要求群'), L(17, 3, '再帰的な問い合わせ'), L(17, 4, 'キャッシュと TTL'), L(19, 2, '3-way ハンドシェイク'), L(20, 5, 'TLS 1.3 ハンドシェイク'),
+        L(22, 3, '負荷分散（GFE）'), L(21, 4, 'HTTP/3 と Alt-Svc'), L(17, 6, 'HTTPS レコード'), L(19, 6, 'QUIC'), L(22, 5, '再生要求のサーバー側')
+      ]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const gv = i === 5;
+      st.band.setWin([gv ? [RUN.g204, RUN.g204 + 0.13, X2(0), X2(130)] : [0, 0.13, X2(0), X2(130)]]);
+      st.axis.labels.forEach((t, k) => { const ms = k * 20; t.textContent = gv ? (RUN.g204 + ms / 1000).toFixed(2) + (k === 6 ? ' 秒' : '') : (ms ? (ms / 1000).toFixed(2) : '0') + (k === 6 ? ' 秒' : ''); });
+      st.srvSub.textContent = gv ? 'googlevideo.com' : 'www.youtube.com';
+      const key = ['', 'dns', 'tcp', 'tls', 'req'][i];
+      Object.keys(st.gw).forEach((k) => { S.fade(st.gw[k], !gv); op(st.gw[k], gv || !key || key === k ? 1 : 0.3); });
+      S.fade(st.gg, gv);
+      st.msg.textContent = MSG2[i];
+      st.note.textContent = gv ? '例：往復 10 ms（実測は 7〜12 ms）、配信元の中は 5 ms として描いた。'
+        : '例：往復 10 ms（実測は 7〜12 ms）。サーバーの中の約 90 ms は、実測の 0.13 秒から往復 4 回分を引いた推定。';
+      st.chips.hl([['21-6'], ['17-3', '17-4'], ['19-2'], ['20-5'], ['22-3', '21-4'], ['17-6', '19-6', '22-5']][i]);
+    },
+    frame(ctx) {
+      const st = ctx.state, gv = ctx.step === 5;
+      const segs = gv ? SEG_G : [].concat(SEG_W.dns, SEG_W.tcp, SEG_W.tls, SEG_W.req);
+      let ms = 130;
+      if (playing()) { const q = U.seq(ctx.ts, [6.5, 2], true); ms = q.i === 0 ? q.f * 130 : 130; }
+      const p = segAt(segs, ms);
+      st.dot.setAttribute('cx', p.x.toFixed(1)); st.dot.setAttribute('cy', p.y.toFixed(1));
+      const x = X2(ms).toFixed(1);
+      st.cursor.setAttribute('x1', x); st.cursor.setAttribute('x2', x);
+      st.now.textContent = 'いま ' + ((gv ? RUN.g204 : 0) + ms / 1000).toFixed(3) + ' 秒';
+    }
+  };
+
+  /* ================================================================
+     場面3・4 の道（第18章の例：家のルーター、ISP の 5 台、Google の 3 台）
+     ================================================================ */
+  const NODES = [['PC', 'end'], ['R1', 'r'], ['ONU', 'box'], ['OLT', 'box'], ['R2', 'r'], ['R3', 'r'], ['R4', 'r'], ['R5', 'r'], ['R6', 'r'], ['R7', 'r'], ['R8', 'r'], ['R9', 'r'], ['拠点', 'end']];
+  const NX = (k) => 140 + k * (740 / 12);
+  const RY = 262;
+  /* 区間：[から, まで, 媒体の色, 行きの時間 ms, 帰りの時間 ms]。往復 10 ms に合うよう各章の目安から置いた例。
+     帰りは光回線の上りの許可待ち（約 1 ms）が無いぶん短い */
+  const LINKS = [
+    [0, 1, 'r', 1.5, 1.5],                 // Wi-Fi
+    [1, 2, 'e', 0.1, 0.05],                // ルーター（NAT・転送）と LAN の銅線
+    [2, 3, 'p', 1.0, 0.05],                // 光回線（PON）：上りは許可待ち、下りは放送
+    [3, 4, 'p', 0.5, 0.5],                 // 局舎の網から ISP の入口
+    [4, 5, 'p', 0.3, 0.3], [5, 6, 'p', 0.3, 0.3], [6, 7, 'p', 0.3, 0.3], [7, 8, 'p', 0.3, 0.3],   // ISP の網
+    [8, 9, 'p', 0.3, 0.3],                 // IX か直結
+    [9, 10, 'p', 0.3, 0.3], [10, 11, 'p', 0.3, 0.3], [11, 12, 'mid', 0.3, 0.3]                     // Google の網と拠点の中
+  ];
+  /* 区間のまとまり：[名前, 最初のノード, 最後のノード, 最初の区間, 最後の区間] */
+  const GROUPS = [['家の中', 0, 2, 0, 1], ['光回線', 2, 3, 2, 2], ['ISP の網', 3, 8, 3, 7], ['IX と Google の網', 8, 12, 8, 11]];
+  /* 行き（up）・帰り（down）で、各ノードに着く時刻 ms */
+  function nodeTimes(down) {
+    const T = new Array(NODES.length).fill(0);
+    if (!down) { for (let k = 0; k < LINKS.length; k++) T[k + 1] = T[k] + LINKS[k][3]; }
+    else { for (let k = LINKS.length - 1; k >= 0; k--) T[k] = T[k + 1] + LINKS[k][4]; }
+    return T;
+  }
+  /* 道を描く。links（線）、nodes（四角）、brackets（まとまりの括弧）を返す。end は右端の [名前, 番号] */
+  function route(svg, end) {
+    end = end || ['拠点', '142.250.196.110'];
+    const g = S.g({}, svg), out = { g, links: [], nodes: [], groups: [] };
+    LINKS.forEach(([a, b, c]) => out.links.push(S.line(NX(a), RY, NX(b), RY, { cls: 's-' + c + ' w4 round' }, g)));
+    NODES.forEach(([n, kind], k) => {
+      const x = NX(k), ng = S.g({}, g);
+      if (kind === 'end') S.rect(x - 26, RY - 15, 52, 30, { rx: 5, cls: 'f-sf s-fg w15' }, ng);
+      else if (kind === 'r') S.rect(x - 15, RY - 11, 30, 22, { rx: 4, cls: 'f-sf s-mid w15' }, ng);
+      else S.rect(x - 19, RY - 11, 38, 22, { rx: 3, cls: 'f-in s-mid w1' }, ng);
+      S.text(x, RY + 4, k === NODES.length - 1 ? end[0] : n, { cls: 't-c t-xs' + (kind === 'r' ? ' t-mono' : ' t-b') }, ng);
+      out.nodes.push(ng);
+    });
+    S.text(NX(0), RY + 31, '192.168.1.10', { cls: 't-c t-xs t-dim t-mono' }, g);
+    S.text(NX(12), RY + 31, end[1], { cls: 't-c t-xs t-dim t-mono' }, g);
+    GROUPS.forEach(([n, a, b]) => {
+      const gg = S.g({}, g), x0 = NX(a) + (a ? 6 : -26), x1 = NX(b) - (b === 12 ? -26 : 6), y = RY + 46;
+      S.path(`M${x0},${y - 5} V${y} H${x1} V${y - 5}`, { cls: 'f-none s-dim w1' }, gg);
+      S.text((x0 + x1) / 2, y + 15, n, { cls: 't-c t-xs t-b t-dim' }, gg);
+      out.groups.push(gg);
+    });
+    return out;
+  }
+  /* 道の上を進む札（TTL を出す） */
+  function tag(svg, cls) {
+    const g = S.g({ cls: 'pkt' }, svg);
+    S.rect(-27, -9, 54, 18, { rx: 4, cls: cls || 'f-d' }, g);
+    g.txt = S.text(0, 4, '', { cls: 't-c t-xs t-b t-sf t-mono' }, g);
+    return g;
+  }
+  /* 時刻 ms のときの、道の上の x（times はノードに着く時刻） */
+  function xAt(times, ms, down) {
+    const n = NODES.length;
+    if (!down) {
+      for (let k = 0; k < n - 1; k++) if (ms <= times[k + 1]) return U.lerp(NX(k), NX(k + 1), U.clamp((ms - times[k]) / (times[k + 1] - times[k]), 0, 1));
+      return NX(n - 1);
+    }
+    for (let k = n - 1; k > 0; k--) if (ms <= times[k - 1]) return U.lerp(NX(k), NX(k - 1), U.clamp((ms - times[k]) / (times[k - 1] - times[k]), 0, 1));
+    return NX(0);
+  }
+
+  /* ================================================================
+     場面3 要求が旅する（行き）
+     ================================================================ */
+  const X3 = (ms) => 120 + 130 * ms;            // 0〜6 ms を 120〜900 に
+  const UP = nodeTimes(false);                   // 行きでノードに着く時刻（最後が 5.5 ms）
+  const CALL3 = [
+    ['GET /watch：192.168.1.10:51234 → 142.250.196.110:443（例の値）', '片道 約 5.5 ms（例）＝ 家の中 1.6 ＋ 光回線 1.0 ＋ ISP の網 1.7 ＋ IX と Google の網 1.2'],
+    ['R1：送信元を 192.168.1.10:51234 から 203.0.113.5:40001 に書き換え、TTL 64 → 63', 'Wi-Fi：空きを待って送り、ACK を受ける（例 1.5 ms）'],
+    ['ONU → OLT：割り当てられた時間まで待つ（約 1 ms）。光が 2 km を進むのは約 10 µs', 'ONU と OLT はルーターではないので、TTL は変えない'],
+    ['R2〜R6：宛先 142.250.196.110 で経路表を引いて渡す。TTL 62 → 58', '1 台ごとの 0.3 ms（例）は、表を引く・送り出す・数十 km を進む時間の合計'],
+    ['R7〜R9：TTL 57 → 55 で Google の拠点に着く', '拠点の中は Maglev → GFE（第22章 場面3）'],
+    ['往復 約 10 ms（例：行き 5.5 ＋ 帰り 4.5）', '実測：往復 7〜12 ms（ping）、traceroute は 6 ホップ（2026 年 10 月 12 日）']
+  ];
+  const s3 = {
+    steps: [
+      { where: '約 0.03 秒から ／ 例', title: '片道 約 5.5 ms の内訳', text: '0.03 秒ごろ PC を出た GET /watch が Google の拠点に着くまでを、区間ごとに割り振った例。往復の実測 7〜12 ms に合うよう、各章の目安から往復 10 ms として置いた。道は第18章の例で、家のルーター・ISP の 5 台・Google の 3 台を通る（第11章 場面6）。' },
+      { where: '0〜1.6 ms ／ 例', title: '家の中：Wi-Fi とルーター', text: 'Wi-Fi は空きを待ってから送り、ACK で届いたことを確かめる（第12章 場面4）。AP から有線へ渡り（第13章 場面6）、ルーターが送信元を 203.0.113.5:40001 に書き換えて TTL を 63 にする（第14章 場面4・6）。家の中で約 1.6 ms とした。' },
+      { where: '1.6〜2.6 ms ／ 例', title: '光で局舎へ：上りは許可を待つ', text: 'ONU は OLT が割り当てた時間にだけ上りの光を出す（第15章 場面4）。この許可待ちが約 1 ms で、2 km の光が進む約 10 µs よりはるかに長い（第15章 場面6）。ONU と OLT はルーターではないので、TTL は変わらない。' },
+      { where: '2.6〜4.3 ms ／ 例', title: 'ISP の網：1 台ずつ表を引く', text: '局舎の網を抜けて ISP の入口のルーターに着き（第15章 場面5）、ISP の 5 台が順に、宛先といちばん長く一致する行を引いて渡す（第16章 場面5）。1 台ごとに TTL が 1 減り、MAC が付け替わる（第18章 場面4）。' },
+      { where: '4.3〜5.5 ms ／ 例', title: 'IX か直結で Google の拠点へ', text: 'ISP の境目から IX か直結（PNI）で Google の網に入り（第16章 場面3・6）、3 台を越えて拠点に着く。TTL は 55。拠点では Maglev が GFE を選んで渡す（第22章 場面3）。PC を出てから約 5.5 ms。' },
+      { where: '往復 7〜12 ms ／ 実測', title: '往復と、実際の道', text: '帰りは光回線の許可待ちが無いぶん約 1 ms 短く、往復は約 10 ms（例）。実測の往復は 7〜12 ms で、traceroute では 6 ホップだった（第18章 場面6）。台数は回線の方式で変わる。TCP も TLS も要求も 1 往復ごとにこの道を通り、名前の問い合わせは ISP のフルリゾルバで折り返す。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.band = band(svg);
+      st.band.setWin([[0.030, 0.036, X3(0), X3(6)]]);   // 拡大した軸と同じ 6 ms の幅
+      zoomAxis(svg, X3(0), X3(6), [0, 1, 2, 3, 4, 5, 6].map((v) => [v, v === 6 ? '6 ms' : String(v)]), X3);
+      S.text(112, ZY + 4, '拡大', { cls: 't-xs t-x t-b t-end' }, svg);
+      /* 片道の時間の帯（区間ごと） */
+      st.seg = LINKS.map(([a, b, c, up], k) => S.rect(X3(UP[k]), 140, X3(UP[k + 1]) - X3(UP[k]), 16, { cls: (c === 'mid' ? 'f-in s-mid' : 'f-' + c + '-soft s-' + c) + ' w1' }, svg));
+      st.glab = GROUPS.map(([n, a, b]) => {
+        const t0 = UP[a], t1 = UP[b];
+        const g = S.g({}, svg);
+        S.text((X3(t0) + X3(t1)) / 2, 172, n + ' ' + U.fmt(t1 - t0, 1) + ' ms', { cls: 't-c t-xs t-b' }, g);
+        S.line(X3(t1), 158, NX(b) + (b === 12 ? 0 : 0), RY - 17, { cls: 's-soft w1 dash' }, g);
+        if (!a) S.line(X3(t0), 158, NX(a), RY - 17, { cls: 's-soft w1 dash' }, g);
+        return g;
+      });
+      st.cur = S.line(X3(0), 134, X3(0), 162, { cls: 's-x w2' }, svg);
+      st.rt = route(svg);
+      st.tag = tag(svg);
+      st.c1 = S.text(120, 372, '', { cls: 't-sm t-b' }, svg);
+      st.c2 = S.text(120, 394, '', { cls: 't-xs t-mid' }, svg);
+      S.text(120, 440, '例：区間ごとの時間は、往復の実測 7〜12 ms に合うよう各章の目安から置いた。道とルーターの台数は第18章の例。', { cls: 't-xs t-dim' }, svg);
+      st.chips = chips(svg, [
+        L(11, 6, '1 つのパケットの旅'), L(12, 4, 'フレームと CSMA/CA'), L(14, 4, 'NAT'), L(14, 6, 'TTL と転送'), L(15, 4, 'PON'),
+        L(15, 6, '光と電気の違い（遅延）'), L(16, 5, 'ルーターの転送'), L(18, 4, 'ホップごとに起きること'), L(16, 3, 'IX とピアリング'), L(18, 6, 'ping と traceroute')
+      ]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const gk = [-1, 0, 1, 2, 3, -1][i];
+      const lit = (k) => gk < 0 || (k >= GROUPS[gk][3] && k <= GROUPS[gk][4]);
+      st.seg.forEach((r, k) => op(r, lit(k) ? 1 : 0.3));
+      st.rt.links.forEach((l, k) => op(l, lit(k) ? 1 : 0.3));
+      st.rt.groups.forEach((g, k) => op(g, gk < 0 || gk === k ? 1 : 0.35));
+      st.glab.forEach((g, k) => op(g, gk < 0 || gk === k ? 1 : 0.35));
+      st.c1.textContent = CALL3[i][0];
+      st.c2.textContent = CALL3[i][1];
+      st.chips.hl([['11-6'], ['12-4', '14-4', '14-6'], ['15-4', '15-6'], ['16-5', '18-4'], ['16-3'], ['18-6']][i]);
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      const end = UP[UP.length - 1];
+      const [a, b] = [[0, end], [0, UP[2]], [UP[2], UP[3]], [UP[3], UP[8]], [UP[8], end], [0, end]][ctx.step];
+      let ms = b;
+      if (playing()) { const q = U.seq(ctx.ts, [Math.max(2.5, (b - a) * 1.3), 1.5], true); ms = q.i === 0 ? a + q.f * (b - a) : b; }
+      const x = xAt(UP, ms, false);
+      st.tag.setAttribute('transform', `translate(${x.toFixed(1)},${RY - 30})`);
+      const passed = NODES.filter(([, kind], k) => kind === 'r' && ms >= UP[k]).length;
+      st.tag.txt.textContent = 'TTL ' + (64 - passed);
+      const cx = X3(ms).toFixed(1);
+      st.cur.setAttribute('x1', cx); st.cur.setAttribute('x2', cx);
+    }
+  };
+
+  /* ================================================================
+     場面4 応答が帰る（帰り）
+     ================================================================ */
+  const X4 = (t) => 120 + (t - 1.6) * 780 / 0.9;      // 1.6〜2.5 秒を 120〜900 に
+  const DOWN = nodeTimes(true);                         // 帰りでノードに着く時刻（拠点を出て 0、PC に 4.5 ms）
+  const CALL4 = [
+    ['POST /videoplayback?…sabr=1（本文に再生位置と溜めた区間）→ 200 application/vnd.yt-ump', '要求を送ってから応答のヘッダまで 約 30 ms（別の回の netlog、2 回）'],
+    ['1.65 MB ÷ 1 個あたり約 1,200 B の中身 ≈ 約 1,400 個（1 個は 1,250 B のデータグラム）', '中身：初期化の部分、音声（Opus）0〜20 秒、映像（AV1 720p）0〜17.4 秒（第21章の回）'],
+    ['宛先 203.0.113.5:40001。R9 … R2 が経路表を引いて渡す（帰りの道は行きと同じとは限らない）','片道のうち IX と Google の網 1.2 ms、ISP の網 1.7 ms（例）'],
+    ['ONU：自分宛てのフレームだけ取る。R1：宛先を 192.168.1.10:51234 に戻す', '光回線の下り 0.05 ms、家の中 1.55 ms（例）。行きより許可待ちの約 1 ms 短い'],
+    ['', ''],
+    ['受け取り終える 2.29 秒 → 最初の画 2.37 秒（第21章の回）', '別の回の計測：応答のヘッダの約 0.12 秒後に最初の画が出た（応答はまだ続いていた）']
+  ];
+  const s4 = {
+    steps: [
+      { where: '1.69 秒〜 ／ 実測', title: '断片を頼む POST', text: 'プレーヤーは再生位置と手元に溜めた区間を本文に入れて POST を送り、どの形式の断片をどこまで返すかは配信元の側でも決める（第22章 場面5、第24章 場面3）。別の回の netlog では、送ってから応答のヘッダまで約 30 ms だった。' },
+      { where: '1.69〜2.29 秒 ／ 実測', title: '1.65 MB は約 1,400 個のパケット', text: '応答は音声と映像の断片をまとめた 1 本で（第21章 場面6）、配信元はそれを 1,250 バイトのデータグラムに分けて送る。送る速さは輻輳制御が往復ごとに広げる（第19章 場面4）。第21章の回は、要求を出してから受け取り終えるまで約 0.6 秒だった。' },
+      { where: '片道 0〜2.9 ms ／ 例', title: 'Google から局舎へ', text: '宛先は 203.0.113.5。Google と ISP のルーターは、BGP で聞いた経路を引いて ISP の局舎まで渡す（第16章 場面2・6、第18章 場面4）。行きと帰りの道は別々に選ばれ、同じとは限らない。GGC のある ISP なら、断片は ISP の中から返る（第22章 場面4）。' },
+      { where: '片道 2.9〜4.5 ms ／ 例', title: '光で家へ、ルーターで宛先を戻す', text: '下りの光は分岐の先の全員に届き、ONU は自分宛てだけを取る（第15章 場面4）。上りの許可待ちが無いぶん、行きより約 1 ms 短い。ルーターは状態表で戻りと確かめ、宛先を 192.168.1.10:51234 に戻して Wi-Fi で送る（第14章 場面4・5）。' },
+      { where: '1 個ごと ／ 例', title: 'PC の中を上る', text: 'Wi-Fi カードはフレームを DMA でメモリに書き（第7章 場面4）、割り込みは何個分かを束ねて 1 回にする（第7章 場面3）。カーネルが IP と UDP を外してソケットに入れ、待っていたネットワークサービスを起こす（第9章 場面6）。届くパケットは 1 秒に 2,000 個を超える。' },
+      { where: '2.29 秒 ／ 実測', title: '受け取り終える前に、画は出うる', text: 'プレーヤーは届いた分から SourceBuffer に入れる（第24章 場面2）。第21章の回は 2.29 秒に受け取り終え、0.08 秒後に最初の画が出た。別の回の計測では、応答の途中、ヘッダから約 0.12 秒で最初の画が出た。最初の画は、応答の最後を待つとは限らない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.band = band(svg);
+      st.band.setWin([[RUN.post, RUN.postEnd, X4(RUN.post), X4(RUN.postEnd)]]);
+      zoomAxis(svg, X4(1.6), X4(2.5), [1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5].map((v) => [v, v === 2.5 ? '2.5 秒' : v.toFixed(1)]), X4);
+      S.text(112, ZY + 4, '拡大', { cls: 't-xs t-x t-b t-end' }, svg);
+      /* 要求から受け取り終えるまでと、最初の画 */
+      S.rect(X4(RUN.post), 140, X4(RUN.postEnd) - X4(RUN.post), 16, { rx: 3, cls: 'f-d-soft s-d w1' }, svg);
+      S.text((X4(RUN.post) + X4(RUN.postEnd)) / 2, 152, '応答 1.65 MB（約 1,400 個）', { cls: 't-c t-xs t-b' }, svg);
+      S.text(X4(RUN.post), 172, '1.69 要求を出す', { cls: 't-xs t-mono' }, svg);
+      S.text(X4(RUN.postEnd), 172, '2.29 受け取り終える', { cls: 't-xs t-mono t-end' }, svg);
+      S.line(X4(RUN.first), 136, X4(RUN.first), 160, { cls: 's-x w2' }, svg);
+      S.text(X4(RUN.first) + 4, 172, '2.37 最初の画', { cls: 't-xs t-x t-b t-mono' }, svg);
+      st.cur = S.line(X4(RUN.post), 136, X4(RUN.post), 160, { cls: 's-x w1 dash2' }, svg);
+      /* 道と、区間のまとまりごとの片道（帰り）。断片を返すのは www.youtube.com ではなく配信元（例の名前） */
+      st.rt = route(svg, ['配信元', 'rr1---sn-xxxxxxxx']);
+      st.glab = GROUPS.map(([n, a, b]) => S.text((NX(a) + NX(b)) / 2, RY - 40, n + ' ' + U.fmt(DOWN[a] - DOWN[b], 2).replace(/0$/, '') + ' ms', { cls: 't-c t-xs t-b' }, svg));
+      /* 流れてくるパケット */
+      st.dots = [];
+      for (let k = 0; k < 24; k++) st.dots.push(S.rect(0, RY - 22, 6, 6, { rx: 1.5, cls: 'f-d' }, svg));
+      /* 段階ごとの説明の行と、PC の中の順（段階5） */
+      st.c1 = S.text(120, 372, '', { cls: 't-sm t-b' }, svg);
+      st.c2 = S.text(120, 394, '', { cls: 't-xs t-mid' }, svg);
+      st.chain = S.g({ cls: 'fade hide' }, svg);
+      [['Wi-Fi カード', '第7章 場面6'], ['DMA でメモリへ', '第7章 場面4'], ['割り込みを束ねる', '第7章 場面3'], ['IP・UDP を外す', '第9章 場面6'], ['ソケットから受け取る', '第9章 場面3'], ['ネットワークサービス', '第10章 場面1']].forEach(([n, c], k) => {
+        const x = 120 + k * 130;
+        S.rect(x, 352, 118, 28, { rx: 4, cls: 'f-d-soft s-d w1' }, st.chain);
+        S.text(x + 59, 370, n, { cls: 't-c t-xs t-b' }, st.chain);
+        S.text(x + 59, 396, c, { cls: 't-c t-xs t-dim' }, st.chain);
+        if (k < 5) S.arrow(st.chain, x + 119, 366, x + 129, 366, 'd', { cls: 's-d w15' });
+      });
+      S.text(120, 440, '例：配信元は Google の拠点にあるとし、帰りの道は行きと同じに描いた（実際は別々に選ばれる）。区間ごとの時間は場面3 と同じ置き方。', { cls: 't-xs t-dim' }, svg);
+      st.chips = chips(svg, [
+        L(22, 5, '再生要求のサーバー側'), L(24, 3, 'ABR（形式を選ぶ）'), L(21, 6, '実際の要求群'), L(19, 4, 'ウィンドウと輻輳制御'), L(16, 6, 'Google に着くまで'),
+        L(15, 4, 'PON（下りは放送）'), L(14, 4, 'NAT'), L(7, 4, 'DMA'), L(9, 6, 'ネットワークスタック'), L(24, 2, '断片の取得とバッファ')
+      ]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const gks = [null, null, [2, 3], [0, 1], [], null][i];
+      const lit = (k) => !gks || gks.some((g) => k >= GROUPS[g][3] && k <= GROUPS[g][4]);
+      st.rt.links.forEach((l, k) => op(l, lit(k) ? 1 : 0.3));
+      st.rt.groups.forEach((g, k) => op(g, !gks || gks.indexOf(k) >= 0 ? 1 : 0.35));
+      st.glab.forEach((g, k) => op(g, !gks || gks.indexOf(k) >= 0 ? 1 : 0.35));
+      op(st.rt.nodes[0], 1);
+      st.c1.textContent = CALL4[i][0];
+      st.c2.textContent = CALL4[i][1];
+      S.fade(st.chain, i === 4);
+      st.chips.hl([['22-5', '24-3'], ['21-6', '19-4'], ['16-6'], ['15-4', '14-4'], ['7-4', '9-6'], ['24-2']][i]);
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      const P = DOWN[0];                                  // 片道 4.5 ms
+      const ph = playing() ? ctx.ts / 6 * P : 0;          // 4.5 ms を 6 秒で
+      st.dots.forEach((d, k) => {
+        const ms = U.mod(ph + k * P / st.dots.length, P);
+        d.setAttribute('x', (xAt(DOWN, ms, true) - 3).toFixed(1));
+      });
+      let t = RUN.postEnd;
+      if (playing()) { const q = U.seq(ctx.ts, [6, 2], true); t = q.i === 0 ? RUN.post + q.f * (RUN.postEnd - RUN.post) : RUN.postEnd; }
+      const x = X4(t).toFixed(1);
+      st.cur.setAttribute('x1', x); st.cur.setAttribute('x2', x);
+    }
+  };
+
+  /* ================================================================
+     場面5 復号して表示する（目盛りは 2026-10-17 の別の回）
+     ================================================================ */
+  const X5 = (ms) => 120 + 13 * ms;            // 0〜60 ms を 120〜900 に
+  /* 最初の映像を appendBuffer した時刻が 0。playing は 3 回で 4〜9 ms（図は 8.1）。
+     書き換えは 2 枚目が画面に出た時刻（rVFC、+44.4 ms）から 16.7 ms ずつ戻した推定 */
+  const EV5 = { play: 8.1, vs: [11.1, 27.8, 44.4] };
+  const s5 = {
+    steps: [
+      { where: 'パケットごと ／ 推定', title: '暗号をほどく', text: 'QUIC のパケットは 1 個ずつ AEAD で暗号化されていて、ネットワークサービスが届いた順にタグを確かめてほどく（第20章 場面6）。HTTP/3 のフレームから応答の本文を取り出し、レンダラへ流す（第21章 場面4）。1 個あたりの計算はマイクロ秒の桁（推定）。' },
+      { where: 'ヘッダから約 0.11 秒 ／ 別の回', title: 'JS が断片に分けて入れる', text: 'プレーヤーの JS は応答を初期化部分と断片に分け、映像用と音声用の SourceBuffer に appendBuffer で入れる（第24章 場面2、第10章 場面6）。別の回の計測 2 回では、応答のヘッダから最初の映像を入れるまで約 0.11 秒。初期化部分はそれより先に入る。' },
+      { where: '入れてから 4〜9 ms ／ 別の回', title: '1 フレームずつ解く', text: '断片はフレームごとに分けられてデコーダへ渡り、YUV 4:2:0 の画が出る（第24章 場面4、第23章 場面1）。回路があれば GPU の専用回路が解く。回路を使わない計測の環境でも、最初の映像を入れてから playing まで 4〜9 ms だった（3 回）。' },
+      { where: '次の書き換えまで 0〜16.7 ms ／ 例', title: '合成して、次の書き換えで出す', text: 'GPU は合成で YUV を RGB に戻し、プレーヤーの大きさに拡大して他の層と重ねる（第24章 場面5、第8章 場面2）。できた 1 枚は次の vsync を待って画面へ出る。60 Hz なら待ちは 0〜16.7 ms（第8章 場面3）。図の回は、映像を入れて 44 ms 後に 2 枚目が出た（3 回で最短）。' },
+      { where: '1 秒に 48,000 個 ／ 第8章', title: '音は別の道を通り、時計になる', text: '音声の断片は Opus を解いて 48 kHz の PCM になり、DAC が電圧に戻す（第23章 場面6、第8章 場面6）。音は途切れずに鳴らす必要があるので、再生位置は音が鳴った量で決まり、映像はそれに合わせて出す（第24章 場面5）。' },
+      { where: '2.37 秒 ／ 実測', title: '最初の画', text: '第21章の回では 2.37 秒に再生が始まり（video の playing、第21章 場面6）、10 月 17 日の測り直しでは約 2.3 秒だった。以後、25 fps の画が 40 ms ごとに替わり、60 Hz の画面では 1 枚が 2 回か 3 回の書き換えにまたがる（第24章 場面5）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.band = band(svg);
+      const t0 = RUN.first - EV5.play / 1000;
+      st.band.setWin([[t0, t0 + 0.06, X5(0), X5(60)]]);
+      zoomAxis(svg, X5(0), X5(60), [0, 10, 20, 30, 40, 50, 60].map((v) => [v, v === 60 ? '60 ms' : String(v)]), X5);
+      S.text(112, ZY + 4, '拡大', { cls: 't-xs t-x t-b t-end' }, svg);
+      /* 映像の段：入れる・playing */
+      st.mk1 = S.g({ cls: 'fade' }, svg);
+      S.text(112, 154, '映像', { cls: 't-xs t-dim t-end' }, st.mk1);
+      S.line(X5(0), 138, X5(0), 158, { cls: 's-d w3' }, st.mk1);
+      S.text(X5(0) + 6, 154, '最初の映像を入れる', { cls: 't-xs t-d t-b' }, st.mk1);
+      S.line(X5(EV5.play), 138, X5(EV5.play), 158, { cls: 's-x w3' }, st.mk1);
+      S.text(X5(EV5.play) + 6, 154, 'playing（4〜9 ms、3 回）', { cls: 't-xs t-x t-b' }, st.mk1);
+      /* 画面の段：書き換え */
+      st.mk2 = S.g({ cls: 'fade' }, svg);
+      S.text(112, 186, '画面', { cls: 't-xs t-dim t-end' }, st.mk2);
+      S.line(X5(0), 182, X5(60), 182, { cls: 's-soft w1' }, st.mk2);
+      EV5.vs.forEach((v) => S.line(X5(v), 172, X5(v), 192, { cls: 's-mid w2' }, st.mk2));
+      S.text(X5(EV5.vs[0]) + 6, 202, '1 枚目（推定）', { cls: 't-xs t-b' }, st.mk2);
+      S.text(X5(EV5.vs[1]) + 6, 202, '同じ画', { cls: 't-xs t-dim' }, st.mk2);
+      S.text(X5(EV5.vs[2]) + 6, 202, '2 枚目（実測）', { cls: 't-xs t-b' }, st.mk2);
+      S.text(X5(60) - 8, 170, '書き換え 16.7 ms ごと', { cls: 't-xs t-dim t-end' }, st.mk2);
+      st.cur = S.line(X5(0), 134, X5(0), 194, { cls: 's-x w1 dash2' }, svg);
+      /* 道：4 つの持ち場と、映像・音声の 2 段 */
+      const P = (k) => 120 + k * 197.5, PW = 187.5;
+      [['ネットワークサービス', '第20・21章'], ['レンダラ（JS）', '第10・24章'], ['メディアの処理', '第23・24章'], ['GPU・画面・音', '第8・24章']].forEach(([n, c], k) => {
+        S.rect(P(k), 214, PW, 184, { rx: 6, cls: 'f-in s-rule w1' }, svg);
+        S.text(P(k) + 10, 232, n, { cls: 't-xs t-b' }, svg);
+        S.text(P(k) + PW - 10, 232, c, { cls: 't-xs t-dim t-end' }, svg);
+      });
+      const box = (k, y, h, l1, l2) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        S.rect(P(k) + 10, y, PW - 20, h, { rx: 4, cls: 'f-sf s-d w15' }, g);
+        S.text(P(k) + PW / 2, y + h / 2 - 3, l1, { cls: 't-c t-xs t-b' }, g);
+        S.text(P(k) + PW / 2, y + h / 2 + 12, l2, { cls: 't-c t-xs' }, g);
+        return g;
+      };
+      const VY = 246, AY = 324, BH = 48;
+      st.b = {
+        dec: box(0, VY, AY + BH - VY, 'パケットをほどく（AEAD）', 'HTTP/3 の本文を取り出す'),
+        sbv: box(1, VY, BH, '映像の断片', '→ SourceBuffer'),
+        sba: box(1, AY, BH, '音声の断片', '→ SourceBuffer'),
+        vdec: box(2, VY, BH, 'フレームに分けて解く', '→ YUV 4:2:0'),
+        adec: box(2, AY, BH, 'Opus を解く', '→ PCM 48 kHz'),
+        comp: box(3, VY, BH, 'RGB にして合成', '→ 次の vsync で画面へ'),
+        dac: box(3, AY, BH, 'DAC → アンプ', '→ スピーカー')
+      };
+      const ar = (x1, y1, x2, y2, c) => S.arrow(svg, x1, y1, x2, y2, c || 'd', { cls: 's-' + (c || 'd') + ' w15' });
+      st.ar = [
+        ar(P(1) - 20, VY + BH / 2, P(1) + 10, VY + BH / 2), ar(P(1) - 20, AY + BH / 2, P(1) + 10, AY + BH / 2),
+        ar(P(2) - 20, VY + BH / 2, P(2) + 10, VY + BH / 2), ar(P(2) - 20, AY + BH / 2, P(2) + 10, AY + BH / 2),
+        ar(P(3) - 20, VY + BH / 2, P(3) + 10, VY + BH / 2), ar(P(3) - 20, AY + BH / 2, P(3) + 10, AY + BH / 2)
+      ];
+      st.clock = S.g({ cls: 'fade' }, svg);
+      S.arrow(st.clock, P(3) + PW - 22, AY - 1, P(3) + PW - 22, VY + BH + 2, 'x', { cls: 's-x w2' });
+      S.text(P(3) + PW - 30, AY - 9, '時計は音声', { cls: 't-xs t-x t-b t-end' }, st.clock);
+      S.text(120, 430, '目盛りは別の回（2026 年 10 月 17 日）。1 枚目が画面に出た時刻は、playing と書き換えの間隔からの推定。', { cls: 't-xs t-dim' }, svg);
+      st.chips = chips(svg, [
+        L(20, 6, '暗号化された通信'), L(24, 2, '断片の取得とバッファ'), L(10, 6, 'video と MSE'), L(24, 4, 'デコード'), L(23, 1, '画素と色（YUV）'),
+        L(24, 5, '表示と音声の時計'), L(8, 2, 'GPU と合成'), L(8, 3, '走査と vsync'), L(23, 6, '音声とコンテナ'), L(8, 6, '音（PCM → DAC）')
+      ]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, b = st.b;
+      const on = [['dec'], ['sbv', 'sba'], ['vdec'], ['comp'], ['sba', 'adec', 'dac'], Object.keys(b)][i];
+      Object.keys(b).forEach((k) => op(b[k], on.indexOf(k) >= 0 ? 1 : 0.3));
+      st.ar.forEach((a, k) => op(a, i === 5 || (i === 1 && k < 2) || (i === 2 && k === 2) || (i === 3 && k === 4) || (i === 4 && k % 2 === 1) ? 1 : 0.3));
+      op(st.clock, i === 4 || i === 5 ? 1 : 0.25);
+      op(st.mk1, i === 1 || i === 2 || i === 5 ? 1 : 0.35);
+      op(st.mk2, i === 3 || i === 5 ? 1 : 0.35);
+      st.chips.hl([['20-6'], ['24-2', '10-6'], ['24-4', '23-1'], ['24-5', '8-2', '8-3'], ['23-6', '8-6', '24-5'], ['24-5']][i]);
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      let ms = 60;
+      if (playing()) { const q = U.seq(ctx.ts, [6, 2], true); ms = q.i === 0 ? q.f * 60 : 60; }
+      const x = X5(ms).toFixed(1);
+      st.cur.setAttribute('x1', x); st.cur.setAttribute('x2', x);
+    }
+  };
+
+  /* ================================================================
+     場面6 全体のタイムラインと各章（第21章の回）
+     ================================================================ */
+  const X6 = (t) => 150 + 300 * t;            // 0〜2.5 秒を 150〜900 に
+  const ROWS6 = [
+    ['conn', '接続', 0, RUN.hdr, '0〜0.13 名前・TCP・TLS・要求', 'f-d-soft s-d', true],
+    ['html', 'HTML', RUN.hdr, RUN.htmlEnd, '0.13〜1.53', 'f-d-soft s-d'],
+    ['js', 'JS・CSS', RUN.jsA, RUN.jsB, '0.84〜1.50（主なもの）', 'f-d-soft s-d'],
+    ['g204', '配信元へ', RUN.g204, 1.89, '1.51〜1.89', 'f-d-soft s-d'],
+    ['post', '断片', RUN.post, RUN.postEnd, '1.69〜2.29（1.65 MB）', 'f-d s-d']
+  ];
+  const PARTS = [['第I部 電気', 1, 3], ['第II部 計算機', 4, 8], ['第III部 ソフトウェア', 9, 10], ['第IV部 つながる', 11, 16], ['第V部 約束ごと', 17, 21], ['第VI部 YouTube', 22, 24]];
+  /* 段階ごと：光らせる行、時間の帯、光らせる章の範囲 */
+  const LIT6 = [
+    [['conn', 'html', 'js', 'g204', 'post'], [], [0, 0]],
+    [['conn', 'html', 'js', 'g204', 'post'], [[0, RUN.first]], [1, 8]],
+    [['html', 'js'], [[RUN.hdr, RUN.first]], [9, 10]],
+    [['conn', 'g204', 'post'], [], [11, 16]],
+    [['conn', 'g204'], [[0, RUN.hdr], [RUN.g204, 1.89]], [17, 21]],
+    [['post'], [[0.03, RUN.hdr], [RUN.post, RUN.first]], [22, 24]]
+  ];
+  const s6 = {
+    steps: [
+      { where: '0〜2.37 秒 ／ 実測（第21章の回）', title: '2.37 秒の内訳', text: '0.13 秒で最初の応答、0.84〜1.50 秒に主な JS、1.51 秒に配信元へ、1.69〜2.29 秒に断片、2.37 秒に最初の画。往復が要る手順は 8 回前後で、1 回 10 ms なら 0.1 秒に満たない（推定）。残りはサーバーが作る・データを運ぶ・JS を動かす時間と、記録では内訳の分からない待ち。' },
+      { where: 'どの瞬間も ／ 第1〜8章', title: '下で働き続ける部品', text: '2.37 秒の間に、3 GHz の CPU なら 1 コアが約 71 億回クロックを刻み（第6章）、60 Hz の画面は約 142 回書き換わる（第8章）。マウスを読む USB の回路も NIC も、割り込みと DMA で CPU とやり取りし（第7章）、その下でトランジスタのスイッチ（第1〜5章）が切り替わり続ける。' },
+      { where: '0.13〜2.37 秒 ／ 第9・10章', title: 'OS とブラウザ', text: 'ブラウザは役割ごとのプロセスに分かれ、通信はネットワークサービス、HTML と JS はレンダラ、画素にして表示するのは GPU プロセスが受け持つ（第10章）。どれもシステムコールで OS に頼み、スケジューラが CPU を割り振る（第9章）。展開で約 14 MB の JS を解析して動かすのも、この間。' },
+      { where: '往復ごとに ／ 第11〜16章', title: '道', text: '要求と応答は、往復のたびに Wi-Fi・ルーター・光回線・ISP・IX を通る（第11〜16章）。往復は約 10 ms。最初の画までに通るパケットは、JS と CSS の約 3.5 MB と断片の約 1,400 個を含めて数千個になる（推定）。区間と章の対応は第11章 場面6 の地図でたどれる。' },
+      { where: '0〜0.13・1.51 秒 ／ 第17〜21章', title: '約束ごとは時間順に', text: '名前（第17章）→ 接続（第19章）→ 暗号（第20章）→ 要求と応答（第21章）の順で、どのパケットも IP（第18章）で運ばれる。1.51 秒の配信元への接続では、接続と暗号の 2 往復が QUIC で 1 往復に縮む。2 回目は名前と多くの応答がキャッシュから出て、接続の往復も減る。' },
+      { where: '0.03〜2.37 秒 ／ 第22〜24章', title: 'YouTube 側と再生', text: 'HTML は GFE の奥で作られ（第22章）、断片はアップロードのときに何通りにも圧縮して作ってある（第22・23章）。配信元も形式を選んで返し、プレーヤーが溜めて、解いて、時刻に合わせて出す（第24章）。最初の画のあとも、この取得が数秒ごとに続く。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      S.text(150, 24, '最初の画まで 2.37 秒（第21章の回、2026 年 10 月 12 日）', { cls: 't-sm t-b' }, svg);
+      st.spanG = S.g({}, svg);
+      st.rows = {};
+      ROWS6.forEach(([k, n, a, b, lab, cls, outside], r) => {
+        const y = 52 + r * 25, g = S.g({ cls: 'fade' }, svg);
+        S.text(142, y + 4, n, { cls: 't-xs t-end' }, g);
+        S.rect(X6(a), y - 8, Math.max(3, X6(b) - X6(a)), 16, { rx: 3, cls: cls + ' w1' }, g);
+        S.text(outside ? X6(b) + 6 : (X6(a) + X6(b)) / 2, y + 4, lab, { cls: 't-xs t-b' + (outside ? '' : ' t-c') + (k === 'post' ? ' t-sf' : '') }, g);
+        st.rows[k] = g;
+      });
+      S.line(X6(RUN.first), 36, X6(RUN.first), 176, { cls: 's-x w2' }, svg);
+      S.text(X6(RUN.first) + 5, 48, '最初の画', { cls: 't-xs t-x t-b' }, svg);
+      S.text(X6(RUN.first) + 5, 61, '2.37 秒', { cls: 't-xs t-x t-mono' }, svg);
+      S.line(X6(0), 178, X6(2.5), 178, { cls: 's-mid w1' }, svg);
+      [0, 0.5, 1, 1.5, 2, 2.5].forEach((t) => {
+        S.line(X6(t), 178, X6(t), 182, { cls: 's-mid w1' }, svg);
+        S.text(X6(t), 194, t === 2.5 ? '2.5 秒' : t.toFixed(t ? 1 : 0), { cls: 't-c t-xs t-mono t-dim' }, svg);
+      });
+      /* 第1〜24章の札（行は部） */
+      st.ch = [];
+      PARTS.forEach(([pn, a, b], r) => {
+        const y = 222 + r * 44;
+        S.text(142, y + 20, pn, { cls: 't-xs t-b t-dim t-end' }, svg);
+        for (let n = a; n <= b; n++) {
+          const x = 150 + (n - a) * 128;
+          const link = S.el('a', { href: CH[n - 1][0] + '.html', 'aria-label': '第' + n + '章 ' + CH[n - 1][1] }, svg);
+          const rr = S.rect(x, y, 120, 32, { rx: 4, cls: 'lnk f-sf s-rule w1' }, link);
+          S.text(x + 8, y + 13, '第' + n + '章', { cls: 't-xs t-dim' }, link);
+          const tt = S.text(x + 8, y + 26, CH[n - 1][1], { cls: 't-xs t-b' }, link);
+          st.ch[n] = { r: rr, t: tt };
+        }
+      });
+      S.text(150, 520, '時間はどれも第21章の回の実測（主なものだけ）で、「配信元へ」は generate_204 を出してから応答まで。', { cls: 't-xs t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, [rows, spans, [c0, c1]] = LIT6[i];
+      Object.keys(st.rows).forEach((k) => op(st.rows[k], rows.indexOf(k) >= 0 ? 1 : 0.3));
+      S.clear(st.spanG);
+      spans.forEach(([a, b]) => S.rect(X6(a), 38, X6(b) - X6(a), 130, { rx: 3, cls: 'f-x-soft' }, st.spanG));
+      for (let n = 1; n <= 24; n++) {
+        const on = n >= c0 && n <= c1 && c0 > 0;
+        st.ch[n].r.setAttribute('class', 'lnk ' + (on ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+        st.ch[n].t.setAttribute('class', 't-xs t-b' + (on ? ' t-x' : ''));
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VI部 YouTube ／ 第25章',
+      title: '通しで見る',
+      home: '../index.html',
+      prev: { href: '24-streaming.html', title: 'ストリーミングと再生' },
+      legend: [{ c: 'd', label: 'データ・要求と応答' }, { c: 'e', label: '電気信号' }, { c: 'r', label: '電波' }, { c: 'p', label: '光' }, { c: 'x', label: '注目・いまの区間' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

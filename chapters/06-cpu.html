@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>CPU — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .isa { font-family: var(--mono); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第II部 計算機 ／ 第6章 ／ 全25章</p>
+    <h1 id="h-s0">CPU</h1>
+    <p class="standfirst">第4章の論理ゲートと第5章の記憶を組み合わせると、メモリに置いた「数の列」を命令として読み、順に実行する機械ができる。この章では 8 ビットの小さな架空 CPU（YT-8）を 1 つ決め、1 + 2 + 3 を足すループを実際に走らせながら、レジスタ・ALU・バス・制御装置の役割、命令が数である理由、フェッチ・デコード・実行の手順、クロックとパイプライン、キャッシュ階層を見る。ブラウザの JavaScript も動画のデコードも、最後はこの手順の繰り返しに還元される。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>CPU の中身</a><p>レジスタ（PC・IR・A・Z）、ALU、制御装置、クロック、メモリと結ぶ 3 種類のバス。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>命令は数字</a><p>8 ビットの上位 4 ビットが「何を」、下位 4 ビットが「どこ」。6 命令の命令セットと機械語。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>フェッチ・デコード・実行</a><p>ADD 11 の 1 命令を 5 拍に分けて、バスを流れる番地と中身を追う。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>小さなプログラムを動かす</a><p>1 + 2 + 3 を足すループ。22 命令で PC・A・Z・メモリがどう変わるか。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>クロックとパイプライン</a><p>5 段階を重ねて毎拍 1 命令。ハザード、実際の CPU の数字、発熱の壁。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>キャッシュ階層</a><p>DRAM は 200 拍遠い。L1・L2・L3 の写し、ヒットとミス、局所性、置き換え。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（入出力と周辺機器）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>YT-8 はこの章のための架空の CPU。実在の CPU の数値（拍数・容量・周波数）は本文に書いた範囲がおおよその値で、製品によって違う。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 CPU の中身 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="中身" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>CPU の中身</h2>
+    <p class="sh-meta"><span class="chip">YT-8</span><span class="chip">8 ビット</span><span class="chip">メモリ 16 番地</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU は、値を一時的に覚える<b>レジスタ</b>、計算する <b>ALU</b>、全体に合図を出す<b>制御装置</b>を<b>バス</b>で結んだもの。命令もデータも外の<b>メモリ</b>に番地付きで置かれ、CPU は番地を指定して読み書きする。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">YT-8 はレジスタ 4 つ・命令 6 種類の最小構成。実際の CPU（x86-64 や ARM）はレジスタが数十個、命令が数百種類あるが、部品の種類と役割はこの図と同じ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CPU の内部（制御装置、PC、IR、A、Z、ALU、クロック）と、バスで結ばれた 16 番地のメモリ"></svg></div>
+    <figcaption>図1　YT-8 の全体。左が CPU、右がメモリ。メモリには場面 4 で動かすプログラム（番地 0〜7）とデータ（番地 10〜12）が入っている。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 命令は数字 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="命令" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>命令は数字</h2>
+    <p class="sh-meta"><span class="chip">オペコード 4 ビット</span><span class="chip">オペランド 4 ビット</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU が読むのは<span class="tag d">8 ビットの数</span>だけ。上位 4 ビットで「何をするか」、下位 4 ビットで「どの番地か」を決めておけば、数の列がそのままプログラムになる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">実在の命令セット: x86-64 は 1 命令が 1〜15 バイトの可変長、ARM（A64）と RISC-V は 4 バイト固定。たとえば「レジスタ同士を足す」は x86-64 で <code>48 01 d8</code>、A64 で <code>8b020020</code>、RISC-V で <code>00c58533</code>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="8 ビット命令の内訳、6 命令の命令表、メモリに置かれた機械語とアセンブリの対応"></svg></div>
+    <figcaption>図2　左上は 1 命令の内訳、左下は YT-8 の命令表。右はメモリの中身で、同じ 8 ビットを機械語（ビット列）とアセンブリ（名前）で並べている。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 フェッチ・デコード・実行 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="実行の手順" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>フェッチ・デコード・実行</h2>
+    <p class="sh-meta"><span class="chip">ADD 11</span><span class="chip">1 命令 = 5 拍</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU がすることは、命令を<b>取ってくる</b>（フェッチ）、<b>解読する</b>（デコード）、<b>実行する</b>、の繰り返しだけ。番地 1 の命令 <code>ADD 11</code> を、クロック 1 拍ごとに追う。開始時は PC = 1、A = 0。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">この単純な CPU では 1 命令に 5 拍かかり、メモリへは 2 回アクセスする（命令の読み出しと、番地 11 の読み出し）。実際の CPU がこれを毎拍 1 命令以上に縮める方法は<a class="xref" href="#s5" data-go="5">5「クロックとパイプライン」</a>で見る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ADD 11 の実行中に、PC の番地、メモリの中身、ALU の結果がバスを通って移動する様子"></svg></div>
+    <figcaption>図3　図1 と同じ配置。動く札は、その拍にバスの上を移動している番地や中身。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 小さなプログラム ================= -->
+<section class="scene sc-anim" id="s4" data-tab="プログラム" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>小さなプログラムを動かす</h2>
+    <p class="sh-meta"><span class="chip">sum = 1 + 2 + 3</span><span class="chip">22 命令</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">番地 0〜7 のプログラムは「sum に n を足し、n を 1 減らし、n が 0 でなければ番地 0 へ戻る」。<code>JNZ</code> が PC を書き換えることで、同じ 7 命令が 3 周回る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">条件つきで PC を書き換える命令があるから、繰り返しと場合分けが書ける。ブラウザの JavaScript の <code>for</code> 文も、CPU が実行する段階ではこの JNZ と同じ形になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ループするプログラムを 1 命令ずつ実行し、PC、A、Z、メモリの sum と n が変わる様子"></svg></div>
+    <figcaption>図4　図1 と同じ配置。色の付いた番地がいま実行している命令。番地 10 が sum、11 が n。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 クロックとパイプライン ================= -->
+<section class="scene sc-anim" id="s5" data-tab="パイプライン" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>クロックとパイプライン</h2>
+    <p class="sh-meta"><span class="chip">IF ID EX MEM WB</span><span class="chip">3 GHz = 0.33 ns</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">1 命令に 5 拍かける代わりに、5 つの段階を別々の命令で同時に使えば、定常状態では<b>毎拍 1 命令</b>が完了する。クロックは水晶振動子の一定の拍子で、すべての段階がこれに合わせて進む。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1 拍で進める距離には限りがあり（配線の遅延と第3章の充放電）、周波数を上げるほど発熱 P ≈ α·C·V²·f が増える。2004 年の 3.8 GHz 以降、周波数はほぼ頭打ちで、性能は段数・同時発行・コア数で伸ばしている。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="クロック波形と、5 段パイプラインの中を命令が重なって進む図"></svg></div>
+    <figcaption>図5　上がクロック、下が拍ごとの各命令の段階。段階の名前は IF（取り出し）ID（解読）EX（演算）MEM（メモリ）WB（書き戻し）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 キャッシュ階層 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="キャッシュ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>キャッシュ階層</h2>
+    <p class="sh-meta"><span class="chip">L1 / L2 / L3 / DRAM</span><span class="chip">ライン 64 B</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU の 1 拍は約 0.3 ns だが、DRAM から 1 つの値が返るまで 60〜100 ns、<b>200 拍以上</b>かかる。そこで CPU の中に小さく速い SRAM（第5章）を何段か置き、最近使ったデータの写しを近くに持つ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">容量と拍数はおおよその値（2020 年代のパソコン用 CPU、1 拍 ≈ 0.3 ns）。L1 32〜48 KB・4〜5 拍、L2 1〜2 MB・約 14 拍、L3 16〜36 MB・40〜50 拍、DRAM 8〜32 GB・200〜300 拍。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="コアから L1、L2、L3、DRAM へ降りていく階層と、要求がヒット・ミスする様子"></svg></div>
+    <figcaption>図6　左は階層（上ほど小さく速い）。右は段階ごとに、拍数の比較、ヒットとミスの記録、キャッシュライン、置き換え、平均待ち時間を出す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 数の列を読んで実行する機械</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>CPU はレジスタ・ALU・制御装置・クロックをバスで結んだもので、命令もデータも外のメモリに番地付きで置く（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>命令は決まった幅の数。上位ビットが「何を」、下位ビットが「どこ」を表し、数の列がプログラムになる（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>1 命令は、PC の番地から取ってくる → 解読する → 実行する、の順で進み、YT-8 では 5 拍・メモリ 2 回で終わる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>条件つきで PC を書き換える命令（JNZ）が繰り返しと場合分けを作る。22 命令で 1 + 2 + 3 = 6 が番地 10 に残る（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>5 段階を重ねるパイプラインで毎拍 1 命令。依存と分岐で待ちが出る。周波数は発熱で頭打ちになった（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>DRAM は 200 拍以上遠い。L1〜L3 の写しと局所性で平均待ち時間を十数拍に抑える（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>レジスタ</th><td>CPU 内部の小さな記憶。フリップフロップの束で、1 拍で読み書きできる。PC（次の命令の番地）、IR（いまの命令）、汎用レジスタ、フラグ。</td></tr>
+        <tr><th>ALU</th><td>算術論理演算装置。加算器を中心に、減算（2 の補数の加算）、比較、AND/OR などを行う組み合わせ回路。</td></tr>
+        <tr><th><i class="sw e"></i>制御信号</th><td>制御装置が命令を解読して各部品に出す合図。どのレジスタを開くか、ALU に何をさせるか、メモリを読むか書くか。</td></tr>
+        <tr><th>バス</th><td>複数の部品が共有する配線の束。アドレスバス（番地）、データバス（中身）、制御線。</td></tr>
+        <tr><th>機械語・アセンブリ</th><td>CPU が読むビット列と、それを人が読める名前で書いたもの。1 対 1 に対応する。</td></tr>
+        <tr><th>フェッチ・デコード・実行</th><td>命令サイクル。PC の番地の命令を IR へ、解読、実行。実行後は PC が次の番地を指す。</td></tr>
+        <tr><th><i class="sw e"></i>クロック</th><td>一定周期の信号。1 拍（サイクル）ごとに各段階が進む。3 GHz なら 1 拍 0.33 ns。</td></tr>
+        <tr><th>パイプライン</th><td>IF/ID/EX/MEM/WB の段階を別の命令で同時に使う方式。定常で毎拍 1 命令。依存・分岐でハザード（待ち）が起きる。</td></tr>
+        <tr><th>キャッシュ</th><td>CPU 内の SRAM にメモリの写しを置く仕組み。L1（4〜5 拍）、L2（約 14 拍）、L3（40〜50 拍）。64 バイトのライン単位で出し入れする。</td></tr>
+        <tr><th>局所性</th><td>直前に使った番地（時間的）やその近く（空間的）をまた使う性質。キャッシュが効く理由。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+  const bits8 = (v) => (v & 255).toString(2).padStart(8, '0');
+  const bits4 = (v) => (v & 15).toString(2).padStart(4, '0');
+  const fmt8 = (v) => bits8(v).slice(0, 4) + ' ' + bits8(v).slice(4);
+
+  /* ================================================================
+     YT-8: この章だけの架空 CPU
+     命令 = 8 ビット。上位 4 ビットがオペコード、下位 4 ビットがオペランド（番地）
+     ================================================================ */
+  const OPS = { 0: 'HALT', 1: 'LOAD', 2: 'ADD', 3: 'SUB', 4: 'STORE', 5: 'JNZ' };
+  const ISA = [
+    ['0001', 'LOAD n', 'A ← M[n]'],
+    ['0010', 'ADD n', 'A ← A + M[n]、Z を更新'],
+    ['0011', 'SUB n', 'A ← A − M[n]、Z を更新'],
+    ['0100', 'STORE n', 'M[n] ← A'],
+    ['0101', 'JNZ n', 'Z = 0 なら PC ← n'],
+    ['0000', 'HALT', '止まる']
+  ];
+  const INIT_MEM = [0x1A, 0x2B, 0x4A, 0x1B, 0x3C, 0x4B, 0x50, 0x00, 0, 0, 0, 3, 1, 0, 0, 0];
+  const MEM_NOTE = ['LOAD 10', 'ADD 11', 'STORE 10', 'LOAD 11', 'SUB 12', 'STORE 11', 'JNZ 0', 'HALT', '', '', 'sum', 'n', '定数 1', '', '', ''];
+  const MEM_CMT = ['A ← sum', 'A ← A + n', 'sum ← A', 'A ← n', 'A ← A − 1', 'n ← A', 'n ≠ 0 なら 0 へ', '', '', '', '合計', 'カウンタ', '', '', '', ''];
+  const decode = (ir) => { const op = OPS[ir >> 4] || '?'; return op === 'HALT' ? 'HALT' : `${op} ${ir & 15}`; };
+  function exec(st) {
+    const s = { pc: st.pc, ir: st.ir, a: st.a, z: st.z, mem: st.mem.slice(), halted: st.halted, last: null };
+    if (s.halted) return s;
+    const at = s.pc, ir = s.mem[at];
+    s.ir = ir; s.pc = (s.pc + 1) & 15;
+    const op = ir >> 4, n = ir & 15;
+    s.last = { at, ir, op: OPS[op], n, jumped: false, wrote: null };
+    switch (op) {
+      case 1: s.a = s.mem[n]; s.last.wrote = 'a'; break;
+      case 2: s.a = (s.a + s.mem[n]) & 255; s.z = s.a === 0 ? 1 : 0; s.last.wrote = 'a'; break;
+      case 3: s.a = (s.a - s.mem[n]) & 255; s.z = s.a === 0 ? 1 : 0; s.last.wrote = 'a'; break;
+      case 4: s.mem[n] = s.a; s.last.wrote = 'm' + n; break;
+      case 5: if (!s.z) { s.pc = n; s.last.jumped = true; } s.last.wrote = 'pc'; break;
+      default: s.halted = true;
+    }
+    return s;
+  }
+  const TRACE = [{ pc: 0, ir: 0, a: 0, z: 0, mem: INIT_MEM.slice(), halted: false, last: null }];
+  while (!TRACE[TRACE.length - 1].halted && TRACE.length < 60) TRACE.push(exec(TRACE[TRACE.length - 1]));
+  const LAST = TRACE.length - 1;   // 22: HALT 実行後
+
+  /* ================================================================
+     CPU とメモリの図（場面 1・3・4 で共有）
+     ================================================================ */
+  function drawCPU(svg) {
+    const H = {};
+    const g = S.g({}, svg);
+    // 配線（箱の下に描く）
+    const P = {
+      pcAddr: 'M430,122 H656',
+      irAddr: 'M530,182 H590 V122 H656',
+      memIR: 'M656,300 H590 V182 H530',
+      memALU: 'M656,300 H540 V330',
+      aALU: 'M380,276 V330',
+      aluA: 'M445,420 V440 H290 V254 H300',
+      aMem: 'M460,254 H590 V300 H656'
+    };
+    S.rect(24, 48, 592, 480, { rx: 10, cls: 'f-sf s-fg w15' }, g);
+    S.rect(648, 48, 292, 480, { rx: 10, cls: 'f-sf s-fg w15' }, g);
+    S.path('M430,122 H648', { cls: 'f-none s-rule w6' }, g);
+    S.path('M540,300 H648', { cls: 'f-none s-rule w6' }, g);
+    S.path('M590,122 V300', { cls: 'f-none s-rule w6' }, g);
+    ['irAddr', 'memALU', 'aALU', 'aluA', 'aMem'].forEach((k) => S.path(P[k], { cls: 'f-none s-rule w2' }, g));
+    H.ctrlLine = S.path('M278,480 H648', { cls: 'f-none s-e w1 dash' }, g);
+    H.ctrlLines = [[278, 150, 300, 122], [278, 170, 300, 182], [278, 210, 300, 254], [278, 250, 375, 330]].map(([x1, y1, x2, y2]) =>
+      S.path(`M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`, { cls: 'f-none s-e w1 dash2', style: { opacity: 0.7 } }, g));
+    S.text(40, 72, 'CPU', { cls: 't-b t-lg' }, g);
+    S.text(84, 74, '1 つのチップ', { cls: 't-xs t-dim' }, g);
+    S.text(664, 72, 'メモリ', { cls: 't-b t-lg' }, g);
+    S.text(724, 74, 'DRAM。別のチップ', { cls: 't-xs t-dim' }, g);
+    S.text(540, 112, 'アドレスバス（番地）', { cls: 't-c t-xs t-dim' }, g);
+    S.text(582, 292, 'データバス（中身）', { cls: 't-xs t-dim t-end' }, g);   // 縦の幹線（x=590）にかからないよう左に寄せる
+    S.text(460, 496, '制御線（読む／書く・いつ）', { cls: 't-c t-xs t-e' }, g);
+    // メモリの行
+    S.text(690, 94, '番地', { cls: 't-xs t-dim t-end' }, g);
+    S.text(702, 94, '中身（8 ビット）', { cls: 't-xs t-dim' }, g);
+    S.text(816, 94, '意味', { cls: 't-xs t-dim' }, g);
+    H.mem = [];
+    for (let i = 0; i < 16; i++) {
+      const y = 102 + i * 26;
+      const bg = S.rect(656, y, 278, 24, { rx: 3, cls: 'f-sf' }, g);
+      S.text(690, y + 16, String(i), { cls: 't-mono t-sm t-dim t-end' }, g);
+      const bits = S.text(702, y + 16, '', { cls: 't-mono t-sm' }, g);
+      const cm = S.text(816, y + 16, '', { cls: 't-xs t-dim' }, g);
+      H.mem.push({ bg, bits, cm, y: y + 12 });
+    }
+    // 値は名前と同じ上の行の右端に置く（下の行の説明の文字と重ならないように）
+    const reg = (x, y, w, name, sub) => {
+      const bg = S.rect(x, y, w, 44, { rx: 5, cls: 'f-in s-rule w1' }, g);
+      S.text(x + 10, y + 19, name, { cls: 't-b t-md' }, g);
+      S.text(x + 10, y + 36, sub, { cls: 't-xs t-dim' }, g);
+      const val = S.text(x + w - 10, y + 19, '', { cls: 't-mono t-lg t-b t-end' }, g);
+      return { bg, val, x, y, w, kind: 'reg' };
+    };
+    H.pc = reg(300, 100, 130, 'PC', '次の命令の番地');
+    H.ir = reg(300, 160, 230, 'IR', 'いま実行中の命令');
+    H.a = reg(300, 232, 160, 'A', '計算用の値');
+    H.z = reg(480, 232, 50, 'Z', 'ゼロ');
+    H.ctrl = { bg: S.rect(48, 100, 230, 176, { rx: 6, cls: 'f-in s-rule w1' }, g), kind: 'box' };
+    S.text(62, 124, '制御装置', { cls: 't-b t-md' }, g);
+    S.lines(62, 148, ['IR の命令を解読し、どの', 'レジスタを開くか、ALU に', '何をさせるか、メモリを読む', 'か書くかの合図（制御信号）', 'を出す'], { cls: 't-xs t-dim' }, g, 15);
+    H.alu = { bg: S.polygon([[330, 330], [560, 330], [515, 420], [375, 420]], { cls: 'f-in s-rule w1' }, g), kind: 'box' };
+    S.text(445, 370, 'ALU', { cls: 't-c t-b t-lg' }, g);
+    S.text(445, 390, '加算・減算・比較', { cls: 't-c t-xs t-dim' }, g);
+    S.text(340, 322, '入力 1 ← A', { cls: 't-xs t-dim' }, g);
+    S.text(560, 322, '入力 2 ← メモリ', { cls: 't-xs t-dim t-end' }, g);
+    H.aluOut = S.text(445, 410, '', { cls: 't-c t-mono t-sm t-b' }, g);
+    H.clk = { bg: S.rect(48, 440, 230, 70, { rx: 6, cls: 'f-in s-rule w1' }, g), kind: 'box' };
+    S.text(62, 462, 'クロック', { cls: 't-b t-md' }, g);
+    S.text(128, 462, '一定の拍子で全体を進める', { cls: 't-xs t-dim' }, g);
+    H.clkWave = S.path('', { cls: 'f-none s-e w2 round' }, g);
+    // 動く札の道。始点は出どころの箱（PC・IR・A・ALU）やメモリの番地の文字にかからない所に置く
+    const PP = {
+      pcAddr: 'M453,122 H656',
+      irAddr: 'M553,182 H590 V122 H656',
+      memIR: 'M636,300 H590 V182 H530',
+      memALU: 'M636,300 H540 V330',
+      aALU: 'M380,286 V330',
+      aluA: 'M445,430 V440 H290 V254 H300',
+      aMem: P.aMem
+    };
+    H.path = {};
+    for (const k in PP) H.path[k] = S.path(PP[k], { cls: 'f-none s-none' }, g);
+    H.pulses = S.g({}, g);
+    H.note = S.text(320, 546, '', { cls: 't-c t-sm t-dim' }, svg);
+
+    H.setState = (st, notes) => {
+      H.pc.val.textContent = `${bits4(st.pc)}  (${st.pc})`;
+      H.ir.val.textContent = st.last ? `${fmt8(st.ir)}  ${decode(st.ir)}` : '—';
+      H.a.val.textContent = `${bits8(st.a)}  (${st.a})`;
+      H.z.val.textContent = String(st.z);
+      for (let i = 0; i < 16; i++) {
+        H.mem[i].bits.textContent = fmt8(st.mem[i]);
+        const n = MEM_NOTE[i];
+        let cm = n;
+        if (i === 10) cm = `sum = ${st.mem[10]}`;
+        else if (i === 11) cm = `n = ${st.mem[11]}`;
+        else if (i === 12) cm = '定数 1';
+        else if (n && notes !== false) cm = n + (MEM_CMT[i] ? '  ' + MEM_CMT[i] : '');
+        H.mem[i].cm.textContent = cm;
+      }
+    };
+    H.hl = (part, on, cls) => {
+      if (!part) return;
+      part.bg.setAttribute('class', on ? (cls || 'f-x-soft s-x w2') : (part.kind === 'mem' ? 'f-sf' : 'f-in s-rule w1'));
+    };
+    H.mem.forEach((m) => { m.kind = 'mem'; });
+    H.hlMem = (i, on, cls) => H.hl(H.mem[i], on, cls || 'f-x-soft s-x w15');
+    H.clearHl = () => { [H.pc, H.ir, H.a, H.z, H.ctrl, H.alu, H.clk].forEach((p) => H.hl(p, false)); H.mem.forEach((m) => H.hl(m, false)); };
+    H.pulse = (text, cls) => {
+      const pg = S.g({ style: { display: 'none' } }, H.pulses);
+      const w = Math.max(40, text.length * 8 + 14);
+      S.rect(-w / 2, -10, w, 20, { rx: 4, cls: cls || 'f-d' }, pg);
+      S.text(0, 4, text, { cls: 't-c t-mono t-sm t-b t-sf' }, pg);
+      pg.setText = (s) => { pg.lastChild.textContent = s; };
+      return pg;
+    };
+    H.place = (pg, pathKey, f, on) => {
+      if (!on) { pg.style.display = 'none'; return; }
+      pg.style.display = '';
+      S.place(pg, H.path[pathKey], f);
+    };
+    H.drawClock = (t, period) => {
+      const x0 = 62, x1 = 266, yH = 480, yL = 500, w = 17;
+      const off = U.mod(t / (period || 1), 1) * 2 * w;
+      const pts = [];
+      for (let xs = x0 - 2 * w - off; xs < x1 + 2 * w; xs += 2 * w) {
+        pts.push([xs, yL], [xs, yH], [xs + w, yH], [xs + w, yL]);
+      }
+      const cl = pts.map(([x, y]) => [U.clamp(x, x0, x1), y]);
+      H.clkWave.setAttribute('d', cl.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(1) + ',' + y).join(''));
+    };
+    return H;
+  }
+
+  /* ================================================================
+     場面1 CPU の中身
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'レジスタ・ALU・制御装置・バスの集まり', text: '左が CPU（1 つのチップ）、右がメモリ（DRAM、別のチップ）。CPU の中には値を一時的に覚える**レジスタ**、計算する **ALU**、全体に合図を出す**制御装置**、拍子をとる**クロック**があり、**バス**と呼ぶ共通の配線で結ばれている。' },
+      { title: 'レジスタ：フリップフロップの束', text: '第5章の D フリップフロップを 4〜8 個並べたものがレジスタ。**PC**（プログラムカウンタ）は次に実行する命令の番地、**IR** はいま実行中の命令、**A** は計算に使う値、**Z** は直前の演算結果が 0 だったかの 1 ビット。クロックの立ち上がりで新しい値を取り込む。' },
+      { title: 'ALU：第4章の加算器の発展形', text: '2 つの 8 ビット入力から、加算・減算・比較の結果を出す組み合わせ回路。減算は「2 の補数を足す」で加算器を使い回す。結果が 0 なら Z フラグを立てる。YT-8 では入力の片方は常に A、もう片方はメモリから読んだ値。' },
+      { title: 'バス：番地を出すと、中身が返る', text: 'CPU とメモリの間は、番地を伝える**アドレスバス**、中身を運ぶ**データバス**、読み書きの合図を送る**制御線**でつながる。CPU が番地をアドレスバスに出して「読め」と合図すると、メモリがその番地の 8 ビットをデータバスに乗せる。書くときは逆向きに流す。' },
+      { title: '制御装置とクロック', text: '制御装置は IR の命令を解読し、「PC の値をアドレスバスへ」「ALU は加算」「結果を A に書け」といった{e|制御信号}（破線）を、どの部品にいつ出すかを決める。タイミングの基準が{e|クロック}で、1 拍ごとに 1 つの小さな動作が進む。' }
+    ],
+    setup(ctx) {
+      const st = ctx.state;
+      st.H = drawCPU(ctx.svg);
+      st.H.setState(TRACE[0]);
+      st.pAddr = st.H.pulse('0001', 'f-d');
+      st.pData = st.H.pulse('0010 1011', 'f-d');
+      st.rdTag = S.label(ctx.svg, 460, 464, '読め', { cls: 't-sm t-b t-sf', box: 'f-e s-e w1', gcls: 'fade hide' });
+    },
+    onStep(ctx, i) {
+      const H = ctx.state.H;
+      H.clearHl();
+      const soft = 'f-x-soft s-x w2';
+      if (i === 1) [H.pc, H.ir, H.a, H.z].forEach((p) => H.hl(p, true, soft));
+      if (i === 2) H.hl(H.alu, true, soft);
+      if (i === 3) { H.hlMem(1, true); }
+      if (i === 4) { H.hl(H.ctrl, true, soft); H.hl(H.clk, true, soft); }
+      H.ctrlLines.forEach((l) => { l.style.opacity = i === 4 ? 1 : 0.7; l.setAttribute('class', i === 4 ? 'f-none s-e w2 dash2' : 'f-none s-e w1 dash2'); });
+      S.fade(ctx.state.rdTag, i === 3);
+      H.note.textContent = ['', 'レジスタは 1 拍で読み書きできる。メモリ（DRAM）はその 100 倍以上遅い（場面 6）', '8 ビット幅なので 0〜255 までしか扱えない。実際の CPU は 64 ビット幅', '番地 1 を出す → 中身 0010 1011 が返る', '破線が制御信号。合図の順番と拍子を制御装置とクロックが決める'][i];
+    },
+    frame(ctx, t) {
+      const st = ctx.state, H = st.H, i = ctx.step;
+      H.drawClock(t, i === 4 ? 0.9 : 1.6);
+      if (i === 3) {
+        const q = U.seq(ctx.ts, [1.2, 0.3, 1.2, 0.8], true);
+        H.place(st.pAddr, 'pcAddr', U.ease.inOut(q.f), q.i === 0);
+        H.place(st.pData, 'memIR', U.ease.inOut(q.f), q.i === 2);
+        H.hlMem(1, q.i >= 1 && q.i <= 2);
+      } else {
+        H.place(st.pAddr, 'pcAddr', 0, false);
+        H.place(st.pData, 'memIR', 0, false);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 命令は数字
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '命令は 8 ビットの数', text: 'YT-8 の命令は 1 バイト。上位 4 ビットが**オペコード**（何をするか）、下位 4 ビットが**オペランド**（どの番地か）。たとえば `0010 1011` は、0010 = ADD、1011 = 11 番地なので「A に 11 番地の中身を足せ」。CPU はこの切り分けを配線で決め打ちにしている。' },
+      { title: 'この章の命令セット（6 命令）', text: 'オペコード 4 ビットなら最大 16 種類作れるが、YT-8 は 6 種類だけ使う。読む（LOAD）、足す・引く（ADD・SUB）、書く（STORE）、条件つきで飛ぶ（JNZ）、止まる（HALT）。この 6 つで繰り返しと場合分けが書けるので、原理上はどんな計算も表せる。' },
+      { title: 'プログラム ＝ メモリに並んだ命令', text: 'メモリの番地 0〜7 に、場面 4 で動かす 8 命令が入っている。CPU は PC の番地から 1 つ取り、PC を 1 増やし、次を取る。だから命令は原則として番地の順に実行される。順番を変えるのは PC を書き換える JNZ だけ。' },
+      { title: 'データも同じメモリに置く', text: '番地 10〜12 は命令ではなく数（sum、n、定数 1）。中身はどちらも 8 ビットで、見た目に区別はない。区別は「PC が指したら命令、LOAD/STORE で指したらデータ」という使われ方だけ。命令とデータを同じメモリに置く設計を**ノイマン型**と呼ぶ。' },
+      { title: '機械語とアセンブリは同じもの', text: 'ビット列（**機械語**）を人が読める名前で書いたものが**アセンブリ**。`0010 1011` と `ADD 11` は 1 対 1 に対応し、変換するだけの道具がアセンブラ。JavaScript のような言語は、コンパイラや JIT がこの形まで翻訳してから CPU に渡す（第10章）。' },
+      { title: '実在の命令セット', text: 'x86-64 は 1 命令が 1〜15 バイトの可変長で命令は千数百種類、ARM（A64）と RISC-V は 4 バイト固定で数百種類。どれも「オペコード＋オペランド」の構造は同じ。「レジスタ同士を足す」1 命令のビット列を 3 種類並べた。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左上: 1 命令の内訳
+      const gb = st.gb = S.g({}, svg);
+      S.text(30, 72, '1 命令の内訳', { cls: 't-b t-md' }, gb);
+      st.cells = [];
+      for (let k = 0; k < 8; k++) {
+        const x = 30 + k * 50 + (k >= 4 ? 16 : 0);
+        S.rect(x, 86, 46, 50, { rx: 5, cls: k < 4 ? 'f-d-soft s-d w15' : 'f-in s-mid w15' }, gb);   // オペコードを d、オペランドを無彩色で分ける
+        st.cells.push(S.text(x + 23, 121, '0', { cls: 't-c t-mono t-xxl t-b' }, gb));
+      }
+      S.text(128, 158, 'オペコード（何をする）', { cls: 't-c t-sm t-b t-d' }, gb);
+      S.text(344, 158, 'オペランド（どの番地）', { cls: 't-c t-sm t-b' }, gb);
+      st.opTxt = S.text(128, 180, '', { cls: 't-c t-mono t-md t-d' }, gb);
+      st.argTxt = S.text(344, 180, '', { cls: 't-c t-mono t-md' }, gb);
+      S.text(128, 200, '↓ 命令表で引く', { cls: 't-c t-xs t-dim' }, gb);
+      // 左下: 命令表
+      const gt = st.gt = S.g({}, svg);
+      S.rect(30, 222, 430, 230, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      S.text(44, 246, 'YT-8 の命令表', { cls: 't-b t-md' }, gt);
+      S.text(450, 246, '（架空。16 種類のうち 6 種類だけ使う）', { cls: 't-xs t-dim t-end' }, gt);
+      S.text(50, 272, 'オペコード', { cls: 't-xs t-dim' }, gt);
+      S.text(140, 272, '名前', { cls: 't-xs t-dim' }, gt);
+      S.text(240, 272, '意味', { cls: 't-xs t-dim' }, gt);
+      S.line(40, 280, 450, 280, { cls: 's-rule w1' }, gt);
+      st.isaRows = ISA.map(([b, n, m], r) => {
+        const y = 284 + r * 27;
+        const bg = S.rect(40, y, 410, 26, { rx: 3, cls: 'f-sf' }, gt);
+        S.text(50, y + 18, b, { cls: 't-mono t-md t-d' }, gt);
+        S.text(140, y + 18, n, { cls: 't-mono t-md t-b' }, gt);
+        S.text(240, y + 18, m, { cls: 't-sm' }, gt);
+        return bg;
+      });
+      S.text(44, 476, 'n はオペランドの番地（0〜15）。Z は直前の ADD / SUB の結果が 0 なら 1。', { cls: 't-xs t-dim' }, gt);
+      // 右: メモリの中身
+      const gm = st.gm = S.g({}, svg);
+      S.rect(500, 48, 440, 480, { rx: 10, cls: 'f-sf s-fg w15' }, gm);
+      S.text(516, 72, 'メモリ', { cls: 't-b t-lg' }, gm);
+      S.text(560, 94, '番地', { cls: 't-xs t-dim t-end' }, gm);
+      st.hMach = S.text(578, 94, '機械語（CPU が読む）', { cls: 't-xs t-dim' }, gm);
+      st.hAsm = S.text(730, 94, 'アセンブリ（人が読む）', { cls: 't-xs t-dim' }, gm);
+      S.text(850, 94, '役割', { cls: 't-xs t-dim' }, gm);
+      st.memRows = [];
+      for (let i = 0; i < 16; i++) {
+        const y = 102 + i * 26;
+        const bg = S.rect(508, y, 424, 24, { rx: 3, cls: 'f-sf' }, gm);
+        S.text(560, y + 16, String(i), { cls: 't-mono t-sm t-dim t-end' }, gm);
+        const bits = S.text(578, y + 16, fmt8(INIT_MEM[i]), { cls: 't-mono t-sm' }, gm);
+        const isCode = i < 8, isData = i >= 10 && i <= 12;
+        const asm = S.text(730, y + 16, isCode ? MEM_NOTE[i] : (isData ? String(INIT_MEM[i]) : ''), { cls: 't-mono t-sm t-b' }, gm);
+        const role = S.text(850, y + 16, isCode ? (i === 7 ? '' : MEM_CMT[i]) : (isData ? ['合計 sum', 'カウンタ n', '定数'][i - 10] : ''), { cls: 't-xs t-dim' }, gm);
+        const arrow = S.path(`M690,${y + 12} H722`, { cls: 'f-none s-dim w1', 'marker-end': mk('dim'), style: { opacity: 0 } }, gm);
+        st.memRows.push({ bg, bits, asm, role, arrow, isCode, isData });
+      }
+      st.pcMark = S.text(522, 0, 'PC→', { cls: 't-xs t-x t-b', style: { opacity: 0 } }, gm);
+      // 段階6: 実在の命令
+      const gr = st.gr = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 222, 430, 230, { rx: 8, cls: 'f-sf s-rule w1' }, gr);
+      S.text(44, 246, '「レジスタ同士を足す」1 命令', { cls: 't-b t-md' }, gr);
+      [['x86-64', 'add rax, rbx', '48 01 d8', '3 バイト（1〜15 バイト可変）'],
+       ['ARM A64', 'add x0, x1, x2', '8b020020', '4 バイト固定'],
+       ['RISC-V', 'add a0, a1, a2', '00c58533', '4 バイト固定（圧縮命令は 2）']].forEach(([n, asm, hex, note], r) => {
+        const y = 272 + r * 56;
+        S.text(50, y + 4, n, { cls: 't-b t-md' }, gr);
+        S.text(50, y + 24, asm, { cls: 't-mono t-sm' }, gr);
+        S.text(230, y + 4, hex, { cls: 't-mono t-md t-d' }, gr);
+        S.text(230, y + 24, note, { cls: 't-xs t-dim' }, gr);
+        if (r < 2) S.line(44, y + 38, 446, y + 38, { cls: 's-rule w1' }, gr);
+      });
+      S.text(44, 442, '16 進 2 桁 = 8 ビット。どれも中身は「何を・どれとどれを」の組', { cls: 't-xs t-dim' }, gr);
+      st.showByte = (v, highlightIsa) => {
+        const b = bits8(v);
+        st.cells.forEach((c, k) => { c.textContent = b[k]; });
+        const op = OPS[v >> 4];
+        st.opTxt.textContent = `${b.slice(0, 4)} = ${op || '?'}`;
+        st.argTxt.textContent = `${b.slice(4)} = ${v & 15} 番地`;
+        st.isaRows.forEach((bg, r) => { bg.setAttribute('class', highlightIsa && ISA[r][0] === b.slice(0, 4) ? 'f-d-soft' : 'f-sf'); });
+      };
+      st.cur = -1;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.gb.style.opacity = i <= 4 ? (i === 0 || i === 2 || i === 4 ? 1 : 0.4) : 0.4;
+      // 段階6 は命令表を消す（style の不透明度は hide クラスに勝つので、消す段階では空にする）
+      st.gt.style.opacity = i === 5 ? '' : (i === 1 || i === 2 || i === 4 ? 1 : 0.4);
+      S.fade(st.gt, i !== 5);
+      S.fade(st.gr, i === 5);
+      st.gm.style.opacity = i >= 2 ? 1 : 0.4;
+      st.memRows.forEach((r, k) => {
+        r.bg.setAttribute('class', (i === 3 && r.isData) ? 'f-d-soft' : 'f-sf');
+        r.arrow.style.opacity = i === 4 && r.isCode ? 1 : 0;
+      });
+      st.hMach.setAttribute('class', i === 4 ? 't-xs t-b t-d' : 't-xs t-dim');
+      st.hAsm.setAttribute('class', i === 4 ? 't-xs t-b' : 't-xs t-dim');
+      st.pcMark.style.opacity = i === 2 ? 1 : 0;
+      // 1 命令の内訳と命令表の色は、どの段階から来ても段階 i だけで決める（段階3・5 は frame が描き直す）
+      if (i === 0 || i === 3 || i === 5) st.showByte(0x2B, false);
+      if (i === 1) { st.showByte(0x2B, true); }
+      st.cur = -1;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 2 || i === 4) {
+        const k = Math.floor(U.cycle(ctx.ts, 8 * 1.3) * 8);
+        if (k !== st.cur) {
+          st.cur = k;
+          st.memRows.forEach((r, n) => { if (r.isCode) r.bg.setAttribute('class', n === k ? 'f-x-soft' : 'f-sf'); });
+          st.showByte(INIT_MEM[k], true);
+          st.pcMark.setAttribute('y', 118 + k * 26);
+        }
+      } else if (i === 3) {
+        const k = 10 + Math.floor(U.cycle(ctx.ts, 3 * 1.6) * 3);
+        if (k !== st.cur) {
+          st.cur = k;
+          st.cells.forEach((c, n) => { c.textContent = bits8(INIT_MEM[k])[n]; });
+          st.opTxt.textContent = '命令として読めば…';
+          st.argTxt.textContent = `数として読めば ${INIT_MEM[k]}`;
+          st.memRows.forEach((r, n) => { if (r.isData) r.bg.setAttribute('class', n === k ? 'f-x-soft' : 'f-d-soft'); });
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 フェッチ・デコード・実行（ADD 11）
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '1 拍め フェッチ①：PC の番地をアドレスバスへ', where: 'フェッチ（取ってくる）', text: '制御装置が「PC をアドレスバスに出せ」「メモリは読め」と合図する。PC = 0001（1 番地）がバスを通ってメモリに届き、メモリは 1 番地の行を選ぶ。この間 PC・A・Z は変わらない。' },
+      { title: '2 拍め フェッチ②：命令が IR に入り、PC が 1 進む', where: 'フェッチ（取ってくる）', text: 'メモリが 1 番地の中身 `0010 1011` をデータバスに乗せ、クロックの立ち上がりで IR がそれを取り込む。同じ拍で PC は 1 → 2 に進む（PC + 1 は小さな加算器で常に用意してある）。これで「次の命令」の準備もできた。' },
+      { title: '3 拍め デコード：上位 4 ビットが「何を」、下位 4 ビットが「どこ」', where: 'デコード（解読する）', text: '制御装置が IR の上位 4 ビット 0010 を命令表で引いて ADD と判定し、下位 4 ビット 1011 = 11 を「読む番地」として使うことを決める。解読は配線された論理ゲート（第4章）で行うので、拍の中で終わる。' },
+      { title: '4 拍め 実行①：11 番地の中身を読んで ALU へ', where: '実行', text: 'IR のオペランド 1011 がアドレスバスに出て、メモリが 11 番地の中身 `0000 0011`（n = 3）をデータバスに乗せる。これが ALU の入力 2 に届く。入力 1 には A の値 `0000 0000` がつながっている。制御装置は ALU に「加算」を指示する。' },
+      { title: '5 拍め 実行②：ALU が足し、結果を A に書く', where: '実行', text: 'ALU の出力 0 + 3 = 3 が、クロックの立ち上がりで A に書き込まれる。結果が 0 でないので Z = 0。これで `ADD 11` は完了。次の拍では PC = 2 を使って同じ手順が始まる。' },
+      { title: '1 命令 = 5 拍、メモリ 2 回', where: 'まとめ', text: 'YT-8 では命令 1 つに 5 拍かかり、メモリへ 2 回アクセスした（命令の読み出し、11 番地の読み出し）。レジスタだけで済む拍は速く、メモリを待つ拍が遅い。この差を埋めるのが[[6|キャッシュ階層]]で、5 拍を重ねて毎拍 1 命令にするのが[[5|パイプライン]]。' }
+    ],
+    setup(ctx) {
+      const st = ctx.state;
+      st.H = drawCPU(ctx.svg);
+      st.base = TRACE[1];            // LOAD 10 の実行後: PC=1, A=0
+      st.after = TRACE[2];           // ADD 11 の実行後: PC=2, A=3
+      st.pAddr = st.H.pulse('0001', 'f-d');
+      st.pIns = st.H.pulse('0010 1011', 'f-d');
+      st.pArg = st.H.pulse('1011', 'f-d');
+      st.pVal = st.H.pulse('0000 0011', 'f-d');
+      st.pA = st.H.pulse('0000 0000', 'f-d');
+      st.pRes = st.H.pulse('0000 0011', 'f-d');
+      st.decTag = S.g({ cls: 'fade hide' }, ctx.svg);
+      S.rect(300, 206, 230, 20, { rx: 4, cls: 'f-sf s-rule w1' }, st.decTag);
+      S.text(344, 220, '0010 = ADD', { cls: 't-c t-mono t-sm t-b t-d' }, st.decTag);
+      S.text(468, 220, '1011 = 11 番地', { cls: 't-c t-mono t-sm t-b' }, st.decTag);
+      st.beat = S.text(40, 546, '', { cls: 't-mono t-sm t-e t-b' }, ctx.svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, H = st.H;
+      H.clearHl();
+      const mid = { pc: st.base.pc, ir: st.base.ir, a: st.base.a, z: st.base.z, mem: st.base.mem, last: st.base.last };
+      // 段階ごとの見える状態
+      if (i === 0) H.setState(mid);
+      else if (i === 1) H.setState({ ...mid, pc: 2, ir: 0x2B, last: true });
+      else if (i <= 3) H.setState({ ...mid, pc: 2, ir: 0x2B, last: true });
+      else H.setState(st.after);
+      if (i === 0) { H.hl(H.pc, true); H.hlMem(1, true); H.hl(H.ctrl, true, 'f-e-soft s-e w1'); }
+      if (i === 1) { H.hl(H.ir, true); H.hl(H.pc, true); H.hlMem(1, true); }
+      if (i === 2) { H.hl(H.ir, true); H.hl(H.ctrl, true, 'f-e-soft s-e w2'); }
+      if (i === 3) { H.hlMem(11, true); H.hl(H.alu, true, 'f-in s-rule w1'); H.hl(H.a, true, 'f-in s-rule w1'); }
+      if (i === 4) { H.hl(H.alu, true); H.hl(H.a, true); H.hl(H.z, true); }
+      if (i === 5) { H.hl(H.pc, true, 'f-in s-rule w1'); }
+      S.fade(st.decTag, i >= 2 && i <= 4);
+      H.aluOut.textContent = i === 4 ? '0 + 3 = 3' : (i === 3 ? '加算' : '');
+      H.ctrlLines.forEach((l, k) => { l.setAttribute('class', (i === 0 && k === 0) || (i === 1 && k === 1) || (i === 2) || (i === 3 && k === 3) || (i === 4 && k === 2) ? 'f-none s-e w2' : 'f-none s-e w1 dash2'); });
+      st.beat.textContent = i < 5 ? `${i + 1} 拍め` : '5 拍で 1 命令';
+      H.note.textContent = ['PC の 0001 がアドレスバスを通る。メモリは 1 番地の行を選ぶ', '0010 1011 がデータバスを通って IR へ。PC は 1 → 2', '制御装置が IR を解読。配線された論理ゲートなので 1 拍で終わる', '1011 がアドレスバスへ → 11 番地の 0000 0011 が ALU の入力 2 へ', 'ALU の結果 3 が A へ。Z = 0（結果は 0 ではない）', 'メモリを待つ拍（1・2・4 拍め）が全体の速さを決める'][i];
+    },
+    frame(ctx, t) {
+      const st = ctx.state, H = st.H, i = ctx.step;
+      H.drawClock(t, 1.4);
+      const f = U.ease.inOut(U.cycle(ctx.ts, 2.2));
+      const on = U.cycle(ctx.ts, 2.2) < 0.85;
+      const ff = U.ease.inOut(Math.min(1, U.cycle(ctx.ts, 2.2) / 0.85));
+      H.place(st.pAddr, 'pcAddr', ff, i === 0 && on);
+      H.place(st.pIns, 'memIR', ff, i === 1 && on);
+      H.place(st.pArg, 'irAddr', U.ease.inOut(Math.min(1, U.cycle(ctx.ts, 2.2) / 0.42)), i === 3 && U.cycle(ctx.ts, 2.2) < 0.42);
+      H.place(st.pVal, 'memALU', U.ease.inOut(U.clamp((U.cycle(ctx.ts, 2.2) - 0.42) / 0.43, 0, 1)), i === 3 && U.cycle(ctx.ts, 2.2) >= 0.42 && on);
+      H.place(st.pA, 'aALU', ff, i === 3 && on);
+      H.place(st.pRes, 'aluA', ff, i === 4 && on);
+      void f;
+    }
+  };
+
+  /* ================================================================
+     場面4 小さなプログラムを動かす
+     ================================================================ */
+  const RANGES = [[0, 0], [0, 3], [3, 7], [7, 14], [14, 22], [22, 22]];
+  const SLOT = [0, 1.7, 1.7, 1.1, 1.1, 0];
+  const s4 = {
+    steps: [
+      { title: '始める前：PC = 0、sum = 0、n = 3', text: 'メモリの 0〜7 番地が命令、10 番地が sum（合計）、11 番地が n（カウンタ）、12 番地が定数 1。プログラムは「sum に n を足す（0〜2 番地）」「n を 1 減らす（3〜5 番地）」「n が 0 でなければ 0 番地へ戻る（6 番地）」の 3 つの塊でできている。' },
+      { title: '1 周め 前半：sum に n を足す', text: 'LOAD 10 で A ← 0、ADD 11 で A ← 0 + 3、STORE 10 で sum ← 3。3 命令ごとに PC は 0 → 1 → 2 → 3 と進む。レジスタ A は「メモリから持ってきて、計算して、戻す」ための一時置き場で、計算は必ず A を経由する。' },
+      { title: '1 周め 後半：n を減らし、0 でなければ戻る', text: 'LOAD 11 で A ← 3、SUB 12 で A ← 3 − 1 = 2（Z = 0）、STORE 11 で n ← 2。JNZ 0 は Z を見て、0 なら PC ← 0。PC が書き換わったので次の命令は 7 番地ではなく 0 番地になる。これが「戻る」の正体。' },
+      { title: '2 周め：sum = 5、n = 1', text: '同じ 7 命令がもう一度走る。違うのはメモリの中身だけ。sum = 3 + 2 = 5、n = 2 − 1 = 1、Z = 0 なのでまた 0 番地へ。命令は 1 つも書き換えていないのに結果が変わるのは、命令が「番地」を指していて、その番地の中身が変わるから。' },
+      { title: '3 周め：n が 0 になり、JNZ は飛ばない', text: 'sum = 5 + 1 = 6、n = 1 − 1 = 0。SUB の結果が 0 なので Z = 1。JNZ 0 は Z = 1 を見て何もせず、PC はそのまま 7 へ進む。7 番地の HALT で CPU は止まる。' },
+      { title: '結果：10 番地に 6、22 命令・約 110 拍', text: '実行した命令は 7 × 3 + 1 = 22、YT-8 なら 5 拍ずつで約 110 拍。3 GHz の CPU なら 1 回の計算は 0.04 マイクロ秒で、1 秒間にこの計算を 2,700 万回できる。ブラウザが 1 フレーム（16.7 ms）で実行する命令は数千万個になる。' }
+    ],
+    setup(ctx) {
+      const st = ctx.state;
+      st.H = drawCPU(ctx.svg);
+      st.H.setState(TRACE[0]);
+      st.status = S.text(320, 546, '', { cls: 't-c t-mono t-sm t-dim' }, ctx.svg);
+      st.H.note.textContent = '';
+      st.lap = S.text(40, 546, '', { cls: 't-mono t-sm t-x t-b' }, ctx.svg);
+      st.shown = -1;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.shown = -1;
+      st.H.clearHl();
+      st.H.aluOut.textContent = '';   // 段階 2〜5 は frame が書き直す
+      if (i === 0) { st.H.setState(TRACE[0]); st.H.hlMem(10, true, 'f-d-soft'); st.H.hlMem(11, true, 'f-d-soft'); st.H.hlMem(12, true, 'f-d-soft'); st.lap.textContent = ''; st.status.textContent = '命令 0 / 22'; }
+      if (i === 5) { st.H.setState(TRACE[LAST]); st.H.hlMem(10, true); st.H.hlMem(7, true); st.lap.textContent = '停止'; st.status.textContent = `命令 22 / 22  sum = ${TRACE[LAST].mem[10]}`; }
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, H = st.H, i = ctx.step;
+      H.drawClock(t, 1.1);
+      if (i === 0 || i === 5) return;
+      const [a, b] = RANGES[i], n = b - a, slot = SLOT[i];
+      const k = Math.min(n, Math.floor(ctx.ts / slot));
+      const ph = k < n ? (ctx.ts - k * slot) / slot : 1;
+      // 前半: k 命令実行後の状態で、次の命令の番地を光らせる。後半: 次の命令を実行した状態で、変わった所を光らせる
+      const idx = a + k;
+      const execPhase = ph >= 0.5 || k >= n;
+      const stateIdx = execPhase ? Math.min(b, idx + (k < n ? 1 : 0)) : idx;
+      const key = stateIdx * 2 + (execPhase ? 1 : 0);
+      if (key === st.shown) return;
+      st.shown = key;
+      const s = TRACE[stateIdx];
+      H.clearHl();
+      H.setState(s);
+      if (!execPhase) {
+        H.hlMem(s.pc, true);
+        H.hl(H.pc, true, 'f-x-soft s-x w2');
+      } else if (s.last) {
+        H.hlMem(s.last.at, true, 'f-in s-rule w1');
+        // 書き換わった所を x で示す
+        if (s.last.wrote === 'a') { H.hl(H.a, true); if (s.last.op !== 'LOAD') H.hl(H.z, true); }
+        else if (s.last.wrote && s.last.wrote[0] === 'm') H.hlMem(Number(s.last.wrote.slice(1)), true);
+        else if (s.last.wrote === 'pc') H.hl(H.pc, true, s.last.jumped ? 'f-x-soft s-x w2' : 'f-in s-rule w1');
+        H.hl(H.ir, true, 'f-in s-rule w1');
+      }
+      const lapNo = stateIdx === 0 ? 0 : Math.min(3, Math.floor((stateIdx - 1) / 7) + 1);
+      st.lap.textContent = stateIdx >= LAST ? '停止' : `${lapNo} 周め`;
+      const last = s.last;
+      st.status.textContent = `命令 ${stateIdx} / 22` + (last ? `　｜　${last.at} 番地 ${decode(last.ir)}${last.op === 'JNZ' ? (last.jumped ? ' → 0 番地へ戻る' : ' → 飛ばない') : ''}` : '');
+      H.aluOut.textContent = last && (last.op === 'ADD' || last.op === 'SUB') ? `= ${s.a}` : '';
+    }
+  };
+
+  /* ================================================================
+     場面5 クロックとパイプライン
+     ================================================================ */
+  const STG = ['IF', 'ID', 'EX', 'MEM', 'WB'];
+  // 段階の枠はどれも命令（d）の色。段階どうしは枠の中の名前（IF〜WB）で見分ける（色の意味を区別だけに使わない）
+  const STG_CLS = 'f-d-soft s-d w1';
+  const INS5 = ['I1  LOAD 10', 'I2  ADD 11', 'I3  STORE 10', 'I4  LOAD 11', 'I5  SUB 12'];
+  const s5 = {
+    steps: [
+      { title: 'クロック：すべての拍子', text: '水晶振動子が作る数十 MHz の振動を、PLL という回路で数十倍にして CPU のクロックにする。3 GHz なら 1 秒に 30 億拍、1 拍は 0.33 ナノ秒（光でも 10 cm しか進めない時間）。レジスタはこの拍の立ち上がりでだけ値を取り込むので、拍の間に論理ゲートの計算が終わっていればよい。' },
+      { title: '1 命令 = 5 つの段階', text: '場面 3 の 5 拍を名前で呼ぶと IF（命令を取る）→ ID（解読・レジスタ読み）→ EX（ALU）→ MEM（メモリ読み書き）→ WB（レジスタに書き戻す）。1 命令が終わってから次を始めると、2 命令で 10 拍。ほとんどの部品が、各拍で遊んでいる。' },
+      { title: 'パイプライン：段階ごとに別の命令を同時に', text: 'I1 が ID に進んだ拍に I2 の IF を始める。5 つの段階がそれぞれ別の命令を持つと、5 拍めからは**毎拍 1 命令**が完了する。1 命令あたりの時間（5 拍）は変わらないが、単位時間に終わる命令数（スループット）が最大 5 倍になる。' },
+      { title: 'ハザード：待たされる場面', text: 'I2 の ADD は I1 が A に書いた値を使うが、I1 の WB は 5 拍めで、I2 の EX は 4 拍め。間に合わないので I2 を 1 拍止める（泡）。実際は EX の結果を直接次の EX に渡す**フォワーディング**で多くを回避する。JNZ は飛ぶかどうかが EX まで分からないので、**分岐予測**で先に取り込み、外れたら捨てる。' },
+      { title: '実際の CPU の数字', text: 'パソコン用 CPU の 1 コアは、段数 14〜20、1 拍に 4〜8 命令を取り込み（スーパースカラ）、依存のない命令を順番を変えて先に実行し（アウトオブオーダー）、分岐予測は 95% 以上当てる。3〜5 GHz × 毎拍 2〜4 命令で、1 コアが 1 秒に約 100 億命令を実行する。' },
+      { title: '周波数が止まった理由：発熱', text: 'スイッチングの電力は P ≈ α·C·V²·f（第3章の充放電）。1993 年 60 MHz、2000 年 1.5 GHz、2004 年 3.8 GHz と上がった周波数は、放熱の限界で 2004 年以降ほぼ頭打ち（瞬間的な最高で 5〜6 GHz）。以後の性能向上はコア数と 1 拍あたりの命令数で稼いでいる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // クロック帯
+      const gc = S.g({}, svg);
+      S.text(30, 62, 'クロック', { cls: 't-b t-md' }, gc);
+      st.clkTxt = S.text(100, 62, '3 GHz → 1 拍 0.33 ns', { cls: 't-xs t-dim' }, gc);
+      st.clkWave = S.path('', { cls: 'f-none s-e w2 round' }, gc);
+      st.cycLabels = [];
+      for (let c = 1; c <= 10; c++) {
+        const x = 180 + (c - 1) * 74;
+        st.cycLabels.push(S.text(x + 37, 150, `拍 ${c}`, { cls: 't-c t-xs t-dim t-mono' }, gc));
+      }
+      st.cursor = S.rect(180, 72, 74, 420, { rx: 4, cls: 'f-x-soft', style: { opacity: 0 } }, gc);
+      // 行（命令）と格子
+      st.grid = S.g({ cls: 'fade hide' }, svg);
+      st.rowLabels = INS5.map((n, r) => S.text(30, 200 + r * 60, n, { cls: 't-mono t-sm t-b' }, st.grid));
+      st.cells = [];
+      for (let r = 0; r < 5; r++) {
+        const row = [];
+        for (let c = 0; c < 10; c++) {
+          const x = 180 + c * 74, y = 172 + r * 60;
+          const cg = S.g({ style: { display: 'none' } }, st.grid);
+          const rc = S.rect(x + 3, y, 68, 44, { rx: 5, cls: 'f-in s-rule w1' }, cg);
+          const tx = S.text(x + 37, y + 27, '', { cls: 't-c t-mono t-md t-b' }, cg);
+          row.push({ g: cg, rc, tx });
+        }
+        st.cells.push(row);
+      }
+      S.line(170, 160, 170, 480, { cls: 's-rule w1' }, st.grid);
+      st.done = S.text(920, 500, '', { cls: 't-end t-sm t-b t-d' }, svg);
+      st.stgNote = S.text(30, 500, '', { cls: 't-xs t-dim' }, svg);
+      // 段階5: 数字の表
+      const gn = st.gn = S.g({ cls: 'fade hide' }, svg);
+      S.rect(180, 170, 740, 300, { rx: 8, cls: 'f-sf s-rule w1' }, gn);
+      S.text(200, 198, 'パソコン用 CPU の 1 コア（2020 年代、おおよそ）', { cls: 't-b t-md' }, gn);
+      [['パイプラインの段数', '14〜20 段', '1 段あたりの論理が浅いほど高い周波数で回せる'],
+       ['1 拍に取り込む命令', '4〜8 命令', 'スーパースカラ。デコーダと実行ユニットを複数持つ'],
+       ['実行の順番', '入れ替える', 'アウトオブオーダー。依存のない命令を先に実行し、結果は元の順に確定'],
+       ['分岐予測の的中率', '95% 以上', '過去の履歴から飛ぶ／飛ばないを予測。外れると 10〜20 拍を捨てる'],
+       ['周波数', '3〜5 GHz', '定常。瞬間的な最高クロックは 5〜6 GHz'],
+       ['1 拍あたりの完了命令（IPC）', '2〜4', '平均。キャッシュミスや分岐ミスで下がる'],
+       ['1 秒あたりの命令数', '約 100 億', '3 GHz × IPC 3 ≈ 90 億。YT-8 なら 6 億']].forEach(([k, v, n], r) => {
+        const y = 224 + r * 34;
+        S.text(200, y, k, { cls: 't-sm' }, gn);
+        S.text(470, y, v, { cls: 't-mono t-md t-b t-end' }, gn);
+        S.text(490, y, n, { cls: 't-xs t-dim' }, gn);
+        if (r < 6) S.line(190, y + 12, 910, y + 12, { cls: 's-soft w1' }, gn);
+      });
+      // 段階6: 周波数の推移
+      const gh = st.gh = S.g({ cls: 'fade hide' }, svg);
+      S.rect(180, 170, 740, 320, { rx: 8, cls: 'f-sf s-rule w1' }, gh);
+      S.text(200, 198, 'クロック周波数の推移（Intel の代表的な製品）', { cls: 't-b t-md' }, gh);
+      const X = (yr) => 230 + (yr - 1990) * 18.5, Y = (ghz) => 450 - Math.log10(ghz * 1000 / 50) * 95;
+      S.line(230, 450, 880, 450, { cls: 's-rule w1' }, gh);
+      [1990, 1995, 2000, 2005, 2010, 2015, 2020, 2025].forEach((yr) => { S.line(X(yr), 450, X(yr), 456, { cls: 's-rule w1' }, gh); S.text(X(yr), 470, String(yr), { cls: 't-c t-xs t-dim t-mono' }, gh); });
+      [[0.05, '50 MHz'], [0.5, '500 MHz'], [5, '5 GHz']].forEach(([g, l]) => { S.line(226, Y(g), 880, Y(g), { cls: 's-soft w1 dash2' }, gh); S.text(222, Y(g) + 4, l, { cls: 't-end t-xs t-dim t-mono' }, gh); });
+      const pts = [[1993, 0.06, 'Pentium 60 MHz'], [1997, 0.3, 'Pentium II 300 MHz'], [2000, 1.5, 'Pentium 4 1.5 GHz'], [2004, 3.8, 'Pentium 4 3.8 GHz'], [2008, 3.2, 'Core i7 3.2 GHz'], [2015, 4.0, 'Core i7 4.0 GHz'], [2023, 6.0, 'Core i9 最高 6.0 GHz']];
+      S.poly(pts.map(([yr, g]) => [X(yr), Y(g)]), { cls: 'f-none s-fg w2 round' }, gh);
+      pts.forEach(([yr, g, l], k) => { S.circle(X(yr), Y(g), 4, { cls: 'f-fg' }, gh); S.text(X(yr) + (k === pts.length - 1 ? -8 : 8), Y(g) - 8, l, { cls: 't-xs ' + (k === pts.length - 1 ? 't-end' : '') }, gh); });
+      S.rect(X(2004), 200, X(2025) - X(2004), 20, { rx: 3, cls: 'f-x-soft' }, gh);
+      S.text(X(2014.5), 214, '頭打ち：発熱の壁 → マルチコアへ（2005 年 Pentium D から）', { cls: 't-c t-xs t-x t-b' }, gh);
+      S.text(600, 330, 'P ≈ α · C · V² · f', { cls: 't-mono t-md t-b' }, gh);
+      S.lines(600, 350, ['α 動く割合　C 充放電する容量', 'V 電源電圧　f 周波数'], { cls: 't-xs t-dim' }, gh, 14);
+      st.sched = null;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.grid, i >= 1 && i <= 3);
+      S.fade(st.gn, i === 4);
+      S.fade(st.gh, i === 5);
+      st.cycLabels.forEach((l) => { l.style.opacity = i >= 1 && i <= 3 ? 1 : 0; });
+      st.cursor.setAttribute('height', i >= 1 && i <= 3 ? 420 : 60);
+      // 予定表: 行ごとに [拍, 段階] の列
+      const seqSched = [[[1, 0], [2, 1], [3, 2], [4, 3], [5, 4]], [[6, 0], [7, 1], [8, 2], [9, 3], [10, 4]], [], [], []];
+      const pipeSched = [0, 1, 2, 3, 4].map((r) => STG.map((_, k) => [r + k + 1, k]));
+      const hzSched = [
+        [[1, 0], [2, 1], [3, 2], [4, 3], [5, 4]],
+        [[2, 0], [3, 1], [4, -1], [5, 2], [6, 3], [7, 4]],
+        [[3, 0], [4, -2], [5, 1], [6, 2], [7, 3], [8, 4]],
+        [[5, 0], [6, 1], [7, 2], [8, 3], [9, 4]],
+        [[6, 0], [7, 1], [8, 2], [9, 3], [10, 4]]
+      ];
+      st.sched = i === 1 ? seqSched : i === 2 ? pipeSched : i === 3 ? hzSched : null;
+      st.rowLabels.forEach((l, r) => { l.style.opacity = (i === 1 && r >= 2) ? 0.3 : 1; });
+      st.cells.forEach((row, r) => row.forEach((c, cidx) => {
+        c.g.style.display = 'none';
+        const ent = st.sched && st.sched[r].find((e) => e[0] === cidx + 1);
+        if (ent) {
+          const k = ent[1];
+          c.g.style.display = '';
+          c.rc.setAttribute('class', k >= 0 ? STG_CLS : 'f-in s-rule w1 dash');
+          c.tx.textContent = k >= 0 ? STG[k] : '待ち';
+          c.tx.setAttribute('class', 't-c t-mono t-md t-b' + (k >= 0 ? '' : ' t-dim'));
+          c.g.style.opacity = 0;
+        }
+      }));
+      st.stgNote.textContent = i === 1 ? '2 命令で 10 拍。各拍で動いているのは 5 つの段階のうち 1 つだけ' : i === 2 ? '5 命令が 9 拍で終わる。5 拍め以降は毎拍 1 命令が完了' : i === 3 ? 'I2 は I1 の A を待って 1 拍止まる。後ろの命令も 1 拍ずつ遅れる（フォワーディング無しの場合）' : '';
+      st.done.textContent = '';
+      st.clkTxt.textContent = i === 0 ? '3 GHz → 1 拍 0.33 ns。レジスタは立ち上がりで値を取り込む' : '1 拍 = 1 段階';
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // クロック波形（10 拍分）
+      const w = 37, yH = 84, yL = 112;
+      let d = '';
+      for (let c = 0; c < 10; c++) { const x = 180 + c * 74; d += (c ? 'L' : 'M') + x + ',' + yL + 'L' + x + ',' + yH + 'L' + (x + w) + ',' + yH + 'L' + (x + w) + ',' + yL + 'L' + (x + 74) + ',' + yL; }
+      st.clkWave.setAttribute('d', d);
+      const period = i === 0 ? 1.0 : 0.9;
+      const total = 10;
+      const q = U.seq(ctx.ts, [period * total, 2.0], true);
+      const cyc = q.i === 0 ? Math.min(total, 1 + Math.floor(q.f * total)) : total;
+      st.cursor.style.opacity = q.i === 0 ? 1 : 0;
+      st.cursor.setAttribute('x', 180 + (cyc - 1) * 74);
+      if (!st.sched) { st.done.textContent = ''; return; }
+      let done = 0;
+      st.cells.forEach((row, r) => row.forEach((c, cidx) => {
+        if (c.g.style.display === 'none') return;
+        c.g.style.opacity = cidx + 1 <= cyc ? 1 : 0.12;
+        const ent = st.sched[r].find((e) => e[0] === cidx + 1);
+        if (ent && ent[1] === 4 && cidx + 1 <= cyc) done++;
+      }));
+      st.done.textContent = `拍 ${cyc}：完了した命令 ${done}`;
+    }
+  };
+
+  /* ================================================================
+     場面6 キャッシュ階層
+     ================================================================ */
+  const LV = [
+    { name: 'コア（レジスタ）', size: '数百 B', lat: 1, y: 72, h: 44 },
+    { name: 'L1 キャッシュ', size: '32〜48 KB', lat: 4, y: 150, h: 48 },
+    { name: 'L2 キャッシュ', size: '1〜2 MB', lat: 14, y: 232, h: 56 },
+    { name: 'L3 キャッシュ（共有）', size: '16〜36 MB', lat: 45, y: 322, h: 64 },
+    { name: 'DRAM（メインメモリ）', size: '8〜32 GB', lat: 220, y: 424, h: 80 }
+  ];
+  const LV_CLS = (k) => (k === 0 ? 'f-sf s-fg w15' : k === 4 ? 'f-in s-rule w1' : 'f-in s-mid w1');   // 階層の箱の地の色（ヒットした段は frame が d か x にする）
+  const s6 = {
+    steps: [
+      { title: 'DRAM は 200 拍以上遠い', text: 'レジスタは 1 拍で読めるが、DRAM は番地を送ってから中身が返るまで 60〜100 ns、3 GHz なら 200〜300 拍。場面 3 のように 1 命令ごとにメモリを 2 回読むと、CPU はほとんどの時間を待って過ごす。右の帯は 1 拍を 1 ピクセル幅にしたときの長さの比。' },
+      { title: 'L1・L2・L3：近くに写しを置く', text: 'CPU の中に SRAM（第5章、6 トランジスタで 1 ビット）で作った小さなメモリを 3 段置き、DRAM の一部の**写し**を持つ。上ほど小さく速い。L1 は 1 コアに 32〜48 KB で 4〜5 拍、L2 は 1〜2 MB で約 14 拍、L3 はコア間で共有し 16〜36 MB で 40〜50 拍。' },
+      { title: 'ヒットとミス', text: 'CPU が番地を要求すると、まず L1 を探す。あれば**ヒット**で 4 拍で返る。なければ**ミス**で L2、L3、DRAM と順に降り、見つけた中身を戻しながら各段に写しを残す。次に同じ番地を要求すると L1 でヒットする。右の記録は要求ごとの到達段と合計の拍数。' },
+      { title: '局所性：64 バイトまとめて持ってくる', text: 'キャッシュは番地 1 つではなく、連続した 64 バイトの**ライン**単位で出し入れする。直前に使った番地（時間的局所性）や、その隣（空間的局所性）はすぐまた使われることが多いから。右の 8 バイトごとの格子を順に読むと、最初の 1 回だけミスし、残り 7 回はヒットする。' },
+      { title: '置き換え：古い写しを追い出す', text: 'L1 は満杯になるので、新しいラインを入れるときはどれかを追い出す。多くの CPU は「最近いちばん使っていないもの」に近いものを選ぶ（LRU の近似）。CPU が書き込んだラインは DRAM と中身が違う（ダーティ）ので、追い出すときに書き戻す（ライトバック）。' },
+      { title: '効果：平均 200 拍が十数拍に', text: 'ヒット率 95% なら平均の待ちは 0.95 × 4 + 0.05 × 200 ≈ 14 拍。90% なら 24 拍、99% なら 6 拍で、ヒット率の数 % がそのまま速さになる。動画のデコードは画素の列を順にたどるので局所性が高く、キャッシュがよく効く仕事の代表。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: 階層
+      const gl = S.g({}, svg);
+      st.lv = LV.map((l, k) => {
+        const w = 150 + k * 40, x = 180 - w / 2;
+        const bg = S.rect(x, l.y, w, l.h, { rx: 6, cls: LV_CLS(k) }, gl);
+        S.text(180, l.y + 19, l.name, { cls: 't-c t-sm t-b' }, gl);
+        S.text(180, l.y + 35, `${l.size} ／ 約 ${l.lat} 拍`, { cls: 't-c t-xs t-dim t-mono' }, gl);
+        if (k > 0) S.path(`M180,${LV[k - 1].y + LV[k - 1].h} V${l.y}`, { cls: 'f-none s-rule w2' }, gl);
+        return { bg, ...l };
+      });
+      S.text(180, 56, '上ほど小さく速い', { cls: 't-c t-xs t-dim' }, gl);
+      S.path('M170,512 V530', { cls: 'f-none s-none' }, gl);
+      st.dot = S.g({ style: { display: 'none' } }, svg);
+      S.rect(-24, -9, 48, 18, { rx: 4, cls: 'f-d' }, st.dot);
+      st.dotTxt = S.text(0, 4, '要求', { cls: 't-c t-xs t-b t-sf' }, st.dot);
+      st.flag = S.label(svg, 300, 100, 'ヒット', { cls: 't-sm t-b t-sf', box: 'f-d s-d w1', gcls: 'fade hide' });
+      // 右: 段階1 帯の比較
+      const g0 = st.g0 = S.g({ cls: 'fade' }, svg);
+      S.text(380, 72, '1 回の読み出しにかかる拍数（1 拍 = 2 px）', { cls: 't-b t-md' }, g0);
+      [['レジスタ', 1], ['L1', 4], ['L2', 14], ['L3', 45], ['DRAM', 220]].forEach(([n, c], k) => {
+        const y = 100 + k * 52;
+        S.text(380, y + 17, n, { cls: 't-sm t-b' }, g0);
+        S.rect(460, y, Math.max(2, c * 2), 24, { rx: 3, cls: k === 4 ? 'f-x' : 'f-mid' }, g0);
+        S.text(470 + c * 2, y + 17, `${c} 拍`, { cls: 't-sm t-mono' }, g0);
+      });
+      S.text(380, 390, 'DRAM の 220 拍は 3 GHz で約 73 ns。', { cls: 't-sm t-dim' }, g0);
+      S.text(380, 410, 'その間に CPU は本来 220 命令以上を実行できる。', { cls: 't-sm t-dim' }, g0);
+      // 段階3: ヒット/ミスの記録
+      const g2 = st.g2 = S.g({ cls: 'fade hide' }, svg);
+      S.text(380, 72, '要求の記録', { cls: 't-b t-md' }, g2);
+      S.text(380, 94, '番地', { cls: 't-xs t-dim' }, g2); S.text(470, 94, 'L1', { cls: 't-xs t-dim t-c' }, g2); S.text(540, 94, 'L2', { cls: 't-xs t-dim t-c' }, g2); S.text(610, 94, 'L3', { cls: 't-xs t-dim t-c' }, g2); S.text(690, 94, 'DRAM', { cls: 't-xs t-dim t-c' }, g2); S.text(800, 94, '合計の拍数', { cls: 't-xs t-dim' }, g2);
+      st.logRows = [];
+      for (let r = 0; r < 6; r++) {
+        const y = 108 + r * 30;
+        const bg = S.rect(372, y, 560, 26, { rx: 3, cls: 'f-sf' }, g2);
+        const cells = [380, 470, 540, 610, 690, 800].map((x, k) => S.text(x, y + 18, '', { cls: 't-mono t-sm' + (k >= 1 && k <= 4 ? ' t-c' : '') }, g2));
+        st.logRows.push({ bg, cells });
+      }
+      st.logNote = S.text(380, 330, '', { cls: 't-sm t-dim' }, g2);
+      st.lat = S.text(380, 360, '', { cls: 't-mono t-lg t-b' }, g2);
+      // 段階4: ライン
+      const g3 = st.g3 = S.g({ cls: 'fade hide' }, svg);
+      S.text(380, 72, 'メモリの一部（1 マス = 8 バイト、1 行 = 64 バイト = 1 ライン）', { cls: 't-b t-md' }, g3);
+      st.lineCells = [];
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 8; c++) {
+        const x = 380 + c * 62, y = 92 + r * 48;
+        const rc = S.rect(x, y, 58, 40, { rx: 3, cls: 'f-in s-rule w1' }, g3);
+        S.text(x + 29, y + 25, `${(r * 64 + c * 8).toString(16).padStart(3, '0')}`, { cls: 't-c t-mono t-xs t-dim' }, g3);
+        st.lineCells.push(rc);
+      }
+      S.text(380, 300, 'いまの要求 →', { cls: 't-sm' }, g3);
+      st.lineReq = S.text(480, 300, '', { cls: 't-mono t-sm t-b' }, g3);
+      st.lineRes = S.text(640, 300, '', { cls: 't-sm t-b' }, g3);
+      st.lineCnt = S.text(380, 330, '', { cls: 't-mono t-sm t-dim' }, g3);
+      S.text(380, 360, '緑の行が L1 に入っているライン。順に読むと 8 回に 1 回しかミスしない。', { cls: 't-sm t-dim' }, g3);
+      // 段階5: 置き換え
+      const g4 = st.g4 = S.g({ cls: 'fade hide' }, svg);
+      S.text(380, 72, 'L1 の 1 つの置き場（4 ライン入る）', { cls: 't-b t-md' }, g4);
+      st.slots = [0, 1, 2, 3].map((k) => {
+        const x = 380 + k * 136;
+        const rc = S.rect(x, 90, 124, 70, { rx: 6, cls: 'f-d-soft s-d w1' }, g4);
+        const name = S.text(x + 62, 118, '', { cls: 't-c t-mono t-md t-b' }, g4);
+        const age = S.text(x + 62, 140, '', { cls: 't-c t-xs t-dim' }, g4);
+        return { rc, name, age };
+      });
+      // E は B の置き場（左から 2 番め）に入るので、札と矢印もその下に置く
+      st.newLine = S.label(g4, 578, 230, '新しいライン E', { cls: 't-sm t-b', box: 'f-d-soft s-d w1' });
+      S.path('M578,215 V170', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, g4);
+      st.evict = S.text(380, 290, '', { cls: 't-sm' }, g4);
+      st.evict2 = S.text(380, 312, '', { cls: 't-sm t-dim' }, g4);
+      // 段階6: 平均
+      const g5 = st.g5 = S.g({ cls: 'fade hide' }, svg);
+      S.text(380, 72, '平均の待ち時間 = ヒット率 × 4 拍 ＋ ミス率 × 200 拍', { cls: 't-b t-md' }, g5);
+      [[0.80, '80%'], [0.90, '90%'], [0.95, '95%'], [0.99, '99%']].forEach(([h, l], k) => {
+        const y = 100 + k * 46;
+        const avg = h * 4 + (1 - h) * 200;
+        S.text(380, y + 17, `ヒット率 ${l}`, { cls: 't-sm' }, g5);
+        S.rect(480, y, avg * 6, 24, { rx: 3, cls: k === 2 ? 'f-x' : 'f-mid' }, g5);
+        S.text(490 + avg * 6, y + 17, `${avg.toFixed(1)} 拍`, { cls: 't-sm t-mono' }, g5);
+      });
+      S.text(380, 300, 'DRAM だけなら毎回 200 拍。95% ヒットで約 14 倍速い。', { cls: 't-sm t-dim' }, g5);
+      S.text(380, 324, '同じ命令数でも、番地の並び方で速さが 10 倍変わる理由がこれ。', { cls: 't-sm t-dim' }, g5);
+      st.lastKey = null;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g0, i <= 1);
+      S.fade(st.g2, i === 2);
+      S.fade(st.g3, i === 3);
+      S.fade(st.g4, i === 4);
+      S.fade(st.g5, i === 5);
+      st.lv.forEach((l, k) => { l.bg.style.opacity = (i === 0 && k >= 1 && k <= 3) ? 0.25 : 1; l.bg.setAttribute('class', LV_CLS(k)); });
+      st.dot.style.display = 'none';
+      S.fade(st.flag, false);
+      st.lastKey = null;
+      if (i === 2) { st.logRows.forEach((r) => { r.cells.forEach((c) => { c.textContent = ''; }); r.bg.setAttribute('class', 'f-sf'); }); st.lat.textContent = ''; st.logNote.textContent = ''; }
+      if (i === 4) {
+        ['A', 'B', 'C', 'D'].forEach((n, k) => { st.slots[k].name.textContent = `ライン ${n}`; st.slots[k].age.textContent = ['3 拍前', '120 拍前', '8 拍前', '40 拍前'][k]; st.slots[k].rc.setAttribute('class', 'f-d-soft s-d w1'); });
+        st.evict.textContent = ''; st.evict2.textContent = '';
+      }
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 2) {
+        // 6 つの要求: [到達段, 番地]
+        const REQ = [[3, '0x1A40'], [1, '0x1A40'], [4, '0x7F00'], [1, '0x1A48'], [2, '0x3000'], [1, '0x7F00']];
+        const per = 2.6;
+        const q = U.seq(ctx.ts, [per, per, per, per, per, per, 2.5], true);
+        const r = Math.min(5, q.i);
+        if (q.i < 6) {
+          const [lvl, addr] = REQ[r];
+          const down = 0.45, up = 0.45;
+          const f = q.f;
+          let y, lvNow;
+          if (f < down) { lvNow = Math.min(lvl, Math.floor(f / down * (lvl + 1))); y = U.lerp(LV[0].y + 44, LV[lvl].y + LV[lvl].h / 2, f / down); }
+          else if (f < down + up) { lvNow = lvl; y = U.lerp(LV[lvl].y + LV[lvl].h / 2, LV[0].y + 44, (f - down) / up); }
+          else { lvNow = lvl; y = LV[0].y + 44; }
+          st.dot.style.display = '';
+          st.dot.setAttribute('transform', `translate(260,${y.toFixed(1)})`);
+          st.dotTxt.textContent = f < down ? '要求' : '中身';
+          st.lv.forEach((l, k) => { l.bg.setAttribute('class', k > 0 && k === lvl && f >= down * lvl / (lvl + 1) ? (k === 4 ? 'f-x-soft s-x w2' : 'f-d-soft s-d w2') : LV_CLS(k)); });
+          const key = r * 10 + (f >= down ? 1 : 0);
+          if (key !== st.lastKey) {
+            st.lastKey = key;
+            const row = st.logRows[r];
+            row.cells[0].textContent = addr;
+            let total = 0;
+            for (let k = 1; k <= 4; k++) { if (k <= lvl) { total += LV[k].lat; row.cells[k].textContent = k === lvl ? 'ヒット' : 'ミス'; row.cells[k].setAttribute('class', 't-mono t-sm t-c ' + (k === lvl ? 't-d t-b' : 't-x')); } else row.cells[k].textContent = f >= down ? '—' : ''; }
+            row.cells[5].textContent = f >= down ? `${total} 拍` : '';
+            st.logRows.forEach((rr, k) => rr.bg.setAttribute('class', k === r ? 'f-x-soft' : 'f-sf'));
+            st.lat.textContent = f >= down ? `${total} 拍` : '';
+            st.logNote.textContent = f >= down ? (lvl === 1 ? '2 回めは L1 にあるのでヒット' : lvl === 4 ? 'どこにもなく DRAM まで。戻りながら L3・L2・L1 に写しを置く' : `L${lvl} で見つかった。戻りながら上の段に写しを置く`) : '';
+            S.fade(st.flag, f >= down);
+            st.flag.setAttribute('transform', `translate(330,${LV[lvl].y + LV[lvl].h / 2})`);
+            st.flag.querySelector('text').textContent = lvl === 1 ? 'L1 ヒット' : `L${lvl === 4 ? '?' : lvl} ヒット`.replace('L?', 'DRAM');
+          }
+        } else {
+          st.dot.style.display = 'none';
+        }
+      } else if (i === 3) {
+        const n = Math.floor(U.cycle(ctx.ts, 16 * 0.7) * 16);
+        if (n !== st.lastKey) {
+          st.lastKey = n;
+          const row = Math.floor(n / 8), col = n % 8;
+          st.lineCells.forEach((rc, k) => { const r = Math.floor(k / 8); rc.setAttribute('class', k === n ? 'f-x-soft s-x w2' : (r <= row ? 'f-d-soft s-d w1' : 'f-in s-rule w1')); });
+          st.lineReq.textContent = `0x${(n * 8).toString(16).padStart(3, '0')}`;
+          st.lineRes.textContent = col === 0 ? 'ミス → 64 バイトのラインを取り込む' : 'ヒット（同じラインの中）';
+          st.lineRes.setAttribute('class', col === 0 ? 't-sm t-b t-x' : 't-sm t-b t-d');
+          st.lineCnt.textContent = `ここまで: 要求 ${n + 1} 回、ミス ${row + 1} 回、ヒット ${n - row} 回`;
+        }
+      } else if (i === 4) {
+        const q = U.seq(ctx.ts, [2.0, 2.0, 2.0, 2.5], true);
+        if (q.i !== st.lastKey) {
+          st.lastKey = q.i;
+          const s = st.slots;
+          ['A', 'B', 'C', 'D'].forEach((n, k) => { s[k].name.textContent = `ライン ${n}`; s[k].age.textContent = ['3 拍前', '120 拍前', '8 拍前', '40 拍前'][k]; s[k].rc.setAttribute('class', 'f-d-soft s-d w1'); });
+          if (q.i === 0) { st.evict.textContent = '新しいライン E を入れたいが、4 つとも埋まっている'; st.evict2.textContent = ''; }
+          if (q.i >= 1) { s[1].rc.setAttribute('class', 'f-x-soft s-x w2'); st.evict.textContent = 'いちばん長く使っていないのは B（120 拍前）→ B を追い出す'; st.evict2.textContent = q.i >= 2 ? 'B は書き換え済み（ダーティ）なので、追い出す前に DRAM へ書き戻す（ライトバック）' : ''; }
+          if (q.i >= 3) { s[1].name.textContent = 'ライン E'; s[1].age.textContent = 'いま'; s[1].rc.setAttribute('class', 'f-d-soft s-d w2'); st.evict.textContent = 'E が B の場所に入った'; }
+        }
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第II部 計算機 ／ 第6章',
+      title: 'CPU',
+      home: '../index.html',
+      prev: { href: '05-kioku.html', title: '記憶' },
+      next: { href: '07-shuuhen.html', title: '入出力と周辺機器' },
+      legend: [{ c: 'd', label: 'データ・命令' }, { c: 'e', label: '制御信号・クロック' }, { c: 'x', label: '書き込み・注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

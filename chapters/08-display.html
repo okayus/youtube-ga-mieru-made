@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>画面と音 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .px { shape-rendering: crispEdges; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第II部 計算機 ／ 第8章 ／ 全25章</p>
+    <h1 id="h-s0">画面と音</h1>
+    <p class="standfirst">YouTube の旅の終点は、画面の画素が光り、スピーカーの振動板が空気を押す瞬間である。この章では、メモリの中の数値の列（フレームバッファ）が GPU で1枚の絵に合成され、ケーブルを毎秒 60 回流れ、液晶や OLED の 600 万個のサブ画素を光らせるまでと、音の数値の列が DAC・アンプを経てコイルと磁石で振動板を動かすまでを追う。第24章「ストリーミングと再生」で復号した映像と音は、最後にこの章の仕組みを通って目と耳に届く。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の画素数・層の厚さ・速さは見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>フレームバッファ：画素は数値</a><p>1 画素は R・G・B 各 8 ビット。1920×1080 の 1 枚が約 8.3 MB のメモリの連なりになる。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>GPU と合成</a><p>デスクトップ・ウィンドウ・動画の面・カーソルを、GPU が画素ごとに混ぜて 1 枚にする。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>画面へ送る</a><p>左上から右へ、上から下へ 1 画素ずつ。60 Hz、1 行 14.8 µs。vsync とティアリング。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>液晶の原理</a><p>バックライトの光を、偏光板と液晶分子のねじれでサブ画素ごとに通す・止める。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>OLED</a><p>サブ画素が自分で光る。電子と正孔が有機層で出会って光子になる。黒が本当に黒。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>音：PCM → DAC → スピーカー</a><p>毎秒 48,000 個の数値を電圧にし、増幅し、コイルと磁石で振動板を動かして空気を押す。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（OS）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図はすべて模式図。画素数・層の数・粒の速さは実際と違う。数値は本文に書いたものだけが実際の値（規格値または代表値）。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 フレームバッファ ================= -->
+<section class="scene sc-anim" id="s1" data-tab="画素" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>フレームバッファ：画素は数値</h2>
+    <p class="sh-meta"><span class="chip">1920×1080</span><span class="chip">RGB 8 bit</span><span class="chip">約 8.3 MB</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">画面に見えている絵は、メモリの中では<span class="tag d">数値の列</span>でしかない。画素ごとに赤・緑・青の明るさを 1 バイトずつ並べたこの領域を<b>フレームバッファ</b>と呼ぶ。ここの数値を書き換えることが「画面に描く」ことの正体である。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の画面は 16×9 画素に縮めてある。実際のフル HD は 1920×1080 = 2,073,600 画素、4K（3840×2160）はその 4 倍。アドレスの式の幅 16 を 1920 に置き換えれば、実際のフレームバッファと同じ計算になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="16×9画素に縮めた画面と、選んだ画素に対応するメモリ上のバイト列"></svg></div>
+    <figcaption>図1　左は 16×9 画素に縮めた画面。枠の付いた画素が、右のメモリの 4 バイト（B・G・R・未使用）に対応する。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 GPU と合成 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="合成" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>GPU と合成</h2>
+    <p class="sh-meta"><span class="chip">レイヤー</span><span class="chip">アルファブレンド</span><span class="chip">ダブルバッファ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">画面に出ている絵は 1 枚ではない。デスクトップ、ブラウザのウィンドウ、動画の面、マウスカーソルはそれぞれ別のバッファに描かれ、<b>GPU</b> が毎フレーム画素ごとに重ね合わせて、最終のフレームバッファを作る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">動画の面はデコーダが出した YUV 形式のまま GPU に渡され、合成の途中で RGB に変換され拡大縮小される（第24章）。OS によっては動画の面を合成せず、ディスプレイコントローラの別のプレーン（オーバーレイ）に載せて送出時に重ねる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="デスクトップ、ブラウザ、動画の面、コントロール、カーソルの各レイヤーがGPUで1枚に合成される図"></svg></div>
+    <figcaption>図2　左は重なる前のレイヤー（下から順に）。右は GPU が合成した結果。段階4ではフロントとバックの 2 枚のバッファの入れ替え、段階5では GPU の演算器の並列動作を示す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 画面へ送る ================= -->
+<section class="scene sc-anim" id="s3" data-tab="走査" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>画面へ送る：走査・リフレッシュ・vsync</h2>
+    <p class="sh-meta"><span class="chip">60 Hz</span><span class="chip">148.5 MHz</span><span class="chip">DisplayPort / HDMI / eDP</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">フレームバッファの数値は、1 画素ずつ順番に<span class="tag e">電気信号</span>にしてケーブルへ流す。送る順番は左上から右へ、1 行終わったら次の行へ。この<b>走査</b>を 1 秒に 60 回繰り返すのが 60 Hz の画面である。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">フル HD 60 Hz の標準タイミング（CTA-861）は、空白期間を含めて横 2200 × 縦 1125 画素分の時間を使い、画素クロックは 148.5 MHz。1 行の時間は 1 ÷ (1125 × 60) ≈ 14.8 µs、1 フレームは 16.7 ms になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="フレームバッファからケーブルを通ってパネルへ走査で送られる様子と、水平・垂直同期のタイミング図"></svg></div>
+    <figcaption>図3　上はフレームバッファ → ケーブル → パネル。パネルの中の線が走査の位置（図では 1 フレームを 4 秒に引き延ばしてある）。下は同期信号のタイミング。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 液晶 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="液晶" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>液晶の原理：光を通す・止める</h2>
+    <p class="sh-meta"><span class="chip">バックライト</span><span class="chip">偏光板 ×2</span><span class="chip">TN / IPS</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">液晶パネルは自分では光らない。背面の<span class="tag p">バックライト</span>の白い光を、サブ画素ごとに「どれだけ通すか」を電圧で変えるシャッターの集まりである。シャッターの正体は、2 枚の偏光板と、その間で光の振動方向をねじる液晶分子。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図はねじれネマティック（TN）方式の断面。IPS 方式では分子が基板に平行なまま面内で回転し、電圧なしで暗（ノーマリーブラック）になるが、「偏光板 2 枚 ＋ 分子の向きで透過率を変える」点は同じ。偏光板で半分、カラーフィルタで 3 分の 2 が捨てられるので、画面から出る光はバックライトの 1 割以下になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="バックライトから偏光板、液晶層、カラーフィルタ、第2の偏光板を通って目に届く光の断面図。R・G・B の3つのサブ画素"></svg></div>
+    <figcaption>図4　1 画素（R・G・B の 3 サブ画素）の横から見た断面。光は左から右へ進む。粒に付いた短い線が振動の向き（偏光。見やすいように図の面内に回して描いた）。液晶層の楕円は分子の向きで、点に近いものは紙面の奥を向いている。右端の四角が各サブ画素の明るさと、3 つを混ぜた画素の色。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 OLED ================= -->
+<section class="scene sc-anim" id="s5" data-tab="OLED" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>OLED：サブ画素が自分で光る</h2>
+    <p class="sh-meta"><span class="chip">有機 EL</span><span class="chip">電子＋正孔 → 光子</span><span class="chip">黒 = 消灯</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">OLED（有機 EL）はシャッターではなく光源の集まりである。サブ画素ごとに有機物の薄い層があり、電流を流すと<span class="tag e">電子</span>と<span class="tag h">正孔</span>が出会って<span class="tag p">光子</span>を出す。第2章の LED と同じ再結合発光で、材料が有機物になっただけ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">色の作り方は 3 通りある。R・G・B の有機材料を並べる方式（スマートフォンに多い）、白い OLED にカラーフィルタを重ねる方式（WOLED、大型テレビ）、青い OLED で量子ドットを光らせる方式（QD-OLED）。2020 年代のスマートフォンは OLED が主流で、ノート PC と PC モニタは液晶が多い。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="OLEDのサブ画素の断面。陰極からの電子と陽極からの正孔が発光層で再結合して光子を出す。右は液晶との黒の比較"></svg></div>
+    <figcaption>図5　左は上面発光型 OLED の 1 サブ画素の断面（光は上へ出る）。右は「黒」を表示したときの液晶と OLED の比較。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 音 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="音" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>音：PCM → DAC → アンプ → スピーカー</h2>
+    <p class="sh-meta"><span class="chip">48 kHz 16 bit</span><span class="chip">ボイスコイル</span><span class="chip">343 m/s</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">音も画面と同じく、コンピューターの中では<span class="tag d">数値の列</span>（PCM）である。1 秒に 48,000 個の数値を DAC が電圧に戻し、アンプが電力を足し、スピーカーのコイルが磁石の中で動いて振動板が空気を押す。その疎密の波が耳に届く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">YouTube の音声は Opus（48 kHz）か AAC（例の動画では 44.1 kHz）で圧縮され、復号すると PCM に戻る（<a class="xref" href="23-codec.html#s6">第23章</a>）。CD は 44.1 kHz・16 ビット。人の可聴域は約 20 Hz〜20 kHz。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PCMの標本列がDACで電圧に、アンプで増幅され、スピーカーのボイスコイルと磁石で振動板が動いて空気の疎密波になる図"></svg></div>
+    <figcaption>図6　左は標本（数値）と、DAC で戻した階段状の電圧、フィルタで滑らかにした波形。右はスピーカーの断面。コイルの中の粒が音声電流、右へ広がる弧が空気の疎密波。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 数値が光と音になるまで</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>画面は画素の格子で、1 画素は R・G・B 各 1 バイトの数値。フル HD の 1 枚は約 8.3 MB のメモリの連なりである（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>デスクトップ・ウィンドウ・動画の面・カーソルは別々のバッファに描かれ、GPU が画素ごとに混ぜて 1 枚にする（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>合成した 1 枚を、左上から右へ・上から下へ 1 画素ずつ 1 秒に 60 回送る。入れ替えを垂直帰線期間に合わせるのが vsync（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>液晶はバックライトの光を、偏光板 2 枚と液晶分子のねじれでサブ画素ごとに通す・止めるシャッター。各サブ画素に 1 個の TFT がある（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>OLED はサブ画素が自分で光る。電子と正孔が有機層で再結合して光子を出す。消せば完全な黒になる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>音は 1 秒 48,000 個の数値。DAC が電圧に戻し、アンプが電力を足し、磁石の中のコイルが振動板を動かして空気を押す（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>フレームバッファ</th><td>画面 1 枚分の画素の数値を並べたメモリ領域。XRGB8888 なら 1 画素 4 バイト、フル HD で 8,294,400 バイト。</td></tr>
+        <tr><th>画素・サブ画素</th><td>画素は色の最小単位、サブ画素はその中の R・G・B それぞれ。フル HD は 2,073,600 画素、6,220,800 サブ画素。</td></tr>
+        <tr><th>GPU・合成（コンポジット）</th><td>複数のレイヤーを画素ごとに混ぜて 1 枚にする処理。半透明は α·前景 + (1−α)·背景。</td></tr>
+        <tr><th>走査・リフレッシュレート</th><td>画素を順に送ること、その 1 秒あたりの回数（Hz）。フル HD 60 Hz の画素クロックは 148.5 MHz。</td></tr>
+        <tr><th>vsync・ティアリング</th><td>バッファの入れ替えを垂直帰線期間に合わせること。合わせないと 1 画面に新旧のフレームが混ざる（ティアリング）。</td></tr>
+        <tr><th><i class="sw p"></i>バックライト・偏光板</th><td>液晶の光源（白色 LED）と、特定の向きに振動する光だけを通す板。2 枚を直交させて使う。</td></tr>
+        <tr><th>TFT</th><td>薄膜トランジスタ。サブ画素ごとに 1 個以上あり、液晶では電圧を、OLED では電流を制御する。</td></tr>
+        <tr><th>OLED</th><td>有機物の発光層をもつ自発光の素子。電子と正孔の再結合で光る。黒は消灯、弱点は焼き付き。</td></tr>
+        <tr><th>PCM・標本化周波数</th><td>音を一定間隔で測った数値の列と、その 1 秒あたりの個数。48 kHz・16 ビットが動画配信の標準的な形。</td></tr>
+        <tr><th>DAC・ボイスコイル</th><td>数値を電圧に戻す回路と、磁石の中で音声電流を受けて振動板を動かすコイル。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+  const hex2 = (n) => n.toString(16).toUpperCase().padStart(2, '0');
+
+  /* ================================================================
+     場面1 フレームバッファ
+     ================================================================ */
+  const PW = 16, PH = 9;
+  function pixelAt(x, y) {
+    if (x >= 5 && x <= 10 && y >= 2 && y <= 6) {
+      if ((x === 5 || x === 10) && (y === 2 || y === 6)) return [40, 40, 40];
+      if ((x === 7 && (y === 3 || y === 4 || y === 5)) || (x === 8 && y === 4)) return [255, 255, 255];
+      return [255, 0, 0];
+    }
+    return [40, 40, 40];
+  }
+  const s1 = {
+    steps: [
+      { title: '画面は画素の格子', text: '画面は小さな四角（画素）を縦横に並べたもの。フル HD なら横 1920 × 縦 1080 で 2,073,600 個。図では 16×9 に縮めてある。枠の付いた画素が、いま注目している 1 個で、左上から右へ、1 行ずつ順に進んでいる。' },
+      { title: '1 画素は 3 つの数値', text: '1 画素の色は、赤・緑・青の明るさを 0〜255 の整数（各 8 ビット＝1 バイト）で表す。赤なら (255, 0, 0)、白なら (255, 255, 255)。多くの GPU は 1 画素を 4 バイトで扱い、XRGB8888 形式ではメモリ上の並びが B・G・R・未使用の順になる。' },
+      { title: 'フレームバッファはメモリ上の 1 本の列', text: '2 次元の格子は、メモリでは行ごとにつないだ 1 本の列になる。画素 (x, y) の位置は 先頭 + (y × 幅 + x) × 4 バイト。この式で場所が決まるので、GPU もディスプレイコントローラも、どの画素が何バイト目かを計算だけで知ることができる。' },
+      { title: '1 枚の大きさと更新の速さ', text: 'フル HD を 4 バイト/画素で持つと 1 枚 8,294,400 バイト（約 8.3 MB）。これを 1 秒に 60 回作り直すと、書き込みだけで約 500 MB/s。4K は画素数が 4 倍で 1 枚約 33 MB。フレームバッファは GPU のメモリ（VRAM）に置くのが普通である。' },
+      { title: '色の数と「深さ」', text: '各色 8 ビットなら 256 段階、3 色の組み合わせで 16,777,216 色。HDR 映像は各色 10 ビット（1,024 段階、約 10.7 億色）で、明暗の差をより細かく表す。数値が決めるのは「どれだけ明るくするか」の指示であって、実際に出る光の量はパネル（場面4・5）が決める。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 画面
+      S.rect(28, 56, 504, 294, { rx: 10, cls: 'f-fg' }, svg);
+      const cells = st.cells = [];
+      for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const [r, g, b] = pixelAt(x, y);
+        cells.push(S.rect(40 + x * 30, 68 + y * 30, 30, 30, { cls: 'px', fill: `rgb(${r},${g},${b})`, stroke: 'rgba(255,255,255,0.08)' }, svg));
+      }
+      st.cursor = S.rect(40, 68, 30, 30, { cls: 'f-none s-x w3' }, svg);
+      S.text(280, 372, '画面（16 × 9 画素に縮めた模式図）', { cls: 't-c t-sm t-dim' }, svg);
+      // 右: メモリ
+      const gm = S.g({ transform: 'translate(570,56)' }, svg);
+      S.text(0, 0, 'メモリ（フレームバッファ）', { cls: 't-b t-lg' }, gm);
+      st.posTxt = S.text(0, 34, '', { cls: 't-mono' }, gm);
+      // 4バイトの箱
+      const names = ['B', 'G', 'R', 'X'];
+      st.byteBoxes = names.map((n, k) => {
+        const g = S.g({ transform: `translate(${k * 86},56)` }, gm);
+        S.rect(0, 0, 76, 54, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+        S.text(38, 16, n === 'X' ? '未使用' : n, { cls: 't-c t-xs t-dim' }, g);
+        const v = S.text(38, 42, '', { cls: 't-c t-mono t-lg t-b' }, g);
+        return { g, v };
+      });
+      st.decTxt = S.text(0, 136, '', { cls: 't-mono t-sm t-dim' }, gm);
+      // 行のリボン
+      st.gRow = S.g({ transform: 'translate(0,160)', cls: 'fade hide' }, gm);
+      S.text(0, 0, 'この行の 16 画素 = 64 バイトの並び', { cls: 't-sm t-b' }, st.gRow);
+      st.rowCells = [];
+      for (let x = 0; x < PW; x++) {
+        st.rowCells.push(S.rect(x * 21, 10, 20, 20, { cls: 'px', fill: '#000' }, st.gRow));
+        if (x % 4 === 0) S.text(x * 21, 44, '+' + (x * 4), { cls: 't-xs t-mono t-dim' }, st.gRow);
+      }
+      st.rowCursor = S.rect(0, 8, 20, 24, { cls: 'f-none s-x w2' }, st.gRow);
+      st.addrTxt = S.text(0, 70, '', { cls: 't-mono t-sm' }, st.gRow);
+      S.text(0, 90, '（実際は 幅 1920、1 行 7,680 バイト）', { cls: 't-xs t-dim' }, st.gRow);
+      // 統計
+      st.gStat = S.g({ transform: 'translate(0,278)', cls: 'fade hide' }, gm);
+      S.rect(0, 0, 350, 100, { rx: 6, cls: 'f-sf s-rule w1' }, st.gStat);
+      [['1920 × 1080', '= 2,073,600 画素'], ['× 4 バイト', '= 8,294,400 バイト ≈ 8.3 MB'], ['× 60 回/秒', '≈ 498 MB/s の書き込み']].forEach(([a, b], k) => {
+        S.text(14, 26 + k * 28, a, { cls: 't-mono t-sm t-b' }, st.gStat);
+        S.text(130, 26 + k * 28, b, { cls: 't-mono t-sm' }, st.gStat);
+      });
+      // 色の深さ
+      st.gDepth = S.g({ transform: 'translate(40,400)', cls: 'fade hide' }, svg);
+      S.text(0, 0, '赤 1 色の 8 ビット = 256 段階（64 段階ごとに縮めて表示）', { cls: 't-sm t-b' }, st.gDepth);
+      for (let k = 0; k < 64; k++) S.rect(k * 7.5, 10, 7.5, 26, { cls: 'px', fill: `rgb(${Math.round(k * 255 / 63)},0,0)` }, st.gDepth);
+      S.text(0, 54, '0', { cls: 't-xs t-mono t-dim' }, st.gDepth);
+      S.text(480, 54, '255', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, st.gDepth);
+      S.text(0, 84, '8 bit × 3 色 = 16,777,216 色　／　10 bit × 3 色（HDR）= 1,073,741,824 色', { cls: 't-sm t-mono' }, st.gDepth);
+      S.text(0, 108, '数値は「指示」。実際に出る光はパネルが決める（場面4・5）', { cls: 't-xs t-dim' }, st.gDepth);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gRow, i >= 2);
+      S.fade(st.gStat, i >= 3);
+      S.fade(st.gDepth, i >= 4);
+      st.byteBoxes.forEach((b) => { b.g.style.opacity = i >= 1 ? 1 : 0.25; });
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      const idx = Math.floor(t * 4) % (PW * PH);
+      const x = idx % PW, y = Math.floor(idx / PW);
+      st.cursor.setAttribute('x', 40 + x * 30); st.cursor.setAttribute('y', 68 + y * 30);
+      const [r, g, b] = pixelAt(x, y);
+      st.posTxt.textContent = `画素 (x=${x}, y=${y})`;
+      const vals = [b, g, r, 0];
+      st.byteBoxes.forEach((bx, k) => { bx.v.textContent = hex2(vals[k]); });
+      st.decTxt.textContent = `R=${r}  G=${g}  B=${b}　（16 進: FF = 255）`;
+      for (let k = 0; k < PW; k++) { const [rr, gg, bb] = pixelAt(k, y); st.rowCells[k].setAttribute('fill', `rgb(${rr},${gg},${bb})`); }
+      st.rowCursor.setAttribute('x', x * 21);
+      const addr = (y * PW + x) * 4;
+      st.addrTxt.textContent = `アドレス = 先頭 + (${y} × 16 + ${x}) × 4 = 先頭 + ${addr}（0x${addr.toString(16).toUpperCase().padStart(3, '0')}）`;
+    }
+  };
+
+  /* ================================================================
+     場面2 GPU と合成
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '画面に出るものは何枚もの層', text: 'デスクトップの壁紙、ブラウザのウィンドウ、その中の動画、マウスカーソル。それぞれ別のプログラム（OS のシェル、ブラウザ、デコーダ）が別のバッファに描く。重ねる作業だけを 1 か所にまとめたものが**コンポジタ**で、OS とブラウザの両方にある。' },
+      { title: 'ブラウザの中もレイヤーに分かれる', text: 'ページ本体、`<video>` の面、半透明のコントロール（再生ボタンや進行バー）は別レイヤー。半透明の重ね方は画素ごとに 出力 = α×前景 + (1−α)×背景（アルファブレンド）。レイヤーに分けておけば、動画だけが毎フレーム変わってもページ本体を描き直さずに済む。' },
+      { title: '動画の面は特別扱い', text: 'デコーダ（第24章）が出すのは RGB ではなく YUV 4:2:0 の画像。GPU は合成のときにこれを RGB に変換し、プレーヤーの大きさに拡大縮小する。全画面再生のときは合成せず、ディスプレイコントローラのオーバーレイプレーンに直接載せて消費電力を減らすことも多い。' },
+      { title: '描き終わった 1 枚を、表示中の 1 枚と入れ替える', text: 'フレームバッファは 2 枚（以上）用意する。画面に送出中の 1 枚（フロント）を触らず、裏の 1 枚（バック）に次の絵を合成し、できたら役割を入れ替える（ページフリップ）。入れ替えのタイミングを走査の切れ目に合わせる話が場面3の vsync。' },
+      { title: 'GPU は同じ計算を何千か所で同時に行う', text: '合成は 200 万画素すべてに同じ式を当てはめる作業で、画素どうしに依存がない。GPU は数百〜数千個の小さな演算器が同じプログラム（シェーダ）を別の画素に同時に実行する作りで、この種の仕事を CPU より桁違いに速くこなす。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // レイヤーの描画（共通の中身）
+      const drawContent = (parent, kind, w, h) => {
+        if (kind === 'desk') {
+          S.rect(0, 0, w, h, { rx: 6, cls: 'f-in s-rule w1' }, parent);
+          S.circle(w * 0.78, h * 0.28, h * 0.12, { cls: 'f-p-soft' }, parent);
+          S.path(`M0,${h * 0.7} Q${w * 0.3},${h * 0.5} ${w * 0.55},${h * 0.72} T${w},${h * 0.62} V${h} H0 Z`, { cls: 'f-d-soft' }, parent);
+          S.rect(0, h - 14, w, 14, { cls: 'f-rule' }, parent);
+        } else if (kind === 'win') {
+          S.rect(w * 0.08, h * 0.08, w * 0.84, h * 0.86, { rx: 5, cls: 'f-sf s-dim w1' }, parent);
+          S.rect(w * 0.08, h * 0.08, w * 0.84, 14, { rx: 5, cls: 'f-rule' }, parent);
+          for (let k = 0; k < 4; k++) S.rect(w * 0.12, h * 0.3 + k * 12, w * 0.76 * (k === 3 ? 0.5 : 1), 4, { cls: 'f-rule' }, parent);
+          S.rect(w * 0.12, h * 0.56, w * 0.76, h * 0.34, { cls: 'f-in s-soft', 'stroke-dasharray': '3 3' }, parent);
+        } else if (kind === 'video') {
+          S.rect(w * 0.12, h * 0.56, w * 0.76, h * 0.34, { cls: 'f-fg' }, parent);
+          S.rect(w * 0.12, h * 0.56, w * 0.76, h * 0.2, { cls: 'f-e-soft' }, parent);
+          S.circle(w * 0.3, h * 0.66, h * 0.05, { cls: 'f-p' }, parent);
+          S.rect(w * 0.12, h * 0.76, w * 0.76, h * 0.14, { cls: 'f-d-soft' }, parent);
+        } else if (kind === 'ctl') {
+          S.rect(w * 0.12, h * 0.82, w * 0.76, h * 0.08, { cls: 'f-fg', style: { opacity: 0.5 } }, parent);
+          S.rect(w * 0.14, h * 0.855, w * 0.3, 3, { cls: 'f-x' }, parent);
+          S.rect(w * 0.44, h * 0.855, w * 0.42, 3, { cls: 'f-sf' }, parent);
+        } else if (kind === 'cur') {
+          S.polygon([[w * 0.5, h * 0.4], [w * 0.5, h * 0.56], [w * 0.54, h * 0.52], [w * 0.57, h * 0.58], [w * 0.59, h * 0.57], [w * 0.56, h * 0.51], [w * 0.61, h * 0.51]], { cls: 'f-fg s-sf w1' }, parent);
+        }
+      };
+      const LW = 230, LH = 130;
+      const layers = [
+        { kind: 'desk', name: 'デスクトップ（壁紙）', owner: 'OS のシェル' },
+        { kind: 'win', name: 'ブラウザのウィンドウ', owner: 'ブラウザの描画' },
+        { kind: 'video', name: '動画の面（YUV → RGB）', owner: 'デコーダの出力' },
+        { kind: 'ctl', name: 'コントロール（半透明）', owner: 'ブラウザ' },
+        { kind: 'cur', name: 'マウスカーソル', owner: 'OS' }
+      ];
+      st.layers = layers.map((l, k) => {
+        const g = S.g({ transform: `translate(${40 + k * 26},${330 - k * 62})`, cls: 'fade' }, svg);
+        S.rect(-1, -1, LW + 2, LH + 2, { rx: 6, cls: 'f-sf s-rule w1', style: { opacity: 0.9 } }, g);
+        drawContent(g, l.kind, LW, LH);
+        const lx = 40 + 4 * 26 + LW + 18 - (40 + k * 26);   // 札は積み重ねの右側にそろえる
+        S.line(LW + 2, 20, lx - 8, 20, { cls: 's-rule w1 dash2' }, g);
+        const lbl = S.text(lx, 16, `${k + 1} ${l.name}`, { cls: 't-sm t-b' }, g);
+        S.text(lx, 32, l.owner, { cls: 't-xs t-dim' }, g);
+        return { g, lbl, ...l };
+      });
+      S.text(40, 40, '重ねる前のレイヤー（下から順）', { cls: 't-b t-lg' }, svg);
+      // 矢印と GPU
+      S.rect(596, 170, 84, 64, { rx: 8, cls: 'f-d-soft s-d w15' }, svg);
+      S.text(638, 198, 'GPU', { cls: 't-c t-b t-lg t-d' }, svg);
+      S.text(638, 216, '合成', { cls: 't-c t-sm t-d' }, svg);
+      S.path('M566,202 H590', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, svg);
+      S.path('M686,202 H708', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, svg);
+      // 結果
+      const RW = 226, RH = 128;
+      const gr = st.gr = S.g({ transform: 'translate(722,138)' }, svg);
+      S.rect(-8, -8, RW + 16, RH + 16, { rx: 8, cls: 'f-fg' }, gr);
+      layers.forEach((l) => drawContent(gr, l.kind, RW, RH));
+      S.text(722 + RW / 2, 118, '合成された 1 枚（フレームバッファ）', { cls: 't-c t-b' }, svg);
+      st.resNote = S.text(722 + RW / 2, 296, '', { cls: 't-c t-xs t-dim' }, svg);
+      // 段階4: ダブルバッファ
+      st.gBuf = S.g({ transform: 'translate(700,330)', cls: 'fade hide' }, svg);
+      st.bufA = S.g({}, st.gBuf);
+      st.bufB = S.g({ transform: 'translate(130,0)' }, st.gBuf);
+      [st.bufA, st.bufB].forEach((g) => {
+        S.rect(0, 0, 118, 72, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        for (let k = 0; k < 3; k++) S.rect(9, 11 + k * 18, 100, 11, { cls: 'f-in' }, g);
+      });
+      st.bufALbl = S.text(59, 92, '', { cls: 't-c t-xs t-b' }, st.bufA);
+      st.bufBLbl = S.text(59, 92, '', { cls: 't-c t-xs t-b' }, st.bufB);
+      st.bufFill = S.rect(9, 11, 0, 47, { cls: 'f-d-soft' }, st.gBuf);
+      S.text(124, 118, '入れ替えは走査の切れ目で（場面3）', { cls: 't-c t-xs t-dim' }, st.gBuf);
+      // 段階5: 演算器
+      st.gCores = S.g({ transform: 'translate(700,330)', cls: 'fade hide' }, svg);
+      st.cores = [];
+      for (let r = 0; r < 5; r++) for (let c = 0; c < 16; c++) st.cores.push(S.rect(c * 15, r * 15, 12, 12, { rx: 2, cls: 'f-in' }, st.gCores));
+      S.text(120, 100, '演算器が 1 画素ずつ同じ式を同時に計算', { cls: 't-c t-xs t-dim' }, st.gCores);
+      S.text(120, 118, '出力 = α × 前景 + (1 − α) × 背景', { cls: 't-c t-xs t-mono t-dim' }, st.gCores);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.layers.forEach((l, k) => {
+        let on = true;
+        if (i === 1) on = k >= 1 && k <= 3;
+        if (i === 2) on = k === 2;
+        l.g.style.opacity = on ? 1 : 0.22;
+      });
+      S.fade(st.gBuf, i === 3);
+      S.fade(st.gCores, i === 4);
+      st.resNote.textContent = i === 2 ? 'YUV 4:2:0 → RGB 変換と拡大縮小を合成の中で行う' : i === 1 ? '半透明の層は α で混ぜる' : '';
+      st.bufFlip = 0;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 3) {
+        const f = U.cycle(t, 2.4);
+        const flip = Math.floor(t / 2.4) % 2;
+        const front = flip ? st.bufB : st.bufA, back = flip ? st.bufA : st.bufB;
+        st.bufALbl.textContent = flip ? 'バック：描画中' : 'フロント：表示中';
+        st.bufBLbl.textContent = flip ? 'フロント：表示中' : 'バック：描画中';
+        st.bufFill.setAttribute('x', (flip ? 9 : 139));
+        st.bufFill.setAttribute('width', (100 * f).toFixed(1));
+        front.querySelector('rect').setAttribute('class', 'f-sf s-fg w2');
+        back.querySelector('rect').setAttribute('class', 'f-sf s-rule w1');
+      }
+      if (i === 4) {
+        st.cores.forEach((c, k) => {
+          const col = k % 16, row = Math.floor(k / 16);
+          const ph = U.mod(t * 1.6 - col * 0.08 - row * 0.05, 1);
+          c.setAttribute('class', ph < 0.35 ? 'f-d' : 'f-in');
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 走査
+     ================================================================ */
+  const ROWS = 27;
+  const s3 = {
+    steps: [
+      { title: '1 画素ずつ、左上から右へ、上から下へ', text: 'ディスプレイコントローラはフレームバッファの先頭から順にバイトを読み、1 画素ずつケーブルへ送る。1 行の右端まで来たら次の行の左端へ。1080 行を送り終えると、少しの空白期間（垂直帰線期間）を置いて次のフレームの先頭に戻る。60 Hz ならこれを 16.7 ms に 1 回。' },
+      { title: 'ケーブルの中は高速シリアル', text: 'HDMI は 3 本の差動ペアに R・G・B を 8b/10b 符号で流し、フル HD 60 Hz で 1 本あたり 1.485 Gbps。DisplayPort は 4 レーンでパケットにして送り、HBR3 では 1 レーン 8.1 Gbps。ノート PC の内蔵パネルは eDP。差動ペアでノイズを打ち消す考え方は第13章の Ethernet と同じ。' },
+      { title: 'パネルは行ごとに受け取って保持する', text: 'パネル側の制御回路は、受け取った 1 行分の値を列ドライバに並べ、ゲートドライバがその行のスイッチ（TFT）だけを一瞬開いて書き込む。各サブ画素は小さなコンデンサ（第1章）で電圧を保持し、次に自分の行が来るまで 16.7 ms の間その明るさを保つ。' },
+      { title: 'vsync とティアリング', text: '走査の途中でフロントとバックを入れ替えると、画面の上半分は古いフレーム、下半分は新しいフレームになる（ティアリング）。入れ替えを垂直帰線期間まで待つのが vsync。図の前半は待たずに入れ替えた場合、後半は待った場合。待てば継ぎ目は出ないが、間に合わないと同じフレームをもう 1 回送ることになる。' },
+      { title: '押してから見えるまでの遅れ', text: 'クリックの読み取り（USB の周期 1〜8 ms）、アプリの描画（最大 16.7 ms）、合成（最大 16.7 ms）、送出（上端から下端まで 16.7 ms）、パネルの応答（数 ms）が直列に並ぶ。合計で数十 ms になるのが普通で、120 Hz や 144 Hz の画面は各段の 16.7 ms が短くなる分だけ速く見える。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // フレームバッファ
+      S.rect(30, 110, 150, 86, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      for (let k = 0; k < 5; k++) S.rect(40, 120 + k * 14, 130, 9, { cls: 'f-d-soft' }, svg);
+      S.text(105, 92, 'フレームバッファ', { cls: 't-c t-sm t-b' }, svg);
+      S.text(105, 214, 'GPU のメモリ', { cls: 't-c t-xs t-dim' }, svg);
+      // ケーブル
+      const cable = S.path('M180,153 H260 Q290,153 290,183 V215 Q290,245 320,245 H400', { cls: 'f-none s-rule round', 'stroke-width': 14 }, svg);
+      const cablePath = S.path('M180,153 H260 Q290,153 290,183 V215 Q290,245 320,245 H400', { cls: 'f-none s-none' }, svg);
+      st.cableFlow = A.flow(cablePath, { count: 14, speed: 120, r: 3, cls: 'f-e', jitter: 0 });
+      S.text(240, 136, 'ケーブル', { cls: 't-c t-xs t-dim' }, svg);
+      st.cableLbl = S.text(240, 290, '', { cls: 't-c t-xs t-e t-b' }, svg);
+      // パネル
+      const PX = 420, PY = 60, PWd = 500, PHt = 281;
+      S.rect(PX - 10, PY - 10, PWd + 20, PHt + 20, { rx: 8, cls: 'f-fg' }, svg);
+      st.rowsEls = [];
+      st.rowFrame = [];
+      const rh = PHt / ROWS;
+      for (let r = 0; r < ROWS; r++) {
+        st.rowsEls.push(S.rect(PX, PY + r * rh, PWd, rh + 0.5, { cls: 'px f-in' }, svg));
+        st.rowFrame.push(1);
+      }
+      st.beamRow = S.rect(PX, PY, PWd, rh, { cls: 'f-x', style: { opacity: 0.35 } }, svg);
+      st.beam = S.circle(PX, PY, 4, { cls: 'f-x' }, svg);
+      S.text(PX + PWd / 2, PY + PHt + 30, 'パネル（1 フレームを 4 秒に引き延ばして表示）', { cls: 't-c t-sm t-dim' }, svg);
+      st.frameTxt = S.text(PX + PWd, PY - 18, '', { cls: 't-mono t-sm', 'text-anchor': 'end' }, svg);
+      st.srcTxt = S.text(PX, PY - 18, '', { cls: 't-mono t-sm' }, svg);
+      // 凡例（フレームの色）
+      S.rect(PX, PY + PHt + 44, 14, 10, { cls: 'f-in' }, svg); S.rect(PX + 16, PY + PHt + 44, 14, 10, { cls: 'f-d-soft' }, svg);
+      S.text(PX + 36, PY + PHt + 53, 'フレームごとに色を交互に表示', { cls: 't-xs t-dim' }, svg);
+      st.tearTxt = S.text(PX + PWd, PY + PHt + 53, '', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, svg);
+      // 段階3: 行ドライバ
+      st.gDrv = S.g({ cls: 'fade hide' }, svg);
+      S.rect(PX - 34, PY, 18, PHt, { rx: 3, cls: 'f-e-soft s-e w1' }, st.gDrv);
+      S.text(PX - 25, PY + PHt + 14, 'ゲート', { cls: 't-c t-xs t-e' }, st.gDrv);
+      S.rect(PX, PY - 34, PWd, 18, { rx: 3, cls: 'f-e-soft s-e w1' }, st.gDrv);
+      S.text(PX + PWd / 2, PY - 21, '列ドライバ（1 行分の電圧を並べる）', { cls: 't-c t-xs t-e' }, st.gDrv);
+      st.gateMark = S.rect(PX - 34, PY, 18, rh, { cls: 'f-e' }, st.gDrv);
+      // タイミング図
+      const gt = S.g({ transform: 'translate(40,420)' }, svg);
+      S.text(0, 0, 'タイミング（1 フレーム = 16.7 ms）', { cls: 't-sm t-b' }, gt);
+      S.text(0, 34, 'HSYNC', { cls: 't-xs t-mono t-dim' }, gt);
+      S.text(0, 74, 'VSYNC', { cls: 't-xs t-mono t-dim' }, gt);
+      let hd = '';
+      const TW = 860;
+      for (let r = 0; r < ROWS; r++) { const x = 60 + r * TW / ROWS; hd += `M${x},40 V22 H${x + 4} V40`; }
+      S.path(hd, { cls: 'f-none s-dim w1' }, gt);
+      S.line(60, 40, 60 + TW, 40, { cls: 's-dim w1' }, gt);
+      S.path(`M60,80 V62 H74 V80 H${60 + TW}`, { cls: 'f-none s-dim w1' }, gt);
+      S.text(60, 104, '0', { cls: 't-xs t-mono t-dim' }, gt);
+      S.text(60 + TW, 104, '16.7 ms', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gt);
+      S.text(60 + TW / 2, 104, '1 行 ≈ 14.8 µs　画素クロック 148.5 MHz（2200 × 1125 × 60）', { cls: 't-c t-xs t-mono t-dim' }, gt);
+      st.tCursor = S.line(60, 14, 60, 90, { cls: 's-x w15' }, gt);
+      st.vblTxt = S.text(74, 58, '垂直帰線期間（約 0.67 ms）で次の先頭へ', { cls: 't-xs t-dim' }, gt);
+      // 段階5: 遅延の内訳
+      st.gLat = S.g({ transform: 'translate(40,420)', cls: 'fade hide' }, svg);
+      S.rect(-10, -16, 900, 130, { rx: 6, cls: 'f-bg' }, st.gLat);
+      S.text(0, 0, '押してから見えるまで（目安）', { cls: 't-sm t-b' }, st.gLat);
+      const segs = [['入力の読み取り', 5, 'e'], ['アプリの描画', 16.7, 'd'], ['合成', 16.7, 'd'], ['送出（走査）', 16.7, 'e'], ['パネル応答', 5, 'p']];
+      let x0 = 0; const scale = 860 / 62;
+      segs.forEach(([n, ms, c]) => {
+        const w = ms * scale;
+        S.rect(x0, 14, w - 2, 30, { rx: 3, cls: `f-${c}-soft s-${c} w1` }, st.gLat);
+        S.text(x0 + w / 2, 33, n, { cls: 't-c t-xs' }, st.gLat);
+        S.text(x0 + w / 2, 62, (ms === 5 ? '〜' : '≤ ') + ms + ' ms', { cls: 't-c t-xs t-mono t-dim' }, st.gLat);
+        x0 += w;
+      });
+      S.text(0, 92, '合計で数十 ms。120 Hz なら「≤ 16.7 ms」の段がそれぞれ「≤ 8.3 ms」になる', { cls: 't-xs t-dim' }, st.gLat);
+      st.PX = PX; st.PY = PY; st.rh = rh; st.PWd = PWd; st.TW = TW;
+      st.src = 0; st.lastSwap = 0; st.frameNo = 1;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gDrv, i === 2);
+      S.fade(st.gLat, i === 4);
+      st.cableLbl.textContent = i >= 1 ? 'HDMI 1.485 Gbps × 3 ／ DP 8.1 Gbps × 4' : '';
+      st.vblTxt.style.opacity = i === 3 ? 1 : 0.6;
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.cableFlow.update(dt);
+      const FR = 4;                              // 1フレーム 4 秒
+      const f = U.cycle(t, FR);                  // 0..1 のフレーム内進行
+      const frameNo = Math.floor(t / FR);
+      const scanF = Math.min(1, f / 0.96);       // 残り 4% が垂直帰線期間
+      const rowF = scanF * ROWS;
+      const r = Math.min(ROWS - 1, Math.floor(rowF));
+      const colF = rowF - r;
+      // ソースの切り替え: 段階3の前半（ts < 8）は vsync なし（フレームの 0.55 の位置で切り替え）、それ以外は帰線期間で切り替え
+      const tearing = i === 3 && U.mod(ctx.ts, 16) < 8;
+      const swapAt = tearing ? 0.55 : 0.97;
+      // 走査済みの行は、その行を走査した時点のソース（フレーム番号）の色。まだの行は前回のまま
+      for (let k = 0; k < ROWS; k++) {
+        if (k < r || (k === r && colF > 0)) st.rowFrame[k] = (f >= swapAt && k >= Math.floor(swapAt / 0.96 * ROWS)) ? frameNo + 1 : frameNo;
+        const val = st.rowFrame[k];
+        st.rowsEls[k].setAttribute('class', 'px ' + ((((val % 2) + 2) % 2 === 0) ? 'f-in' : 'f-d-soft'));
+      }
+      st.beamRow.setAttribute('y', st.PY + r * st.rh);
+      st.beamRow.style.opacity = f < 0.96 ? 0.35 : 0;
+      st.beam.setAttribute('cx', st.PX + colF * st.PWd);
+      st.beam.setAttribute('cy', st.PY + (r + 0.5) * st.rh);
+      st.beam.style.opacity = f < 0.96 ? 1 : 0;
+      st.frameTxt.textContent = `送出中: フレーム ${frameNo + 1}`;
+      st.srcTxt.textContent = `行 ${Math.min(1080, Math.round(scanF * 1080))} / 1080`;
+      st.tCursor.setAttribute('x1', 60 + f * st.TW); st.tCursor.setAttribute('x2', 60 + f * st.TW);
+      if (i === 2) st.gateMark.setAttribute('y', st.PY + r * st.rh);
+      if (i === 3) {
+        st.tearTxt.textContent = tearing ? 'vsync なし → 継ぎ目（ティアリング）' : 'vsync あり → 継ぎ目なし';
+      } else st.tearTxt.textContent = '';
+    }
+  };
+
+  /* ================================================================
+     場面4 液晶
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '光源はバックライト', text: '液晶は自分では光らない。パネルの端か背面に並べた白色 LED（青色 LED ＋ 黄色の蛍光体）の光を、導光板と拡散シートで面全体に均一に広げる。この光は、あらゆる向きに振動する「偏っていない光」である。' },
+      { title: '第 1 の偏光板：縦に振動する光だけ通す', text: '偏光板は、特定の向きに振動する光だけを通す膜。ここで横向きの成分は吸収され、光の半分が捨てられる。通った光は全部が同じ向き（図では縦）に振動しているので、この先は「振動の向き」を回せば、出口の偏光板で通す・止めるを選べる。' },
+      { title: '電圧なし：液晶分子が振動の向きを 90° ねじる', text: 'TN 方式では、2 枚のガラスの間の液晶分子が入口から出口へ向かって 90° ねじれて並ぶように、表面に溝が付けてある。光の振動の向きはこのねじれに沿って回り、出口では横向きになる。出口の偏光板は横向きを通すように置いてあるので、光はそのまま通り、サブ画素は明るい。' },
+      { title: '電圧あり：ねじれが消えて光が止まる', text: 'サブ画素の TFT（第3章のトランジスタ）を通して電極に電圧をかけると、液晶分子は電場の向きにそろい、ねじれが消える。振動の向きは縦のまま出口に届き、横向きだけを通す偏光板に吸収される。電圧を中間にすれば途中まで通り、256 段階の明るさになる。' },
+      { title: '色：R・G・B のサブ画素', text: '白い光を赤・緑・青のカラーフィルタに通した 3 つのサブ画素が 1 画素を作る。3 つの透過量の比で色が決まり、図では R を全開、G を半分、B を閉じて橙色にしている。フル HD では 6,220,800 個のサブ画素それぞれに TFT が 1 個あり、場面3の走査で 1 行ずつ電圧を書き込まれる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 層の x 位置
+      const X = { bl: 50, dif: 118, p1: 170, g1: 205, lc0: 235, lc1: 445, cf: 480, p2: 540, out: 600 };
+      const CH = [{ y: 150, c: 'R', cls: 'x', rgb: [255, 0, 0] }, { y: 280, c: 'G', cls: 'd', rgb: [0, 200, 0] }, { y: 410, c: 'B', cls: 'e', rgb: [0, 90, 255] }];
+      st.X = X; st.CH = CH;
+      // 層の描画
+      S.rect(X.bl, 70, 40, 420, { rx: 4, cls: 'f-p-soft s-p w1' }, svg);
+      for (let k = 0; k < 7; k++) S.circle(X.bl + 20, 100 + k * 60, 7, { cls: 'f-p' }, svg);
+      S.text(X.bl + 20, 56, 'バックライト', { cls: 't-c t-xs' }, svg);
+      S.text(X.bl + 20, 508, '白色 LED', { cls: 't-c t-xs t-dim' }, svg);
+      S.rect(X.dif, 70, 10, 420, { cls: 'f-in s-rule w1' }, svg);
+      S.text(X.dif + 5, 56, '拡散', { cls: 't-c t-xs' }, svg);
+      st.p1 = S.rect(X.p1, 70, 12, 420, { cls: 'f-dim', style: { opacity: 0.25 } }, svg);
+      S.text(X.p1 + 6, 56, '偏光板 1', { cls: 't-c t-xs' }, svg);
+      S.text(X.p1 + 6, 508, '縦を通す', { cls: 't-c t-xs t-dim' }, svg);
+      S.rect(X.g1, 70, 8, 420, { cls: 'f-e-soft s-e w1' }, svg);
+      S.text(X.g1 + 4, 56, 'TFT', { cls: 't-c t-xs' }, svg);
+      S.rect(X.lc0, 70, X.lc1 - X.lc0, 420, { cls: 'f-sf s-rule w1' }, svg);
+      S.text((X.lc0 + X.lc1) / 2, 56, '液晶層（分子の向き）', { cls: 't-c t-xs' }, svg);
+      S.rect(X.lc1, 70, 8, 420, { cls: 'f-e-soft s-e w1' }, svg);
+      // カラーフィルタ
+      CH.forEach((ch) => S.rect(X.cf, ch.y - 55, 14, 110, { cls: 'px', fill: `rgba(${ch.rgb.join(',')},0.6)`, stroke: 'none' }, svg));
+      S.text(X.cf + 7, 56, 'ｶﾗｰﾌｨﾙﾀ', { cls: 't-c t-xs' }, svg);
+      st.p2 = S.rect(X.p2, 70, 12, 420, { cls: 'f-dim', style: { opacity: 0.25 } }, svg);
+      S.text(X.p2 + 6, 56, '偏光板 2', { cls: 't-c t-xs' }, svg);
+      S.text(X.p2 + 6, 508, '横を通す', { cls: 't-c t-xs t-dim' }, svg);
+      // 分子
+      st.mols = CH.map((ch) => {
+        const arr = [];
+        for (let c = 0; c < 6; c++) for (let r = 0; r < 3; r++) {
+          const x = X.lc0 + 20 + c * 34, y = ch.y - 30 + r * 30;
+          arr.push({ el: S.el('ellipse', { cx: x, cy: y, rx: 11, ry: 4, cls: 'f-rule s-dim w1' }, svg), col: c, x, y });
+        }
+        return arr;
+      });
+      // 出力（サブ画素の明るさ）と画素
+      st.outs = CH.map((ch) => {
+        const g = S.g({}, svg);
+        S.rect(X.out, ch.y - 30, 60, 60, { rx: 4, cls: 'f-fg' }, g);
+        const fill = S.rect(X.out, ch.y - 30, 60, 60, { rx: 4, cls: 'px', fill: `rgb(${ch.rgb.join(',')})`, stroke: 'none' }, g);
+        const lbl = S.text(X.out + 30, ch.y + 48, '', { cls: 't-c t-xs t-mono' }, g);
+        S.text(X.out + 30, ch.y - 40, 'サブ画素 ' + ch.c, { cls: 't-c t-xs' }, g);
+        return { fill, lbl };
+      });
+      S.rect(730, 200, 120, 160, { rx: 6, cls: 'f-fg' }, svg);
+      st.pixel = S.rect(730, 200, 120, 160, { rx: 6, cls: 'px', fill: '#000', stroke: 'none' }, svg);
+      S.text(790, 186, '1 画素の色', { cls: 't-c t-sm t-b' }, svg);
+      st.pixelTxt = S.text(790, 384, '', { cls: 't-c t-xs t-mono' }, svg);
+      // 目
+      S.el('ellipse', { cx: 905, cy: 280, rx: 30, ry: 16, cls: 'f-none s-fg w2' }, svg);
+      S.circle(905, 280, 8, { cls: 'f-fg' }, svg);
+      S.text(905, 320, '目', { cls: 't-c t-xs t-dim' }, svg);
+      // 電圧の表示
+      st.vTxt = CH.map((ch) => S.text((X.lc0 + X.lc1) / 2, ch.y + 58, '', { cls: 't-c t-xs t-mono t-e' }, svg));
+      // 光の粒
+      st.photons = CH.map((ch) => {
+        const arr = [];
+        for (let k = 0; k < 12; k++) {
+          const g = S.g({}, svg);
+          const dot = S.circle(0, 0, 3.5, { cls: 'f-p' }, g);
+          const bar = S.line(0, -7, 0, 7, { cls: 's-p w2', style: { opacity: 0 } }, g);
+          arr.push({ g, dot, bar, f: k / 12, dy: ((k * 37) % 50) - 25, ang0: (k * 53) % 180 });
+        }
+        return arr;
+      });
+      st.note = S.text(480, 540, '', { cls: 't-c t-sm t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      // 各チャネルの電圧 V (0..1)。TN は V=0 で明、V=1 で暗
+      st.V = i <= 2 ? [0, 0, 0] : i === 3 ? [1, 1, 1] : [0, 0.5, 1];
+      st.stage = i;   // 0: 光源のみ 1: 偏光板1まで 2+: 全部
+      st.p1.style.opacity = i >= 1 ? 0.85 : 0.25;
+      st.p2.style.opacity = i >= 2 ? 0.85 : 0.25;
+      st.note.textContent = ['偏っていない光（振動の向きはばらばら）', '偏光板 1 を通ると、振動は縦だけに', 'ねじれに沿って振動が 90° 回り、横を通す偏光板 2 を通る', '電圧で分子がそろい、ねじれが消える。縦のまま届いた光は偏光板 2 で止まる', 'R 全開・G 半分・B 閉 → 橙色。サブ画素ごとに TFT が電圧を決める'][i];
+      st.CH.forEach((ch, k) => {
+        const V = st.V[k];
+        st.mols[k].forEach((m) => {
+          // 横から見た断面。電圧なし: 分子はガラスに平行で、入口（縦に見える）から出口（紙面の奥向き＝点に見える）へ 90° ねじれる。
+          // 電圧あり: 電場（光の進行方向＝図の横）にそろうので横長に見える。
+          const tw = m.col / 5 * Math.PI / 2;
+          const ry0 = Math.max(4, 11 * Math.cos(tw));
+          m.el.setAttribute('rx', U.lerp(4, 11, V).toFixed(1));
+          m.el.setAttribute('ry', U.lerp(ry0, 4, V).toFixed(1));
+          m.el.setAttribute('class', V > 0 ? 'f-e-soft s-e w1' : 'f-rule s-dim w1');
+        });
+        st.vTxt[k].textContent = i >= 3 ? `電圧 ${Math.round(V * 100)} %` : (i >= 2 ? '電圧 0' : '');
+        const T = i < 2 ? 0 : 1 - V;
+        st.outs[k].fill.style.opacity = T;
+        st.outs[k].lbl.textContent = i >= 2 ? `透過 ${Math.round(T * 100)} % → ${Math.round(T * 255)}` : '';
+      });
+      const T = st.CH.map((ch, k) => (i < 2 ? 0 : 1 - st.V[k]));
+      const r = Math.round(255 * T[0]), g = Math.round(255 * T[1]), b = Math.round(255 * T[2]);
+      st.pixel.setAttribute('fill', `rgb(${r},${g},${b})`);
+      st.pixelTxt.textContent = i >= 2 ? `(${Math.round(255 * T[0])}, ${Math.round(255 * T[1])}, ${Math.round(255 * T[2])})` : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, X = st.X, i = ctx.step;
+      st.CH.forEach((ch, k) => {
+        const V = st.V[k];
+        st.photons[k].forEach((p) => {
+          p.f = U.mod(p.f + dt * 0.11, 1);
+          const x = X.bl + 40 + p.f * (X.out - X.bl - 40);
+          const y = ch.y + p.dy * (1 - Math.min(1, p.f * 2));
+          p.g.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+          // 状態: 偏光板1前 / 液晶中 / 偏光板2後
+          let op = 1, barOp = 0, ang = p.ang0;
+          if (x > X.p1) {
+            if (st.stage < 1) { op = 1; barOp = 0; }
+            else {
+              barOp = 1; ang = 0;                           // 縦
+              if (p.ang0 >= 90) op = 0;                     // 横成分は吸収（半分）
+              if (x > X.lc0 && x < X.lc1) ang = (90 - (x - X.lc0) / (X.lc1 - X.lc0) * 90 * (1 - V)) ;
+              if (x >= X.lc1) ang = 90 - 90 * (1 - V);
+              ang = 90 - ang;                                // 0=縦, 90=横 に直す
+              if (x > X.p2) {
+                if (st.stage < 2) op = 0;
+                else op *= (1 - V);
+              }
+              if (x > X.lc0 && st.stage < 2) op = 0;
+            }
+          }
+          p.g.style.opacity = op.toFixed(2);
+          p.bar.style.opacity = barOp;
+          p.bar.setAttribute('transform', `rotate(${ang.toFixed(1)})`);
+          if (x > X.cf) p.dot.setAttribute('class', 'f-' + ch.cls); else p.dot.setAttribute('class', 'f-p');
+        });
+      });
+    }
+  };
+
+  /* ================================================================
+     場面5 OLED
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '有機物の薄い層に電流を流すと光る', text: '2 枚の電極の間に、厚さ 100 nm ほどの有機物の層を重ねたのが OLED。陰極から{e|電子}、陽極から{h|正孔}を注入し、中央の発光層で出会わせる。液晶のようなバックライトも偏光板もなく、サブ画素そのものが光源になる。' },
+      { title: '電子と正孔が出会い、光子が生まれる', text: '発光層で電子が正孔に落ち込む（再結合）と、その分のエネルギーが{p|光子}として出る。第2章の LED と同じ現象で、光の色は発光層の材料のエネルギー差で決まる。赤・緑・青の材料を並べれば、カラーフィルタなしで 3 色が作れる。' },
+      { title: '黒は本当に黒', text: '電流を止めれば光は完全にゼロ。液晶ではシャッターを閉じてもバックライトの光がわずかに漏れ、コントラスト比は 1000:1 程度にとどまるが、OLED は事実上無限大。暗いシーンの多い映像で差が出る。層が薄いので、曲げられるパネルも作れる。' },
+      { title: '弱点：焼き付き。駆動は「電流」', text: '有機材料は光らせた分だけ劣化し、特に青が早い。長時間同じ表示を続けると、その部分だけ暗くなる（焼き付き）。各サブ画素の TFT は液晶のように電圧を保持するのではなく、流す電流の量を制御する。明るさの調整には電流を速く点滅させる PWM もよく使われる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 断面（上面発光）
+      const L = [
+        { name: '封止ガラス', y: 90, h: 24, cls: 'f-in s-rule w1' },
+        { name: '陰極（透明・薄い金属）', y: 118, h: 22, cls: 'f-e-soft s-e w1' },
+        { name: '電子輸送層', y: 144, h: 40, cls: 'f-sf s-rule w1' },
+        { name: '発光層（有機物）', y: 188, h: 70, cls: 'f-p-soft s-p w1' },
+        { name: '正孔輸送層', y: 262, h: 40, cls: 'f-sf s-rule w1' },
+        { name: '陽極（反射）', y: 306, h: 22, cls: 'f-h-soft s-h w1' },
+        { name: 'TFT 基板', y: 332, h: 30, cls: 'f-in s-rule w1' }
+      ];
+      L.forEach((l) => {
+        S.rect(130, l.y, 360, l.h, { cls: l.cls }, svg);
+        S.text(500, l.y + l.h / 2 + 4, l.name, { cls: 't-xs t-dim' }, svg);
+      });
+      S.text(310, 70, 'OLED の 1 サブ画素（断面、光は上へ）', { cls: 't-c t-b' }, svg);
+      S.text(44, 215, '約 100 nm', { cls: 't-xs t-mono t-dim' }, svg);
+      S.line(120, 118, 120, 328, { cls: 's-dim w1' }, svg);
+      // 電源
+      S.text(310, 392, '電流 → 明るさ（TFT が制御）', { cls: 't-c t-xs t-dim' }, svg);
+      st.curBar = S.rect(200, 400, 0, 10, { rx: 3, cls: 'f-e' }, svg);
+      S.rect(200, 400, 220, 10, { rx: 3, cls: 'f-none s-rule w1' }, svg);
+      // 粒
+      st.es = []; st.hs = []; st.phs = [];
+      for (let k = 0; k < 10; k++) {
+        st.es.push({ el: S.circle(0, 0, 4, { cls: 'f-e' }, svg), x: 150 + k * 36, ph: k * 0.37 });
+        st.hs.push({ el: S.circle(0, 0, 4, { cls: 'f-none s-h w2' }, svg), x: 168 + k * 36, ph: k * 0.53 });
+      }
+      for (let k = 0; k < 8; k++) st.phs.push({ el: S.circle(0, 0, 3.5, { cls: 'f-p glow' }, svg), x: 160 + k * 44, ph: k * 0.61 });
+      st.flash = S.g({}, svg);
+      // 上に出る光のたまり
+      st.glowTop = S.rect(130, 60, 360, 30, { cls: 'f-p', style: { opacity: 0 } }, svg);
+      // 右: 黒の比較
+      const gc = st.gc = S.g({ transform: 'translate(640,90)', cls: 'fade hide' }, svg);
+      S.text(140, 0, '「黒」を表示したとき', { cls: 't-c t-b' }, gc);
+      // 液晶
+      S.text(60, 30, '液晶', { cls: 't-c t-sm t-b' }, gc);
+      S.rect(20, 40, 80, 110, { rx: 4, cls: 'f-fg' }, gc);
+      S.rect(20, 40, 80, 110, { rx: 4, cls: 'f-p', style: { opacity: 0.08 } }, gc);
+      S.rect(10, 150, 100, 14, { rx: 3, cls: 'f-p-soft s-p w1' }, gc);
+      S.text(60, 184, 'バックライトは点灯', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(60, 198, '→ わずかに漏れる', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(60, 216, 'コントラスト ~1000:1', { cls: 't-c t-xs t-mono t-dim' }, gc);
+      // OLED
+      S.text(220, 30, 'OLED', { cls: 't-c t-sm t-b' }, gc);
+      S.rect(180, 40, 80, 110, { rx: 4, cls: 'f-fg' }, gc);
+      S.text(220, 184, '消灯 → 光ゼロ', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(220, 216, 'コントラスト ∞', { cls: 't-c t-xs t-mono t-dim' }, gc);
+      // 焼き付き
+      const gb = st.gb = S.g({ transform: 'translate(640,350)', cls: 'fade hide' }, svg);
+      S.text(140, 0, '焼き付き：使った分だけ暗くなる', { cls: 't-c t-sm t-b' }, gb);
+      [['よく使う', 0.7, 'x'], ['ふつう', 0.9, 'd'], ['あまり使わない', 1, 'e']].forEach(([n, br, c], k) => {
+        S.rect(10 + k * 92, 14, 80, 50, { rx: 4, cls: 'f-fg' }, gb);
+        S.rect(10 + k * 92, 14, 80, 50, { rx: 4, cls: 'f-sf', style: { opacity: br } }, gb);
+        S.text(50 + k * 92, 82, n, { cls: 't-c t-xs t-dim' }, gb);
+        S.text(50 + k * 92, 98, Math.round(br * 100) + ' %', { cls: 't-c t-xs t-mono t-dim' }, gb);
+      });
+      S.text(140, 126, '青の材料がいちばん早く劣化する', { cls: 't-c t-xs t-dim' }, gb);
+      S.text(140, 144, 'TFT は電流を制御（液晶は電圧）、調光は PWM も', { cls: 't-c t-xs t-dim' }, gb);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gc, i >= 2);
+      S.fade(st.gb, i >= 3);
+      st.I = i === 2 ? 0 : 1;   // 段階2は「黒」を見せるため、途中で消灯させる
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // 段階2: 2 秒点灯 → 2 秒消灯 を繰り返す
+      const on = i === 2 ? (U.cycle(t, 4) < 0.5 ? 1 : 0) : 1;
+      st.curBar.setAttribute('width', (220 * on).toFixed(1));
+      st.es.forEach((e) => {
+        const f = U.mod(t * 0.5 + e.ph, 1);
+        e.el.setAttribute('cx', e.x); e.el.setAttribute('cy', (128 + f * 95).toFixed(1));
+        e.el.style.opacity = on ? (f > 0.9 ? 0 : 1) : 0;
+      });
+      st.hs.forEach((h) => {
+        const f = U.mod(t * 0.5 + h.ph, 1);
+        h.el.setAttribute('cx', h.x); h.el.setAttribute('cy', (318 - f * 95).toFixed(1));
+        h.el.style.opacity = on ? (f > 0.9 ? 0 : 1) : 0;
+      });
+      st.phs.forEach((p) => {
+        const f = U.mod(t * 0.45 + p.ph, 1);
+        p.el.setAttribute('cx', p.x + Math.sin(f * 9) * 4); p.el.setAttribute('cy', (222 - f * 175).toFixed(1));
+        p.el.style.opacity = on && i >= 1 ? 1 : 0;
+      });
+      st.glowTop.style.opacity = on && i >= 1 ? 0.18 + 0.05 * Math.sin(t * 5) : 0;
+    }
+  };
+
+  /* ================================================================
+     場面6 音
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '音は 1 秒 48,000 個の数値（PCM）', text: '空気の圧力の変化を、一定の間隔で測って整数にしたものが PCM。動画配信では 1 秒に 48,000 回（48 kHz）、各 16 ビット（−32,768〜32,767）が標準的。可聴域の上限 20 kHz の 2 倍を超える間隔で測れば、元の波形を失わずに表せる（標本化定理）。' },
+      { title: 'DAC が数値を電圧に戻す', text: 'DAC（D/A 変換器）は数値を受け取るたびに、それに比例した電圧を出す。そのままだと階段状なので、ローパスフィルタで 20 kHz より速い変化（階段の角）を取り除き、滑らかな波形に戻す。ここまでが音声チップ（コーデック IC）の中の仕事。' },
+      { title: 'アンプが電力を足す', text: 'DAC の出力は 1 V 程度で、電流はほとんど流せない。スピーカーの振動板を動かすには電力が要るので、アンプが波形の形を保ったまま電圧と電流を増やす。ヘッドホンなら数 mW、ノート PC の内蔵スピーカーで 1〜数 W、外付けスピーカーなら数十 W。' },
+      { title: 'スピーカー：磁石の中のコイルが振動板を動かす', text: '振動板（コーン）に付いたボイスコイルが、永久磁石の隙間に置いてある。コイルに音声電流が流れると、磁界との間に力が働き（第1章の電流と磁石）、電流の向きと大きさに従ってコイルごと振動板が前後に動く。1 kHz の音なら 1 秒に 1,000 往復。' },
+      { title: '空気の疎密波が耳へ', text: '振動板が前に出れば空気が押されて濃く、戻れば薄くなる。この疎密が約 343 m/s で伝わり、鼓膜を同じ形で振動させる。映像との同期は第24章のプレーヤーが取る。音が映像より数十 ms 以上ずれると人は気づくので、音声の時刻（タイムスタンプ）を基準に映像の表示を合わせるのが普通。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 波形エリア
+      const gx = 40, gy = 200, gw = 400, gh = 130;
+      st.g = { gx, gy, gw, gh };
+      S.text(gx, 60, '標本（数値の列）', { cls: 't-b t-lg' }, svg);
+      S.text(gx, 80, '48,000 個/秒、各 16 ビット', { cls: 't-xs t-dim t-mono' }, svg);
+      S.line(gx, gy, gx + gw, gy, { cls: 's-rule w1' }, svg);
+      S.line(gx, gy - gh / 2 - 10, gx, gy + gh / 2 + 10, { cls: 's-rule w1' }, svg);
+      S.text(gx - 3, gy - gh / 2 + 4, '+32767', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, svg);
+      S.text(gx - 3, gy + gh / 2 + 4, '−32768', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, svg);
+      S.text(gx - 3, gy + 4, '0', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, svg);
+      st.sig = (u) => 0.55 * Math.sin(u * TAU) + 0.3 * Math.sin(u * TAU * 2.6 + 1);
+      st.N = 28;
+      st.stair = S.path('', { cls: 'f-none s-h w2 fade hide' }, svg);
+      st.smooth = S.path('', { cls: 'f-none s-d w2 fade hide' }, svg);
+      st.samples = [];
+      for (let k = 0; k < st.N; k++) {
+        const x = gx + (k + 0.5) * gw / st.N;
+        const stem = S.line(x, gy, x, gy, { cls: 's-d w1' }, svg);
+        const dot = S.circle(x, gy, 3.5, { cls: 'f-d' }, svg);
+        st.samples.push({ x, stem, dot });
+      }
+      st.valBox = S.g({ transform: `translate(${gx},${gy + gh / 2 + 30})` }, svg);
+      S.rect(0, 0, 400, 46, { rx: 5, cls: 'f-sf s-rule w1' }, st.valBox);
+      st.valTxt = S.text(10, 20, '', { cls: 't-mono t-sm' }, st.valBox);
+      st.valTxt2 = S.text(10, 38, '', { cls: 't-xs t-dim' }, st.valBox);
+      st.legendStair = S.text(gx + gw, 100, '', { cls: 't-xs t-h', 'text-anchor': 'end' }, svg);
+      st.legendSmooth = S.text(gx + gw, 116, '', { cls: 't-xs t-d', 'text-anchor': 'end' }, svg);
+      // 変換の箱
+      const chain = [['DAC', '数値→電圧', 'd'], ['LPF', '角を取る', 'd'], ['アンプ', '電力を足す', 'e']];
+      st.boxes = chain.map(([n, sub, c], k) => {
+        const g = S.g({ transform: `translate(${470},${110 + k * 100})` }, svg);
+        S.rect(0, 0, 110, 60, { rx: 6, cls: `f-${c}-soft s-${c} w15` }, g);
+        S.text(55, 26, n, { cls: 't-c t-b t-lg' }, g);
+        S.text(55, 46, sub, { cls: 't-c t-xs t-dim' }, g);
+        if (k < 2) S.path(`M525,${172 + k * 100} V${206 + k * 100}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, svg);
+        return g;
+      });
+      S.path('M440,200 H466', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, svg);
+      S.path('M580,340 H640 V300 H660', { cls: 'f-none s-e w2', 'marker-end': mk('e') }, svg);
+      st.ampTxt = S.text(525, 400, '', { cls: 't-c t-xs t-mono t-e' }, svg);
+      // スピーカー断面
+      const sx = 670, sy = 300;
+      S.text(sx + 100, 60, 'スピーカー（断面）', { cls: 't-b t-lg' }, svg);
+      // 磁石
+      S.rect(sx, sy - 70, 60, 140, { rx: 3, cls: 'f-in s-dim w1' }, svg);
+      S.rect(sx, sy - 18, 60, 36, { cls: 'f-fg' }, svg);
+      S.text(sx + 30, sy - 46, 'N', { cls: 't-c t-b' }, svg);
+      S.text(sx + 30, sy + 56, 'S', { cls: 't-c t-b' }, svg);
+      S.text(sx + 30, sy - 86, '永久磁石', { cls: 't-c t-xs t-dim' }, svg);
+      // コイル（可動）
+      st.coil = S.g({}, svg);
+      S.rect(sx + 60, sy - 14, 44, 28, { cls: 'f-sf s-dim w1' }, st.coil);
+      for (let k = 0; k < 6; k++) S.line(sx + 64 + k * 7, sy - 14, sx + 64 + k * 7, sy + 14, { cls: 's-h w2' }, st.coil);
+      S.text(sx + 82, sy - 22, 'ボイスコイル', { cls: 't-c t-xs t-dim' }, st.coil);
+      // コイルの中の電流
+      st.coilDots = [];
+      for (let k = 0; k < 5; k++) st.coilDots.push({ el: S.circle(sx + 66 + k * 8, sy, 2.5, { cls: 'f-e' }, st.coil), x0: sx + 66 + k * 8 });
+      // 振動板
+      st.cone = S.path('', { cls: 'f-none s-fg w3 round' }, st.coil);
+      st.sx = sx; st.sy = sy;
+      // 疎密波
+      st.waves = [];
+      for (let k = 0; k < 6; k++) st.waves.push(S.path('', { cls: 'f-none s-p w2', style: { opacity: 0 } }, svg));
+      // 耳
+      S.path(`M${sx + 250},${sy - 30} q24,-10 30,14 q4,20 -12,30 q-10,8 -8,22`, { cls: 'f-none s-fg w2 round' }, svg);
+      S.text(sx + 262, sy + 56, '耳（鼓膜）', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(sx + 160, 500, '', { cls: 't-c t-xs t-dim' }, svg);
+      st.airTxt = S.text(sx + 150, 440, '', { cls: 't-c t-xs t-p t-b' }, svg);
+      st.speedTxt = S.text(sx + 150, 460, '', { cls: 't-c t-xs t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.stair, i >= 1);
+      S.fade(st.smooth, i >= 1);
+      st.legendStair.textContent = i >= 1 ? '── DAC の出力（階段）' : '';
+      st.legendSmooth.textContent = i >= 1 ? '── フィルタ後' : '';
+      st.boxes.forEach((g, k) => { g.style.opacity = (k === 0 && i >= 1) || (k === 1 && i >= 1) || (k === 2 && i >= 2) ? 1 : 0.3; });
+      st.ampTxt.textContent = i >= 2 ? '数 mW〜数十 W' : '';
+      st.coil.style.opacity = i >= 3 ? 1 : 0.35;
+      st.airTxt.textContent = i >= 4 ? '空気の疎密波' : '';
+      st.speedTxt.textContent = i >= 4 ? '約 343 m/s で伝わる' : '';
+      st.waves.forEach((w) => { w.style.opacity = 0; });
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, { gx, gy, gw, gh } = st.g;
+      const u0 = t * 0.35;                         // 波形の位相（ゆっくり流す）
+      const amp = gh / 2 - 6;
+      // 標本
+      let stair = '', smooth = '';
+      st.samples.forEach((s, k) => {
+        const u = u0 + k / st.N * 1.6;
+        const v = st.sig(u);
+        const y = gy - v * amp;
+        s.stem.setAttribute('y2', y.toFixed(1));
+        s.dot.setAttribute('cy', y.toFixed(1));
+        const x0 = s.x - gw / st.N / 2;
+        stair += (k ? 'L' : 'M') + x0.toFixed(1) + ',' + y.toFixed(1) + ' H' + (x0 + gw / st.N).toFixed(1);
+      });
+      for (let x = 0; x <= gw; x += 4) {
+        const u = u0 + (x / gw) * 1.6 - 0.5 / st.N * 1.6;
+        smooth += (x ? 'L' : 'M') + (gx + x).toFixed(1) + ',' + (gy - st.sig(u) * amp).toFixed(1);
+      }
+      st.stair.setAttribute('d', stair);
+      st.smooth.setAttribute('d', smooth);
+      const k0 = Math.floor(U.cycle(t, 7) * st.N);
+      const v0 = st.sig(u0 + k0 / st.N * 1.6);
+      st.samples.forEach((s, k) => s.dot.setAttribute('class', k === k0 ? 'f-x' : 'f-d'));
+      st.valTxt.textContent = `標本 #${k0}: ${Math.round(v0 * 32767)}（16 ビット整数）`;
+      st.valTxt2.textContent = i >= 1 ? `DAC → ${(v0 * 1.0).toFixed(2)} V　→　アンプ → ${(v0 * (i >= 2 ? 8 : 1)).toFixed(1)} V` : '次の標本まで 1/48,000 秒 ≈ 20.8 µs';
+      // スピーカー
+      const drive = i >= 3 ? st.sig(t * 0.9) : 0;
+      const dx = drive * 16;
+      st.coil.setAttribute('transform', `translate(${dx.toFixed(1)},0)`);
+      const sx = st.sx, sy = st.sy;
+      st.cone.setAttribute('d', `M${sx + 104},${sy - 14} L${sx + 150},${sy - 90} M${sx + 104},${sy + 14} L${sx + 150},${sy + 90} M${sx + 104},${sy - 14} V${sy + 14}`);
+      st.coilDots.forEach((d, k) => {
+        d.el.setAttribute('cx', (d.x0 + Math.sin(t * 6 + k) * 0).toFixed(1));
+        d.el.setAttribute('cy', (sy + drive * 10).toFixed(1));
+        d.el.style.opacity = i >= 3 ? 1 : 0;
+      });
+      // 疎密波（コーンの前面から右へ）
+      if (i >= 4) {
+        st.waves.forEach((w, k) => {
+          const f = U.mod(t * 0.35 + k / st.waves.length, 1);
+          const r = 20 + f * 120;
+          w.setAttribute('d', `M${sx + 150 + dx + r},${sy - r * 0.9} A${r},${r} 0 0 1 ${sx + 150 + dx + r},${sy + r * 0.9}`);
+          w.setAttribute('transform', `translate(${-r},0)`);
+          w.style.opacity = ((1 - f) * 0.8).toFixed(2);
+        });
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第II部 計算機 ／ 第8章',
+      title: '画面と音',
+      home: '../index.html',
+      prev: { href: '07-shuuhen.html', title: '入出力と周辺機器' },
+      next: { href: '09-os.html', title: 'OS' },
+      legend: [{ c: 'd', label: '画素・音の数値（データ）' }, { c: 'p', label: '光' }, { c: 'e', label: '電気信号・電子' }, { c: 'h', label: '正孔・＋' }, { c: 'x', label: '注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

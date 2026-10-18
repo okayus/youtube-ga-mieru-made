@@ -1,0 +1,1238 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>記憶 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .hier td, .hier th { font-size: 0.8rem; line-height: 1.5; }
+  .hier td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .fit .hier td, .fit .hier th { padding: 0.4rem 0.6rem; }
+  .fit .gloss-small th { width: 9.5rem; padding-block: 0.35rem; font-size: 0.78rem; }
+  .fit .gloss-small td { padding-block: 0.35rem; font-size: 0.78rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第II部 計算機 ／ 第5章 ／ 全25章</p>
+    <h1 id="h-s0">記憶</h1>
+    <p class="standfirst">前の章の論理ゲートは、入力が変わればすぐ出力も変わる。計算機には「さっきの値を持ち続ける」部品が要る。この章は、ゲート2個を輪にすると値が残る仕組み（ラッチ）から始めて、クロックの瞬間だけ取り込むフリップフロップ、それを並べたレジスタ、キャッシュに使う SRAM、主記憶の DRAM、電源を切っても残る NAND フラッシュまでを、1 ビットの作りの違いとして追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中の遅延や周期は、見えるように数億倍に引き伸ばしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>SR ラッチ</a><p>NAND 2個をたすき掛けにすると、入力を戻しても出力が残る。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>D フリップフロップとクロック</a><p>筒抜けのラッチの問題と、立ち上がりの瞬間だけ取り込む仕組み。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>レジスタ</a><p>フリップフロップを 8 個並べ、同じクロックで一度に書く。レジスタファイル。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>SRAM セル</a><p>インバータ 2 個の輪にアクセス用トランジスタ 2 個。速いが大きい。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>DRAM セル</a><p>コンデンサ 1 個の電荷で 1 ビット。漏れるので 64 ms 以内に書き直す。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>NAND フラッシュ</a><p>絶縁体に囲んだ浮遊ゲートに電子を閉じ込める。電源なしで残る。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>記憶階層の表と用語。次の章（CPU）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>回路図は教科書の記号を単純化した模式図。ゲートの遅延・クロックの周期・電荷の漏れる速さは、本文に書いた数値が実際の値で、図の動きは引き伸ばしてある。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 SR ラッチ ================= -->
+<section class="scene sc-anim" id="s1" data-tab="ラッチ" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>SR ラッチ — 輪にすると値が残る</h2>
+    <p class="sh-meta"><span class="chip">NAND × 2</span><span class="chip">フィードバック</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">組み合わせ回路は入力を戻せば出力も戻る。NAND ゲート 2 個の出力を互いの入力に戻す（たすき掛け）と、入力を戻しても出力が前の値に留まる。これが記憶の最小単位、<b>SR ラッチ</b>。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図では 1 を<span class="tag h">高い電圧</span>、0 を灰色の線で示し、ゲートの出力が入力に追いつくまでの遅延（実際は数十ピコ秒）を 0.6 秒に引き伸ばしている。入力名の上線（S̄）は「0 で働く」入力の意味。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="NAND ゲート 2 個をたすき掛けにした SR ラッチ。入力 S̄・R̄ と出力 Q・Q̄ の電圧の高低が線の色で分かる"></svg></div>
+    <figcaption>図1　段階1は NAND 1個の真理値表。段階2以降は NAND 2個のたすき掛け。右下の表は入力の組み合わせと出力。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 D フリップフロップとクロック ================= -->
+<section class="scene sc-anim" id="s2" data-tab="クロック" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>D フリップフロップとクロック</h2>
+    <p class="sh-meta"><span class="chip">エッジトリガ</span><span class="chip">セットアップ／ホールド</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ラッチは「いつ取り込むか」を決めないと使いにくい。計算機は一定周期の<b>クロック</b>を配り、その立ち上がりの瞬間だけ値を取り込む <b>D フリップフロップ</b>（D-FF）で全部の記憶をそろえて更新する。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">3 GHz の CPU ではクロックの周期は約 0.33 ns。D-FF の取り込みから出力が確定するまで（t<sub>cq</sub>）とセットアップ時間はそれぞれ数十ピコ秒で、残りが途中の論理に使える時間になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="クロック・D・Q の波形。ラッチではイネーブルが 1 の間 Q が D に追従し、フリップフロップでは立ち上がりの瞬間だけ Q が変わる"></svg></div>
+    <figcaption>図2　上は部品の記号と現在の値、中央は時間の波形（赤い縦線が現在）。波形は 8 周期を繰り返す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 レジスタ ================= -->
+<section class="scene sc-anim" id="s3" data-tab="レジスタ" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>レジスタ</h2>
+    <p class="sh-meta"><span class="chip">8 bit</span><span class="chip">Load</span><span class="chip">レジスタファイル</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">D-FF を n 個並べて同じクロックにつないだものが n ビットの<b>レジスタ</b>。CPU が計算の途中の値を置く、いちばん速くていちばん小さい記憶。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">x86-64 の汎用レジスタは 64 ビット × 16 本、ARM64 は 64 ビット × 31 本。1 クロック（1 ns 未満）で読み書きでき、全部合わせても数百バイトしかない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="8 個の D フリップフロップを同じクロックにつないだ 8 ビットレジスタと、レジスタファイルの読み書きポート"></svg></div>
+    <figcaption>図3　段階1〜3は 8 ビットレジスタ。入力バスの値は毎周期変わり、取り込んだ瞬間に赤く光る。段階4〜5はレジスタファイル。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 SRAM セル ================= -->
+<section class="scene sc-anim" id="s4" data-tab="SRAM" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>SRAM セル — 6 個のトランジスタ</h2>
+    <p class="sh-meta"><span class="chip">6T</span><span class="chip">ワード線・ビット線</span><span class="chip">キャッシュ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">レジスタは速いが、1 ビットに数十個のトランジスタを使う。<b>SRAM</b>（Static RAM）はインバータ 2 個の輪（4 個）にアクセス用 2 個を足した 6 個で 1 ビットを覚え、キャッシュメモリに使う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">CPU の L1 キャッシュ（32〜64 KB）は 1 ns 前後で読める。1 ビットが 6 個のトランジスタなので 1 MB で約 5,000 万個になり、面積と電力の都合でキャッシュは数十 MB までに留まる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="SRAM の 6 トランジスタセル。インバータ 2 個の輪、ワード線、2 本のビット線、センスアンプ"></svg></div>
+    <figcaption>図4　中央がセル。Q と Q̄ の節点の色が覚えている値。左右の棒はビット線の電圧。段階5は 4×4 の配列。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 DRAM セル ================= -->
+<section class="scene sc-anim" id="s5" data-tab="DRAM" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>DRAM セル — コンデンサ 1 個の電荷</h2>
+    <p class="sh-meta"><span class="chip">1T1C</span><span class="chip">リフレッシュ 64 ms</span><span class="chip">主記憶</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">主記憶（メインメモリ）の <b>DRAM</b>（Dynamic RAM）は、トランジスタ 1 個とコンデンサ 1 個で 1 ビット。第1章のコンデンサに電荷が「ある・ない」が 1 と 0。小さいので GB 単位に積めるが、電荷は漏れる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">コンデンサの容量は 20〜30 fF、電荷は電子にして約 10 万個。DDR4 の規格では 64 ms 以内に全行を書き直す（85 ℃超では 32 ms）。行が 8,192 本なら 7.8 µs ごとに 1 行ずつ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="DRAM の 1T1C セル。ワード線でトランジスタを開き、ビット線とコンデンサの間で電荷をやり取りする。センスアンプと配列"></svg></div>
+    <figcaption>図5　左がセル。コンデンサの中の点が電荷。棒は「BL」がビット線の電圧、「電荷 q」がコンデンサの電荷。段階5は 8×8 の配列と行バッファ。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 NAND フラッシュ ================= -->
+<section class="scene sc-anim" id="s6" data-tab="フラッシュ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>NAND フラッシュ — 浮遊ゲートに閉じ込める</h2>
+    <p class="sh-meta"><span class="chip">浮遊ゲート</span><span class="chip">トンネル効果</span><span class="chip">SSD</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">SRAM も DRAM も電源を切ると消える。SSD の <b>NAND フラッシュ</b>は、トランジスタのゲートの下に絶縁体で完全に囲んだ<b>浮遊ゲート</b>を置き、そこに押し込んだ電子の有無で 1 ビットを覚える。電子は壁を越えられないので、電源なしで残る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">書き込みには約 20 V をかける。トンネル酸化膜は厚さ 7〜10 nm。書き換え寿命は 1 セル 1 ビットの SLC で約 10 万回、3 ビットの TLC で約 3,000 回、保持は規格上 10 年。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="浮遊ゲート型トランジスタの断面。制御ゲートの下に絶縁体で囲まれた浮遊ゲートがあり、電子がトンネル酸化膜を抜けて出入りする"></svg></div>
+    <figcaption>図6　左がセルの断面（縦に拡大）。右はゲート電圧と電流の関係で、浮遊ゲートの電子がしきい値をずらす。段階5は NAND 列。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 1 ビットの作りと記憶階層</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>NAND 2 個の出力を互いの入力に戻すと、入力を戻しても出力が残る。これが SR ラッチで、記憶の最小単位（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>D-FF はクロックの立ち上がりの瞬間だけ D を取り込む。全部の記憶が同じ瞬間に更新されるので、途中の値が混ざらない（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>D-FF を並べたものがレジスタ。Load で書き込みを選び、読み出しはいつでもできる。CPU の中にあり、1 クロックで読み書きする（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>SRAM はインバータ 2 個の輪＋アクセス 2 個の 6T。ワード線で選び、ビット線の小さな差をセンスアンプで読む。速いが大きい（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>DRAM は 1T1C。電荷の有無が値で、読むと壊れるので書き戻し、漏れるので 64 ms 以内にリフレッシュする。小さいので大容量（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>NAND フラッシュは浮遊ゲートの電子でしきい値電圧を変える。高電圧のトンネル効果で出し入れし、電源なしで残るが書き換え回数に限りがある（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="plain stack hier">
+      <thead><tr><th>段階</th><th>1 ビットの作り</th><th>容量の目安</th><th>アクセス時間</th><th>電源を切ると</th></tr></thead>
+      <tbody>
+        <tr><td>レジスタ</td><td data-label="作り">D-FF（数十個のトランジスタ）</td><td class="num" data-label="容量">数百 B</td><td class="num" data-label="時間">&lt; 1 ns（1 クロック）</td><td data-label="電源">消える</td></tr>
+        <tr><td>SRAM（キャッシュ）</td><td data-label="作り">6T セル</td><td class="num" data-label="容量">L1 32〜64 KB ／ L3 数十 MB</td><td class="num" data-label="時間">約 1 ns（L1）〜 10 ns（L3）</td><td data-label="電源">消える</td></tr>
+        <tr><td>DRAM（主記憶）</td><td data-label="作り">1T1C セル</td><td class="num" data-label="容量">8〜64 GB</td><td class="num" data-label="時間">約 50〜100 ns</td><td data-label="電源">消える（通電中も要リフレッシュ）</td></tr>
+        <tr><td>NAND フラッシュ（SSD）</td><td data-label="作り">浮遊ゲート型トランジスタ</td><td class="num" data-label="容量">数百 GB〜数 TB</td><td class="num" data-label="時間">読み 約 50〜100 µs ／ 書き 数百 µs</td><td data-label="電源">残る（規格上 10 年）</td></tr>
+        <tr><td>HDD（参考）</td><td data-label="作り">磁性体の向き</td><td class="num" data-label="容量">数 TB〜</td><td class="num" data-label="時間">約 10 ms</td><td data-label="電源">残る</td></tr>
+      </tbody>
+    </table>
+    <table class="gloss gloss-small" style="margin-top:0.8rem">
+      <tbody>
+        <tr><th>ワード線・ビット線</th><td>配列の行を選ぶ線と、列ごとに値を出し入れする線。交点が 1 セル。</td></tr>
+        <tr><th>センスアンプ</th><td>ビット線のわずかな電圧差を 0 か 1 まで増幅する回路。DRAM では読んだ値の書き戻しも担う。</td></tr>
+        <tr><th>セットアップ／ホールド時間</th><td>クロックの立ち上がりの前後で D を動かしてはいけない時間。破ると出力が決まらなくなる。</td></tr>
+        <tr><th>しきい値電圧 V<sub>th</sub></th><td>トランジスタが導通し始めるゲート電圧。フラッシュは浮遊ゲートの電子でこれをずらして値を表す。</td></tr>
+        <tr><th>ページ・ブロック</th><td>NAND フラッシュの読み書きの単位（4〜16 KB）と消去の単位（数 MB）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+  /* 配線の 1/0 を色で。1 = 高い電圧（h）、0 = 灰色 */
+  const lv = (el, v, w) => el.setAttribute('class', 'f-none round ' + (v ? 's-h ' : 's-dim ') + (w || 'w3'));
+  const nodeLv = (el, v) => el.setAttribute('class', v ? 'f-h s-h w15' : 'f-in s-dim w15');
+  const valTxt = (el, v, size) => { el.textContent = v ? '1' : '0'; el.setAttribute('class', 't-c t-mono t-b ' + (size || 't-lg') + (v ? ' t-h' : ' t-dim')); };
+  const wire = (parent, d, v, w) => { const p = S.path(d, {}, parent); lv(p, v, w); return p; };
+
+  /* NAND ゲート。入力 2 本と出力の座標を返す */
+  function nand(parent, x, y) {
+    const g = S.g({}, parent);
+    S.path(`M${x},${y - 40} H${x + 40} A40,40 0 0 1 ${x + 40},${y + 40} H${x} Z`, { cls: 'f-sf s-fg w2 round' }, g);
+    S.circle(x + 88, y, 7, { cls: 'f-sf s-fg w2' }, g);
+    return { g, in1: { x, y: y - 20 }, in2: { x, y: y + 20 }, out: { x: x + 95, y } };
+  }
+  /* 入力の札（名前 = 値） */
+  function inBox(parent, x, y, name) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const r = S.rect(-44, -18, 88, 36, { rx: 5, cls: 'f-sf s-rule w15' }, g);
+    const t = S.text(0, 6, '', { cls: 't-c t-mono t-b t-lg' }, g);
+    return { g, set(v) { t.textContent = `${name} = ${v}`; t.setAttribute('class', 't-c t-mono t-b t-lg ' + (v ? 't-h' : 't-dim')); r.setAttribute('class', v ? 'f-h-soft s-h w15' : 'f-sf s-rule w15'); } };
+  }
+  /* 出力の丸い表示 */
+  function outDot(parent, x, y, name) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const c = S.circle(0, 0, 20, {}, g);
+    const t = S.text(0, 6, '', {}, g);
+    S.text(0, -30, name, { cls: 't-c t-b' }, g);
+    return { g, set(v) { nodeLv(c, v); t.textContent = v ? '1' : '0'; t.setAttribute('class', 't-c t-mono t-b t-lg ' + (v ? 't-sf' : 't-dim')); } };
+  }
+  /* 電圧の棒（0..1） */
+  function vbar(parent, x, y, h, name) {
+    const g = S.g({}, parent);
+    S.rect(x - 7, y, 14, h, { rx: 3, cls: 'f-in s-rule w1' }, g);
+    const fill = S.rect(x - 7, y + h, 14, 0, { rx: 3, cls: 'f-h' }, g);
+    S.text(x, y + h + 16, name, { cls: 't-c t-xs t-dim' }, g);
+    const val = S.text(x, y - 6, '', { cls: 't-c t-xs t-mono' }, g);
+    return { g, set(v) { const hh = U.clamp(v, 0, 1) * h; fill.setAttribute('y', (y + h - hh).toFixed(1)); fill.setAttribute('height', hh.toFixed(1)); val.textContent = (v * 1.0).toFixed(2) + ' V'; } };
+  }
+  /* nMOS を「スイッチの箱」で。on で色が変わる */
+  function sw(parent, x, y, horizontal) {
+    const g = S.g({ transform: `translate(${x},${y})` + (horizontal ? '' : ' rotate(90)') }, parent);
+    const r = S.rect(-13, -9, 26, 18, { rx: 3, cls: 'f-sf s-fg w15' }, g);
+    return { g, set(on) { r.setAttribute('class', on ? 'f-h s-h w15' : 'f-sf s-fg w15'); } };
+  }
+  /* 進む信号の玉 */
+  function pulse(parent) { return S.circle(0, 0, 6, { cls: 'f-x glow', style: { opacity: 0 } }, parent); }
+
+  /* ================================================================
+     場面1 SR ラッチ
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'NAND：両方が 1 のときだけ 0', text: '前の章の NAND を 1 個だけ思い出す。入力のどちらかが 0 なら出力は 1、両方 1 のときだけ 0。この「どちらかが 0 なら必ず 1」という性質があるので、出力を相手の入力に戻すと自分を支え続ける輪が作れる。' },
+      { title: '2 個をたすき掛けにつなぐ', text: '上の出力 Q を下の入力に、下の出力 Q̄ を上の入力に戻す。残った入力が S̄（セット）と R̄（リセット）。両方 1 のとき、Q=0 なら下は入力に 0 を持つので Q̄=1、それが上に戻って上の両入力が 1 になり Q=0 を保つ。Q=1 から始めても同じ理屈で安定する。' },
+      { title: 'S̄ を 0 にする：セット', text: 'S̄=0 にすると上の NAND は入力に 0 を持つので、遅延のあと Q=1 になる。Q=1 が下に届くと下の両入力が 1 になり Q̄=0。この Q̄=0 が上に戻るので、S̄ を 1 に戻しても上の出力は 1 のまま。{x|入力を戻しても出力が残る}。' },
+      { title: 'R̄ を 0 にする：リセット', text: '今度は R̄ を一瞬 0 にする。下の NAND が先に Q̄=1 になり、上の両入力が 1 になって Q=0。R̄ を 1 に戻しても、Q=0 が下を支え、Q̄=1 が上を支えるので変わらない。S̄ と R̄ は「一瞬 0 にする」だけで値を書き込める。' },
+      { title: '支え合いと禁止入力', text: '値が残るのは、2 つの出力がそれぞれ相手の入力になって互いを支えているから。信号は輪を一周して自分に戻る。S̄=R̄=0 は両出力が 1 になり、同時に 1 へ戻すとどちらが勝つか決まらないので使わない。「いつ取り込むか」を決める仕組みは次の場面で足す。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* --- 段階1: NAND 1 個 --- */
+      const gs = st.gs = S.g({}, svg);
+      const G = nand(gs, 400, 260);
+      st.sA = wire(gs, 'M250,240 H400', 0); st.sB = wire(gs, 'M250,280 H400', 0); st.sY = wire(gs, 'M495,260 H640', 1);
+      st.sAbox = inBox(gs, 200, 240, 'A'); st.sBbox = inBox(gs, 200, 280, 'B'); st.sAbox.g.setAttribute('transform', 'translate(190,222)'); st.sBbox.g.setAttribute('transform', 'translate(190,298)');
+      st.sYdot = outDot(gs, 680, 260, 'Y');
+      S.text(440, 150, 'NAND', { cls: 't-c t-b t-xl' }, gs);
+      S.text(440, 172, 'Y = NOT (A AND B)', { cls: 't-c t-sm t-mono t-dim' }, gs);
+      const gt = S.g({ transform: 'translate(760,170)' }, gs);
+      S.rect(0, 0, 170, 150, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      ['A', 'B', 'Y'].forEach((h, k) => S.text(30 + k * 55, 26, h, { cls: 't-c t-b t-sm' }, gt));
+      S.line(10, 36, 160, 36, { cls: 's-rule w1' }, gt);
+      st.sRows = [[0, 0, 1], [0, 1, 1], [1, 0, 1], [1, 1, 0]].map((r, k) => {
+        const y = 46 + k * 26;
+        const bg = S.rect(8, y - 4, 154, 24, { rx: 4, cls: 'f-in', style: { opacity: 0 } }, gt);
+        r.forEach((v, c) => S.text(30 + c * 55, y + 13, String(v), { cls: 't-c t-mono ' + (c === 2 ? (v ? 't-h t-b' : 't-dim t-b') : '') }, gt));
+        return bg;
+      });
+      S.text(440, 420, '入力の組み合わせを 1.6 秒ごとに変える', { cls: 't-c t-sm t-dim' }, gs);
+
+      /* --- 段階2〜5: ラッチ --- */
+      const gl = st.gl = S.g({ cls: 'fade hide' }, svg);
+      const G1 = nand(gl, 420, 200), G2 = nand(gl, 420, 400);
+      S.text(450, 205, '上', { cls: 't-c t-xs t-dim' }, gl); S.text(450, 405, '下', { cls: 't-c t-xs t-dim' }, gl);
+      st.wS = wire(gl, 'M194,180 H420', 1);
+      st.wR = wire(gl, 'M194,420 H420', 1);
+      st.wQ = wire(gl, 'M515,200 H770', 0);
+      st.wQf = wire(gl, 'M600,200 V380 H420', 0);
+      st.wQb = wire(gl, 'M515,400 H770', 1);
+      st.wQbf = wire(gl, 'M640,400 V220 H610 A10,10 0 0 0 590,220 H420', 1);
+      st.jQ = S.circle(600, 200, 5, { cls: 'f-fg' }, gl); st.jQb = S.circle(640, 400, 5, { cls: 'f-fg' }, gl);
+      st.bS = inBox(gl, 150, 180, 'S̄'); st.bR = inBox(gl, 150, 420, 'R̄');
+      st.oQ = outDot(gl, 792, 200, 'Q'); st.oQb = outDot(gl, 792, 400, 'Q̄');
+      st.p1 = pulse(gl); st.p1b = pulse(gl); st.p2 = pulse(gl); st.p2b = pulse(gl);
+      // 状態の表
+      const tt = S.g({ transform: 'translate(660,448)' }, gl);
+      S.rect(0, 0, 280, 104, { rx: 8, cls: 'f-sf s-rule w1' }, tt);
+      ['S̄', 'R̄', 'Q'].forEach((h, k) => S.text(30 + k * 50, 20, h, { cls: 't-c t-b t-sm' }, tt));
+      S.line(8, 27, 272, 27, { cls: 's-rule w1' }, tt);
+      st.lRows = [['1', '1', '保持', '前の値のまま'], ['0', '1', '1', 'セット'], ['1', '0', '0', 'リセット'], ['0', '0', '—', '禁止']].map((r, k) => {
+        const y = 34 + k * 18;
+        const bg = S.rect(6, y - 2, 268, 17, { rx: 3, cls: 'f-in', style: { opacity: 0 } }, tt);
+        S.text(30, y + 11, r[0], { cls: 't-c t-mono t-sm' }, tt); S.text(80, y + 11, r[1], { cls: 't-c t-mono t-sm' }, tt);
+        S.text(130, y + 11, r[2], { cls: 't-c t-mono t-sm t-b' }, tt); S.text(170, y + 11, r[3], { cls: 't-xs t-dim' }, tt);
+        return bg;
+      });
+      st.note = S.text(360, 540, '', { cls: 't-c t-sm t-x t-b' }, gl);
+      // 輪の強調
+      st.loop = S.g({ cls: 'fade hide' }, gl);
+      S.path('M560,170 H620 V250', { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, st.loop);
+      S.path('M580,430 H540 V350', { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, st.loop);
+      S.text(690, 300, '出力が相手の入力を支える', { cls: 't-c t-sm t-x t-b' }, st.loop);
+      st.lvl = { S: 1, R: 1, Q: 0, Qb: 1 };
+      st.gates = [
+        { a: 'S', b: 'Qb', out: 'Q', pend: null, paths: [st.wQ, st.wQf], pulses: [st.p1, st.p1b] },
+        { a: 'R', b: 'Q', out: 'Qb', pend: null, paths: [st.wQb, st.wQbf], pulses: [st.p2, st.p2b] }
+      ];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gs, i === 0); S.fade(st.gl, i >= 1);
+      S.fade(st.loop, i === 4);
+      const q = (i === 3 || i === 4) ? 1 : 0;
+      st.lvl = { S: 1, R: 1, Q: q, Qb: 1 - q };
+      st.gates.forEach((g) => { g.pend = null; });
+      st.note.textContent = i === 2 ? 'S̄ を 0.6 秒〜2.6 秒のあいだ 0 にする' : i === 3 ? 'R̄ を 0.6 秒〜2.6 秒のあいだ 0 にする' : i === 4 ? 'S̄ = R̄ = 1 のまま。値は輪の中で保たれる' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) {
+        const k = Math.floor(U.cycle(t, 6.4) * 4);
+        const a = k >> 1 & 1, b = k & 1, y = (a && b) ? 0 : 1;
+        lv(st.sA, a); lv(st.sB, b); lv(st.sY, y);
+        st.sAbox.set(a); st.sBbox.set(b); st.sYdot.set(y);
+        st.sRows.forEach((r, n) => { r.style.opacity = n === k ? 1 : 0; });
+        return;
+      }
+      const L = st.lvl, DELAY = 0.6;
+      L.S = (i === 2 && ctx.ts > 0.6 && ctx.ts < 2.6) ? 0 : 1;
+      L.R = (i === 3 && ctx.ts > 0.6 && ctx.ts < 2.6) ? 0 : 1;
+      for (const g of st.gates) {
+        const want = (L[g.a] && L[g.b]) ? 0 : 1;
+        if (want !== L[g.out]) {
+          if (!g.pend || g.pend.want !== want) g.pend = { want, t: 0 };
+          g.pend.t += dt;
+          if (g.pend.t >= DELAY) { L[g.out] = want; g.pend = null; }
+        } else g.pend = null;
+        g.pulses.forEach((p, k) => {
+          if (g.pend) { S.place(p, g.paths[k], g.pend.t / DELAY); p.style.opacity = 1; } else p.style.opacity = 0;
+        });
+      }
+      lv(st.wS, L.S); lv(st.wR, L.R);
+      lv(st.wQ, L.Q); lv(st.wQf, L.Q); lv(st.wQb, L.Qb); lv(st.wQbf, L.Qb);
+      st.jQ.setAttribute('class', L.Q ? 'f-h' : 'f-dim'); st.jQb.setAttribute('class', L.Qb ? 'f-h' : 'f-dim');
+      st.bS.set(L.S); st.bR.set(L.R); st.oQ.set(L.Q); st.oQb.set(L.Qb);
+      const row = L.S && L.R ? 0 : (!L.S && L.R) ? 1 : (L.S && !L.R) ? 2 : 3;
+      st.lRows.forEach((r, n) => { r.style.opacity = n === row ? 1 : 0; });
+    }
+  };
+
+  /* ================================================================
+     場面2 D フリップフロップとクロック
+     ================================================================ */
+  const DSEG = [[0, 0.7, 0], [0.7, 1.3, 1], [1.3, 2.1, 0], [2.1, 2.4, 1], [2.4, 2.6, 0], [2.6, 3.8, 1], [3.8, 4.55, 0], [4.55, 5.9, 1], [5.9, 6.3, 0], [6.3, 6.45, 1], [6.45, 7.2, 0], [7.2, 8.01, 1]];
+  const Dof = (u) => { for (const s of DSEG) if (u >= s[0] && u < s[1]) return s[2]; return 1; };
+  const CLKof = (u) => (u - Math.floor(u)) < 0.5 ? 1 : 0;
+  const Qff = (u) => Dof(Math.floor(u));
+  const Qlatch = (u) => (u - Math.floor(u)) < 0.5 ? Dof(u) : Dof(Math.floor(u) + 0.4999);
+  const s2 = {
+    steps: [
+      { title: 'D ラッチ：イネーブルが 1 の間は筒抜け', text: 'SR ラッチに回路を足して、入力 D と「取り込んでよい」合図 EN にしたものが D ラッチ。EN=1 の間は Q が D にそのまま追従し（透過）、EN=0 になった瞬間の値を保つ。追従している間に D が揺れると Q も揺れて、その先の回路に途中の値が流れてしまう。' },
+      { title: 'クロック：一定周期の矩形波', text: '計算機は水晶振動子から作った一定周期の矩形波を全部の記憶素子に配る。これがクロックで、3 GHz なら 1 秒に 30 億回、周期 0.33 ns。合図は「1 の間」ではなく「0 から 1 に変わる瞬間」（立ち上がりエッジ、矢印）を使う。' },
+      { title: 'エッジトリガ：立ち上がりの瞬間だけ取り込む', text: 'ラッチを 2 段つなぎ、前段は CLK=0 の間に D を受け、後段は CLK=1 になった瞬間に前段の値を受ける（マスター・スレーブ）。外から見ると Q は立ち上がりの瞬間の D だけに変わり、それ以外の時間に D が揺れても無視される。これが D フリップフロップ。' },
+      { title: 'セットアップ時間とホールド時間', text: 'エッジの直前 `t_setup` と直後 `t_hold` の間は D を動かしてはいけない。破ると 2 段のラッチが中途半端な電圧で止まり（メタステーブル）、しばらく 0 とも 1 とも決まらない。Q が確定するのはエッジから `t_cq` 後。この 3 つの時間がクロックの上限を決める。' },
+      { title: 'なぜ全部を同じ瞬間に更新するのか', text: 'FF → 論理回路 → FF と並べると、1 周期の間に論理回路が前段の値から次の値を計算し、次のエッジで一斉に取り込む。計算の途中の揺れは次のエッジまでに収まっていればよい。これが同期式設計で、CPU の中の値は 1 周期に 1 段ずつ進む（第6章のパイプライン）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 記号
+      const gsym = S.g({ transform: 'translate(90,40)' }, svg);
+      S.rect(60, 10, 120, 90, { rx: 6, cls: 'f-sf s-fg w2' }, gsym);
+      st.symName = S.text(120, 2, '', { cls: 't-c t-b' }, gsym);   // 箱の上に置く（「D フリップフロップ」は箱の幅いっぱいで D・Q の端子名と重なるため）
+      st.symTri = S.path('M60,78 L74,86 L60,94 Z', { cls: 'f-fg' }, gsym);
+      S.text(74, 30, 'D', { cls: 't-sm t-b' }, gsym); S.text(160, 60, 'Q', { cls: 't-sm t-b' }, gsym);
+      st.symEn = S.text(76, 90, 'EN', { cls: 't-sm t-b' }, gsym);
+      st.wD = wire(gsym, 'M0,26 H60', 0); st.wC = wire(gsym, 'M0,86 H60', 0); st.wQ = wire(gsym, 'M180,55 H240', 0);
+      st.vD = S.text(-12, 31, '', {}, gsym); st.vC = S.text(-12, 91, '', {}, gsym); st.vQ = S.text(256, 60, '', {}, gsym);
+      st.symNote = S.text(340, 60, '', { cls: 't-sm t-dim' }, gsym);
+      st.symNote2 = S.text(340, 80, '', { cls: 't-sm t-dim' }, gsym);
+      // 波形
+      const X0 = 130, X1 = 900, PX = (X1 - X0) / 8;
+      st.X0 = X0; st.X1 = X1; st.PX = PX;
+      const lanes = st.lanes = [{ name: 'CLK', y: 215 }, { name: 'D', y: 300 }, { name: 'Q', y: 385 }];
+      const gw = S.g({}, svg);
+      lanes.forEach((l) => {
+        S.text(X0 - 16, l.y - 10, l.name, { cls: 't-b', 'text-anchor': 'end' }, gw);
+        S.line(X0, l.y, X1, l.y, { cls: 's-rule w1' }, gw);
+        S.text(X0 - 16, l.y + 4, '0', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, gw);
+        S.text(X0 - 16, l.y - 32, '1', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, gw);
+      });
+      st.lanes[0].name = 'CLK';
+      st.laneName = gw.querySelectorAll('text')[0];
+      st.shade = S.g({ cls: 'fade hide' }, gw);
+      for (let k = 0; k < 8; k++) S.rect(X0 + k * PX, 170, PX / 2, 240, { cls: 'f-h-soft' }, st.shade);
+      S.text(X0 + 8, 166, 'EN = 1：Q が D に追従（筒抜け）', { cls: 't-xs t-h t-b' }, st.shade);
+      st.edges = S.g({ cls: 'fade hide' }, gw);
+      for (let k = 0; k < 8; k++) {
+        S.line(X0 + k * PX, 170, X0 + k * PX, 410, { cls: 's-x w1 dash2' }, st.edges);
+        S.path(`M${X0 + k * PX - 14},${160} L${X0 + k * PX - 2},${160}`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.edges);
+      }
+      st.periodLbl = S.g({ cls: 'fade hide' }, gw);
+      S.path(`M${X0 + 2 * PX},150 H${X0 + 3 * PX}`, { cls: 'f-none s-fg w15', 'marker-end': mk('fg'), 'marker-start': mk('fg') }, st.periodLbl);
+      S.text(X0 + 2.5 * PX, 142, '周期（3 GHz で 0.33 ns）', { cls: 't-c t-xs' }, st.periodLbl);
+      // 波形は 3 本とも同じ描き方: 全体を dim、1（高い電圧）の区間だけ h で重ねる。CLK・D・Q は左の札で見分ける
+      st.tr = lanes.map(() => S.path('', { cls: 'f-none s-dim w2 round' }, gw));
+      st.trHi = lanes.map(() => S.path('', { cls: 'f-none s-h w2 round' }, gw));
+      st.glitch = S.g({ cls: 'fade hide' }, gw);
+      S.text(X0 + 2.3 * PX, 335, '← 短い揺れがそのまま Q へ', { cls: 't-xs t-x t-b' }, st.glitch);
+      st.cursor = S.line(X0, 150, X0, 415, { cls: 's-x w15' }, gw);
+      // 下の区画
+      const gz = st.gz = S.g({ transform: 'translate(120,432)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 780, 118, { rx: 8, cls: 'f-sf s-rule w1' }, gz);
+      S.text(14, 20, 'エッジのまわりを拡大', { cls: 't-sm t-b' }, gz);
+      S.rect(300, 28, 150, 80, { cls: 'f-x-soft' }, gz);
+      S.path('M40,70 H380 V40 H740', { cls: 'f-none s-dim w2 round' }, gz); S.path('M380,40 H740', { cls: 'f-none s-h w2 round' }, gz);
+      S.text(44, 62, 'CLK', { cls: 't-xs t-b' }, gz);
+      S.path('M40,98 H200 V88 H560 V98 H740', { cls: 'f-none s-dim w2 round' }, gz); S.path('M200,88 H560', { cls: 'f-none s-h w2 round' }, gz);
+      S.text(44, 108, 'D', { cls: 't-xs t-b' }, gz);
+      S.path('M300,34 V108', { cls: 's-x w1 dash2' }, gz); S.path('M450,34 V108', { cls: 's-x w1 dash2' }, gz);
+      S.text(340, 62, 't_setup', { cls: 't-c t-xs t-mono t-x' }, gz); S.text(415, 62, 't_hold', { cls: 't-c t-xs t-mono t-x' }, gz);
+      S.text(375, 118 - 4, 'この間 D を動かさない', { cls: 't-c t-xs t-x' }, gz);
+      S.path('M480,66 H540', { cls: 'f-none s-fg w2', 'marker-end': mk('fg') }, gz); S.text(510, 60, 't_cq', { cls: 't-c t-xs t-mono' }, gz);
+      S.text(560, 60, 'Q が確定', { cls: 't-xs t-b' }, gz);
+      S.text(560, 78, '周期 ≥ t_cq + 論理の遅延 + t_setup', { cls: 't-xs t-mono t-dim' }, gz);   // 枠（幅 780）の内側に収める
+      const gc = st.gc = S.g({ transform: 'translate(120,432)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 780, 118, { rx: 8, cls: 'f-sf s-rule w1' }, gc);
+      S.text(14, 20, 'FF → 論理 → FF：1 周期に 1 段ずつ進む', { cls: 't-sm t-b' }, gc);
+      const boxes = [['入力', 40], ['FF1', 200], ['＋1', 360], ['FF2', 520], ['出力', 680]];
+      st.chain = boxes.map(([n, x], k) => {
+        const r = S.rect(x, 40, 90, 56, { rx: 6, cls: k === 1 || k === 3 ? 'f-sf s-fg w2' : 'f-in s-rule w1' }, gc);
+        S.text(x + 45, 58, n, { cls: 't-c t-xs t-dim' }, gc);
+        const v = S.text(x + 45, 84, '', { cls: 't-c t-mono t-b t-lg' }, gc);
+        if (k < 4) S.path(`M${x + 92},68 H${x + 156}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gc);
+        if (k === 1 || k === 3) S.path(`M${x},84 L${x + 10},90 L${x},96 Z`, { cls: 'f-fg' }, gc);
+        return { r, v };
+      });
+      st.chainIn = [3, 5, 2, 7, 4, 6, 1, 8];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const latch = i === 0;
+      st.symName.textContent = latch ? 'D ラッチ' : 'D フリップフロップ';
+      st.symEn.textContent = latch ? 'EN' : 'CLK';
+      st.symTri.style.opacity = latch ? 0 : 1;
+      st.laneName.textContent = latch ? 'EN' : 'CLK';
+      S.fade(st.shade, latch); S.fade(st.glitch, latch);
+      S.fade(st.edges, i >= 1 && i <= 3); S.fade(st.periodLbl, i === 1);
+      S.fade(st.gz, i === 3); S.fade(st.gc, i === 4);
+      st.symNote.textContent = latch ? 'EN=1 の間は Q = D' : i === 1 ? '合図は立ち上がりの瞬間（↑）' : i === 2 ? '立ち上がりの瞬間の D だけが Q になる' : i === 3 ? 'エッジ前後の禁止区間を下に拡大' : '次のエッジまでに論理の計算が終わればよい';
+      st.symNote2.textContent = latch ? 'EN=0 になった瞬間の値を保つ' : i === 2 ? 'それ以外の時間の D の揺れは無視' : '';
+      // 波形を描き直す
+      const fns = [CLKof, Dof, latch ? Qlatch : Qff];
+      fns.forEach((fn, k) => {
+        const base = st.lanes[k].y;
+        let d = '', hi = '', inHi = false;
+        for (let n = 0; n <= 1600; n++) {
+          const u = n / 200, v = fn(u);
+          const x = st.X0 + u * st.PX, y = base - (v ? 34 : 0);
+          d += (n ? 'L' : 'M') + x.toFixed(1) + ',' + y;
+          if (v) { hi += (inHi ? 'L' : 'M') + x.toFixed(1) + ',' + y; inHi = true; } else inHi = false;
+        }
+        st.tr[k].setAttribute('d', d);
+        st.trHi[k].setAttribute('d', hi);
+      });
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const u = U.cycle(t, 9.6) * 8;
+      const x = st.X0 + u * st.PX;
+      st.cursor.setAttribute('x1', x.toFixed(1)); st.cursor.setAttribute('x2', x.toFixed(1));
+      const c = CLKof(u), d = Dof(u), q = i === 0 ? Qlatch(u) : Qff(u);
+      lv(st.wD, d); lv(st.wC, c); lv(st.wQ, q);
+      valTxt(st.vD, d); valTxt(st.vC, c); valTxt(st.vQ, q);
+      st.vD.setAttribute('text-anchor', 'end'); st.vC.setAttribute('text-anchor', 'end'); st.vQ.setAttribute('text-anchor', 'start');
+      if (i === 4) {
+        const k = Math.floor(u), f = u - k, inp = st.chainIn;
+        const a = inp[k % 8], ff1 = inp[(k + 7) % 8], ff2 = inp[(k + 6) % 8] + 1;
+        const vals = [a, ff1, ff1 + 1, ff2, ff2];
+        st.chain.forEach((b, n) => { b.v.textContent = String(vals[n]); });
+        const flash = f < 0.2;
+        st.chain[1].r.setAttribute('class', flash ? 'f-x-soft s-x w2' : 'f-sf s-fg w2');
+        st.chain[3].r.setAttribute('class', flash ? 'f-x-soft s-x w2' : 'f-sf s-fg w2');
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 レジスタ
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'D-FF を 8 個並べる＝8 ビットのレジスタ', text: '8 個の D-FF の CLK をひとつにまとめ、D に 8 本の入力線（バス）をつなぐ。立ち上がりごとに 8 ビットが同時に取り込まれ、次の立ち上がりまで保たれる。8 ビットなら 0〜255、64 ビットなら 2⁶⁴ 通りの値を 1 個のレジスタで表せる。' },
+      { title: '書き込み許可（Load）で取り込む周期を選ぶ', text: '毎周期取り込むと、保ちたい値がすぐ上書きされる。そこで各 D の手前に選択回路を置き、Load=1 の周期だけ入力を、Load=0 なら自分の Q を D に戻す。クロックは止めずに、取り込むかどうかだけを選ぶ。CPU の命令は「どのレジスタに Load を出すか」を決めている。' },
+      { title: '読み出しはいつでも、何度でも', text: 'Q は常に出力線（バス）に出ている。読む側（ALU など）はクロックに関係なく値を見られ、読んでも中身は変わらない。書き込みはエッジの瞬間、読み出しは連続的。この非対称が、計算の途中の値を安心して使い回せる理由。' },
+      { title: 'レジスタファイル：番号で選ぶ数十本', text: 'レジスタを 16〜32 本まとめ、番号（アドレス）で選べるようにしたものがレジスタファイル。読みポートが 2 つ以上あり、1 周期に 2 本を読んで 1 本に書く。番号 4〜5 ビットをデコーダが 1 本の選択線に変える。これは次の場面のメモリの選び方と同じ。' },
+      { title: 'CPU の中での役割', text: 'プログラムカウンタ（次の命令の場所）、スタックポインタ、汎用レジスタは、どれもこの作りの D-FF の束。1 周期で読み書きでき、1 ビットに数十個のトランジスタを使う。だから容量は数百バイトしかなく、それより大きい記憶は次の SRAM・DRAM に任せる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      const X = (k) => 130 + k * 92;
+      // 入力バス
+      S.rect(110, 108, 760, 26, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      S.text(100, 126, '入力バス', { cls: 't-sm t-b', 'text-anchor': 'end' }, g);
+      S.rect(110, 387, 760, 26, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      S.text(100, 405, '出力バス', { cls: 't-sm t-b', 'text-anchor': 'end' }, g);
+      st.inBits = []; st.ffs = []; st.outBits = []; st.inWires = []; st.muxes = [];
+      // Load の線
+      st.loadRail = S.path('M80,176 H870', { cls: 'f-none s-dim w2' }, g);
+      st.loadLbl = S.text(70, 181, 'Load', { cls: 't-sm t-b', 'text-anchor': 'end' }, g);
+      for (let k = 0; k < 8; k++) {
+        const x = X(k) + 35;
+        st.inBits.push(S.text(x, 126, '0', { cls: 't-c t-mono t-b' }, g));
+        st.inWires.push(wire(g, `M${x},134 V220`, 0, 'w2'));
+        const m = S.rect(x - 9, 167, 18, 18, { rx: 3, cls: 'f-sf s-fg w15' }, g);
+        st.muxes.push(m);
+        const r = S.rect(X(k), 220, 70, 80, { rx: 6, cls: 'f-sf s-fg w2' }, g);
+        S.text(X(k) + 35, 240, `bit ${7 - k}`, { cls: 't-c t-xs t-dim' }, g);
+        S.path(`M${X(k)},286 L${X(k) + 10},292 L${X(k)},298 Z`, { cls: 'f-fg' }, g);
+        const v = S.text(X(k) + 35, 278, '0', { cls: 't-c t-mono t-b t-xl' }, g);
+        st.ffs.push({ r, v });
+        wire(g, `M${x + 16},300 V387`, 0, 'w2');
+        st.outBits.push(S.text(x, 405, '0', { cls: 't-c t-mono t-b' }, g));
+      }
+      st.outWires = Array.from(g.querySelectorAll('path')).filter((p) => /V387/.test(p.getAttribute('d')));
+      // CLK の線
+      S.path('M80,330 H120', { cls: 'f-none s-fg w2' }, g);
+      for (let k = 0; k < 8; k++) S.path(`M${X(k) - 12},330 H${X(k) + 44} M${X(k) + 58},330 H${X(k) + 80}`, { cls: 'f-none s-fg w2' }, g);
+      for (let k = 0; k < 8; k++) S.path(`M${X(k) + 5},330 V300`, { cls: 'f-none s-fg w2' }, g);
+      st.clkDot = S.circle(84, 330, 7, { cls: 'f-in s-fg w15' }, g);
+      S.text(70, 335, 'CLK', { cls: 't-sm t-b', 'text-anchor': 'end' }, g);
+      st.valTxt = S.text(490, 460, '', { cls: 't-c t-mono t-lg' }, g);
+      st.flashTxt = S.text(490, 490, '', { cls: 't-c t-sm t-x t-b' }, g);
+      // 読み出し先
+      st.gRead = S.g({ cls: 'fade hide' }, g);
+      // 読み出しは値を変えないので無彩色（色は書き込みの x だけ）
+      S.path('M490,413 V500 H640', { cls: 'f-none s-fg w3', 'marker-end': mk('fg') }, st.gRead);
+      S.rect(650, 470, 200, 60, { rx: 6, cls: 'f-in s-fg w15' }, st.gRead);
+      S.text(750, 495, 'ALU（計算回路）', { cls: 't-c t-b t-sm' }, st.gRead);
+      S.text(750, 515, 'いつでも読める。読んでも値は変わらない', { cls: 't-c t-xs t-dim' }, st.gRead);
+      st.inVals = [0x65, 0xa3, 0x1f, 0xc8, 0x3c, 0xf0, 0x57, 0x9e];
+      st.loadPat = [1, 0, 0, 1, 0, 1, 0, 0];
+      /* --- レジスタファイル --- */
+      const gf = st.gf = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 40, 'レジスタファイル（16 本 × 64 ビットのうち 8 本を表示）', { cls: 't-c t-b t-lg' }, gf);
+      st.rows = [];
+      const names = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7'];
+      const vals = ['0x0000_0000_0000_0000', '0x0000_0000_0040_12A0', '0x0000_0000_0000_0003', '0x7FFF_F2A0_1C40_8810', '0x0000_0000_0000_00FF', '0x0000_7F3B_2C10_0000', '0x0000_0000_0000_0010', '0xFFFF_FFFF_FFFF_FFFE'];
+      names.forEach((n, k) => {
+        const y = 72 + k * 44;
+        const r = S.rect(300, y, 360, 34, { rx: 5, cls: 'f-sf s-rule w1' }, gf);
+        S.text(316, y + 22, n, { cls: 't-mono t-b' }, gf);
+        const v = S.text(648, y + 22, vals[k], { cls: 't-mono t-sm', 'text-anchor': 'end' }, gf);
+        st.rows.push({ r, v, base: vals[k], y });
+      });
+      S.text(480, 72 + 8 * 44 + 10, '… r15 まで', { cls: 't-c t-xs t-dim' }, gf);
+      // ポート
+      const port = (x, y, name, cls, align) => {
+        S.rect(x, y, 170, 60, { rx: 6, cls }, gf);
+        S.text(x + 85, y + 24, name, { cls: 't-c t-b t-sm' }, gf);
+        return S.text(x + 85, y + 46, '', { cls: 't-c t-mono t-sm' }, gf);
+      };
+      st.pA = port(60, 120, '読みポート A', 'f-in s-fg w15');
+      st.pB = port(60, 230, '読みポート B', 'f-in s-fg w15');
+      st.pW = port(730, 170, '書きポート', 'f-x-soft s-x w15');
+      S.text(145, 198, 'アドレス 4 bit → デコーダ', { cls: 't-c t-xs t-dim' }, gf);
+      S.text(145, 212, '→ 1 本の選択線', { cls: 't-c t-xs t-dim' }, gf);
+      st.pathA = S.path('', { cls: 'f-none s-fg w2', 'marker-end': mk('fg') }, gf);
+      st.pathB = S.path('', { cls: 'f-none s-fg w2 dash', 'marker-end': mk('fg') }, gf);
+      st.pathW = S.path('', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, gf);
+      st.fileNote = S.text(480, 470, '', { cls: 't-c t-sm' }, gf);
+      st.fileNote2 = S.text(480, 492, '', { cls: 't-c t-sm t-dim' }, gf);
+      st.cpuTags = S.g({ cls: 'fade hide' }, gf);
+      [['PC', '次の命令の場所', 1], ['SP', 'スタックの先頭', 3], ['汎用', '計算の途中の値', 5]].forEach(([n, d, k]) => {
+        const y = 72 + k * 44;
+        S.text(680, y + 16, n, { cls: 't-b t-sm' }, st.cpuTags);
+        S.text(680, y + 30, d, { cls: 't-xs t-dim' }, st.cpuTags);
+      });
+      st.readSeq = [[1, 2, 3], [3, 4, 0], [2, 7, 5], [5, 1, 6], [0, 3, 2], [6, 5, 4], [4, 2, 1], [7, 0, 7]];
+      st.writeVals = ['0x0000_0000_0040_12A4', '0x0000_0000_0000_0102', '0x0000_7F3B_2C10_0008', '0x0000_0000_0000_0004', '0x0000_0000_0000_0203', '0x7FFF_F2A0_1C40_87F0', '0x0000_0000_0040_12A8', '0x0000_0000_0000_0011'];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g, i <= 2); S.fade(st.gf, i >= 3);
+      S.fade(st.gRead, i === 2);
+      S.fade(st.cpuTags, i === 4);
+      st.loadLbl.style.opacity = i >= 1 ? 1 : 0.3;
+      st.muxes.forEach((m) => { m.style.opacity = i >= 1 ? 1 : 0.3; });
+      st.fileNote.textContent = i === 3 ? '毎周期：A と B の 2 本を読み、1 本に書く（ALU の 2 入力・1 出力に対応）' : 'どれも D-FF の束。1 周期で読み書き、全部で数百バイト';
+      st.fileNote2.textContent = i === 3 ? '読みは番号で選ぶだけ、書きはエッジの瞬間' : 'より大きい記憶は SRAM・DRAM へ（次の場面）';
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const P = 1.6;
+      const k = Math.floor(t / P), f = (t % P) / P;
+      if (i <= 2) {
+        const load = (n) => i === 0 ? 1 : st.loadPat[((n % 8) + 8) % 8];
+        const inv = st.inVals[k % 8];
+        let reg = st.inVals[7], src = 7;
+        for (let m = k - 1; m >= k - 8; m--) { if (load(m)) { reg = st.inVals[((m % 8) + 8) % 8]; src = m; break; } }
+        const captured = load(k - 1) && f < 0.22;
+        for (let b = 0; b < 8; b++) {
+          const ib = (inv >> (7 - b)) & 1, rb = (reg >> (7 - b)) & 1;
+          valTxt(st.inBits[b], ib, 't-md'); lv(st.inWires[b], ib, 'w2');
+          valTxt(st.ffs[b].v, rb, 't-xl'); valTxt(st.outBits[b], rb, 't-md'); lv(st.outWires[b], rb, 'w2');
+          st.ffs[b].r.setAttribute('class', captured ? 'f-x-soft s-x w2' : 'f-sf s-fg w2');
+        }
+        const ld = load(k);
+        st.loadRail.setAttribute('class', 'f-none ' + (ld && i >= 1 ? 's-h w2' : 's-dim w2'));
+        st.loadLbl.textContent = i >= 1 ? `Load = ${ld}` : 'Load';
+        st.clkDot.setAttribute('class', f < 0.5 ? 'f-h s-h w15' : 'f-in s-fg w15');
+        st.valTxt.textContent = `レジスタの値 = 0x${reg.toString(16).toUpperCase().padStart(2, '0')} = ${reg}`;
+        st.flashTxt.textContent = captured ? '立ち上がりで取り込んだ' : (i >= 1 && !ld ? 'Load = 0：この周期は取り込まない（入力は変わっても保つ）' : '');
+      } else {
+        const [a, b, w] = st.readSeq[k % 8];
+        const rowY = (n) => st.rows[n].y + 17;
+        st.pathA.setAttribute('d', `M230,150 H270 V${rowY(a)} H300`);
+        st.pathB.setAttribute('d', `M230,260 H260 V${rowY(b)} H300`);
+        st.pathW.setAttribute('d', `M730,200 H690 V${rowY(w)} H660`);
+        st.pA.textContent = `r${a} を読む`; st.pB.textContent = `r${b} を読む`; st.pW.textContent = `r${w} に書く`;
+        const flash = f < 0.2;
+        st.rows.forEach((r, n) => {
+          r.r.setAttribute('class', n === w && flash ? 'f-x-soft s-x w2' : (n === a || n === b) ? 'f-in s-fg w15' : 'f-sf s-rule w1');
+          r.v.textContent = (n === w && f >= 0.2) ? st.writeVals[k % 8] : (n === st.readSeq[(k + 7) % 8][2] ? st.writeVals[(k + 7) % 8] : r.base);
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 SRAM セル
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'インバータ 2 個の輪が覚える', text: 'NOT ゲート（インバータ）2 個を向かい合わせにつなぐ。Q=1 なら右のインバータが Q̄=0 を出し、それを受けた左のインバータが Q=1 を出し続ける。Q=0 でも同じ。SR ラッチと同じ支え合いで、インバータは pMOS と nMOS の 2 個なので、ここまでで 4 個のトランジスタ。' },
+      { title: 'アクセス用トランジスタとワード線・ビット線', text: '輪の両端に nMOS を 1 個ずつ付け、ゲートを**ワード線**（WL）に、反対側を 2 本の**ビット線**（BL と BL̄）につなぐ。WL=0 の間はセルが切り離されて値を保つ。WL=1 にすると輪がビット線とつながり、読み書きできる。合計 6 個。' },
+      { title: '読み出し：小さな差をセンスアンプで増やす', text: 'まず BL と BL̄ を両方 1（VDD）にしておく（プリチャージ）。WL を上げると、輪の 0 側につながったビット線だけがわずかに下がる。センスアンプがこの差（0.1 V ほど）を検出して 0 と 1 に広げる。輪は崩れないので、読んでも値は残る。' },
+      { title: '書き込み：ビット線で輪を倒す', text: '書きたい値を BL に、その反転を BL̄ に強く与えてから WL を上げる。アクセス用 nMOS は輪のインバータより強く作ってあるので、ビット線が節点の電圧を押し切り、輪が反対の安定状態へ倒れる。WL を下げれば新しい値で支え合う。' },
+      { title: '配列にする：速いが大きい', text: 'セルを格子に並べ、行の WL をデコーダで 1 本だけ選び、列ごとのビット線をセンスアンプで読む。輪は常に自分で値を支えているので待ち時間がなく、L1 キャッシュなら 1 ns 前後。ただし 1 ビットに 6 個使うので DRAM より桁違いに大きく、容量は数十 MB まで。電源を切ると消える。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      // 電源と接地の目印、インバータ
+      const inv = (x, y, right) => {
+        const d = right ? `M${x},${y - 26} L${x + 60},${y} L${x},${y + 26} Z` : `M${x},${y - 26} L${x - 60},${y} L${x},${y + 26} Z`;
+        S.path(d, { cls: 'f-sf s-fg w2 round' }, g);
+        S.circle(right ? x + 67 : x - 67, y, 7, { cls: 'f-sf s-fg w2' }, g);
+      };
+      inv(400, 215, true); inv(560, 335, false);
+      // 節点 Q（左）、Q̄（右）
+      st.wA1 = wire(g, 'M360,275 V215 H400', 1);       // Q → 上インバータ入力
+      st.wB1 = wire(g, 'M474,215 H600 V275', 0);       // 上インバータ出力 → Q̄
+      st.wB2 = wire(g, 'M600,275 V335 H560', 0);       // Q̄ → 下インバータ入力
+      st.wA2 = wire(g, 'M486,335 H360 V275', 1);       // 下インバータ出力 → Q
+      st.nQ = S.circle(360, 275, 9, {}, g); st.nQb = S.circle(600, 275, 9, {}, g);
+      st.tQ = S.text(344, 312, '', {}, g); st.tQb = S.text(616, 312, '', {}, g);   // 値は輪の外側、縦の配線（x=360・600）にかからない所
+      S.text(330, 262, 'Q', { cls: 't-b', 'text-anchor': 'end' }, g); S.text(630, 262, 'Q̄', { cls: 't-b' }, g);
+      st.loopPulse = pulse(g);
+      st.loopPath = S.path('M360,275 V215 H474 H600 V335 H486 H360 V275', { cls: 'f-none s-none' }, g);
+      // アクセス部
+      const ga = st.ga = S.g({ cls: 'fade' }, g);
+      st.wl = wire(ga, 'M140,130 H820', 0);
+      S.text(130, 135, 'WL', { cls: 't-b', 'text-anchor': 'end' }, ga);
+      S.text(130, 150, 'ワード線', { cls: 't-xs t-dim', 'text-anchor': 'end' }, ga);
+      st.blBase = S.path('M250,90 V470', { cls: 'f-none s-dim w3' }, ga); st.bl = S.path('M250,90 V470', { cls: 'f-none s-h w3' }, ga);
+      st.blbBase = S.path('M710,90 V470', { cls: 'f-none s-dim w3' }, ga); st.blb = S.path('M710,90 V470', { cls: 'f-none s-h w3' }, ga);
+      S.text(250, 76, 'BL', { cls: 't-c t-b' }, ga); S.text(710, 76, 'BL̄', { cls: 't-c t-b' }, ga);
+      S.text(250, 55, 'ビット線', { cls: 't-c t-xs t-dim' }, ga); S.text(710, 55, 'ビット線（反転）', { cls: 't-c t-xs t-dim' }, ga);
+      st.swL = sw(ga, 305, 275, true); st.swR = sw(ga, 655, 275, true);
+      wire(ga, 'M305,130 V266', 0, 'w15'); wire(ga, 'M655,130 V266', 0, 'w15');
+      st.gateL = ga.lastChild.previousSibling; st.gateR = ga.lastChild;
+      st.wBL = wire(ga, 'M250,275 H292', 0, 'w2'); st.wBLq = wire(ga, 'M318,275 H351', 0, 'w2');
+      st.wBLB = wire(ga, 'M710,275 H668', 0, 'w2'); st.wBLBq = wire(ga, 'M642,275 H609', 0, 'w2');
+      // プリチャージ
+      st.pre = S.g({ cls: 'fade' }, ga);
+      S.rect(400, 60, 160, 34, { rx: 6, cls: 'f-sf s-rule w1' }, st.pre);
+      st.preTxt = S.text(480, 82, 'プリチャージ：VDD へ', { cls: 't-c t-xs' }, st.pre);
+      S.path('M264,78 H400', { cls: 'f-none s-dim w1 dash' }, st.pre); S.path('M560,78 H696', { cls: 'f-none s-dim w1 dash' }, st.pre);   // BL・BL̄ の文字の手前で止める
+      // センスアンプ
+      S.path('M250,470 V490 H380', { cls: 'f-none s-dim w2' }, ga); S.path('M710,470 V490 H580', { cls: 'f-none s-dim w2' }, ga);
+      st.sa = S.rect(380, 466, 200, 48, { rx: 6, cls: 'f-sf s-rule w15' }, ga);
+      S.text(480, 486, 'センスアンプ', { cls: 't-c t-b t-sm' }, ga);
+      st.saTxt = S.text(480, 504, 'BL − BL̄ の差を見る', { cls: 't-c t-xs t-dim' }, ga);
+      st.dout = S.text(480, 548, '', { cls: 't-c t-mono t-b t-lg' }, ga);
+      st.vBL = vbar(ga, 180, 300, 110, 'BL'); st.vBLB = vbar(ga, 780, 300, 110, 'BL̄');
+      st.phase = S.text(480, 420, '', { cls: 't-c t-sm t-x t-b' }, ga);
+      st.cnt = S.text(480, 40, '', { cls: 't-c t-sm t-dim' }, svg);
+      /* --- 配列 --- */
+      const gr = st.gr = S.g({ cls: 'fade hide' }, svg);
+      S.text(560, 50, '4 × 4 のセル配列（実際は数千 × 数百）', { cls: 't-c t-b t-lg' }, gr);
+      st.mat = [[1, 0, 1, 1], [0, 0, 1, 0], [1, 1, 0, 1], [0, 1, 1, 0]];
+      st.wlRows = []; st.cells = [];
+      for (let r = 0; r < 4; r++) {
+        const y = 130 + r * 80;
+        st.wlRows.push(wire(gr, `M270,${y} H830`, 0, 'w2'));
+        S.text(250, y - 7, `WL${r}`, { cls: 't-c t-xs t-mono t-dim' }, gr);
+        const row = [];
+        for (let c = 0; c < 4; c++) {
+          const x = 360 + c * 130;
+          const rc = S.rect(x - 22, y - 22, 44, 44, { rx: 5, cls: 'f-sf s-rule w1' }, gr);
+          const tx = S.text(x, y + 5, String(st.mat[r][c]), {}, gr);
+          valTxt(tx, st.mat[r][c], 't-md');
+          row.push({ rc, tx });
+        }
+        st.cells.push(row);
+      }
+      for (let c = 0; c < 4; c++) {
+        const x = 360 + c * 130;
+        S.path(`M${x - 8},100 V450`, { cls: 'f-none s-dim w2' }, gr); S.path(`M${x + 8},100 V450`, { cls: 'f-none s-dim w2' }, gr);
+        S.text(x, 92, `BL${c} / BL̄${c}`, { cls: 't-c t-xs t-mono t-dim' }, gr);
+        S.rect(x - 40, 452, 80, 36, { rx: 5, cls: 'f-sf s-rule w15' }, gr);
+        S.text(x, 467, 'センスアンプ', { cls: 't-c t-xs' }, gr);
+      }
+      st.saOut = [0, 1, 2, 3].map((c) => S.text(360 + c * 130, 483, '', { cls: 't-c t-mono t-b t-sm' }, gr));
+      // 行デコーダ
+      S.rect(80, 120, 150, 330, { rx: 6, cls: 'f-sf s-rule w15' }, gr);
+      S.text(155, 145, '行デコーダ', { cls: 't-c t-b t-sm' }, gr);
+      st.addrTxt = S.text(155, 170, '', { cls: 't-c t-mono' }, gr);
+      S.text(155, 190, 'アドレス 2 bit → 4 本', { cls: 't-c t-xs t-dim' }, gr);
+      st.decLines = [0, 1, 2, 3].map((r) => wire(gr, `M230,${130 + r * 80} H270`, 0, 'w2'));
+      st.arrNote = S.text(560, 530, '', { cls: 't-c t-sm t-dim' }, gr);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g, i <= 3); S.fade(st.gr, i === 4);
+      st.ga.classList.toggle('hide', i === 0);
+      st.q = 1;
+      st.cnt.textContent = i === 0 ? 'トランジスタ 4 個（インバータ 2 個）' : i <= 3 ? 'トランジスタ 6 個（＋アクセス用 2 個）' : '';
+      st.dout.textContent = ''; st.phase.textContent = '';
+      st.saTxt.textContent = 'BL − BL̄ の差を見る';   // 段階3・4 は frame が書き直す
+      st.pre.classList.toggle('hide', i === 3);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 4) {
+        const k = Math.floor(U.cycle(t, 8) * 4), f = U.cycle(t, 2);
+        st.addrTxt.textContent = `アドレス = ${k.toString(2).padStart(2, '0')} → WL${k}`;
+        st.wlRows.forEach((w, r) => lv(w, r === k, 'w2'));
+        st.decLines.forEach((w, r) => lv(w, r === k, 'w2'));
+        st.cells.forEach((row, r) => row.forEach((c) => c.rc.setAttribute('class', r === k ? (f < 0.5 ? 'f-h-soft s-h w2' : 'f-sf s-h w2') : 'f-sf s-rule w1')));
+        st.saOut.forEach((o, c) => { o.textContent = f > 0.5 ? `→ ${st.mat[k][c]}` : ''; });
+        st.arrNote.textContent = f > 0.5 ? `行 ${k} の 4 ビット「${st.mat[k].join('')}」が同時に読めた` : `WL${k} だけを 1 にする`;
+        return;
+      }
+      let wl = 0, vbl = 1, vblb = 1, q = st.q, out = '', ph = '';
+      if (i === 2) {
+        const s = U.seq(ctx.ts, [1.2, 1.0, 1.5, 1.3, 1.0], true);
+        if (s.i === 0) { vbl = vblb = 0.5 + 0.5 * s.f; ph = 'プリチャージ：BL と BL̄ を 1 にそろえる'; }
+        else if (s.i === 1) { wl = 1; ph = 'WL = 1：輪がビット線につながる'; }
+        else if (s.i === 2) { wl = 1; vblb = 1 - 0.15 * s.f; ph = 'Q̄ = 0 側の BL̄ だけがわずかに下がる'; }
+        else if (s.i === 3) { wl = 1; vblb = 0.85 - 0.85 * s.f; out = 'Dout = 1'; ph = 'センスアンプが差を 0 と 1 に広げる'; }
+        else { vbl = 1; vblb = 0; out = 'Dout = 1'; ph = 'WL = 0：読んでも Q は 1 のまま'; }
+        st.saTxt.textContent = s.i >= 3 ? 'BL > BL̄ → 1' : 'BL − BL̄ の差を見る';
+      } else if (i === 3) {
+        const s = U.seq(ctx.ts, [1.0, 1.0, 1.2, 1.0, 0.8, 1.0, 1.0, 1.2, 1.0, 0.8], true);
+        const writing0 = s.i < 5; const p = s.i % 5;
+        const target = writing0 ? 0 : 1;
+        q = writing0 ? (p >= 2 && (p > 2 || s.f > 0.5) ? 0 : 1) : (p >= 2 && (p > 2 || s.f > 0.5) ? 1 : 0);
+        vbl = target; vblb = 1 - target;
+        if (p === 0) ph = `BL = ${target}、BL̄ = ${1 - target} を強く与える`;
+        else if (p === 1) { wl = 1; ph = 'WL = 1'; }
+        else if (p === 2) { wl = 1; ph = 'ビット線が節点を押し切り、輪が倒れる'; }
+        else if (p === 3) { ph = 'WL = 0：新しい値で支え合う'; }
+        else { ph = `書き込み完了：Q = ${target}`; }
+        st.saTxt.textContent = '書き込み中は使わない';
+        st.q = q;
+      } else {
+        const s = U.cycle(t, 3);
+        S.place(st.loopPulse, st.loopPath, s); st.loopPulse.style.opacity = i === 0 ? 1 : 0;
+      }
+      if (i !== 0) st.loopPulse.style.opacity = 0;
+      // 描画
+      lv(st.wA1, q); lv(st.wA2, q); lv(st.wB1, 1 - q); lv(st.wB2, 1 - q);
+      nodeLv(st.nQ, q); nodeLv(st.nQb, 1 - q); valTxt(st.tQ, q); valTxt(st.tQb, 1 - q);
+      if (i >= 1) {
+        lv(st.wl, wl); lv(st.gateL, wl, 'w15'); lv(st.gateR, wl, 'w15');
+        st.swL.set(wl); st.swR.set(wl);
+        st.bl.style.opacity = vbl; st.blb.style.opacity = vblb;
+        lv(st.wBL, wl && vbl > 0.5, 'w2'); lv(st.wBLB, wl && vblb > 0.5, 'w2'); lv(st.wBLq, wl && q, 'w2'); lv(st.wBLBq, wl && !q, 'w2');
+        st.vBL.set(vbl); st.vBLB.set(vblb);
+        st.dout.textContent = out; st.phase.textContent = ph;
+        st.sa.setAttribute('class', out ? 'f-x-soft s-x w15' : 'f-sf s-rule w15');
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 DRAM セル
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'トランジスタ 1 個とコンデンサ 1 個', text: 'ビット線とコンデンサの間に nMOS を 1 個置き、ゲートをワード線につなぐ。コンデンサに電荷が溜まっていれば 1、空なら 0。容量は 20〜30 fF で、1 のときの電荷は電子にして約 10 万個。輪で支えていないので「静的」ではなく「動的」（Dynamic）と呼ぶ。' },
+      { title: '書き込み：ビット線の電圧で充放電する', text: 'ビット線を書きたい値の電圧（1 なら VDD、0 なら 0 V）にして WL を上げると、トランジスタを通ってコンデンサが充電または放電される。WL を下げるとコンデンサは切り離され、電荷がそのまま残る。1 セル 2 個の部品で済むので、SRAM の 6 個より桁違いに小さい。' },
+      { title: '読み出し：電荷を分け合い、センスアンプで増幅する', text: 'ビット線を VDD の半分にしておき WL を上げると、コンデンサとビット線が電荷を分け合い、ビット線が 1 なら少し上に、0 なら少し下にずれる。差は 0.1 V 以下。センスアンプがこれを VDD か 0 V まで増幅して値を取り出し、同時にコンデンサへ書き戻す。**読むと壊れるので必ず書き戻す**。' },
+      { title: '漏れとリフレッシュ', text: '切り離してもトランジスタの漏れ電流で電荷は逃げ、数十〜数百 ms で 1 と 0 の区別がつかなくなる。そこで DDR4 では 64 ms 以内に全部の行を読んで書き戻す（リフレッシュ）。行が 8,192 本なら 7.8 µs ごとに 1 行。この間その行は使えず、電力も食う。' },
+      { title: '配列と行バッファ', text: '1 本の WL に数千個のセルが並び、WL を上げると行全体がセンスアンプ列（行バッファ）に移る（アクティベート、約 15 ns）。その中から列アドレスで 8 バイトなどを選んで取り出す（約 15 ns）。同じ行の続きは速く、別の行は閉じて開き直すので遅い。DDR はこの取り出しをクロックの両エッジで行う。' },
+      { title: '小さいが遅い、そして揮発', text: 'SRAM の 6T セルに対し DRAM は 1T1C で、同じ面積に桁違いに多く入るので GB 単位の主記憶になる。代わりに行を開く・増幅する・書き戻す手順があり、ランダムアクセスは 50〜100 ns と SRAM の数十倍遅い。どちらも電源を切れば消える。消えない記憶は次の場面。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      st.wl = wire(g, 'M80,150 H560', 0);
+      S.text(70, 155, 'WL', { cls: 't-b', 'text-anchor': 'end' }, g);
+      st.blBase = S.path('M200,90 V470', { cls: 'f-none s-dim w3' }, g); st.bl = S.path('M200,90 V470', { cls: 'f-none s-h w3' }, g);
+      S.text(200, 76, 'BL', { cls: 't-c t-b' }, g);
+      st.sw = sw(g, 262, 230, true);
+      st.gate = wire(g, 'M262,150 V221', 0, 'w15');
+      st.wA = wire(g, 'M200,230 H249', 0, 'w2'); st.wB = wire(g, 'M275,230 H340 V300', 0, 'w2');
+      // コンデンサ
+      S.rect(300, 300, 80, 8, { cls: 'f-fg' }, g); S.rect(300, 330, 80, 8, { cls: 'f-fg' }, g);
+      S.path('M340,338 V380 M320,380 H360 M328,388 H352 M336,396 H344', { cls: 'f-none s-fg w2' }, g);
+      S.text(395, 324, 'コンデンサ', { cls: 't-sm t-b' }, g);
+      S.text(395, 340, '20〜30 fF', { cls: 't-xs t-dim t-mono' }, g);
+      S.text(340, 416, 'プレート（基準電位）', { cls: 't-c t-xs t-dim' }, g);
+      st.dots = [];
+      for (let r = 0; r < 2; r++) for (let c = 0; c < 6; c++) st.dots.push(S.circle(309 + c * 12.4, 314 + r * 10, 3.6, { cls: 'f-h', style: { opacity: 0 } }, g));
+      st.qBar = vbar(g, 470, 240, 110, '電荷 q');
+      st.vBL = vbar(g, 120, 300, 110, 'BL');
+      // 電流の流れ
+      st.flowPath = S.path('M200,100 V230 H340 V300', { cls: 'f-none s-none' }, g);
+      st.flow = A.flow(st.flowPath, { count: 10, speed: 0, r: 3.5, cls: 'f-e', parent: g, fade: true });
+      st.flow.show(false);
+      // センスアンプ
+      S.path('M200,470 V480', { cls: 'f-none s-dim w2' }, g);
+      st.sa = S.rect(130, 480, 140, 44, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+      S.text(200, 498, 'センスアンプ', { cls: 't-c t-b t-sm' }, g);
+      st.saTxt = S.text(200, 515, '', { cls: 't-c t-xs t-dim' }, g);
+      st.dout = S.text(200, 548, '', { cls: 't-c t-mono t-b t-lg' }, g);
+      st.phase = S.text(330, 470, '', { cls: 't-sm t-x t-b' }, g);
+      st.phase2 = S.text(330, 492, '', { cls: 't-sm t-dim' }, g);
+      // 右: 値の意味（段階1）
+      const gm = st.gm = S.g({ transform: 'translate(620,120)', cls: 'fade' }, svg);
+      S.rect(0, 0, 300, 200, { rx: 8, cls: 'f-sf s-rule w1' }, gm);
+      S.text(150, 28, '1 ビットの表し方', { cls: 't-c t-b' }, gm);
+      [[0, '1', '電荷あり（VDD）', 12], [1, '0', '電荷なし（0 V）', 0]].forEach(([k, v, lbl, n]) => {
+        const y = 60 + k * 70;
+        S.rect(30, y, 60, 6, { cls: 'f-fg' }, gm); S.rect(30, y + 26, 60, 6, { cls: 'f-fg' }, gm);
+        for (let c = 0; c < n; c++) S.circle(36 + (c % 6) * 9.6, y + 12 + Math.floor(c / 6) * 9, 2.8, { cls: 'f-h' }, gm);
+        S.text(120, y + 14, v, { cls: 't-mono t-b t-xl ' + (n ? 't-h' : 't-dim') }, gm);
+        S.text(150, y + 14, lbl, { cls: 't-sm' }, gm);
+        S.text(150, y + 30, k ? '電子 ほぼ 0 個' : '電子 約 10 万個', { cls: 't-xs t-dim t-mono' }, gm);
+      });
+      // 右: 漏れのグラフ（段階4）
+      const gl = st.gl = S.g({ transform: 'translate(620,110)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 310, 250, { rx: 8, cls: 'f-sf s-rule w1' }, gl);
+      S.text(155, 24, '電荷と時間', { cls: 't-c t-b' }, gl);
+      S.line(40, 200, 290, 200, { cls: 's-rule w1' }, gl); S.line(40, 200, 40, 50, { cls: 's-rule w1' }, gl);
+      S.text(34, 56, 'q', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gl);
+      S.line(40, 125, 290, 125, { cls: 's-x w1 dash2' }, gl); S.text(286, 120, '判別できる下限', { cls: 't-xs t-x', 'text-anchor': 'end' }, gl);
+      st.leakPath = S.path('', { cls: 'f-none s-h w2 round' }, gl);
+      st.leakDot = S.circle(0, 0, 5, { cls: 'f-x' }, gl);
+      S.text(165, 222, '← 64 ms →', { cls: 't-c t-xs t-mono' }, gl);
+      S.text(155, 242, '期限の前に読んで書き戻す（リフレッシュ）', { cls: 't-c t-xs t-dim' }, gl);
+      st.timer = S.rect(40, 206, 0, 6, { rx: 2, cls: 'f-x' }, gl);
+      /* --- 配列 --- */
+      const gr = st.gr = S.g({ cls: 'fade hide' }, svg);
+      S.text(540, 44, '8 × 8 のセル配列と行バッファ（実際は 1 行に数千セル）', { cls: 't-c t-b t-lg' }, gr);
+      st.arrWl = []; st.arrCells = [];
+      st.arrMat = [];
+      for (let r = 0; r < 8; r++) {
+        const y = 100 + r * 40;
+        st.arrWl.push(wire(gr, `M240,${y} H840`, 0, 'w2'));
+        S.text(228, y + 4, `WL${r}`, { cls: 't-xs t-mono', 'text-anchor': 'end' }, gr);
+        const row = [], vals = [];
+        for (let c = 0; c < 8; c++) {
+          const x = 300 + c * 72;
+          const v = ((r * 5 + c * 3 + (r * c) % 4) % 3) ? 1 : 0;
+          vals.push(v);
+          const rc = S.rect(x - 11, y - 11, 22, 22, { rx: 3, cls: v ? 'f-h-soft s-h w1' : 'f-in s-dim w1' }, gr);
+          row.push(rc);
+        }
+        st.arrMat.push(vals); st.arrCells.push(row);
+      }
+      for (let c = 0; c < 8; c++) {
+        const x = 300 + c * 72;
+        S.path(`M${x},80 V432`, { cls: 'f-none s-dim w2' }, gr);
+        S.rect(x - 30, 436, 60, 40, { rx: 4, cls: 'f-sf s-rule w15' }, gr);
+      }
+      st.rowBuf = [0, 1, 2, 3, 4, 5, 6, 7].map((c) => S.text(300 + c * 72, 462, '', { cls: 't-c t-mono t-b' }, gr));
+      S.text(260, 462, '行バッファ', { cls: 't-xs t-b', 'text-anchor': 'end' }, gr);
+      S.text(260, 476, '(センスアンプ列)', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gr);
+      S.rect(60, 90, 140, 350, { rx: 6, cls: 'f-sf s-rule w15' }, gr);
+      S.text(130, 114, '行デコーダ', { cls: 't-c t-b t-sm' }, gr);
+      st.arrAddr = S.text(130, 138, '', { cls: 't-c t-mono t-sm' }, gr);
+      st.colSel = []; for (let c = 0; c < 8; c++) st.colSel.push(S.rect(300 + c * 72 - 32, 434, 64, 44, { rx: 5, cls: 'f-none s-x w2', style: { opacity: 0 } }, gr));
+      st.arrPhase = S.text(540, 512, '', { cls: 't-c t-sm t-x t-b' }, gr);
+      st.arrOut = S.text(540, 538, '', { cls: 't-c t-mono t-sm' }, gr);
+      /* --- 比較 --- */
+      const gc = st.gc = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 50, '同じ面積に入るセルの数', { cls: 't-c t-b t-lg' }, gc);
+      S.rect(80, 90, 360, 360, { rx: 8, cls: 'f-sf s-rule w1' }, gc);
+      S.text(260, 118, 'SRAM 6T', { cls: 't-c t-b' }, gc);
+      // 個数を比べる図なので、SRAM と DRAM の区別に色は使わない
+      for (let k = 0; k < 6; k++) S.rect(110 + (k % 3) * 108, 140 + Math.floor(k / 3) * 150, 92, 130, { rx: 6, cls: 'f-in s-mid w1' }, gc);
+      S.text(260, 215, '1 ビット', { cls: 't-c t-sm' }, gc);
+      S.rect(520, 90, 360, 360, { rx: 8, cls: 'f-sf s-rule w1' }, gc);
+      S.text(700, 118, 'DRAM 1T1C', { cls: 't-c t-b' }, gc);
+      for (let k = 0; k < 24; k++) S.rect(548 + (k % 6) * 52, 140 + Math.floor(k / 6) * 72, 44, 60, { rx: 4, cls: 'f-in s-mid w1' }, gc);
+      S.text(700, 470, '24 ビット（模式。実際の比はもっと大きい）', { cls: 't-c t-xs t-dim' }, gc);
+      S.text(260, 470, 'L1 32〜64 KB、約 1 ns', { cls: 't-c t-sm' }, gc);
+      S.text(700, 492, '8〜64 GB、50〜100 ns', { cls: 't-c t-sm' }, gc);
+      S.text(480, 530, 'どちらも電源を切ると消える（揮発性）', { cls: 't-c t-sm t-x t-b' }, gc);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g, i <= 3); S.fade(st.gm, i === 0); S.fade(st.gl, i === 3);
+      S.fade(st.gr, i === 4); S.fade(st.gc, i === 5);
+      st.flow.show(i === 1 || i === 2 || i === 3);
+      st.dout.textContent = ''; st.saTxt.textContent = ''; st.phase.textContent = ''; st.phase2.textContent = '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 4) {
+        const k = Math.floor(U.cycle(t, 16) * 4) * 2 + 1, s = U.seq(t, [0.8, 1.0, 1.4, 0.8], true);
+        const r = k % 8;
+        st.arrAddr.textContent = `行 ${r}`;
+        st.arrWl.forEach((w, n) => lv(w, n === r && s.i <= 2, 'w2'));
+        st.arrCells.forEach((row, n) => row.forEach((c, cc) => c.setAttribute('class', (n === r && s.i >= 1 && s.i <= 2 ? 's-x w2 ' : (st.arrMat[n][cc] ? 's-h w1 ' : 's-dim w1 ')) + (st.arrMat[n][cc] ? 'f-h-soft' : 'f-in'))));
+        st.rowBuf.forEach((b, c) => { b.textContent = s.i >= 1 && s.i <= 2 ? String(st.arrMat[r][c]) : ''; });
+        const col = s.i === 2 ? Math.min(3, Math.floor(s.f * 4)) : -1;
+        st.colSel.forEach((c, n) => { c.style.opacity = n === col ? 1 : 0; });
+        st.arrPhase.textContent = s.i === 0 ? `行アドレスで WL${r} を上げる（アクティベート、約 15 ns）` : s.i === 1 ? '行全体がセンスアンプ列へ移る' : s.i === 2 ? `列アドレスで ${col} 番目を取り出す（バースト、約 15 ns）` : '行を閉じる（書き戻し・プリチャージ）';
+        st.arrOut.textContent = s.i === 2 ? `取り出した値: ${st.arrMat[r].slice(0, col + 1).join(' ')}` : '';
+        return;
+      }
+      if (i === 5) return;
+      let wl = 0, vbl = 0, q = 1, ph = '', ph2 = '', out = '', sa = '', flowSpeed = 0;
+      if (i === 0) { q = 1; vbl = 0; }
+      else if (i === 1) {
+        const s = U.seq(ctx.ts, [0.8, 0.8, 1.4, 0.6, 1.0, 0.8, 0.8, 1.4, 0.6, 1.0], true);
+        const w1 = s.i < 5, p = s.i % 5;
+        const tgt = w1 ? 1 : 0;
+        vbl = tgt;
+        if (p === 0) { q = 1 - tgt; ph = `BL を ${tgt ? 'VDD' : '0 V'} にする`; }
+        else if (p === 1) { q = 1 - tgt; wl = 1; ph = 'WL = 1：トランジスタが導通'; }
+        else if (p === 2) { wl = 1; q = tgt ? s.f : 1 - s.f; flowSpeed = tgt ? 120 : -120; ph = tgt ? '充電：電荷がコンデンサへ' : '放電：電荷がビット線へ逃げる'; }
+        else if (p === 3) { q = tgt; ph = 'WL = 0：切り離す'; }
+        else { q = tgt; ph = `書き込み完了：${tgt}`; ph2 = tgt ? '電荷が残っている' : '電荷が無い'; }
+      } else if (i === 2) {
+        const s = U.seq(ctx.ts, [1.0, 0.8, 1.2, 1.2, 0.8, 1.0], true);
+        if (s.i === 0) { q = 1; vbl = 0.5 * s.f; ph = 'BL を VDD/2 にプリチャージ'; }
+        else if (s.i === 1) { q = 1; vbl = 0.5; wl = 1; ph = 'WL = 1'; }
+        else if (s.i === 2) { wl = 1; q = 1 - 0.45 * s.f; vbl = 0.5 + 0.06 * s.f; flowSpeed = -60; ph = '電荷を分け合う：BL がわずかに上がる'; ph2 = '差は 0.1 V 以下'; sa = 'BL > VDD/2 ?'; }
+        else if (s.i === 3) { wl = 1; q = 0.55 + 0.45 * s.f; vbl = 0.56 + 0.44 * s.f; flowSpeed = 60; out = 'Dout = 1'; ph = 'センスアンプが VDD まで増幅し、同時に書き戻す'; sa = '→ 1'; }
+        else if (s.i === 4) { q = 1; vbl = 1; out = 'Dout = 1'; ph = 'WL = 0'; }
+        else { q = 1; vbl = 0.5; out = 'Dout = 1'; ph = '読んだあとも q は元どおり（書き戻したから）'; }
+      } else if (i === 3) {
+        const s = U.seq(ctx.ts, [4.5, 0.6, 0.4], true);
+        if (s.i === 0) { q = Math.exp(-s.t / 5.5); ph = '切り離した後も電荷は漏れていく'; ph2 = `${Math.round(s.f * 64)} ms 経過`; }
+        else if (s.i === 1) { wl = 1; vbl = 1; q = 0.44 + 0.56 * s.f; flowSpeed = 120; ph = 'リフレッシュ：読んで書き戻す'; ph2 = '64 ms 以内に全行'; }
+        else { q = 1; ph = 'また 64 ms の猶予'; }
+        // グラフ
+        let d = '';
+        for (let n = 0; n <= 100; n++) { const x = 40 + n * 2.1; const tt = n / 100 * 4.5; d += (n ? 'L' : 'M') + x.toFixed(1) + ',' + (200 - 140 * Math.exp(-tt / 5.5)).toFixed(1); }
+        d += ' L255,60 L290,60';
+        st.leakPath.setAttribute('d', d);
+        const gx = s.i === 0 ? 40 + s.f * 210 : s.i === 1 ? 250 + s.f * 10 : 262 + s.f * 28;
+        const gy = s.i === 0 ? 200 - 140 * q : s.i === 1 ? 200 - 140 * q : 60;
+        st.leakDot.setAttribute('cx', gx.toFixed(1)); st.leakDot.setAttribute('cy', gy.toFixed(1));
+        st.timer.setAttribute('width', (s.i === 0 ? s.f * 210 : 0).toFixed(1));
+      }
+      // 描画
+      lv(st.wl, wl); lv(st.gate, wl, 'w15'); st.sw.set(wl);
+      lv(st.wA, wl && vbl > 0.5, 'w2'); lv(st.wB, wl && q > 0.5, 'w2');
+      st.bl.style.opacity = vbl;
+      st.vBL.set(vbl); st.qBar.set(q);
+      const n = Math.round(q * 12);
+      st.dots.forEach((dd, k) => { dd.style.opacity = k < n ? 1 : 0; });
+      st.flow.set('speed', flowSpeed); st.flow.g.style.opacity = flowSpeed ? 1 : 0; st.flow.update(dt);
+      st.phase.textContent = ph; st.phase2.textContent = ph2; st.dout.textContent = out; st.saTxt.textContent = sa;
+      st.sa.setAttribute('class', out ? 'f-x-soft s-x w15' : 'f-sf s-rule w15');
+    }
+  };
+
+  /* ================================================================
+     場面6 NAND フラッシュ
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '浮遊ゲート：絶縁体に囲まれた島', text: 'MOSFET（第3章）の制御ゲートとチャネルの間に、もう 1 枚の導体（浮遊ゲート）を挟み、上下を酸化膜で完全に囲む。どこにも配線がつながっていないので、入った電子は出られない。電子が無い状態を 1（消去状態）、あれば 0 と決める。' },
+      { title: '書き込み：約 20 V をかけ、トンネル効果で押し込む', text: '制御ゲートに約 20 V をかけると、厚さ 7〜10 nm のトンネル酸化膜に強い電場がかかり、量子力学のトンネル効果でチャネルの電子が壁を「すり抜けて」浮遊ゲートに入る（FN トンネリング）。電圧を戻せば壁は元の厚さなので、電子は閉じ込められたまま。' },
+      { title: '読み出し：しきい値電圧の違いが 0 と 1', text: '浮遊ゲートの電子は制御ゲートの電圧を打ち消すので、チャネルを開くのに必要な電圧（しきい値 `V_th`）が高くなる。読み出しはその中間の電圧をかけて電流が流れるかを見る。流れれば 1（電子なし）、流れなければ 0。右の曲線が `V_th` のずれ。' },
+      { title: '消去はブロック単位、酸化膜は少しずつ傷む', text: '消去は基板側に高電圧をかけて電子を逆向きに抜く。配線の都合で数 MB のブロックごとにしかできないので、1 バイト書き換えるにもブロック全体を消して書き直す。高電圧の出入りのたびに酸化膜に欠陥が増え、SLC で約 10 万回、TLC で約 3,000 回が寿命の目安。' },
+      { title: 'NAND 列：直列につないで詰め込む', text: 'セルを 32〜128 個直列につなぎ（NAND 列）、両端だけをビット線と共通ソースにつなぐ。1 セルあたりの配線が減って密度が上がる。1 本のワード線に並ぶセルが 1 ページ（4〜16 KB）で、読み書きの単位。読むページには読み出し電圧、他のページには必ず導通する高めの電圧（パス電圧）をかける。' },
+      { title: '電源なしで 10 年、そして SSD', text: 'トンネルは高電圧のときだけ起きるので、通電しなくても電子は壁の中に留まる（規格上 10 年）。1 セルに 2 ビット（MLC）、3 ビット（TLC）を入れるには `V_th` を 4 段階・8 段階に分ける。SSD はこの NAND チップを並べ、コントローラがブロックの寿命をならし（ウェアレベリング）、誤り訂正をかけて使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = st.g = S.g({}, svg);
+      // 断面
+      S.rect(80, 330, 460, 150, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      S.text(310, 466, 'p 型シリコン（基板）', { cls: 't-c t-sm t-dim' }, g);
+      S.rect(100, 330, 90, 42, { cls: 'f-e-soft s-e w15' }, g); S.text(145, 356, 'ソース n+', { cls: 't-c t-xs t-e t-b' }, g);
+      S.rect(430, 330, 90, 42, { cls: 'f-e-soft s-e w15' }, g); S.text(475, 356, 'ドレイン n+', { cls: 't-c t-xs t-e t-b' }, g);
+      st.channel = S.rect(190, 330, 240, 14, { cls: 'f-e-soft', style: { opacity: 0 } }, g);
+      S.rect(190, 318, 240, 12, { cls: 'f-soft s-rule w1' }, g);
+      st.fg = S.rect(200, 268, 220, 50, { rx: 3, cls: 'f-sf s-fg w2' }, g);
+      S.rect(190, 256, 240, 12, { cls: 'f-soft s-rule w1' }, g);
+      S.rect(190, 196, 240, 60, { rx: 3, cls: 'f-sf s-fg w2' }, g);
+      S.text(310, 231, '制御ゲート', { cls: 't-c t-b t-sm' }, g);
+      S.text(310, 297, '浮遊ゲート', { cls: 't-c t-b t-sm' }, g);
+      S.text(445, 329, '← トンネル酸化膜 7〜10 nm', { cls: 't-xs t-dim' }, g);
+      S.text(445, 266, '← 酸化膜（絶縁体）', { cls: 't-xs t-dim' }, g);
+      st.vcgWire = wire(g, 'M310,196 V150', 0, 'w2');
+      st.vcg = S.text(310, 140, 'V_CG = 0 V', { cls: 't-c t-mono t-b' }, g);
+      st.vsub = S.text(540, 500, '', { cls: 't-mono t-sm t-h t-b', 'text-anchor': 'end' }, g);
+      S.text(80, 120, 'セルの断面（縦に拡大）', { cls: 't-b t-lg' }, g);
+      // 電子
+      st.eDots = [];
+      for (let k = 0; k < 18; k++) {
+        const x = 214 + (k % 9) * 24, yFG = 282 + Math.floor(k / 9) * 18;
+        st.eDots.push({ el: S.circle(x, yFG, 4, { cls: 'f-e', style: { opacity: 0 } }, g), x, yFG, yCh: 340 + (k % 3) * 2, off: (k * 0.37) % 1 });
+      }
+      st.curPath = S.path('M120,352 H500', { cls: 'f-none s-none' }, g);
+      st.cur = A.flow(st.curPath, { count: 9, speed: 90, r: 3.5, cls: 'f-e', parent: g, jitter: 2 });
+      st.cur.show(false);
+      st.readOut = S.text(310, 520, '', { cls: 't-c t-mono t-b t-lg' }, g);
+      st.phase = S.text(310, 545, '', { cls: 't-c t-sm t-x t-b' }, g);
+      // 右: I-V 曲線
+      const gv = st.gv = S.g({ transform: 'translate(600,110)' }, svg);
+      S.rect(0, 0, 330, 290, { rx: 8, cls: 'f-sf s-rule w1' }, gv);
+      S.text(165, 24, 'ゲート電圧と電流', { cls: 't-c t-b' }, gv);
+      S.line(40, 240, 300, 240, { cls: 's-rule w1', 'marker-end': mk('dim') }, gv); S.line(40, 240, 40, 50, { cls: 's-rule w1', 'marker-end': mk('dim') }, gv);
+      S.text(300, 258, 'V_CG', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gv); S.text(30, 56, 'I', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gv);
+      const curve = (vth) => { let d = ''; for (let n = 0; n <= 60; n++) { const v = n / 60 * 8; const y = 240 - 170 * (1 / (1 + Math.exp(-(v - vth) * 2.2))); d += (n ? 'L' : 'M') + (40 + v * 32).toFixed(1) + ',' + y.toFixed(1); } return d; };
+      st.cE = S.path(curve(1.5), { cls: 'f-none s-h w2 round' }, gv); st.cP = S.path(curve(5.5), { cls: 'f-none s-dim w2 round dash' }, gv);
+      S.text(40 + 1.5 * 32, 256, 'V_th 消去', { cls: 't-c t-xs t-mono t-h' }, gv); S.text(40 + 5.5 * 32, 256, 'V_th 書込後', { cls: 't-c t-xs t-mono t-dim' }, gv);
+      st.vread = S.line(40 + 3.5 * 32, 50, 40 + 3.5 * 32, 240, { cls: 's-x w1 dash2', style: { opacity: 0 } }, gv);
+      st.vreadTxt = S.text(40 + 3.5 * 32, 44, '読み出し電圧', { cls: 't-c t-xs t-x', style: { opacity: 0 } }, gv);
+      st.op = S.circle(0, 0, 6, { cls: 'f-x', style: { opacity: 0 } }, gv);
+      st.vNote = S.text(165, 280, '', { cls: 't-c t-xs t-dim' }, gv);
+      // 寿命の表示（段階4）
+      const gw = st.gw = S.g({ transform: 'translate(600,420)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 330, 120, { rx: 8, cls: 'f-sf s-rule w1' }, gw);
+      S.text(14, 24, '書き換え（P/E）回数', { cls: 't-b t-sm' }, gw);
+      st.peTxt = S.text(316, 24, '', { cls: 't-mono t-sm', 'text-anchor': 'end' }, gw);
+      S.rect(14, 40, 300, 12, { rx: 3, cls: 'f-in s-rule w1' }, gw);
+      st.peBar = S.rect(14, 40, 0, 12, { rx: 3, cls: 'f-x' }, gw);
+      S.text(14, 76, '酸化膜の欠陥：', { cls: 't-xs t-dim' }, gw);
+      st.defects = []; for (let k = 0; k < 10; k++) st.defects.push(S.text(100 + k * 20, 77, '×', { cls: 't-x t-b', style: { opacity: 0 } }, gw));
+      S.text(14, 104, 'SLC 約 10 万回 ／ MLC 約 1 万回 ／ TLC 約 3,000 回 ／ QLC 約 1,000 回', { cls: 't-xs t-dim' }, gw);
+      st.oxide = []; for (let k = 0; k < 10; k++) st.oxide.push(S.text(206 + k * 22, 328, '×', { cls: 't-x t-xs t-b', style: { opacity: 0 } }, g));
+      /* --- NAND 列 --- */
+      const gn = st.gn = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 44, 'NAND 列（4 本 × 8 セルを表示。実際は 32〜128 セル）', { cls: 't-c t-b t-lg' }, gn);
+      st.strMat = []; st.strCells = []; st.wlLines = []; st.wlLbl = [];
+      for (let w = 0; w < 8; w++) {
+        const y = 110 + w * 42;
+        st.wlLines.push(wire(gn, `M150,${y} H760`, 0, 'w2'));
+        st.wlLbl.push(S.text(140, y + 4, `WL${w}`, { cls: 't-xs t-mono', 'text-anchor': 'end' }, gn));
+      }
+      S.text(772, 110 + 3 * 42 + 4, 'ページ 3（読む行）', { cls: 't-xs t-x t-b' }, gn);
+      st.strings = [];
+      for (let s = 0; s < 4; s++) {
+        const x = 240 + s * 150;
+        S.path(`M${x},70 V470`, { cls: 'f-none s-dim w3' }, gn);
+        S.text(x, 62, `BL${s}`, { cls: 't-c t-xs t-mono' }, gn);
+        const cells = [], vals = [];
+        for (let w = 0; w < 8; w++) {
+          const y = 110 + w * 42;
+          const v = ((s * 7 + w * 5) % 3) ? 1 : 0;
+          vals.push(v);
+          const rc = S.rect(x - 16, y - 12, 32, 24, { rx: 3, cls: v ? 'f-sf s-fg w15' : 'f-e-soft s-e w15' }, gn);
+          if (!v) S.circle(x, y, 3.5, { cls: 'f-e' }, gn);
+          cells.push(rc);
+        }
+        st.strMat.push(vals); st.strCells.push(cells);
+        const p = S.path(`M${x},470 V70`, { cls: 'f-none s-none' }, gn);
+        st.strings.push({ x, flow: A.flow(p, { count: 10, speed: 110, r: 3.5, cls: 'f-e', parent: gn, fade: true }), out: S.text(x + 22, 70, '', { cls: 't-mono t-b' }, gn) });
+      }
+      S.path('M200,470 H800', { cls: 'f-none s-dim w3' }, gn); S.text(810, 474, '共通ソース', { cls: 't-xs t-dim' }, gn);
+      S.text(480, 500, '白：電子なし（1）　青：電子あり（0）', { cls: 't-c t-xs t-dim' }, gn);
+      st.nPhase = S.text(480, 530, '', { cls: 't-c t-sm t-x t-b' }, gn);
+      /* --- 多値と SSD --- */
+      const gs = st.gs = S.g({ cls: 'fade hide' }, svg);
+      S.text(250, 50, 'V_th の分布：1 セルに何ビット入れるか', { cls: 't-c t-b' }, gs);
+      const dist = (y0, n, lbl, codes) => {
+        S.line(40, y0, 460, y0, { cls: 's-rule w1' }, gs);
+        S.text(40, y0 - 50, lbl, { cls: 't-xs t-b' }, gs);   // 分布の山（高さ 46）の上。左の外へ出さない
+        for (let k = 0; k < n; k++) {
+          const cx = 70 + k * (380 / n) + 190 / n, wdt = 150 / n;
+          let d = '';
+          for (let m = 0; m <= 20; m++) { const x = cx - wdt + m * (2 * wdt / 20); const h = 46 * Math.exp(-Math.pow((x - cx) / (wdt * 0.42), 2)); d += (m ? 'L' : 'M') + x.toFixed(1) + ',' + (y0 - h).toFixed(1); }
+          S.path(d, { cls: 'f-none w2 round ' + (k === 0 ? 's-h' : 's-e') }, gs);
+          S.text(cx, y0 + 14, codes[k], { cls: 't-c t-xs t-mono' }, gs);
+        }
+      };
+      dist(130, 2, 'SLC 1 bit', ['1', '0']);
+      dist(230, 4, 'MLC 2 bit', ['11', '10', '00', '01']);
+      dist(330, 8, 'TLC 3 bit', ['111', '110', '100', '101', '001', '000', '010', '011']);
+      S.text(250, 362, '段階が増えるほど判別の余裕が減り、遅く、寿命が短い', { cls: 't-c t-xs t-dim' }, gs);
+      S.text(250, 380, '左端が消去状態。隣どうしは 1 ビットだけ違う並び（並びは一例）', { cls: 't-c t-xs t-dim' }, gs);
+      // SSD
+      const gsd = S.g({ transform: 'translate(520,80)' }, gs);
+      S.text(210, 0, 'SSD の中', { cls: 't-c t-b' }, gsd);
+      const box = (x, y, w, h, t1, t2, cls) => { S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-rule w15' }, gsd); S.text(x + w / 2, y + h / 2 - (t2 ? 4 : -5), t1, { cls: 't-c t-sm t-b' }, gsd); if (t2) S.text(x + w / 2, y + h / 2 + 14, t2, { cls: 't-c t-xs t-dim' }, gsd); };
+      box(0, 30, 110, 60, 'ホスト', 'PCIe / NVMe');
+      box(150, 20, 150, 80, 'コントローラ', 'FTL・ウェアレベリング・ECC', 'f-x-soft s-x w15');   // 本文で説明する役割に注目
+      box(150, 120, 150, 50, 'DRAM キャッシュ', '対応表・バッファ');
+      for (let k = 0; k < 8; k++) box(340 + (k % 2) * 46, 20 + Math.floor(k / 2) * 50, 40, 40, 'NAND', null, 'f-in s-mid w1');   // p は光だけに使う
+      S.path('M110,60 H150', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gsd);
+      S.path('M300,60 H340', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gsd);
+      S.path('M225,100 V120', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gsd);
+      S.text(210, 250, '論理アドレス → 物理ブロックの対応を付け替え、', { cls: 't-c t-xs t-dim' }, gsd);
+      S.text(210, 266, '傷んだブロックを避けて書く', { cls: 't-c t-xs t-dim' }, gsd);
+      S.text(210, 300, '通電なしの保持：規格上 10 年（新品時）', { cls: 't-c t-sm t-b' }, gsd);
+      st.pe = 0; st.peCycle = -1;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g, i <= 3); S.fade(st.gv, i <= 3); S.fade(st.gw, i === 3);
+      S.fade(st.gn, i === 4); S.fade(st.gs, i === 5);
+      st.vread.style.opacity = i >= 2 && i <= 3 ? 1 : 0; st.vreadTxt.style.opacity = st.vread.style.opacity;
+      st.pe = 0; st.peCycle = -1;
+      st.readOut.textContent = ''; st.phase.textContent = '';
+      st.vNote.textContent = i === 0 ? '電子なし：低い電圧で電流が流れ始める' : i === 1 ? '電子が入ると曲線が右へ（V_th が上がる）' : i === 2 ? '読み出し電圧で流れるか流れないか' : '消去で曲線が左へ戻る';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 4) {
+        const s = U.seq(t, [1.2, 2.2, 0.8], true);
+        st.wlLines.forEach((w, n) => { w.setAttribute('class', 'f-none round ' + (s.i >= 1 ? (n === 3 ? 's-x w3' : 's-h w2') : 's-dim w2')); });
+        st.wlLbl.forEach((l, n) => { l.textContent = s.i >= 1 ? (n === 3 ? 'WL3 読出V' : `WL${n} パスV`) : `WL${n}`; });
+        st.strings.forEach((sg, k) => {
+          const on = s.i === 1 && st.strMat[k][3] === 1;
+          sg.flow.set('speed', on ? 110 : 0); sg.flow.g.style.opacity = on ? 1 : 0; sg.flow.update(dt);
+          sg.out.textContent = s.i === 1 ? String(st.strMat[k][3]) : '';
+          sg.out.setAttribute('class', 't-mono t-b ' + (st.strMat[k][3] ? 't-h' : 't-dim'));
+          st.strCells[k].forEach((c, w) => c.setAttribute('class', (w === 3 && s.i >= 1 ? 's-x w2 ' : (st.strMat[k][w] ? 's-fg w15 ' : 's-e w15 ')) + (st.strMat[k][w] ? 'f-sf' : 'f-e-soft')));
+        });
+        st.nPhase.textContent = s.i === 0 ? 'ページ 3 を読む準備' : s.i === 1 ? '他の行はパス電圧で必ず導通。電流が流れた列が 1' : 'ページ 3 の 4 ビットが読めた';
+        return;
+      }
+      if (i === 5) return;
+      let vcg = 0, nE = 0, chan = false, cur = 0, out = '', ph = '', tunnel = null, vsub = '';
+      if (i === 0) { nE = 0; }
+      else if (i === 1) {
+        const s = U.seq(ctx.ts, [1.0, 2.0, 1.0, 1.5], true);
+        if (s.i === 0) { vcg = 20 * s.f; ph = '制御ゲートに約 20 V'; }
+        else if (s.i === 1) { vcg = 20; tunnel = { f: s.f, up: true }; nE = Math.round(18 * s.f); ph = 'トンネル効果で電子が酸化膜をすり抜ける'; }
+        else if (s.i === 2) { vcg = 20 * (1 - s.f); nE = 18; ph = '電圧を戻す'; }
+        else { nE = 18; ph = '電子は閉じ込められたまま（0 を書いた）'; }
+      } else if (i === 2) {
+        const s = U.seq(ctx.ts, [2.6, 2.6], true);
+        vcg = 3.5; nE = s.i === 0 ? 0 : 18; chan = s.i === 0; cur = chan ? 90 : 0;
+        out = chan ? '電流あり → 1' : '電流なし → 0';
+        ph = s.i === 0 ? '電子なし：V_th 1.5 V < 3.5 V なのでチャネルが開く' : '電子あり：V_th 5.5 V > 3.5 V なので開かない';
+      } else if (i === 3) {
+        const s = U.seq(ctx.ts, [1.0, 2.0, 1.0, 1.0], true);
+        const cyc = Math.floor(ctx.ts / 5);
+        if (cyc !== st.peCycle) { st.peCycle = cyc; st.pe = Math.min(10, cyc + 1); }
+        if (s.i === 0) { vsub = `基板 +${Math.round(20 * s.f)} V`; nE = 18; ph = '基板側に約 20 V（ゲートは 0 V）'; }
+        else if (s.i === 1) { vsub = '基板 +20 V'; tunnel = { f: s.f, up: false }; nE = Math.round(18 * (1 - s.f)); ph = '電子が逆向きに抜ける（ブロックごと）'; }
+        else if (s.i === 2) { vsub = `基板 +${Math.round(20 * (1 - s.f))} V`; nE = 0; ph = '消去完了（全セルが 1）'; }
+        else { nE = 0; ph = `${st.pe} 回目の書き換えで酸化膜に欠陥が増えた`; }
+        st.peTxt.textContent = `${st.pe} 回（模式）`;
+        st.peBar.setAttribute('width', (st.pe * 30).toFixed(0));
+        st.defects.forEach((d, k) => { d.style.opacity = k < st.pe ? 1 : 0; });
+        st.oxide.forEach((d, k) => { d.style.opacity = k < st.pe ? 0.9 : 0; });
+      }
+      if (i !== 3) { st.oxide.forEach((d) => { d.style.opacity = 0; }); }
+      // 描画
+      st.vcg.textContent = `V_CG = ${vcg.toFixed(0)} V`;
+      st.vcg.setAttribute('class', 't-c t-mono t-b ' + (vcg > 10 ? 't-x' : vcg > 0 ? 't-h' : ''));
+      lv(st.vcgWire, vcg > 0, 'w2');
+      st.vsub.textContent = vsub;
+      st.eDots.forEach((d, k) => {
+        if (tunnel) {
+          const local = U.clamp((tunnel.f - d.off * 0.5) / 0.5, 0, 1);
+          const y = tunnel.up ? U.lerp(d.yCh, d.yFG, local) : U.lerp(d.yFG, d.yCh, local);
+          d.el.setAttribute('cy', y.toFixed(1)); d.el.style.opacity = tunnel.up ? 1 : (local >= 1 ? 0 : 1);
+          d.el.setAttribute('class', local > 0 && local < 1 ? 'f-x' : 'f-e');
+        } else {
+          d.el.setAttribute('cy', d.yFG); d.el.style.opacity = k < nE ? 1 : 0; d.el.setAttribute('class', 'f-e');
+        }
+      });
+      st.fg.setAttribute('class', nE > 9 ? 'f-e-soft s-fg w2' : 'f-sf s-fg w2');
+      st.channel.style.opacity = chan ? 1 : 0;
+      st.cur.show(cur > 0); st.cur.update(dt);
+      st.readOut.textContent = out; st.phase.textContent = ph;
+      // 右の曲線の動作点
+      const progd = nE > 9;
+      st.cE.setAttribute('class', 'f-none w2 round ' + (progd ? 's-dim dash' : 's-h'));
+      st.cP.setAttribute('class', 'f-none w2 round ' + (progd ? 's-h' : 's-dim dash'));
+      if (i === 2) {
+        const vth = progd ? 5.5 : 1.5, v = 3.5;
+        st.op.setAttribute('cx', (40 + v * 32).toFixed(1)); st.op.setAttribute('cy', (240 - 170 * (1 / (1 + Math.exp(-(v - vth) * 2.2)))).toFixed(1)); st.op.style.opacity = 1;
+      } else st.op.style.opacity = 0;
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第II部 計算機 ／ 第5章',
+      title: '記憶',
+      home: '../index.html',
+      prev: { href: '04-ronri.html', title: '論理ゲートと2進数' },
+      next: { href: '06-cpu.html', title: 'CPU' },
+      legend: [{ c: 'h', label: '1（高い電圧）・電荷' }, { c: 'dim', label: '0（低い電圧）' }, { c: 'e', label: '電子・電流' }, { c: 'x', label: '変化・注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

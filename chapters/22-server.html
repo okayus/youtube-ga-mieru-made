@@ -1,0 +1,1285 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>YouTube のサーバー側 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VI部 YouTube ／ 第22章 ／ 全25章</p>
+    <h1 id="h-s0">YouTube のサーバー側</h1>
+    <p class="standfirst">ここから第VI部「YouTube」に入り、要求の行き着く先から映像が画面に映るまでを、サーバー側 → 動画の圧縮 → ストリーミングと再生 → 通しで見る、の順に追う。この章はその最初で、アップロードされた動画が何通りもの形式に作り直され、分散ストレージに冗長に置かれ、世界の拠点と ISP の中のキャッシュから配られるまでと、再生の要求を受けたサーバーの中で起きることを見る。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の台数・距離・速さは見やすいように省略・誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>アップロードとトランスコード</a><p>元のファイルを塊に分け、解像度とコーデックの違う何通りもの形式に作り直す。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>分散ストレージ</a><p>Colossus に、メタデータと中身を分けて置く。中身は冗長にしてラックをまたいで散らす。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>負荷分散</a><p>同じ番号を多くの拠点が広告し、Maglev が接続を GFE に配り、GFE が暗号をほどく。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>エッジと GGC</a><p>断片は ISP の中の GGC と Google のエッジから。再生の偏りがキャッシュを効かせる。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>再生要求のサーバー側の流れ</a><p>視聴ページが配信元の URL を渡し、断片は再生の状態を送る POST で取る。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>データセンターの中</a><p>ラック、Jupiter の網、電力と冷却、PUE。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（動画の圧縮）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。203.0.113.5・198.51.100.80 は説明用に予約された範囲（RFC 5737）の値、AS64500 は説明用の AS 番号。142.250.196.110 は Google の 142.250.0.0/15 から選んだ全章共通の例。例の動画の形式・配信元の名前・往復時間は 2026 年 10 月 12 日に日本の固定回線から確かめた値。Google の内部の仕組みは、Google が公開した論文・ブログ・資料の範囲で出典の年を添えて書き、第三者の計測・解析と観察からの推定はその旨を書いた。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 アップロードとトランスコード ================= -->
+<section class="scene sc-anim" id="s1" data-tab="変換" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>アップロードとトランスコード — 1 本の動画を何通りにも作り直す</h2>
+    <p class="sh-meta"><span class="chip">H.264・VP9・AV1</span><span class="chip">Argos（VCU）</span><span class="chip">例の動画 2026-10</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">YouTube に上げた動画は、元のファイルのままでは配らない。データセンターで、解像度・コーデック・ビットレートの違う何通りもの形式に作り直してから保存する。この作り直しを<b>トランスコード</b>（変換）と呼ぶ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">変換の中身（復号・縮小・符号化）は<a class="xref" href="23-codec.html">第23章</a>。例の動画の形式と平均ビットレートは、2026 年 10 月 12 日に視聴ページの再生の情報から読んだ値で、ほかに音声付きの 360p が 1 通りあった。形式の数は元の画質や時期で変わる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="作り手の元のファイルがデータセンターに入り、数秒ずつの塊に分けて多くの機械で変換され、解像度とコーデックの組の形式ができる図と、例の動画の形式の表"></svg></div>
+    <figcaption>図1　作り手の元のファイルがデータセンターに入り、塊に分けて変換される。表は例の動画の実際の形式で、数字は平均ビットレート（Mbps）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 分散ストレージ ================= -->
+<section class="scene sc-anim" id="s2" data-tab="保存" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>分散ストレージ — 断片に分けて散らして持つ</h2>
+    <p class="sh-meta"><span class="chip">Colossus</span><span class="chip">Reed–Solomon 符号</span><span class="chip">ラックをまたぐ配置</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">できた形式のファイルは、Google の分散ファイルシステム Colossus に置く。場所の記録と中身は別の機械が持ち、中身は断片に分けて冗長にし、ラックをまたいで散らす。どこかの機械が常に壊れている前提の作り。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Colossus はフラッシュとハードディスクを混ぜて使い、よく読まれるデータをフラッシュに、古くなって読まれなくなったデータを大容量のディスクに置く（2021 年のブログ）。人気の動画は、さらに利用者の近くのキャッシュにも置く（<a class="xref" href="#s4" data-go="4">4「エッジと GGC」</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="Colossus の構成（読み書きする機械、Curator、Bigtable、Custodian）と、中身を持つ 10 台のラック、1 つのファイルの断片の組がラックをまたいで置かれる様子"></svg></div>
+    <figcaption>図2　上の段が読み書きする機械と Colossus の制御、中の段が中身を持つ D ファイルサーバーのラック 10 台（台数は省略）。下の段は断片の組と、ほかの置き場。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 負荷分散 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="負荷分散" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>負荷分散 — 拠点・Maglev・GFE の 3 段</h2>
+    <p class="sh-meta"><span class="chip">Anycast</span><span class="chip">Maglev（2008 年〜）</span><span class="chip">GFE</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">www.youtube.com への要求を受けるサーバーは 3 段で決まる。経路（Anycast と推定）で拠点が決まり、拠点の中で Maglev が GFE を選び、GFE が暗号をほどいて奥のサービスへ渡す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">2016 年の Maglev の論文は、Google の権威 DNS が利用者の位置と各拠点の負荷を見て、拠点ごとに違う番号を返す方法も説明している。<a class="xref" href="17-dns.html#s5">第17章</a>の確かめでは、m.youtube.com は地域ごとに違う番号を、www.youtube.com は同じ番号を返した。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="同じ範囲を広告する 3 つの拠点と、選ばれた拠点 A の中のルーター、Maglev 4 台、GFE 6 台、奥の YouTube のサーバー"></svg></div>
+    <figcaption>図3　拠点 A〜C は同じ範囲を広告し、家の ISP は経路の上で近い拠点 A を選ぶ。枠の中は拠点 A の中（点線の右は奥のデータセンター）で、台数は省略してある。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 エッジと GGC ================= -->
+<section class="scene sc-anim" id="s4" data-tab="エッジ・GGC" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>エッジと GGC — 近い所に人気の断片を置く</h2>
+    <p class="sh-meta"><span class="chip">GGC 198.51.100.80（例）</span><span class="chip">エッジ</span><span class="chip">上位 10% で再生の約 8 割</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">動画の断片は、利用者の近くのキャッシュから返す。ISP の建物の中の GGC と、IX や直結の先の Google のエッジの 2 段で、どちらにも無ければデータセンターから取り寄せる。よく見られる動画ほど近くに残る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">GGC の機械は 19 インチのラックに収まり、ISP は電源を 2 系統用意する。GGC は TCP と UDP（QUIC）の 443 番で利用者から受け、上流の Google のサーバーとは直接やり取りする（Google の ISP 向けの説明）。道の全体は<a class="xref" href="16-internet.html#s6">第16章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家の ISP の中の GGC、IX か直結の先の Google のエッジ、データセンターの 3 段の置き場と、断片の取り寄せ、動画の再生回数の偏り"></svg></div>
+    <figcaption>図4　上は断片の置き場と道（ルーターの数は省略）。小さな四角は手元にある断片。下の段は段階ごとの補足で、棒グラフは模式図。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 再生要求のサーバー側の流れ ================= -->
+<section class="scene sc-anim" id="s5" data-tab="再生の要求" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>再生要求のサーバー側 — ページと断片は別の所から</h2>
+    <p class="sh-meta"><span class="chip">www.youtube.com</span><span class="chip">googlevideo.com</span><span class="chip">POST /videoplayback</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">再生の要求は 2 か所へ行く。視聴ページは www.youtube.com の GFE の奥から、動画の断片は googlevideo.com の配信元（GGC かエッジ）から届く。断片の URL はページが渡す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note"><a class="xref" href="21-http.html#s5">第21章</a>の計測では、base.js の応答に <code>Age: 448953</code>（約 5.2 日）が付いていた。Google の側の共有キャッシュに 5 日ほど置かれていたと読めるが、どの段かは公開されていない。URL の項目と DNS の答えは 2026 年 10 月に確かめた。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="視聴ページの要求が GFE から YouTube のサーバーへ渡る流れ、再生の情報に書かれた配信元の URL、断片の要求が配信元で処理される段取り"></svg></div>
+    <figcaption>図5　上の段は視聴ページの要求、中央は再生の情報に書かれていた配信元の URL（値は伏せた）、下の段は断片の要求と配信元の中の段取り。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 データセンターの中 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="データセンター" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>データセンターの中 — 機械・網・電力・冷却</h2>
+    <p class="sh-meta"><span class="chip">Jupiter 13 Pb/s（2023 年）</span><span class="chip">PUE 1.09（2025 年）</span><span class="chip">印西 1.10</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">YouTube の変換・保存・配信の機械は、検索や Gmail と同じデータセンターの同じ仕組みの上で動く。建物には数万台の機械が並び、Jupiter と呼ぶ網がつなぐ。電力の大半は計算に、残りは冷却と配電に使う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Google は 2008 年から PUE を四半期ごとに公表し、変電所・水処理・事務所の分も含めて数えていると説明している。2016 年には機械学習で冷却の制御を変え、冷却に使う電力を約 4 割減らした（Google と DeepMind の発表）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="機械の部屋の断面と空気の流れ、建物の中の網 Jupiter、電力の流れと PUE の比べ"></svg></div>
+    <figcaption>図6　左上は機械の部屋の断面、右上は建物の中の網、下は電力の流れと PUE。台数と大きさは省略・誇張してある。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 作り直し、散らして置き、近くから配る</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>元のファイルは塊に分けて多くの機械で並行に変換し、解像度とコーデック（H.264・VP9・AV1）の組の形式に作り直す。重い符号化には専用チップ Argos を使う（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>ファイルは Colossus に置く。場所の記録と中身は別の機械が持ち、中身は Reed–Solomon 符号などで冗長にして、ラックをまたいで散らす（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>同じ番号を多くの拠点が広告し（Anycast）、拠点の中では Maglev が接続ごとに GFE を選び、GFE が暗号をほどいて奥のサービスへ渡す（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>断片は ISP の中の GGC、IX か直結の先のエッジ、データセンターの順に近い。無ければ上流から取り寄せて残し、再生の偏りでキャッシュが効く（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>視聴ページが配信元の URL（期限と署名付き）を渡し、断片は再生の状態を送る POST で取る。何を返すかは配信元の側でも決める（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>機械はラックに積まれ、Jupiter の網でつながる。電力の大半は計算に使われ、Google の PUE は 1.09（2025 年）（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>トランスコード</th><td>符号化された映像を復号し、解像度・コーデック・ビットレートを変えて符号化し直すこと。1 回の復号から全部の出力を作る方式を MOT と呼ぶ。</td></tr>
+        <tr><th>Argos（VCU）</th><td>Google が YouTube の変換のために作った専用チップ（2021 年に公表）。1 個に符号化の回路 10 個、1 台に 20 個。</td></tr>
+        <tr><th>Colossus</th><td>Google のクラスタ単位の分散ファイルシステム。GFS の後継。メタデータは Curator が Bigtable に記録し、中身は D ファイルサーバーが持つ。</td></tr>
+        <tr><th>Reed–Solomon 符号</th><td>データ n 個に訂正用 m 個を足し、どの n 個からでも元に戻せる符号。RS(6,3) の容量は 1.5 倍（3 個置く複製は 3 倍）。</td></tr>
+        <tr><th>Maglev</th><td>Google のソフトウェアの負荷分散装置（2008 年〜）。5 つ組のハッシュで GFE を選び、GRE で包んで送る。応答は通さない（DSR）。</td></tr>
+        <tr><th>GFE</th><td>Google Front End。外からの接続の TLS・QUIC を終端する逆プロキシで、HTTP のヘッダと URL のパスで行き先のサービスを決める。</td></tr>
+        <tr><th>GGC</th><td>Google Global Cache。ISP の中に置く Google のキャッシュ。受け持つ利用者の範囲は ISP が BGP で知らせる。</td></tr>
+        <tr><th><i class="sw d"></i>SABR</th><td>YouTube のウェブ版の断片の取り方。プレーヤーが状態を POST し、配信元が返す断片を選ぶ。名前は再生の情報の serverAbrStreamingUrl から。細部は非公開。</td></tr>
+        <tr><th><i class="sw p"></i>Jupiter</th><td>Google のデータセンターの中の網。ToR と集約のブロックからなり、集約どうしは光のスイッチ（OCS）で直結する。2023 年に最大 13 Pb/s。</td></tr>
+        <tr><th><i class="sw x"></i>PUE</th><td>建物全体の電力 ÷ 計算機の電力。Google の全データセンターは 1.09、業界の平均は 1.54（どちらも 2025 年）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱。g.rect が枠、g.t1 / g.t2 が文字 */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({}, p);
+    g.rect = S.rect(x, y, w, h, { rx: o.rx == null ? 6 : o.rx, cls: o.cls || 'f-sf s-fg w15' }, g);
+    if (title) g.t1 = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.t2 = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-sm t-dim ' + (o.scls || '') }, g);
+    return g;
+  }
+  /* 荷札（要求・応答・断片）。中央が原点で、S.place で道の上に置く。最初は隠しておく */
+  function pkt(p, text, o) {
+    o = o || {};
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = o.w || tw(text, 11) + 14, h = o.h || 20;
+    const r = S.rect(-w / 2, -h / 2, w, h, { rx: Math.min(4, h / 3), cls: o.cls || 'f-d' }, g);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (o.tcls || 't-sf') }, g);
+    g.style.opacity = 0;
+    return { g, r, t };
+  }
+  /* 見えない道 */
+  function road(p, d) { return S.path(d, { cls: 'f-none s-none' }, p); }
+  /* 部品を薄くする（段階で話していない所） */
+  const dim = (g, on) => { g.style.opacity = on ? 0.28 : ''; };
+  /* 道を dur 秒で進み、rest 秒消えてから繰り返す。at0 は時刻 0（動きを止めているときに見える位置）の進み具合 0..1 */
+  const easeInv = (a) => (a < 0.5 ? Math.sqrt(a / 2) : 1 - Math.sqrt((1 - a) / 2));
+  function run(node, path, ts, dur, rest, at0) {
+    const q = U.seq(ts + easeInv(at0 == null ? 0.5 : at0) * dur, [dur, rest || 0.6], true);
+    S.place(node, path, q.i === 0 ? U.ease.inOut(q.f) : 1);
+    node.style.opacity = q.i === 0 ? 1 : 0;
+  }
+  /* 文字のクラスを付け替える */
+  const setCls = (el, cls) => el.setAttribute('class', cls);
+
+  /* ================================================================
+     場面1 アップロードとトランスコード
+     ================================================================ */
+  const ROWS = ['2160p', '1440p', '1080p', '720p', '480p', '360p', '240p', '144p'];
+  const CODECS = ['H.264', 'VP9', 'AV1'];
+  // 例の動画（dQw4w9WgXcQ）の形式ごとの平均ビットレート（Mbps）。2026-10-12 に視聴ページの再生の情報から読んだ値。null は作られていない形式
+  const MBPS = {
+    'H.264': [null, null, '3.0', '0.99', '0.53', '0.32', '0.16', '0.08'],
+    VP9: ['13.5', '5.7', '1.2', '0.66', '0.35', '0.23', '0.10', '0.06'],
+    AV1: ['9.0', '4.6', '1.1', '0.66', '0.37', '0.21', '0.12', '0.06']
+  };
+  const s1 = {
+    steps: [
+      { title: '元のファイルを受け取る', text: '元のファイルは、作り手の機器が書き出したまま HTTPS で届く。形式もビットレートも作り手しだいで、Google の 2021 年の発表の例では、20 Mbps で上げた 1080p を視聴者は 4 Mbps で見る。YouTube の説明では、アップロードは 1 日平均 2,000 万本を超える（2025 年）。' },
+      { title: '塊に分けて、並べて変換する', text: '受け取った映像を、ほかの塊を参照せずに復号できるいくつもの{d|塊}（キーフレームで始まる GOP、第23章）に分け、多くの機械で同時に変換する（2021 年の論文）。YouTube のヘルプによれば低い画質が先にでき、1080p や 4K は後から加わる。4K・30 fps・60 分の動画なら最大 4 時間かかる。' },
+      { title: '1 回の復号から全部の解像度を作る', text: '塊はいったん復号して画素に戻し（第23章）、縮小して、解像度ごとに符号化し直す。1 つの仕事で全部の出力を作る方式（MOT）なら、復号は 1 回で済む。例の動画のように元が 4K なら、2160p から 144p までの 8 段を作る。表に入ったのは VP9 の 8 段。' },
+      { title: '3 つのコーデックで作る', text: '同じ段を H.264・VP9・AV1 で作る。新しいコーデックほど少ないビットで済むが、符号化は重い。テレビやスマホの多くは決まったコーデックだけを解く専用回路で復号するので、H.264 も残す（2021 年の論文）。例の動画の 1080p では、VP9 と AV1 は H.264 の約 4 割のビットレート。' },
+      { title: '専用のチップで符号化する', text: '符号化は計算が重いので、Google は専用のチップ Argos（VCU）を作った。1 個に符号化の回路が 10 個あり、回路 1 個で H.264 か VP9 を 4K・60 fps で符号化できる。1 台に 20 個積み、VP9 では費用あたりの性能が CPU の機械の 20〜33 倍（2021 年の論文）。' },
+      { title: '人気で手間を変える', text: '再生は一部の動画に偏る。2021 年の論文によれば、視聴時間の大半を占めるごく一部の人気動画には計算を多くかけて配る量を減らし、めったに見られない大多数は変換と保存の費用を抑える。人気が出た古い動画は作り直すことがある。2009 年公開の例の動画にも、2018 年の規格の {x|AV1} がある。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ---- データセンターの枠
+      S.rect(222, 16, 726, 528, { rx: 14, cls: 'f-in s-rule w15' }, svg);
+      S.text(238, 40, 'Google のデータセンター', { cls: 't-md t-b' }, svg);
+      // ---- 作り手と元のファイル
+      st.creator = box(svg, 20, 170, 170, 56, '作り手の機器', 'PC・スマホ・アプリ');
+      st.orig = S.g({}, svg);
+      S.rect(20, 250, 170, 116, { rx: 6, cls: 'f-sf s-fg w15' }, st.orig);
+      S.text(105, 274, '元のファイル', { cls: 't-c t-b' }, st.orig);
+      for (let k = 0; k < 6; k++) S.rect(36 + k * 23, 288, 19, 26, { rx: 2, cls: 'f-d-soft s-d w1' }, st.orig);
+      S.text(105, 336, '例の動画 3 分 33 秒', { cls: 't-c t-sm' }, st.orig);
+      S.text(105, 354, '形式・画質は作り手しだい', { cls: 't-c t-xs t-dim' }, st.orig);
+      S.line(105, 226, 105, 250, { cls: 's-rule w15' }, svg);
+      S.text(105, 388, 'HTTPS で Google へ', { cls: 't-c t-xs t-dim' }, svg);
+      // 上りの道（元のファイル → 受け取った映像）
+      S.path('M190,308 H236 V104 H244', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, svg);
+      st.rUp = road(svg, 'M190,308 H236 V104 H250');
+      // ---- 受け取った映像（帯）と、塊への分割
+      const FX = 250, FW = 340, FY = 86, FH = 36, CW = FW / 8;
+      st.filmLbl = S.text(FX, 76, '', { cls: 't-sm t-b' }, svg);
+      st.filmWhole = S.rect(FX, FY, FW, FH, { rx: 4, cls: 'f-d-soft s-d w15' }, svg);
+      st.filmChunks = S.g({}, svg);
+      for (let k = 0; k < 8; k++) {
+        S.rect(FX + k * CW + 1.5, FY, CW - 3, FH, { rx: 3, cls: 'f-d-soft s-d w15' }, st.filmChunks);
+        S.text(FX + (k + 0.5) * CW, FY + 23, String(k + 1), { cls: 't-c t-sm t-b t-mono' }, st.filmChunks);
+      }
+      // ---- 変換する機械
+      const MX = [250, 338, 426, 514], MY = 176, MW = 76, MH = 50;
+      st.machines = MX.map((x, k) => box(svg, x, MY, MW, MH, '機械 ' + (k + 1), '変換', { tcls: 't-sm' }));
+      S.text(420, 246, '変換する機械（実際は多数）', { cls: 't-c t-xs t-dim' }, svg);
+      // 塊 → 機械 の線と道
+      st.chunkLines = S.g({ cls: 'fade hide' }, svg);
+      st.rChunk = [];
+      for (let k = 0; k < 8; k++) {
+        const x1 = FX + (k + 0.5) * CW, x2 = MX[k % 4] + MW / 2;
+        S.line(x1, FY + FH, x2, MY, { cls: 's-rule w1' }, st.chunkLines);
+        st.rChunk.push(road(svg, `M${x1},${FY + FH + 10} L${x2},${MY - 10}`));
+      }
+      // 機械 → 表（保存）
+      st.toGrid = S.g({ cls: 'fade hide' }, svg);
+      S.path('M594,201 H628', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, st.toGrid);
+      S.text(611, 192, '保存', { cls: 't-c t-xs t-d t-b' }, st.toGrid);
+      // ---- 下の欄（段階3〜6で中身が替わる）
+      const P = { x: 250, y: 262, w: 350, h: 268 };
+      st.panel = S.rect(P.x, P.y, P.w, P.h, { rx: 8, cls: 'f-sf s-rule w1 fade hide' }, svg);
+      st.zoom = S.line(288, 226, 288, 262, { cls: 's-x w2 dash fade hide' }, svg);
+      // 段階3: MOT
+      const gm = st.pMOT = S.g({ cls: 'fade hide' }, svg);
+      S.text(264, 286, '1 つの仕事で全部の解像度（MOT）', { cls: 't-sm t-b' }, gm);
+      const bIn = box(gm, 262, 384, 58, 40, '塊 1', '', { cls: 'f-d-soft s-d w15', tcls: 't-sm' });
+      S.path('M320,404 H332', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gm);
+      const bDec = box(gm, 336, 380, 70, 48, '復号', '1 回', { tcls: 't-sm' });
+      S.path('M406,404 H418', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, gm);
+      const bSc = box(gm, 422, 380, 64, 48, '縮小', '', { tcls: 't-sm' });
+      st.motBoxes = [[bIn.rect, 'f-d-soft s-d w15'], [bDec.rect, 'f-sf s-fg w15'], [bSc.rect, 'f-sf s-fg w15']];
+      S.text(551, 298, '符号化（VP9）', { cls: 't-c t-xs t-b' }, gm);
+      st.motEnc = [];
+      st.rMot = [];
+      ROWS.forEach((r, j) => {
+        const y = 306 + j * 27;
+        S.line(486, 404, 512, y + 10.5, { cls: 's-rule w1' }, gm);
+        st.motEnc.push(S.rect(512, y, 78, 21, { rx: 3, cls: 'f-d-soft s-d w1' }, gm));
+        S.text(551, y + 15, r, { cls: 't-c t-xs t-mono t-b' }, gm);
+        st.rMot.push(road(gm, `M486,404 L512,${y + 10.5}`));
+      });
+      S.text(264, 456, '復号は 1 回、符号化は 8 回', { cls: 't-xs' }, gm);
+      S.text(264, 472, '（1080p の元なら 6 段）', { cls: 't-xs t-dim' }, gm);
+      st.motDots = ROWS.map(() => S.circle(0, 0, 4, { cls: 'f-d', style: { opacity: 0 } }, gm));
+      // 段階4: コーデックと計算の量
+      const gc = st.pCodec = S.g({ cls: 'fade hide' }, svg);
+      S.text(264, 286, '新しいコーデックほど計算が要る', { cls: 't-sm t-b' }, gc);
+      S.text(264, 306, '最高画質での符号化の時間（ソフトウェア、H.264 を 1）', { cls: 't-xs t-dim' }, gc);
+      [['H.264', '2003 年', 1], ['VP9', '2013 年', 10], ['AV1', '2018 年', 200]].forEach(([name, year, v], k) => {
+        const y = 340 + k * 50;
+        S.text(266, y + 5, name, { cls: 't-sm t-b t-mono' }, gc);
+        S.text(266, y + 21, year, { cls: 't-xs t-dim' }, gc);
+        const w = 30 + 70 * Math.log10(v);
+        S.rect(326, y - 8, w, 18, { rx: 3, cls: k === 2 ? 'f-x' : 'f-mid' }, gc);
+        S.text(332 + w, y + 6, v + ' 倍', { cls: 't-sm t-mono t-b' }, gc);
+      });
+      S.text(264, 500, '目盛りは対数。Google の 2021 年の発表（Hot Chips）より', { cls: 't-xs t-dim' }, gc);
+      // 段階5: 専用チップを積んだ機械
+      const gv = st.pVCU = S.g({ cls: 'fade hide' }, svg);
+      S.text(264, 286, '専用チップ Argos を積んだ機械', { cls: 't-sm t-b' }, gv);
+      S.rect(264, 300, 156, 196, { rx: 6, cls: 'f-sf s-fg w15' }, gv);
+      for (let r = 0; r < 2; r++) {
+        const ty = 310 + r * 92;
+        S.rect(272, ty, 140, 84, { rx: 4, cls: 'f-in s-rule w1' }, gv);
+        for (let c = 0; c < 5; c++) {
+          const cx = 280 + c * 26;
+          S.rect(cx, ty + 8, 20, 68, { rx: 2, cls: 'f-sf s-mid w1' }, gv);
+          S.rect(cx + 3, ty + 16, 14, 14, { rx: 1, cls: r === 0 && c === 4 ? 'f-x' : 'f-fg' }, gv);
+          S.rect(cx + 3, ty + 46, 14, 14, { rx: 1, cls: 'f-fg' }, gv);
+        }
+      }
+      S.text(342, 514, '1 台：カード 10 枚・チップ 20 個', { cls: 't-c t-xs' }, gv);
+      S.line(405, 333, 436, 333, { cls: 's-x w15 dash' }, gv);
+      S.rect(436, 300, 154, 166, { rx: 6, cls: 'f-sf s-x w15' }, gv);
+      S.text(513, 318, 'チップ 1 個', { cls: 't-c t-xs t-b' }, gv);
+      for (let k = 0; k < 10; k++) S.rect(448 + (k % 5) * 27, 328 + Math.floor(k / 5) * 30, 22, 22, { rx: 2, cls: 'f-sf s-fg w15' }, gv);
+      for (let k = 0; k < 3; k++) S.rect(448 + k * 27, 394, 22, 22, { rx: 2, cls: 'f-in s-mid w1' }, gv);
+      S.text(513, 436, '符号化 10・復号 3', { cls: 't-c t-xs' }, gv);
+      S.text(513, 452, '符号化 1 個で 4K・60 fps', { cls: 't-c t-xs t-dim' }, gv);
+      S.text(436, 490, '次の世代で AV1 を加えると発表', { cls: 't-xs' }, gv);
+      S.text(436, 506, '（2021 年）', { cls: 't-xs t-dim' }, gv);
+      // 段階6: 人気の偏り
+      const gp = st.pPop = S.g({ cls: 'fade hide' }, svg);
+      S.text(264, 286, '人気で手間を変える', { cls: 't-sm t-b' }, gp);
+      S.text(272, 312, '再生', { cls: 't-xs t-dim' }, gp);
+      S.line(268, 470, 500, 470, { cls: 's-rule w1' }, gp);
+      for (let k = 0; k < 16; k++) {
+        const h = 150 * Math.pow(k + 1, -0.85);
+        S.rect(272 + k * 14, 470 - h, 11, h, { cls: k < 2 ? 'f-x' : k < 6 ? 'f-mid' : 'f-rule' }, gp);
+      }
+      S.text(272, 488, '動画（再生の多い順）', { cls: 't-xs t-dim' }, gp);
+      [['f-x', '人気（ごく一部）', '計算を多くかける'], ['f-mid', '中くらい', 'ほどほど'], ['f-rule', '大多数', '費用を抑える']].forEach(([c, a, b], k) => {
+        const y = 330 + k * 52;
+        S.rect(502, y - 10, 10, 10, { cls: c }, gp);
+        S.text(516, y, a, { cls: 't-xs t-b' }, gp);
+        S.text(516, y + 15, b, { cls: 't-xs t-dim' }, gp);
+      });
+      S.text(264, 516, '2021 年の論文の 3 つの区分。棒の高さは模式', { cls: 't-xs t-dim' }, gp);
+      // ---- 表：例の動画の形式
+      const GX = 684, GW = 80, GP = 84, GY = 78, GH = 32;
+      S.text(808, 44, 'できた形式（例の動画）', { cls: 't-c t-md t-b' }, svg);
+      CODECS.forEach((c, k) => S.text(GX + k * GP + GW / 2, 68, c, { cls: 't-c t-sm t-b t-mono' }, svg));
+      st.rowLbl = ROWS.map((r, j) => S.text(GX - 8, GY + j * GH + 20, r, { cls: 't-sm t-mono t-end' }, svg));
+      st.cells = [];
+      ROWS.forEach((r, j) => CODECS.forEach((c, k) => {
+        const x = GX + k * GP, y = GY + j * GH;
+        st.cells.push({
+          rect: S.rect(x, y + 2, GW, GH - 4, { rx: 3, cls: 'f-sf s-rule w1' }, svg),
+          t: S.text(x + GW / 2, y + 20, '', { cls: 't-c t-sm t-mono' }, svg),
+          v: MBPS[c][j], c, j
+        });
+      }));
+      st.gLater = S.text(808, 356, '「後で」＝アップロードの直後にはまだ無い', { cls: 't-c t-xs t-x fade hide' }, svg);
+      st.gSum = S.g({ cls: 'fade hide' }, svg);
+      S.text(808, 356, '音声：AAC 0.13、Opus 0.05・0.06・0.13', { cls: 't-c t-xs t-mono' }, st.gSum);
+      S.text(808, 378, '映像 22 通り＋音声 4 通り、合計 約 1.15 GB', { cls: 't-c t-sm t-b' }, st.gSum);
+      S.text(808, 398, '数字は平均ビットレート（Mbps、2026 年 10 月）', { cls: 't-c t-xs t-dim' }, st.gSum);
+      st.gAV1 = S.g({ cls: 'fade hide' }, svg);
+      S.rect(690, 428, 236, 46, { rx: 4, cls: 'f-sf s-x w15' }, st.gAV1);
+      S.lines(808, 446, ['AV1 は 2018 年の規格', '2009 年公開の例の動画にもある'], { cls: 't-c t-xs t-b t-x' }, st.gAV1, 16);
+      // ---- 動く荷札（上りは小さな無地の札を連ねて、送信が続く様子にする）
+      st.upPk = [0, 1, 2, 3].map(() => pkt(svg, '', { w: 14, h: 10 }));
+      st.chunkPk = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => pkt(svg, String(k + 1), { w: 22 }));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      dim(st.creator, i >= 1);
+      dim(st.orig, i >= 1);
+      st.filmLbl.textContent = i === 0 ? '受け取った元の映像' : '塊（GOP）に分ける';
+      S.fade(st.filmWhole, i === 0);
+      S.fade(st.filmChunks, i >= 1);
+      S.fade(st.chunkLines, i === 1);
+      S.fade(st.toGrid, i >= 2);
+      st.machines.forEach((m, k) => {
+        setCls(m.rect, (i === 2 && k === 0) || i === 4 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+        m.t2.textContent = i === 4 ? 'チップ 20 個' : '変換';
+        dim(m, i === 0 || i === 5 || (i === 2 && k > 0));
+      });
+      S.fade(st.panel, i >= 2);
+      S.fade(st.zoom, i === 2);
+      S.fade(st.pMOT, i === 2);
+      S.fade(st.pCodec, i === 3);
+      S.fade(st.pVCU, i === 4);
+      S.fade(st.pPop, i === 5);
+      // 表：段階1 は空、段階2 は高い解像度に「後で」、段階3 は VP9 の列、段階4〜 は全部
+      st.cells.forEach((c) => {
+        if (c.v == null) {
+          setCls(c.rect, 'f-none s-soft w1 dash2');
+          c.t.textContent = '—';
+          setCls(c.t, 't-c t-sm t-dim');
+          return;
+        }
+        const filled = i >= 3 || (i === 2 && c.c === 'VP9');
+        const later = i === 1 && c.j <= 2;
+        const hl = (i === 3 && c.j === 2) || (i === 5 && c.c === 'AV1');
+        setCls(c.rect, (filled ? 'f-d-soft ' : 'f-sf ') + (hl ? 's-x w2' : filled ? 's-d w1' : later ? 's-x w1 dash' : 's-rule w1'));
+        c.t.textContent = i >= 3 ? c.v : later ? '後で' : '';
+        setCls(c.t, later ? 't-c t-xs t-b t-x' : 't-c t-sm t-mono');
+      });
+      st.rowLbl.forEach((t, j) => setCls(t, 't-sm t-mono t-end' + (i === 3 && j === 2 ? ' t-b t-x' : '')));
+      S.fade(st.gLater, i === 1);
+      S.fade(st.gSum, i >= 3);
+      S.fade(st.gAV1, i === 5);
+      st.upPk.concat(st.chunkPk).forEach((p) => { p.g.style.opacity = 0; });
+      st.motDots.forEach((d) => { d.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      st.upPk.concat(st.chunkPk).forEach((p) => { p.g.style.opacity = 0; });
+      st.motDots.forEach((d) => { d.style.opacity = 0; });
+      if (i === 0) {
+        // 1 本のファイルを送り続けている様子（小さな札が間を空けて続く）
+        st.upPk.forEach((p, k) => {
+          const f = U.cycle(ts / 3.2 + k / 4 + 0.1, 1);
+          S.place(p.g, st.rUp, f);
+          p.g.style.opacity = f > 0.03 && f < 0.97 ? 1 : 0;
+        });
+      }
+      if (i === 1) {
+        // 塊 1〜4 が 4 台に同時に配られ、続いて 5〜8 が配られる
+        const ph = U.mod(ts + 0.6, 4.2);
+        st.chunkPk.forEach((p, k) => {
+          const start = (k < 4 ? 0 : 1.9) + (k % 4) * 0.12;
+          const f = U.clamp((ph - start) / 1.3, 0, 1);
+          if (f > 0 && f < 1) { S.place(p.g, st.rChunk[k], U.ease.inOut(f)); p.g.style.opacity = 1; }
+        });
+      }
+      if (i === 2) {
+        // 塊 → 復号（1 回）→ 縮小 の順に光り、8 つの符号化へ分かれて、8 つが同時に光る
+        const q = U.seq(ts + 2.6, [0.7, 0.7, 0.7, 1.0, 1.2], true);
+        st.motBoxes.forEach(([r, c], k) => setCls(r, q.i === k ? 'f-sf s-x w2' : c));
+        st.motEnc.forEach((r) => setCls(r, q.i === 4 ? 'f-d s-d w1' : 'f-d-soft s-d w1'));
+        if (q.i === 3) {
+          st.motDots.forEach((d, k) => {
+            const pt = S.along(st.rMot[k], U.ease.inOut(q.f));
+            d.setAttribute('cx', pt.x.toFixed(1)); d.setAttribute('cy', pt.y.toFixed(1));
+            d.style.opacity = 1;
+          });
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 分散ストレージ（Colossus）
+     ================================================================ */
+  const RX = (k) => 20 + k * 93;                 // ラック k の左端
+  const MYR = (j) => 174 + j * 49;               // ラックの中の j 段目の機械の上端
+  const CHUNK_ROW = [1, 3, 0, 2, 1, 3, 0, 2, 1];  // 断片 k を置く機械の段（ラック k に 1 個ずつ）
+  const chunkAt = (k, j) => ({ x: RX(k) + 59, y: MYR(j) + 21 });
+  const s2 = {
+    steps: [
+      { title: 'Colossus：建物ごとのファイルシステム', text: 'Colossus は Google のクラスタ単位のファイルシステムで、GFS（2003 年の論文）の後継。2021 年の Google のブログによれば、1 つのクラスタをエクサバイト級・数万台の機械まで広げられ、YouTube・Gmail・Drive が同じ仕組みを共有する。YouTube の配信の機械も読む。' },
+      { title: '場所の記録と中身は別の機械', text: 'ファイルの名前と、どの断片がどの機械にあるか（{x|メタデータ}）は、Curator と呼ぶサーバー群が Bigtable（Google の表のデータベース）に記録する。中身は D ファイルサーバーと呼ぶディスクの機械が持つ。読み手は Curator に場所を聞き、中身は D から直接受け取る。' },
+      { title: '断片の組で冗長に持つ', text: '中身は決まった大きさの断片（チャンク）の組で持つ。2010 年の Google の論文によれば、同じ断片を 3 個置く（R=3）か、データ n 個に訂正用の m 個を足し、どの n 個からでも戻せる Reed–Solomon 符号を使う。RS(6,3) なら容量は 1.5 倍で、3 個置くより安い。' },
+      { title: '同じ組を同じラックに置かない', text: 'ラックの電源やスイッチが止まると、数十台が同時に消える。そこで同じ組の断片は別々のラックに置く（2010 年の論文）。図でラック 4 が止まっても、残る 8 個のうち 6 個から元に戻せる。消えた断片は Custodian と呼ぶ裏方が別のラックに作り直す（2021 年のブログ）。' },
+      { title: '別のデータセンターにも置く', text: '2010 年の論文は、組をまるごと別のセル（ファイルシステムのまとまり）にも置く方式を扱い、セルは別のデータセンターや別の大陸に置けると書く。こうすると建物ごと止まっても読める。YouTube の動画をいくつ、どこに置いているかは公開されていない。' },
+      { title: '動画の情報は別のデータベースに', text: '題名・説明・コメントなどの動画の情報は、映像のファイルとは別のデータベースに入る。YouTube は 2010 年、この情報を入れた MySQL を分割して束ねる Vitess を作り、のちに公開した（いまの置き場は公表されていない）。視聴ページはここの情報から作る（[[5|再生要求のサーバー側]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ---- 上の段：読み書きする機械と Colossus の制御
+      st.client = box(svg, 20, 36, 200, 64, '読み書きする機械', '変換・配信（場面1・5）');
+      st.curator = box(svg, 300, 36, 170, 64, 'Curator（多数）', 'メタデータの係');
+      st.bigtable = box(svg, 520, 36, 150, 64, 'Bigtable', 'メタデータの表');
+      st.custodian = box(svg, 740, 36, 200, 64, 'Custodian（裏方）', '作り直し・入れ替え');
+      S.line(470, 68, 520, 68, { cls: 's-mid w15' }, svg);
+      st.askLine = S.g({ cls: 'fade hide' }, svg);
+      S.path('M220,58 H296', { cls: 'f-none s-x w15', 'marker-end': mk('x') }, st.askLine);
+      S.path('M300,80 H224', { cls: 'f-none s-x w15', 'marker-end': mk('x') }, st.askLine);
+      // 札は y=58・80 の矢印の上を通るので、番号の札は矢印の外側（上と下）に置く
+      S.text(260, 45, '① 場所', { cls: 't-c t-xs t-x t-b' }, st.askLine);
+      S.text(260, 102, '② 答え', { cls: 't-c t-xs t-x t-b' }, st.askLine);
+      st.directLbl = S.text(248, 134, '③ 中身は D から直接', { cls: 't-xs t-d t-b fade hide' }, svg);
+      st.custLine = S.path('M900,100 V146', { cls: 'f-none s-x w15 dash fade hide', 'marker-end': mk('x') }, svg);
+      // ---- 中の段：D ファイルサーバーのラック 10 台
+      st.racks = [];
+      for (let k = 0; k < 10; k++) {
+        const x = RX(k);
+        const g = S.g({}, svg);
+        const rect = S.rect(x, 150, 86, 226, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+        S.text(x + 43, 166, 'ラック ' + (k + 1), { cls: 't-c t-xs t-b' }, g);
+        for (let j = 0; j < 4; j++) {
+          S.rect(x + 6, MYR(j), 74, 42, { rx: 3, cls: 'f-in s-rule w1' }, g);
+          S.text(x + 14, MYR(j) + 26, 'D', { cls: 't-xs t-dim t-mono' }, g);
+        }
+        const cross = S.g({ cls: 'fade hide' }, g);
+        S.line(x + 8, 156, x + 78, 370, { cls: 's-x w3 round' }, cross);
+        S.line(x + 78, 156, x + 8, 370, { cls: 's-x w3 round' }, cross);
+        st.racks.push({ g, rect, cross });
+      }
+      st.rackLbl = S.text(620, 140, '中身を持つ D ファイルサーバー（1 台にディスクが何台も入る）', { cls: 't-c t-xs t-dim' }, svg);
+      // 断片の組（データ 6 ＋ 訂正用 3）をラック 1〜9 に 1 個ずつ置く
+      const name = (k) => (k < 6 ? String(k + 1) : 'P' + (k - 5));
+      const ccls = (k) => (k < 6 ? 'f-d s-d w1' : 'f-d-soft s-d w1');
+      const tcls = (k) => 't-c t-xs t-b t-mono' + (k < 6 ? ' t-sf' : '');
+      st.chunks = S.g({ cls: 'fade hide' }, svg);
+      st.chunkEls = [];
+      for (let k = 0; k < 9; k++) {
+        const p = chunkAt(k, CHUNK_ROW[k]);
+        const g = S.g({}, st.chunks);
+        S.rect(p.x - 10, p.y - 10, 20, 20, { rx: 3, cls: ccls(k) }, g);
+        S.text(p.x, p.y + 4, name(k), { cls: tcls(k) }, g);
+        st.chunkEls.push(g);
+      }
+      // ラック 10 に作り直した断片（段階4）
+      const pr = chunkAt(9, 2);
+      st.rebuilt = S.g({ style: { opacity: 0 } }, svg);   // 段階4 の作り直しの後だけ見せる（frame が決める）
+      S.rect(pr.x - 10, pr.y - 10, 20, 20, { rx: 3, cls: 'f-d s-x w2' }, st.rebuilt);
+      S.text(pr.x, pr.y + 4, '4', { cls: 't-c t-xs t-b t-mono t-sf' }, st.rebuilt);
+      // ---- 下の段：断片の組と、3 個置く方式の比べ（段階3〜）
+      st.stripe = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 420, '1 つのファイルの断片の組（1 組を拡大）', { cls: 't-xs t-b' }, st.stripe);
+      S.text(20, 446, 'RS(6,3)', { cls: 't-xs t-b t-mono' }, st.stripe);
+      st.stripeEls = [];
+      for (let k = 0; k < 9; k++) {
+        const x = 74 + k * 34;
+        const g = S.g({}, st.stripe);
+        S.rect(x, 431, 30, 22, { rx: 3, cls: ccls(k) }, g);
+        S.text(x + 15, 446, name(k), { cls: tcls(k) }, g);
+        st.stripeEls.push(g);
+      }
+      S.text(388, 446, '9 個 ＝ 1.5 倍', { cls: 't-xs t-mono' }, st.stripe);
+      st.rep = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 486, 'R=3', { cls: 't-xs t-b t-mono' }, st.rep);
+      for (let k = 0; k < 18; k++) S.rect(74 + k * 16 + Math.floor(k / 6) * 6, 472, 14, 22, { rx: 2, cls: 'f-d s-d w1' }, st.rep);
+      S.text(388, 486, '18 個 ＝ 3 倍', { cls: 't-xs t-mono' }, st.rep);
+      S.text(20, 516, 'どちらも、どの断片が消えても読める。数字はデータ 6 個分を 1 とした容量', { cls: 't-xs t-dim' }, st.rep);
+      // ---- 下の段：別のデータセンター（段階5）
+      st.otherDC = S.g({ cls: 'fade hide' }, svg);
+      S.path('M585,380 V404', { cls: 'f-none s-d w15', 'marker-end': mk('d') }, st.otherDC);
+      S.rect(482, 410, 206, 120, { rx: 8, cls: 'f-in s-fg w15' }, st.otherDC);
+      S.text(585, 434, '別のデータセンター', { cls: 't-c t-sm t-b' }, st.otherDC);
+      S.text(585, 452, '別のセルに、同じ組をもう 1 つ', { cls: 't-c t-xs t-dim' }, st.otherDC);
+      for (let k = 0; k < 9; k++) S.rect(500 + k * 19, 476, 15, 22, { rx: 2, cls: ccls(k) }, st.otherDC);
+      S.text(585, 518, '例。実際の数と場所は非公開', { cls: 't-c t-xs t-dim' }, st.otherDC);
+      // ---- 下の段：動画の情報のデータベース（段階6）
+      st.videoDB = S.g({ cls: 'fade hide' }, svg);
+      S.rect(704, 410, 236, 120, { rx: 8, cls: 'f-sf s-x w15' }, st.videoDB);
+      S.text(822, 434, '動画の情報（別のデータベース）', { cls: 't-c t-sm t-b' }, st.videoDB);
+      S.lines(720, 460, ['v=dQw4w9WgXcQ', '題名・説明・コメント', '長さ 213 秒・公開 2009-10-24'], { cls: 't-xs' }, st.videoDB, 18);
+      st.videoDB.querySelector('tspan').setAttribute('class', 't-mono t-b');
+      // ---- 動く荷札
+      st.rAsk = road(svg, 'M220,58 H300');
+      st.rAns = road(svg, 'M300,80 H220');
+      st.pAsk = pkt(svg, '場所は？');
+      st.pAns = pkt(svg, 'ラック 1〜6');
+      st.rRead = [0, 1, 2, 3, 4, 5].map((k) => { const p = chunkAt(k, CHUNK_ROW[k]); return road(svg, `M${p.x},${p.y} L${60 + k * 22},100`); });
+      st.rWrite = [0, 1, 2, 3, 4, 5, 6, 7, 8].map((k) => { const p = chunkAt(k, CHUNK_ROW[k]); return road(svg, `M${89 + k * 34},431 L${p.x},${p.y + 10}`); });
+      st.rFix = [0, 1, 2, 4, 5, 6].map((k) => { const p = chunkAt(k, CHUNK_ROW[k]); return road(svg, `M${p.x},${p.y} Q${(p.x + pr.x) / 2},520 ${pr.x},${pr.y}`); });
+      st.rCopy = road(svg, 'M585,374 V404');
+      st.dots = [];
+      for (let k = 0; k < 9; k++) st.dots.push(S.circle(0, 0, 5, { cls: 'f-d', style: { opacity: 0 } }, svg));
+      st.copyPk = [0, 1, 2].map(() => pkt(svg, '', { w: 14, h: 10 }));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      dim(st.client, i === 3 || i === 4);
+      dim(st.curator, i >= 2 && i !== 1);
+      dim(st.bigtable, i >= 2 && i !== 1);
+      dim(st.custodian, i !== 0 && i !== 3);
+      setCls(st.curator.rect, i === 1 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+      setCls(st.bigtable.rect, i === 1 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+      setCls(st.custodian.rect, i === 3 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+      S.fade(st.askLine, i === 1);
+      S.fade(st.directLbl, i === 1);
+      S.fade(st.custLine, i === 3);
+      S.fade(st.chunks, i >= 1);
+      st.chunkEls.forEach((g, k) => { g.style.opacity = i === 3 && k === 3 ? 0.15 : ''; });
+      st.racks.forEach((r, k) => {
+        S.fade(r.cross, i === 3 && k === 3);
+        setCls(r.rect, i === 3 && k === 3 ? 'f-x-soft s-x w2' : 'f-sf s-rule w15');
+        dim(r.g, i === 5);
+      });
+      st.rebuilt.style.opacity = 0;
+      st.chunks.style.opacity = i === 5 ? 0.28 : '';
+      S.fade(st.stripe, i >= 2 && i <= 4);
+      st.stripeEls.forEach((g, k) => { g.style.opacity = i === 3 && k === 3 ? 0.2 : ''; });
+      S.fade(st.rep, i === 2);
+      S.fade(st.otherDC, i === 4);
+      S.fade(st.videoDB, i === 5);
+      st.rackLbl.style.opacity = i === 5 ? 0.28 : '';
+      [st.pAsk, st.pAns].concat(st.copyPk).forEach((p) => { p.g.style.opacity = 0; });
+      st.dots.forEach((d) => { d.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      [st.pAsk, st.pAns].concat(st.copyPk).forEach((p) => { p.g.style.opacity = 0; });
+      st.dots.forEach((d) => { d.style.opacity = 0; });
+      const dot = (d, path, f) => { const p = S.along(path, f); d.setAttribute('cx', p.x.toFixed(1)); d.setAttribute('cy', p.y.toFixed(1)); d.style.opacity = 1; };
+      if (i === 1) {
+        // ① 場所を聞く → ② 答え → ③ 中身を D から直接受け取る
+        const q = U.seq(ts + 3.2, [1.2, 1.2, 1.8, 0.6], true);
+        if (q.i === 0) { S.place(st.pAsk.g, st.rAsk, U.ease.inOut(q.f)); st.pAsk.g.style.opacity = 1; }
+        if (q.i === 1) { S.place(st.pAns.g, st.rAns, U.ease.inOut(q.f)); st.pAns.g.style.opacity = 1; }
+        if (q.i === 2) st.rRead.forEach((r, k) => dot(st.dots[k], r, U.ease.inOut(q.f)));
+      }
+      if (i === 2) {
+        // 断片の組がラック 1〜9 に 1 個ずつ書かれる
+        const q = U.seq(ts + 1.0, [2.0, 1.0], true);
+        if (q.i === 0) st.rWrite.forEach((r, k) => dot(st.dots[k], r, U.ease.inOut(q.f)));
+      }
+      if (i === 3) {
+        // 残った 6 個からラック 10 に 4 番を作り直す
+        const q = U.seq(ts + 1.0, [2.0, 1.2], true);
+        if (q.i === 0) st.rFix.forEach((r, k) => dot(st.dots[k], r, U.ease.inOut(q.f)));
+        st.rebuilt.style.opacity = q.i === 1 ? 1 : 0;
+      } else {
+        st.rebuilt.style.opacity = 0;
+      }
+      if (i === 4) {
+        st.copyPk.forEach((p, k) => {
+          const f = U.cycle(ts / 1.2 + k / 3 + 0.15, 1);
+          S.place(p.g, st.rCopy, f);
+          p.g.style.opacity = f < 0.9 ? 1 : 0;
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 負荷分散（Anycast・Maglev・GFE）
+     ================================================================ */
+  const MG_Y = [96, 196, 296, 396];               // Maglev 4 台の上端（高さ 46）
+  const GF_Y = [70, 140, 210, 280, 350, 420];     // GFE 6 台の上端（高さ 44）
+  const s3 = {
+    steps: [
+      { title: '同じ番号を多くの拠点が広告する', text: '142.250.196.110 を含む範囲は、Google の多くの拠点が BGP で広告している。ISP のルーターは経路の上で近い拠点への道を選ぶので、利用者はそれぞれ近い拠点に着く（Anycast）。www.youtube.com の答えが地域によらず同じなのは、このためと考えられる（第17章）。' },
+      { title: 'ルーターが Maglev に配る', text: '拠点に着いたパケットは、境目のルーターが ECMP（同じコストの道へ、接続ごとに振り分ける方式）で何台もの {x|Maglev} に配る。Maglev は普通の Linux サーバーで動く負荷分散のソフトウェアで、2008 年から使われ、2016 年の論文の時点で Google に入る利用者の通信のほぼすべてを受けていた。' },
+      { title: 'Maglev が接続ごとに GFE を選ぶ', text: 'Maglev は送り元と宛先の番号・ポート・プロトコルの 5 つ組からハッシュを計算して GFE を選び、GRE で包んで送る。別の Maglev が受けても同じ計算で同じ GFE を選ぶので、1 つの接続のパケットは同じ GFE に集まる。1 台で 10 Gbps を流せる（2016 年の論文）。' },
+      { title: 'GFE が暗号をほどき、中身で行き先を決める', text: 'GFE は Google の逆プロキシで、TCP と TLS（または QUIC）を終端し、HTTP のヘッダと URL のパスを見て渡すサービスを決める（2018 年の SRE の本）。/watch の要求は、Google の網の中で暗号化し直した RPC で YouTube のサーバーへ渡る（同じ本）。' },
+      { title: '応答は Maglev を通らない', text: '応答のパケットは、送り元を 142.250.196.110 にして GFE からルーターへ直接出す（DSR）。大きい応答が Maglev を通らないので、Maglev は小さな行きのパケットだけを捌けばよい。PC から見た接続の相手は、最初から最後まで 142.250.196.110 の 1 つ。' },
+      { title: '1 台が止まっても接続は続く', text: 'Maglev が 1 台止まると、その広告が消え、ルーターは残りの Maglev に配る。残りも同じ計算で同じ GFE を選ぶので、多くの接続は切れない。経路が揺れて別の拠点に着いたパケットも、Maglev がその利用者に最も近い拠点へ送り直す（安定化した Anycast、2018 年の SRE の本）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // ---- 家・ISP・3 つの拠点
+      st.home = box(svg, 16, 236, 96, 64, '家', '203.0.113.5');
+      S.line(112, 268, 154, 268, { cls: 's-mid w2' }, svg);
+      st.isp = S.circle(170, 268, 16, { cls: 'f-sf s-fg w2' }, svg);
+      S.text(170, 304, 'ISP', { cls: 't-c t-xs t-b' }, svg);
+      S.text(170, 318, 'AS64500', { cls: 't-c t-xs t-dim t-mono' }, svg);
+      st.lB = S.line(181, 256, 236, 124, { cls: 's-mid w2' }, svg);
+      st.lA = S.line(186, 268, 236, 268, { cls: 's-mid w2' }, svg);
+      st.lC = S.line(181, 280, 236, 428, { cls: 's-mid w2' }, svg);
+      st.popB = box(svg, 236, 92, 150, 60, '拠点 B（国内）', '142.250.0.0/15 を広告');
+      st.popA = box(svg, 236, 238, 150, 60, '拠点 A（国内）', '142.250.0.0/15 を広告');
+      st.popC = box(svg, 236, 398, 150, 60, '拠点 C（海外）', '142.250.0.0/15 を広告');
+      st.pops = [st.popA, st.popB, st.popC];
+      st.relay = S.g({ cls: 'fade hide' }, svg);
+      S.line(311, 152, 311, 236, { cls: 's-x w2 dash' }, st.relay);
+      S.text(318, 198, '送り直す', { cls: 't-xs t-x t-b' }, st.relay);
+      // ---- 拠点 A の中（拡大）
+      S.line(386, 238, 412, 30, { cls: 's-dim w1 dash' }, svg);
+      S.line(386, 298, 412, 530, { cls: 's-dim w1 dash' }, svg);
+      S.rect(412, 24, 532, 512, { rx: 14, cls: 'f-in s-rule w15' }, svg);
+      S.text(428, 48, '拠点 A の中', { cls: 't-md t-b' }, svg);
+      st.inner = S.g({}, svg);
+      S.line(412, 268, 438, 268, { cls: 's-mid w2' }, st.inner);
+      // 奥（データセンター）との境
+      S.line(806, 60, 806, 500, { cls: 's-dim w1 dash2' }, st.inner);
+      S.text(875, 76, 'データセンター', { cls: 't-c t-xs t-dim' }, st.inner);
+      // 線（ルーター → Maglev → GFE → サービス）
+      st.mesh = S.g({}, st.inner);
+      MG_Y.forEach((my) => S.line(466, 268, 510, my + 23, { cls: 's-rule w1' }, st.mesh));
+      MG_Y.forEach((my) => GF_Y.forEach((gy) => S.line(600, my + 23, 680, gy + 22, { cls: 's-soft w1' }, st.mesh)));
+      GF_Y.forEach((gy) => {
+        S.line(770, gy + 22, 830, 158, { cls: 's-soft w1' }, st.mesh);
+        S.line(770, gy + 22, 830, 380, { cls: 's-soft w1' }, st.mesh);
+      });
+      st.router = S.circle(452, 268, 14, { cls: 'f-sf s-fg w2' }, st.inner);
+      S.text(452, 300, 'ルーター', { cls: 't-c t-xs t-b' }, st.inner);
+      st.mg = MG_Y.map((y, k) => {
+        const b = box(st.inner, 510, y, 90, 46, 'Maglev ' + (k + 1), '', { tcls: 't-sm' });
+        b.cross = S.g({ cls: 'fade hide' }, b);
+        S.line(514, y + 4, 596, y + 42, { cls: 's-x w3 round' }, b.cross);
+        S.line(596, y + 4, 514, y + 42, { cls: 's-x w3 round' }, b.cross);
+        return b;
+      });
+      st.gf = GF_Y.map((y, k) => box(st.inner, 680, y, 90, 44, 'GFE ' + (k + 1), '', { tcls: 't-sm' }));
+      st.yt = box(st.inner, 830, 120, 104, 76, 'YouTube の', 'Web サーバー');
+      setCls(st.yt.t2, 't-c t-sm t-b');
+      st.other = box(st.inner, 830, 350, 104, 60, 'ほかの', 'サービス');
+      setCls(st.other.t2, 't-c t-sm t-b');
+      // DSR の帰り道（段階5）
+      st.dsr = S.g({ cls: 'fade hide' }, svg);
+      S.path('M680,162 H650 V70 H476 L456,252', { cls: 'f-none s-d w2 dash' }, st.dsr);
+      S.text(610, 54, 'DSR：Maglev を通らない', { cls: 't-c t-xs t-d t-b' }, st.dsr);
+      // 状況の 1 行
+      st.status = S.text(678, 522, '', { cls: 't-c t-sm t-b' }, svg);
+      // ---- 道
+      // 広告の札は ISP の円の手前で止める（3 枚が円の上で重ならないように。C の札は ISP の札の下を避ける）
+      st.rAdv = [road(svg, 'M236,124 L189,236'), road(svg, 'M236,268 H205'), road(svg, 'M236,428 L203,340')];
+      st.rReqA = road(svg, 'M134,268 H236');
+      const viaMg = (m, g) => `M412,268 H452 L510,${MG_Y[m] + 23} H600 L680,${GF_Y[g] + 22}`;
+      st.rConn = [[1, 1], [3, 4], [0, 2]].map(([m, g]) => road(svg, viaMg(m, g)));
+      // 段階2 は Maglev の手前で止める（札が Maglev の名前を隠さないように）
+      st.rToMg = [1, 3, 0].map((m) => road(svg, `M412,268 H452 L${452 + 34},${268 + (MG_Y[m] + 23 - 268) * 34 / 58}`));
+      st.rConnB = road(svg, viaMg(2, 1));
+      // 札（幅 36）が GFE 2 と YouTube の箱の題を隠さない区間だけを動かす
+      st.rRpc = road(svg, 'M772,162 L812,159');
+      st.rDsr = road(svg, 'M680,162 H650 V70 H476 L452,268 H134');
+      st.rFlap = road(svg, 'M181,256 L236,126 H330 V238');
+      // ---- 荷札
+      st.pAdv = st.rAdv.map(() => pkt(svg, '/15', { cls: 'f-d-soft s-d w1', tcls: 't-d' }));
+      st.pReq = pkt(svg, '要求');
+      st.pConn = ['接続1', '接続2', '接続3'].map((t) => pkt(svg, t));
+      st.pRpc = pkt(svg, 'RPC', { w: 36 });
+      st.pResp = pkt(svg, '応答');
+      st.all = st.pAdv.concat([st.pReq, st.pRpc, st.pResp], st.pConn);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const norm = 'f-sf s-fg w15', hl = 'f-sf s-x w2';
+      dim(st.inner, i === 0);
+      dim(st.popB, i >= 1 && i !== 5);
+      dim(st.popC, i >= 1);
+      dim(st.home, i === 2 || i === 3);
+      setCls(st.popA.rect, i === 0 ? hl : norm);
+      setCls(st.lA, i === 0 ? 's-x w3' : 's-mid w2');
+      st.pops.forEach((b) => setCls(b.t2, 't-c t-xs ' + (i === 0 ? 't-d t-b' : 't-dim')));
+      setCls(st.router, i === 1 ? 'f-sf s-x w3' : 'f-sf s-fg w2');
+      st.mg.forEach((b, k) => {
+        setCls(b.rect, (i === 1) || (i === 2 && (k === 1 || k === 2)) || (i === 5 && k === 2) ? hl : norm);
+        S.fade(b.cross, i === 5 && k === 1);
+        dim(b, i === 3 || i === 4);
+      });
+      st.gf.forEach((b, k) => {
+        setCls(b.rect, (i >= 2 && k === 1) ? hl : norm);
+        dim(b, (i === 3 || i === 4) && k !== 1);
+      });
+      setCls(st.yt.rect, i === 3 ? hl : norm);
+      dim(st.other, i !== 3 && i !== 0);
+      S.fade(st.dsr, i === 4);
+      S.fade(st.relay, i === 5);
+      st.mesh.style.opacity = i === 4 ? 0.4 : '';
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      st.status.textContent = '';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      const go = (p, path, f) => { S.place(p.g, path, f); p.g.style.opacity = 1; };
+      let msg = '';
+      if (i === 0) {
+        const q = U.seq(ts + 0.7, [1.4, 1.8, 0.6], true);
+        if (q.i === 0) st.pAdv.forEach((p, k) => go(p, st.rAdv[k], U.ease.inOut(q.f)));
+        if (q.i === 1) go(st.pReq, st.rReqA, U.ease.inOut(q.f));
+        msg = q.i === 0 ? '拠点 A・B・C が同じ 142.250.0.0/15 を広告する' : 'ISP は経路の上で近い拠点 A へ送る';
+      }
+      if (i === 1) {
+        // 3 つの接続が、ルーターで 3 台の Maglev に分かれる（Maglev まで）
+        const q = U.seq(ts + 1.7, [2.0, 0.6], true);
+        // まだ出発していない札は見せない（出発点で札が重ならないように）
+        if (q.i === 0) st.pConn.forEach((p, k) => { const f = U.clamp(q.f * 1.6 - k * 0.3, 0, 1); if (f > 0) go(p, st.rToMg[k], U.ease.inOut(f)); });
+        msg = 'ルーター：接続ごとに Maglev 1〜4 のどれかへ（ECMP）';
+      }
+      if (i === 2) {
+        // 接続 1 が Maglev 2 経由で GFE 2 へ。続きのパケットが Maglev 3 に着いても GFE 2 へ
+        const q = U.seq(ts + 1.5, [2.2, 2.2, 0.4], true);
+        if (q.i === 0) go(st.pConn[0], st.rConn[0], U.ease.inOut(q.f));
+        if (q.i === 1) go(st.pConn[0], st.rConnB, U.ease.inOut(q.f));
+        msg = q.i === 1 ? '接続 1 が Maglev 3 に着いた場合も、同じ計算で GFE 2 へ' : '接続 1：5 つ組のハッシュで GFE 2 を選び、GRE で包んで送る';
+      }
+      if (i === 3) {
+        const q = U.seq(ts + 0.5, [1.2, 0.6], true);
+        if (q.i === 0) go(st.pRpc, st.rRpc, U.ease.inOut(q.f));
+        msg = 'GFE 2：TLS・QUIC をほどき、GET /watch を読んで YouTube のサーバーへ';
+      }
+      if (i === 4) {
+        run(st.pResp.g, st.rDsr, ts, 3.6, 0.6, 0.3);
+        msg = '応答：送り元 142.250.196.110 のまま、GFE 2 からルーターへ直接';
+      }
+      if (i === 5) {
+        const q = U.seq(ts + 1.42, [2.2, 2.2, 0.4], true);
+        if (q.i === 0) go(st.pConn[0], st.rConnB, U.ease.inOut(q.f));
+        if (q.i === 1) go(st.pReq, st.rFlap, U.ease.inOut(q.f));
+        msg = q.i === 1 ? '経路が揺れて拠点 B に着いても、拠点 A へ送り直す' : 'Maglev 2 が停止：接続 1 は Maglev 3 を通って同じ GFE 2 へ';
+      }
+      st.status.textContent = msg;
+    }
+  };
+
+  /* ================================================================
+     場面4 エッジと GGC
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '置き場は 3 段', text: '断片の置き場は、利用者に近い順に ISP の中の GGC、IX か直結（PNI）の先の Google のエッジ、データセンター。Cloud CDN の説明では、Google 自身と同じエッジの拠点が 100 を超える場所にある。データセンターには全部の動画の全部の形式がある（[[2|分散ストレージ]]）。' },
+      { title: 'GGC：ISP の中に置く Google の機械', text: 'GGC は、Google が機械を出し、ISP がラックの場所・電源・回線・アドレスを出して ISP の建物に置くキャッシュ（第16章、Google の ISP 向けの説明）。運用は Google が遠隔で行う。ISP の利用者には ISP の網の中から返すので、ISP の外への通信が減る。' },
+      { title: '受け持つ利用者は BGP で知らせる', text: 'ISP は GGC と BGP を張り、その GGC から配ってよい利用者の範囲（例 203.0.113.0/24）を広告する。ISP がスイッチを用意する構成では、この BGP は範囲を伝えるだけで経路には使わない。範囲に入る利用者には、YouTube がこの GGC の名前を渡す（[[5|再生要求のサーバー側]]）。' },
+      { title: '無ければ上流から取り寄せる', text: '要求された断片が手元に無ければ、GGC は上流（Google のエッジやデータセンター）から取り寄せて返し、手元にも残す（第16章）。1 人目は ISP の外との往復の分だけ待つが、2 人目からは ISP の中で済む。Google の説明では、キャッシュできる通信のうち 70〜90% を GGC から返せることが多い。' },
+      { title: '再生は一部の動画に偏る', text: 'キャッシュが効くのは、再生が一部の動画に偏るから。2007 年の YouTube の計測（Cha ら）では、人気の上位 10% の動画が再生の約 8 割を占め、上位 10% だけを置いたキャッシュで要求の約 8 割に答えられた。2021 年の Google の論文も、ごく一部の人気動画が視聴時間の大半を占めると書く。' },
+      { title: '近い所ほど人気の断片だけ', text: '近い置き場ほど容量は小さく、そこに残るのは近くの利用者がよく見る断片になる（キャッシュの一般的な性質）。めったに見られない動画は、データセンターから遠い道を通って届く。同じ都市の GGC が何台かあれば、1 つのまとまり（GNL）として動かす（Google の説明）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const Y = 178;
+      // ---- AS の枠
+      const area = (x, y, w, h, asn, name) => {
+        const g = S.g({}, svg);
+        S.rect(x, y, w, h, { rx: 14, cls: 'f-in s-rule w15' }, g);
+        S.text(x + 14, y + 22, asn, { cls: 't-md t-b t-mono' }, g);
+        S.text(x + 22 + tw(asn, 12.5), y + 22, name, { cls: 't-sm t-dim' }, g);
+        return g;
+      };
+      area(124, 34, 300, 290, 'AS64500', '家の ISP（例）');
+      area(496, 34, 448, 290, 'AS15169', 'Google');
+      // ---- 線
+      S.line(108, Y, 404, Y, { cls: 's-mid w2' }, svg);
+      st.lGGC = S.line(288, Y, 288, 226, { cls: 's-mid w2' }, svg);
+      st.lIX = S.line(404, Y, 524, Y, { cls: 's-fg w2 dash' }, svg);
+      S.text(464, 166, 'IX か直結', { cls: 't-c t-xs t-b' }, svg);
+      S.line(694, Y, 734, Y, { cls: 's-mid w3' }, svg);
+      S.text(714, 166, '基幹網', { cls: 't-c t-xs t-dim' }, svg);
+      [176, 288, 404].forEach((x) => S.circle(x, Y, 9, { cls: 'f-sf s-fg w2' }, svg));
+      // ---- 家・GGC・エッジ・データセンター（小さな四角は手元にある断片）
+      st.home = box(svg, 16, 148, 92, 60, '家', '203.0.113.5');
+      const slots = (x0, y0, n, filled, perRow) => [...Array(n)].map((_, k) => S.rect(x0 + (k % perRow) * 16, y0 + Math.floor(k / perRow) * 16, 12, 12, { rx: 2, cls: k < filled ? 'f-d' : 'f-sf s-rule w1' }, svg));
+      st.ggc = box(svg, 218, 226, 140, 88, 'GGC（ISP の建物）', '198.51.100.80');
+      st.ggcSlots = slots(230, 294, 8, 5, 8);
+      st.edge = box(svg, 524, 130, 170, 96, 'エッジ（Google の拠点）', '100 を超える場所');
+      slots(537, 204, 9, 7, 9);
+      st.dc = box(svg, 734, 120, 196, 120, 'データセンター', '全部の動画・全部の形式');
+      slots(754, 206, 20, 20, 10);
+      // 状況の 1 行
+      st.status = S.text(480, 346, '', { cls: 't-c t-sm t-b' }, svg);
+      // ---- 下の段：段階3 BGP で渡す範囲
+      st.bMap = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 384, 'ISP が GGC に BGP で渡す範囲（例）', { cls: 't-sm t-b' }, st.bMap);
+      [['203.0.113.0/24', 'この GGC（198.51.100.80）から配る', 'f-d-soft s-d w1'], ['範囲に無い利用者', 'Google のほかの拠点から配る', 'f-sf s-rule w1']].forEach(([a, b, c], k) => {
+        const y = 404 + k * 40;
+        S.rect(20, y, 200, 28, { rx: 4, cls: c }, st.bMap);
+        S.text(120, y + 19, a, { cls: 't-c t-sm t-mono t-b' }, st.bMap);
+        S.text(236, y + 19, '→ ' + b, { cls: 't-sm' }, st.bMap);
+      });
+      S.text(20, 500, 'ISP がスイッチを用意する構成の例。GGC 側の AS 番号は 11344 で、受け取った範囲は経路には使わない（Google の説明）。', { cls: 't-xs t-dim' }, st.bMap);
+      // ---- 下の段：段階4 1 人目と 2 人目
+      st.bTime = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 384, '同じ断片の 1 人目と 2 人目（模式図。横は時間）', { cls: 't-sm t-b' }, st.bTime);
+      const seg = (x, y, w, txt, c, tc) => { S.rect(x, y, w, 26, { rx: 3, cls: c }, st.bTime); S.text(x + w / 2, y + 17, txt, { cls: 't-c t-xs t-b ' + (tc || '') }, st.bTime); };
+      S.text(20, 421, '1 人目', { cls: 't-sm t-b' }, st.bTime);
+      seg(80, 404, 90, '要求 → GGC', 'f-d-soft s-d w1');
+      seg(172, 404, 230, '無い → 上流から取り寄せ', 'f-x-soft s-x w1', 't-x');
+      seg(404, 404, 90, 'GGC → 家', 'f-d', 't-sf');
+      S.text(20, 461, '2 人目', { cls: 't-sm t-b' }, st.bTime);
+      seg(80, 444, 90, '要求 → GGC', 'f-d-soft s-d w1');
+      seg(172, 444, 90, 'GGC → 家', 'f-d', 't-sf');
+      S.text(20, 500, '取り寄せた断片は GGC に残るので、2 人目からは ISP の外へ出ない', { cls: 't-xs t-dim' }, st.bTime);
+      // ---- 下の段：段階5・6 再生の偏り
+      st.bPop = S.g({ cls: 'fade hide' }, svg);
+      S.text(20, 370, '動画を再生の多い順に並べると（模式図）', { cls: 't-sm t-b' }, st.bPop);
+      S.line(36, 536, 600, 536, { cls: 's-rule w1' }, st.bPop);
+      // 指数 1.7 で、上位 4 本（10%）の高さの和が全体の約 8 割になる（ラベルの値と合わせる）
+      for (let k = 0; k < 40; k++) {
+        const h = 110 * Math.pow(k + 1, -1.7);
+        S.rect(40 + k * 14, 536 - h, 11, h, { cls: k < 4 ? 'f-x' : 'f-mid' }, st.bPop);
+      }
+      S.text(110, 466, '上位 10%（40 本のうち 4 本）で再生の約 8 割', { cls: 't-sm t-b t-x' }, st.bPop);
+      S.text(110, 484, '（Cha ら、2007 年の YouTube の計測）', { cls: 't-xs t-dim' }, st.bPop);
+      st.bTier = S.g({ cls: 'fade hide' }, svg);
+      [[40, 597, 386, 'データセンター：全部'], [40, 261, 400, 'エッジ'], [40, 121, 414, 'GGC']].forEach(([x1, x2, y, lbl]) => {
+        S.path(`M${x1},${y + 5} V${y} H${x2} V${y + 5}`, { cls: 'f-none s-fg w15' }, st.bTier);
+        S.text(x2 + 6, y + 4, lbl, { cls: 't-xs t-b' }, st.bTier);
+      });
+      // ---- 道と荷札
+      // 家の側は箱の外（x=130）、エッジの側は箱の手前（x=492〜500）で止める（札が「203.0.113.5」とエッジの題を隠さないように）
+      st.rGH = road(svg, 'M288,226 V178 H130');
+      st.rEH = road(svg, 'M500,178 H130');
+      st.rDH = road(svg, 'M734,178 H130');
+      st.rHG = road(svg, 'M130,178 H288 V226');
+      st.rGE = road(svg, 'M288,226 V178 H492');
+      st.rEG = road(svg, 'M492,178 H288 V226');
+      st.rAdv = road(svg, 'M288,184 V222');
+      st.pSeg = pkt(svg, '断片');
+      st.pReq = pkt(svg, '要求');
+      st.pFill = pkt(svg, '取り寄せ');
+      st.pCopy = pkt(svg, 'コピー');
+      st.pAdv = pkt(svg, '/24', { cls: 'f-d-soft s-d w1', tcls: 't-d' });
+      st.all = [st.pSeg, st.pReq, st.pFill, st.pCopy, st.pAdv];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const norm = 'f-sf s-fg w15', hl = 'f-sf s-x w2';
+      setCls(st.ggc.rect, i >= 1 && i <= 3 ? hl : norm);
+      setCls(st.edge.rect, i === 3 ? hl : norm);
+      setCls(st.lGGC, i === 2 ? 's-x w3' : 's-mid w2');
+      setCls(st.lIX, i === 3 ? 's-x w3 dash' : 's-fg w2 dash');
+      dim(st.dc, i === 1 || i === 2);
+      dim(st.edge, i === 1 || i === 2);
+      S.fade(st.bMap, i === 2);
+      S.fade(st.bTime, i === 3);
+      S.fade(st.bPop, i >= 4);
+      S.fade(st.bTier, i === 5);
+      setCls(st.ggcSlots[5], 'f-sf s-rule w1');
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      st.status.textContent = '';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      const go = (p, path, f) => { S.place(p.g, path, f); p.g.style.opacity = 1; };
+      let msg = '';
+      if (i === 0) {
+        const q = U.seq(ts + 0.6, [1.2, 1.8, 2.4, 0.5], true);
+        if (q.i < 3) go(st.pSeg, [st.rGH, st.rEH, st.rDH][q.i], U.ease.inOut(q.f));
+        msg = ['GGC から：ISP の網の中だけを通る', 'エッジから：IX か直結を 1 回渡る', 'データセンターから：さらに Google の基幹網を通る', ''][q.i];
+      }
+      if (i === 1) {
+        run(st.pSeg.g, st.rGH, ts, 1.6, 0.6, 0.5);
+        msg = 'GGC：ISP の建物に置いた Google の機械から返す';
+      }
+      if (i === 2) {
+        run(st.pAdv.g, st.rAdv, ts, 1.4, 0.8, 0.5);
+        msg = 'ISP → GGC：配ってよい利用者の範囲を BGP で広告する';
+      }
+      if (i === 3) {
+        const q = U.seq(ts + 0.7, [1.4, 1.8, 1.8, 1.4, 0.6], true);
+        const f = U.ease.inOut(q.f);
+        if (q.i === 0) go(st.pReq, st.rHG, f);
+        if (q.i === 1) go(st.pFill, st.rGE, f);
+        if (q.i === 2) go(st.pCopy, st.rEG, f);
+        if (q.i === 3) go(st.pSeg, st.rGH, f);
+        setCls(st.ggcSlots[5], q.i >= 3 ? 'f-d s-x w2' : 'f-sf s-rule w1');
+        msg = ['① 断片の要求が GGC に届く', '② 手元に無い → 上流から取り寄せる', '③ コピーが届き、GGC が手元に残す', '④ GGC から家へ。次の人には GGC が返す', ''][q.i];
+      }
+      if (i >= 4) {
+        run(st.pSeg.g, st.rGH, ts, 1.6, 0.6, 0.5);
+        msg = 'よく見られる断片ほど、近い置き場から返る';
+      }
+      st.status.textContent = msg;
+    }
+  };
+
+  /* ================================================================
+     場面5 再生要求のサーバー側の流れ
+     ================================================================ */
+  const STAGES = [['QUIC・TLS', 'をほどく'], ['URL の期限', 'と署名'], ['返す形式', 'と時間の範囲'], ['手元の', 'キャッシュ'], ['返す', '（UMP）']];
+  const s5 = {
+    steps: [
+      { title: '視聴ページを作る', text: '/watch?v=dQw4w9WgXcQ の要求は、GFE から YouTube のサーバーへ渡る。サーバーは動画の情報を集めて HTML を作る。第21章の計測では、HTML は Brotli で 163 KB（展開して 1.40 MB）で、再生の情報が中に埋め込まれていた。' },
+      { title: '配信元の URL を書いて渡す', text: '再生の情報の形式の一覧では、音声付きの 360p を除く 26 通りが 1 つの URL から取る形だった（2026 年 10 月）。名前の rr1---sn-xxxxxxxx は、利用者の番号に合わせて選んだ配信元を指す。URL の期限（約 6 時間後）・発行先の番号・{x|署名}は、使い回しを防ぐためと考えられる。' },
+      { title: '名前を引いて配信元へつなぐ', text: 'PC はこの名前を DNS で引く（第17章）。GGC のある ISP なら、198.51.100.80（例）のような ISP の中の番号が返る。2026 年 10 月の確かめでは Google の番号（逆引きの名前は東京を示す nrt）で、往復は約 7 ms。接続は最初から HTTP/3 だった（第21章）。' },
+      { title: '断片は POST で頼む', text: 'プレーヤーは /videoplayback?…&sabr=1 へ POST を送り、本文（protobuf）に再生の位置と手元に溜めた区間を入れる（第21章の計測）。応答は application/vnd.yt-ump という YouTube 独自の形式で、音声と映像の断片をまとめて返した。' },
+      { title: 'どれを返すかはサーバーも決める', text: '形式ごとの URL は無く、どの画質の断片をどこまで返すかは、送られた状態をもとに配信元の側でも決める。この方式は SABR と呼ばれ、ページの中の名前も serverAbrStreamingUrl。選び方の規則は公開されておらず、仕組みの説明は第三者の解析による（詳しくは第24章）。' },
+      { title: '届いてから返すまで', text: '配信元は QUIC と TLS をほどき、URL の期限と署名を確かめ、返す形式と時間の範囲を決め、手元のキャッシュを探す。あればすぐ返し、無ければ上流から取り寄せながら返す（[[4|エッジと GGC]]）。この段取りは、公開の資料と観察からの推定を含む。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ---- 上の段：視聴ページ
+      st.pc = box(svg, 16, 176, 130, 70, '家の PC', '203.0.113.5（NAT 後）');
+      setCls(st.pc.t2, 't-c t-xs t-dim');
+      st.gfe = box(svg, 230, 50, 170, 70, 'www.youtube.com', '142.250.196.110（GFE）');
+      setCls(st.gfe.t1, 't-c t-b t-md t-mono');
+      st.web = box(svg, 470, 50, 200, 70, 'YouTube のサーバー', 'データセンター');
+      st.db = box(svg, 740, 50, 200, 70, '動画の情報（場面2）', '題名・説明など');
+      S.path('M146,192 C188,192 188,85 230,85', { cls: 'f-none s-mid w15' }, svg);
+      S.line(400, 85, 470, 85, { cls: 's-mid w15' }, svg);
+      S.line(670, 85, 740, 85, { cls: 's-mid w15' }, svg);
+      st.write = S.g({ cls: 'fade hide' }, svg);
+      S.path('M570,120 V146', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.write);
+      S.text(578, 138, '書き込む', { cls: 't-xs t-x t-b' }, st.write);
+      // ---- 中央：再生の情報と配信元の URL
+      st.card = S.g({}, svg);
+      st.cardRect = S.rect(230, 150, 710, 136, { rx: 8, cls: 'f-sf s-rule w15' }, st.card);
+      S.text(246, 172, '再生の情報（視聴ページに埋め込み、2026 年 10 月）', { cls: 't-sm t-b' }, st.card);
+      S.text(246, 194, 'adaptiveFormats：映像 22 通り・音声 4 通り（形式ごとの URL は無い）', { cls: 't-xs t-mono' }, st.card);
+      S.text(246, 216, 'serverAbrStreamingUrl：', { cls: 't-xs t-mono t-b' }, st.card);
+      // URL を項目ごとの札に分けて並べる（段階ごとに強調する）
+      const tok = (x, y, txt) => {
+        const w = tw(txt, 10.5) + 12;
+        const g = S.g({}, st.card);
+        const r = S.rect(x, y - 13, w, 20, { rx: 3, cls: 'f-in s-rule w1' }, g);
+        S.text(x + w / 2, y + 1, txt, { cls: 't-c t-xs t-mono' }, g);
+        return { g, r, w };
+      };
+      st.tok = {};
+      let x = 246;
+      [['host', 'https://rr1---sn-xxxxxxxx.googlevideo.com'], ['path', '/videoplayback?']].forEach(([k, t]) => { const o = tok(x, 240, t); st.tok[k] = o; x += o.w + 6; });
+      x = 246;
+      [['expire', 'expire=…（約 6 時間後）'], ['ip', 'ip=203.0.113.5'], ['sig', 'sig=…・lsig=…（署名）'], ['sabr', 'sabr=1'], ['etc', 'ほか約 30 項目']].forEach(([k, t]) => { const o = tok(x, 270, t); st.tok[k] = o; x += o.w + 6; });
+      // ---- 下の段：断片の要求と配信元の中
+      S.path('M81,246 V370 H230', { cls: 'f-none s-mid w15' }, svg);
+      st.node = box(svg, 230, 330, 200, 80, '配信元（GGC かエッジ）', '198.51.100.80（例）');
+      st.stage = STAGES.map(([a, b], k) => {
+        const sx = 456 + k * 96;
+        const g = S.g({}, svg);
+        const r = S.rect(sx, 330, 88, 80, { rx: 6, cls: 'f-sf s-fg w15' }, g);
+        S.lines(sx + 44, 364, [a, b], { cls: 't-c t-xs t-b' }, g, 16);
+        if (k < 4) S.path(`M${sx + 88},370 H${sx + 94}`, { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, svg);
+        return { g, r };
+      });
+      S.line(430, 370, 456, 370, { cls: 's-dim w15 dash2' }, svg);
+      st.up = S.g({}, svg);
+      S.path('M788,410 V446', { cls: 'f-none s-x w15 dash', 'marker-end': mk('x') }, st.up);
+      S.text(796, 432, '無ければ', { cls: 't-xs t-x t-b' }, st.up);
+      box(st.up, 724, 450, 200, 50, '上流（エッジ・データセンター）', '', { tcls: 't-xs' });
+      st.sabrNote = S.text(692, 428, '（選び方は非公開）', { cls: 't-c t-xs t-dim fade hide' }, svg);
+      // DNS の答え（段階3）
+      st.dns = S.g({ cls: 'fade hide' }, svg);
+      S.rect(16, 432, 400, 96, { rx: 6, cls: 'f-sf s-rule w1' }, st.dns);
+      S.text(30, 452, 'DNS で引く（第17章）', { cls: 't-xs t-b' }, st.dns);
+      S.lines(30, 472, ['rr1---sn-xxxxxxxx.googlevideo.com', '→ CNAME  rr1.sn-xxxxxxxx.googlevideo.com', '→ A  198.51.100.80（GGC の例）'], { cls: 't-xs t-mono' }, st.dns, 17);
+      // 状況の 1 行
+      st.status = S.text(480, 548, '', { cls: 't-c t-sm t-b' }, svg);
+      // ---- 道と荷札
+      st.rReq = road(svg, 'M146,192 C188,192 188,85 230,85 H470');
+      st.rResp = road(svg, 'M470,100 H230 C188,100 188,214 146,214');
+      st.rConn = road(svg, 'M81,246 V370 H230');
+      st.rBack = road(svg, 'M230,388 H96 V246');
+      st.pGet = pkt(svg, 'GET /watch');
+      st.pHtml = pkt(svg, 'HTML');
+      st.pQuic = pkt(svg, 'QUIC 接続');
+      st.pPost = pkt(svg, 'POST（状態）');
+      st.pUmp = pkt(svg, 'UMP（音声＋映像）');
+      st.all = [st.pGet, st.pHtml, st.pQuic, st.pPost, st.pUmp];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const norm = 'f-sf s-fg w15', hl = 'f-sf s-x w2';
+      setCls(st.gfe.rect, i === 0 ? hl : norm);
+      setCls(st.web.rect, i === 0 || i === 1 ? hl : norm);
+      setCls(st.node.rect, i >= 2 ? hl : norm);
+      dim(st.db, i >= 2);
+      dim(st.gfe, i >= 2);
+      dim(st.web, i >= 2);
+      S.fade(st.write, i === 1);
+      setCls(st.cardRect, i === 1 ? 'f-sf s-x w15' : 'f-sf s-rule w15');
+      st.card.style.opacity = i === 0 || i === 5 ? 0.35 : '';
+      const on = { host: i === 1 || i === 2, expire: i === 1 || i === 5, ip: i === 1, sig: i === 1 || i === 5, sabr: i === 3 || i === 4, path: i === 3 };
+      Object.keys(st.tok).forEach((k) => setCls(st.tok[k].r, on[k] ? 'f-x-soft s-x w15' : 'f-in s-rule w1'));
+      st.stage.forEach((s, k) => { setCls(s.r, norm); dim(s.g, i < 2 || (i === 4 && k !== 2)); });
+      dim(st.up, i < 5);
+      S.fade(st.sabrNote, i === 4);
+      if (i === 4) setCls(st.stage[2].r, hl);
+      S.fade(st.dns, i === 2);
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      st.status.textContent = '';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      st.all.forEach((p) => { p.g.style.opacity = 0; });
+      const go = (p, path, f) => { S.place(p.g, path, f); p.g.style.opacity = 1; };
+      let msg = '';
+      if (i === 0) {
+        const q = U.seq(ts + 0.55, [1.8, 0.6, 1.8, 0.5], true);
+        if (q.i === 0) go(st.pGet, st.rReq, U.ease.inOut(q.f));
+        if (q.i === 2) go(st.pHtml, st.rResp, U.ease.inOut(q.f));
+        msg = ['要求：PC → GFE → YouTube のサーバー', 'サーバーが動画の情報を集めて HTML を作る', '応答：HTML（Brotli 163 KB、展開 1.40 MB）', ''][q.i];
+      }
+      if (i === 1) {
+        run(st.pHtml.g, st.rResp, ts, 2.0, 0.6, 0.8);
+        msg = 'HTML の中の再生の情報に、配信元の URL が 1 つ';
+      }
+      if (i === 2) {
+        run(st.pQuic.g, st.rConn, ts, 2.0, 0.6, 0.6);
+        msg = '名前を引いて、配信元へ QUIC で接続する';
+      }
+      if (i === 3 || i === 4) {
+        const q = U.seq(ts + 1.0, [1.6, 0.4, 1.8, 0.5], true);
+        if (q.i === 0) go(st.pPost, st.rConn, U.ease.inOut(q.f));
+        if (q.i === 2) go(st.pUmp, st.rBack, U.ease.inOut(q.f));
+        msg = i === 3 ? ['POST：再生の位置と溜めた区間を送る', '', '応答：音声と映像の断片をまとめて', ''][q.i]
+          : ['POST：手元の状態を送る', '配信元が、返す形式と範囲を決める', '応答：選んだ形式の断片', ''][q.i];
+      }
+      if (i === 5) {
+        // 段取りを順に光らせる（手元に無い回は上流から取り寄せる）
+        const q = U.seq(ts + 0.3, [0.8, 0.8, 0.8, 0.8, 0.8, 0.4], true);
+        st.stage.forEach((s, k) => setCls(s.r, q.i === k ? 'f-sf s-x w2' : 'f-sf s-fg w15'));
+        msg = ['QUIC と TLS をほどく', 'URL の期限と署名を確かめる', '返す形式と時間の範囲を決める', '手元のキャッシュを探す（無ければ上流へ）', '断片を詰めて返す', ''][q.i];
+      }
+      st.status.textContent = msg;
+    }
+  };
+
+  /* ================================================================
+     場面6 データセンターの中
+     ================================================================ */
+  const JOBS = [['変換', '検索', '保存', '配信', 'Gmail', '変換', '保存', '検索'], ['配信', '保存', '検索', '変換', '保存', 'Drive', '配信', '広告']];
+  const s6 = {
+    steps: [
+      { title: '同じ建物を多くのサービスで使う', text: '機械は特定のサービス専用ではない。仕事は Borg が空いた機械に割り当て、データは Colossus に置く（2021 年のブログ）。図のラックの札のように、YouTube の仕事もほかと同じ棚に並ぶ（模式）。PUE を公表している Google のデータセンターは世界に約 30 か所、日本では千葉県印西市にある。' },
+      { title: 'ラックと ToR', text: '機械は棚（ラック）に積み、ラックの上のスイッチ（{x|ToR}）が中の機械をまとめて上の網へつなぐ。1 つの建物の網には数万台の機械がつながる（2022 年の論文）。Google の機械の総数や、YouTube が使う台数は公開されていない。' },
+      { title: 'Jupiter：建物の中の網', text: 'ToR の上に集約、その上に背骨（スパイン）を重ねた網（Clos）で、どの機械どうしも同じ速さで話せる。Jupiter は 2012 年に入り最大 1.3 Pb/s（2015 年の論文）。のちに背骨をやめ、集約どうしを{p|光}のまま切り替えるスイッチで直結し、2023 年には 13 Pb/s（2024 年のブログ）。' },
+      { title: '電力を受けて配る', text: '{e|電力}は高い電圧で受け、変電所と変圧器で電圧を下げて、列ごと・ラックごとに配る。大半は計算機が使い、残りが冷却と配電の損失になる。Google のデータセンター全体の電力は 2025 年に約 42.4 TWh で、前の年より約 38% 増えた（2026 年の環境報告書）。' },
+      { title: '熱を外へ捨てる', text: '計算機が使った電力は、ほぼすべて{p|熱}になる。機械は冷たい通路から空気を吸い、背面の暖かい通路へ吐く。Google が ISP に示す GGC の条件では、吸気は 25 ℃ 以下、排気は 45 ℃ に達する。熱は水に移して外へ捨てる。フィンランドのハミナでは海水で冷やす。' },
+      { title: 'PUE：余分な電力の割合', text: 'PUE は建物全体の電力を計算機の電力で割った値で、1 に近いほど冷却と配電の分が少ない。Google の全データセンターの 2025 年の平均は 1.09、業界の平均は 1.54（Uptime Institute の 2025 年の調査）。印西は 1.10（2026 年 6 月までの 1 年）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ================= 左上：機械の部屋の断面 =================
+      const gA = st.gA = S.g({}, svg);
+      S.rect(16, 20, 456, 286, { rx: 10, cls: 'f-in s-rule w1' }, gA);
+      S.text(28, 42, '機械の部屋（断面、模式図）', { cls: 't-sm t-b' }, gA);
+      S.line(24, 280, 464, 280, { cls: 's-fg w2' }, gA);
+      // 冷却装置（暖かい空気の熱を水へ移す）
+      st.cool = box(gA, 176, 50, 136, 40, '冷却装置', '', { tcls: 't-sm' });
+      S.path('M312,58 H446', { cls: 'f-none s-mid w2' }, gA);
+      S.text(380, 50, '熱を水で外へ', { cls: 't-c t-xs t-b' }, gA);
+      // ラック 2 列（前面を真ん中の冷たい通路に向ける）
+      st.racks = [];
+      st.jobs = S.g({}, gA);
+      [[90, 0], [338, 1]].forEach(([x, r]) => {
+        const g = S.g({}, gA);
+        S.rect(x, 104, 60, 176, { rx: 3, cls: 'f-sf s-fg w15' }, g);
+        const tor = S.rect(x + 3, 108, 54, 16, { rx: 2, cls: 'f-sf s-fg w1' }, g);
+        S.text(x + 30, 120, 'ToR', { cls: 't-c t-xs t-b t-mono' }, g);
+        for (let k = 0; k < 8; k++) {
+          S.rect(x + 3, 128 + k * 18.5, 54, 15, { rx: 2, cls: 'f-in s-rule w1' }, g);
+          S.text(x + 30, 139 + k * 18.5, JOBS[r][k], { cls: 't-c t-xs' }, st.jobs);
+        }
+        st.racks.push({ g, tor });
+      });
+      gA.appendChild(st.jobs);   // 札はラックの枠より上に重ねる
+      S.text(205, 118, '冷たい通路', { cls: 't-c t-xs t-b' }, gA);
+      S.text(62, 118, '暖かい', { cls: 't-c t-xs t-b' }, gA);
+      S.text(62, 132, '通路', { cls: 't-c t-xs t-b' }, gA);
+      S.text(428, 118, '暖かい', { cls: 't-c t-xs t-b' }, gA);
+      S.text(428, 132, '通路', { cls: 't-c t-xs t-b' }, gA);
+      st.temps = S.g({ cls: 'fade hide' }, gA);
+      // 温度は Google が ISP に示す GGC の条件（本文の段階5）。2 列のラックの間に収める
+      S.text(244, 268, '吸気 25 ℃ 以下（GGC の条件）', { cls: 't-c t-xs t-b' }, st.temps);
+      S.text(62, 268, '〜45 ℃', { cls: 't-c t-xs t-b t-p' }, st.temps);
+      S.text(428, 268, '〜45 ℃', { cls: 't-c t-xs t-b t-p' }, st.temps);
+      // 空気の道：冷却装置 → 冷たい通路 → ラックを抜けて → 暖かい通路 → 天井 → 冷却装置
+      st.airCold = [road(gA, 'M280,90 V200 H150'), road(gA, 'M280,90 V200 H338')];
+      st.airHot = [road(gA, 'M90,200 H34 V70 H176'), road(gA, 'M398,200 H456 V80 H312')];
+      st.airLines = S.g({ cls: 'fade hide' }, gA);
+      S.path('M280,90 V196', { cls: 'f-none s-dim w15 dash', 'marker-end': mk('dim') }, st.airLines);
+      S.path('M90,200 H34 V70 H172', { cls: 'f-none s-p w15 dash', 'marker-end': mk('p') }, st.airLines);
+      S.path('M398,200 H456 V80 H316', { cls: 'f-none s-p w15 dash', 'marker-end': mk('p') }, st.airLines);
+      // ================= 右上：建物の中の網 =================
+      const gB = st.gB = S.g({}, svg);
+      S.rect(488, 20, 456, 286, { rx: 10, cls: 'f-in s-rule w1' }, gB);
+      S.text(500, 42, '建物の中の網（Jupiter、模式図）', { cls: 't-sm t-b' }, gB);
+      const TOR_X = (k) => 506 + k * 36, AGG_X = [510, 616, 722, 828], SP_X = [560, 744];
+      st.netUp = S.g({}, gB);
+      for (let k = 0; k < 12; k++) {
+        const a = Math.floor(k / 3);
+        S.line(TOR_X(k) + 14, 254, AGG_X[a] + 45, 196, { cls: 's-mid w1' }, st.netUp);
+        S.line(TOR_X(k) + 14, 254, AGG_X[(a + 1) % 4] + 45, 196, { cls: 's-soft w1' }, st.netUp);
+      }
+      st.fiber = S.g({}, gB);
+      AGG_X.forEach((ax) => SP_X.forEach((sx) => S.line(ax + 45, 166, sx + 70, 110, { cls: 's-p w15' }, st.fiber)));
+      st.tors = [];
+      for (let k = 0; k < 12; k++) st.tors.push(S.rect(TOR_X(k), 254, 28, 16, { rx: 2, cls: 'f-sf s-fg w1' }, gB));
+      S.text(716, 292, 'ToR（ラックごとに 1 台。下に機械）', { cls: 't-c t-xs t-dim' }, gB);
+      st.aggs = AGG_X.map((x) => box(gB, x, 166, 90, 30, '集約', '', { tcls: 't-xs' }));
+      st.spines = SP_X.map((x) => box(gB, x, 80, 140, 30, '背骨（スパイン）', '', { tcls: 't-xs' }));
+      S.text(716, 66, 'のちに光のまま切り替えるスイッチ（OCS）で集約どうしを直結', { cls: 't-c t-xs t-dim' }, gB);
+      S.label(gB, 640, 137, '光ファイバー', { cls: 't-xs t-p t-b', box: 'f-in s-none', h: 16, pad: 8 });
+      st.rNet = road(gB, `M${TOR_X(1) + 14},254 L${AGG_X[0] + 45},196 V166 L${SP_X[0] + 70},110 L${AGG_X[3] + 45},166 V196 L${TOR_X(10) + 14},254`);
+      // ================= 下：電力の流れと PUE =================
+      const gC = st.gC = S.g({}, svg);
+      S.rect(16, 320, 928, 228, { rx: 10, cls: 'f-in s-rule w1' }, gC);
+      S.text(28, 342, '電力の流れ（模式図）と PUE', { cls: 't-sm t-b' }, gC);
+      st.power = S.g({}, gC);
+      const pb = [['電力会社', '高い電圧で受ける', 28], ['変電所・変圧器', '電圧を下げる', 210], ['配電', '列・ラックへ', 392], ['計算機', '大半を使う', 574]];
+      st.pboxes = pb.map(([a, b, x]) => box(st.power, x, 354, 150, 46, a, b, { tcls: 't-sm' }));
+      [178, 360, 542].forEach((x) => S.path(`M${x},377 H${x + 28}`, { cls: 'f-none s-e w2', 'marker-end': mk('e') }, st.power));
+      S.path('M467,400 V418 H574', { cls: 'f-none s-e w2', 'marker-end': mk('e') }, st.power);
+      st.coolBox = box(st.power, 578, 408, 150, 22, '冷却（ポンプ・送風機など）', '', { tcls: 't-xs', rx: 4 });
+      S.text(740, 377, '→ ほぼすべて熱に', { cls: 't-xs t-p t-b' }, st.power);
+      // 粒は矢印の区間だけを流す（箱の文字の上を通らないように）
+      st.rPow = [road(gC, 'M180,377 H206'), road(gC, 'M362,377 H388'), road(gC, 'M544,377 H570'), road(gC, 'M467,402 V418 H572')];
+      // PUE の棒（計算機の電力を 1 とした長さ）
+      st.pue = S.g({}, gC);
+      const BX = 200, SC = 380;
+      [['Google（2025 年）', 0.09, '1.09', 470], ['業界の平均（2025 年の調査）', 0.54, '1.54', 508]].forEach(([lbl, ov, v, y]) => {
+        S.text(28, y + 15, lbl, { cls: 't-sm t-b' }, st.pue);
+        S.rect(BX, y, SC, 22, { cls: 'f-e-soft s-e w1' }, st.pue);
+        S.rect(BX + SC, y, SC * ov, 22, { cls: 'f-x' }, st.pue);
+        S.text(BX + SC * (1 + ov) + 8, y + 16, v, { cls: 't-md t-b t-mono' }, st.pue);
+      });
+      S.text(BX + 6, 462, '計算機の電力（1）', { cls: 't-xs t-e t-b' }, st.pue);
+      S.text(BX + SC + 4, 462, '冷却・配電など', { cls: 't-xs t-x t-b' }, st.pue);
+      // ---- 動く粒
+      st.airDots = [...Array(8)].map((_, k) => S.circle(0, 0, 4, { cls: k < 4 ? 'f-dim' : 'f-p', style: { opacity: 0 } }, gA));
+      st.netDots = [...Array(4)].map(() => S.circle(0, 0, 4.5, { cls: 'f-d', style: { opacity: 0 } }, gB));
+      st.powDots = [...Array(12)].map(() => S.circle(0, 0, 3.5, { cls: 'f-e', style: { opacity: 0 } }, gC));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      dim(st.gA, i === 2 || i === 3);
+      dim(st.gB, i === 3 || i === 4 || i === 5);
+      dim(st.gC, i === 1 || i === 2 || i === 4);
+      st.jobs.style.opacity = i === 0 ? '' : 0.35;
+      st.racks.forEach((r) => setCls(r.tor, i === 1 ? 'f-x-soft s-x w2' : 'f-sf s-fg w1'));
+      st.tors.forEach((r) => setCls(r, i === 1 ? 'f-x-soft s-x w15' : 'f-sf s-fg w1'));
+      st.aggs.concat(st.spines).forEach((b) => setCls(b.rect, i === 2 ? 'f-sf s-x w2' : 'f-sf s-fg w15'));
+      st.fiber.style.opacity = i === 2 ? '' : 0.5;
+      st.pboxes.forEach((b) => setCls(b.rect, i === 3 ? 'f-sf s-e w2' : 'f-sf s-fg w15'));
+      setCls(st.coolBox.rect, i === 3 || i === 4 ? 'f-sf s-x w15' : 'f-sf s-fg w15');
+      setCls(st.cool.rect, i === 4 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+      S.fade(st.airLines, i === 4);
+      S.fade(st.temps, i === 4);
+      st.pue.style.opacity = i === 5 ? '' : 0.35;
+      st.power.style.opacity = i === 5 ? 0.35 : '';
+      st.airDots.concat(st.netDots, st.powDots).forEach((d) => { d.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      st.airDots.concat(st.netDots, st.powDots).forEach((d) => { d.style.opacity = 0; });
+      const dot = (d, path, f) => { const p = S.along(path, f); d.setAttribute('cx', p.x.toFixed(1)); d.setAttribute('cy', p.y.toFixed(1)); d.style.opacity = 1; };
+      if (i === 2) st.netDots.forEach((d, k) => dot(d, st.rNet, U.cycle(ts / 3.2 + k / 4, 1)));
+      if (i === 3) st.powDots.forEach((d, k) => { const r = k < 9 ? Math.floor(k / 3) : 3; dot(d, st.rPow[r], U.cycle(ts / (r === 3 ? 2.4 : 1.2) + (k % 3) / 3, 1)); });
+      if (i === 4) {
+        st.airDots.forEach((d, k) => {
+          const path = k < 4 ? st.airCold[k % 2] : st.airHot[k % 2];
+          dot(d, path, U.cycle(ts / 3 + (k % 4 < 2 ? 0 : 0.5), 1));
+        });
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VI部 YouTube ／ 第22章',
+      title: 'YouTube のサーバー側',
+      home: '../index.html',
+      prev: { href: '21-http.html', title: 'HTTP' },
+      next: { href: '23-codec.html', title: '動画の圧縮' },
+      legend: [{ c: 'd', label: 'データ・要求・映像の断片' }, { c: 'e', label: '電力（電流）' }, { c: 'p', label: '光・熱' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

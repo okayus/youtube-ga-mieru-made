@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>ホームルーター — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第IV部 つながる ／ 第14章 ／ 全25章</p>
+    <h1 id="h-s0">ホームルーター</h1>
+    <p class="standfirst">家の Wi-Fi ルーターは、家の中の機器どうしをつなぐ役と、家の中と外（インターネット）の境目に立つ役を 1 台でこなす。この章では、PC から YouTube へ出ていく 1 個のパケットに対してルーターが行うことを順に追う。IP アドレスを配る DHCP、宛先が家の中か外かの判定、私設アドレスをグローバルアドレスに書き換える NAT、外からの侵入を止めるファイアウォール、そして TTL を減らし MAC を付け替える転送。宛先 IP アドレスは端から端まで変わらず、MAC アドレスは 1 区間ごとに付け替えられ、この二重の宛先がこの先の全区間で繰り返される。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。アドレスは例で、203.0.113.5 は説明用に予約された範囲の値。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>ルーターの中身</a><p>ルーター・スイッチ・アクセスポイントの 3 役が 1 枚の基板に。LAN 側は 1 つのブリッジ。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>DHCP</a><p>IP が無い機器に、IP・マスク・ゲートウェイ・DNS を 2 往復（4 つのメッセージ）で配る。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>宛先の判定</a><p>マスクで「同じネットワークか」を決め、違えばデフォルトゲートウェイの MAC 宛てに送る。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>NAT</a><p>私設アドレスをグローバルアドレスに書き換え、変換表で戻りを元に戻す。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>ファイアウォール</a><p>通信ごとの状態を覚え、内側から始めた通信の戻りだけ通す。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>転送</a><p>Ethernet をはがし、TTL を 1 減らし、宛先 IP はそのままに、新しい Ethernet を付けて WAN へ。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（光回線）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。家の LAN は 192.168.1.0/24、ルーターの WAN 側のグローバル IP は 203.0.113.5、外の見知らぬ送信元は 192.0.2.7（どちらも RFC 5737 の説明用アドレス）、YouTube 側は 142.250.196.110 を例として使う。本文に書いた規格の数値だけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 ルーターの中身 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="中身" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>ルーターの中身 — 3 つの役割、2 つの通り道</h2>
+    <p class="sh-meta"><span class="chip">SoC</span><span class="chip">スイッチチップ</span><span class="chip">無線部</span><span class="chip">WAN / LAN</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">家庭の Wi-Fi ルーターは、1 台の箱に「ルーター」「スイッチ」「アクセスポイント」の 3 つの役割が入っている。<span class="tag d">パケット</span>がどの部品を通るかは、宛先が家の中か外かで変わる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">2020 年代の家庭用は WAN 1 Gbps（2.5 / 10 Gbps の機種もある）、LAN 4 ポート、Wi-Fi 6 以降が標準的。実物の無線部は SoC に PCIe でつながるか内蔵され、有線と無線の橋渡しも SoC が受け持つことが多い（図は役割で分けた模式図）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ホームルーターの内部のブロック図。WANポート、SoC、メモリ、スイッチチップ、無線部と、ONU・PC・テレビ・スマホのつながり"></svg></div>
+    <figcaption>図1　ホームルーターの中身（役割ごとの模式図）。有線ポートと無線部は 1 つのブリッジ（点線）で、家の中どうしのパケットは MAC で中継されるだけ。外へ出るパケットだけが SoC のルーター機能を通って WAN ポートから ONU へ出る。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 DHCP ================= -->
+<section class="scene sc-anim" id="s2" data-tab="DHCP" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>DHCP — IP アドレスをもらう 2 往復</h2>
+    <p class="sh-meta"><span class="chip">UDP 68 → 67</span><span class="chip">DISCOVER / OFFER / REQUEST / ACK</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">PC やスマホがネットワークに参加した直後は MAC アドレスしか持っていない。IP アドレスとその使い方（マスク・ゲートウェイ・DNS）は、ルーターの中の DHCP サーバーが 4 つのメッセージ（2 往復）で配る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">DHCP の仕様は RFC 2131（1997 年）。家庭用の LAN 側は 192.168.0.1 や 192.168.1.1 が多く、配る範囲（プール）はその /24 の一部。IPv6 の LAN では、機器がルーター広告（RA）から自分でアドレスを作る SLAAC が主流。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PCとルーターの間を DISCOVER、OFFER、REQUEST、ACK の4つのメッセージが往復し、PCのネットワーク設定とルーターのリース表が埋まる図"></svg></div>
+    <figcaption>図2　左が参加したばかりの PC、右がルーター（DHCP サーバー）。4 つのメッセージが順に往復し、PC の設定欄とルーターのリース表が埋まる。段階 5 はリースの期限と更新。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 宛先の判定 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="宛先の判定" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>どこへ送るか — 同じネットワークか、外か</h2>
+    <p class="sh-meta"><span class="chip">サブネットマスク</span><span class="chip">デフォルトゲートウェイ</span><span class="chip">ARP</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IP アドレスは「ネットワーク部＋ホスト部」でできている。送る側は、宛先が自分と同じネットワークかをマスクで判定し、同じなら相手に直接、違えばデフォルトゲートウェイ（ルーター）に渡す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PC の経路表は Linux なら <code>ip route</code>、Windows なら <code>route print</code> で見られる。192.168.1.0/24 の行と 0.0.0.0/0（default）の行があれば、この場面の判定がそのまま動いている。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="IPアドレスとマスクのAND演算でネットワーク部を取り出し、宛先がプリンタなら直接、YouTubeならルーターへ送る判定の図"></svg></div>
+    <figcaption>図3　上は IP とマスクの AND でネットワーク部を取り出す計算。下は判定の結果どこへフレームを送るか。宛先 MAC は次の一歩、宛先 IP は最終目的地。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 NAT ================= -->
+<section class="scene sc-anim" id="s4" data-tab="NAT" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>NAT — 私設アドレスを 1 つのグローバルアドレスに</h2>
+    <p class="sh-meta"><span class="chip">RFC 1918</span><span class="chip">NAPT</span><span class="chip">変換表</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">家の中の 192.168.x.x はインターネットでは使えない<b>私設アドレス</b>。ルーターは外へ出るパケットの送信元を、ISP からもらった 1 つのグローバルアドレスに書き換え、戻ってきたパケットを変換表で元に戻す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">外側ポートは 1024〜65535 から選ぶが、空いていれば元のポート（例の 51234）を保つ実装も多い（Linux など）。ISP 側でも NAT をかける CGNAT（100.64.0.0/10）では、1 つのグローバル IP を複数の世帯で分け合うので、使えるポート数が限られる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PCとスマホからのパケットがルーターで送信元アドレスとポートを書き換えられてYouTubeサーバーへ向かい、戻りが変換表で元に戻される図"></svg></div>
+    <figcaption>図4　中央がルーター。LAN 側は 192.168.1.1、WAN 側は 203.0.113.5。通るパケットの荷札が書き換わり、変換表に行が増える。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 ファイアウォール ================= -->
+<section class="scene sc-anim" id="s5" data-tab="ファイアウォール" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>ファイアウォール — 内側から始めた通信の戻りだけ通す</h2>
+    <p class="sh-meta"><span class="chip">ステートフル</span><span class="chip">SYN_SENT → ESTABLISHED</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ルーターは「内側から始まった通信の戻りだけ通し、外から始まる通信は止める」。通信ごとの<b>状態</b>を表に覚えておくことでこれを実現する（ステートフルインスペクション）。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Linux ベースのルーターでは nftables / iptables の conntrack がこの状態表を持つ（<code>/proc/net/nf_conntrack</code>）。SYN_SENT、ESTABLISHED、TIME_WAIT などの状態名は第19章の TCP の状態と同じ語。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ルーターの壁に外からの未知のパケットが当たって落ち、内側から始めた通信の戻りが状態表に一致して通る図"></svg></div>
+    <figcaption>図5　中央の壁がファイアウォール。外から始まる通信（右下の見知らぬ送信元）は落とされ、PC が始めた通信は状態表に記録されて戻りが通る。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 転送 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="転送" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>転送 — TTL を減らし、MAC を付け替え、IP は変えない</h2>
+    <p class="sh-meta"><span class="chip">TTL 64 → 63</span><span class="chip">ネクストホップ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">外へ出る 1 個のパケットにルーターがすること。Ethernet ヘッダをはがし、TTL を 1 減らし、経路表で出口を決め、NAT で送信元を書き換え、新しい Ethernet ヘッダを付けて WAN へ送る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ルーターの LAN 側と WAN 側で同時にパケットを取る（Wireshark など）と、同じパケットの TTL は 64 と 63、MAC は 2 つとも別の値、送信元 IP は 203.0.113.5 に変わって見える（ポートは保たれることも多い）。宛先 IP は両側で同じ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PCから届いたフレームのヘッダの入れ子と、ルーターの処理（Ethernetをはがす、TTLを減らす、NAT、経路表、Ethernetを付ける）を経てWANへ出るフレームの図"></svg></div>
+    <figcaption>図6　上が PC から届いたフレーム、中央がルーターの 5 つの処理、下が WAN へ出すフレーム。赤い枠はその段階で見る欄。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 家の中と外の境目で起きること</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>ルーターは、ルーター・スイッチ・アクセスポイントの 3 役が 1 枚の基板に載った箱。家の中どうしはブリッジが MAC で中継し、外へ出るパケットだけがルーターの処理（経路の判定・NAT・ファイアウォール）を通る（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>参加した機器は DHCP の 2 往復（4 つのメッセージ）で IP・マスク・ゲートウェイ・DNS を受け取る。この 4 つがその後の全通信の前提（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>宛先とマスクの AND が自分のネットワークと一致すれば直接、違えばデフォルトゲートウェイの MAC 宛てに送る。MAC は次の一歩、IP は最終目的地（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>NAT は送信元の私設アドレスをグローバルアドレスに（必要ならポートも）書き換え、変換表で戻りを元に戻す。表に無い外からのパケットは届かない（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>ファイアウォールは通信ごとの状態を覚え、内側から始めた通信の戻りだけ通す。IPv6 では NAT が無いので、これが唯一の壁（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>転送のたびに Ethernet ヘッダは付け替えられ、TTL は 1 減り、宛先 IP は変わらない。同じ手順が ISP 以降のすべてのルーターで繰り返される（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>ブリッジ</th><td>MAC アドレスを見てフレームを中継し、複数のポートを 1 つの L2 ネットワークにまとめる仕組み。ルーターの有線 LAN ポートと Wi-Fi は同じブリッジにある。</td></tr>
+        <tr><th>DHCP</th><td>IP アドレスなどの設定を自動で配る仕組み。DISCOVER → OFFER → REQUEST → ACK。UDP 67/68 番。RFC 2131。</td></tr>
+        <tr><th>サブネットマスク</th><td>IP アドレスのうちネットワーク部を示す 1 の並び。255.255.255.0 ＝ /24 ＝ 254 台分のホスト部。</td></tr>
+        <tr><th>デフォルトゲートウェイ</th><td>自分のネットワークに無い宛先をすべて託すルーター。経路表では 0.0.0.0/0（default）の行。</td></tr>
+        <tr><th>ARP</th><td>IP アドレスから同じブリッジ内の MAC アドレスを調べる問い合わせ（第13章）。ゲートウェイの MAC もこれで知る。</td></tr>
+        <tr><th>私設アドレス</th><td>10.0.0.0/8、172.16.0.0/12、192.168.0.0/16。RFC 1918。インターネットには経路が無い。</td></tr>
+        <tr><th>NAT ／ NAPT</th><td>NAT は IP アドレスを書き換える変換。NAPT はポートも書き換え、1 つのグローバル IP を複数の機器で使う（IP マスカレードとも）。変換表で戻りを逆引きする。</td></tr>
+        <tr><th>ステートフルインスペクション</th><td>通信ごとの状態（SYN_SENT、ESTABLISHED など）を表に持ち、状態に合うパケットだけ通すファイアウォール。</td></tr>
+        <tr><th>TTL</th><td>IP ヘッダの Time To Live。ルーターを 1 台通るごとに 1 減り、0 で破棄。Linux / macOS は 64、Windows は 128 から始まる。</td></tr>
+        <tr><th>ネクストホップ</th><td>次に渡すルーター。Ethernet の宛先 MAC はネクストホップ、IP の宛先は最終目的地を指す。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) > 0x2e80 ? fs : fs * 0.62;
+    return w;
+  }
+  /* 題と副題の付いた箱 */
+  function box(p, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    if (title) S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (tcls || 't-md') }, g);
+    if (sub) S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim t-mono' }, g);
+    return g;
+  }
+  /* 荷札付きのパケット。lines は 1〜2 行。S.place で道の上に置く */
+  function pkt(p, lines, cls) {
+    lines = Array.isArray(lines) ? lines : [lines];
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = Math.max(...lines.map((l) => tw(l, 10.5))) + 16;
+    const h = lines.length > 1 ? 34 : 22;
+    const r = S.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: cls || 'f-d' }, g);
+    const ts = lines.map((l, i) => S.text(0, lines.length > 1 ? -4 + i * 14 : 4, l, { cls: 't-c t-xs t-b t-sf t-mono' }, g));
+    return { g, rect: r, texts: ts, set(newLines, newCls) {
+      newLines = Array.isArray(newLines) ? newLines : [newLines];
+      const nw = Math.max(...newLines.map((l) => tw(l, 10.5))) + 16;
+      r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+      if (newCls) r.setAttribute('class', newCls);
+      ts.forEach((t, i) => { t.textContent = newLines[i] || ''; });
+    }, show(on) { g.style.display = on ? '' : 'none'; } };
+  }
+  /* 見えない道 */
+  function road(p, d) { return S.path(d, { cls: 'f-none s-none' }, p); }
+  /* 表（単純な行の並び）。rows は文字列の配列の配列。cols は列の x 位置 */
+  function table(p, x, y, w, cols, head, rows, opts) {
+    opts = opts || {};
+    const g = S.g({}, p);
+    const rh = opts.rh || 22;
+    const h = rh * (rows.length + 1) + 8;
+    S.rect(x, y, w, h, { rx: 6, cls: opts.box || 'f-sf s-rule w1' }, g);
+    head.forEach((hd, k) => S.text(x + cols[k], y + 17, hd, { cls: 't-xs t-b t-dim' }, g));
+    S.line(x + 6, y + rh + 2, x + w - 6, y + rh + 2, { cls: 's-soft w1' }, g);
+    const rowG = rows.map((r, ri) => {
+      const rg = S.g({}, g);
+      const bg = S.rect(x + 4, y + rh * (ri + 1) + 4, w - 8, rh - 2, { rx: 3, cls: 'f-in', style: { opacity: 0 } }, rg);
+      const cells = r.map((c, k) => S.text(x + cols[k], y + rh * (ri + 2) - 3, c, { cls: 't-xs t-mono' }, rg));
+      return { g: rg, bg, cells };
+    });
+    return { g, rows: rowG, h };
+  }
+  const dim = (g, on) => { g.style.opacity = on ? 0.28 : ''; };
+
+  /* ================================================================
+     場面1 ルーターの中身
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '1 台に 3 つの役割', text: 'WAN と LAN の境目でパケットを転送するのが**ルーター**、有線の LAN ポート同士をつなぐのが**スイッチ**（第13章）、Wi-Fi の電波を出すのが**アクセスポイント**（第12章）。家庭用はこの 3 つを 1 枚の基板に載せ、1 つの SoC が全部を制御する。' },
+      { title: 'LAN 側はひとつのブリッジ', text: '有線の LAN ポートと Wi-Fi は、内部で 1 つのブリッジにまとめられている。有線の PC からスマホへのフレームは宛先 MAC だけを見て中継され、ルーターの処理（経路の判定・NAT・ファイアウォール）を通らない。第13章のスイッチの学習がそのまま働く。' },
+      { title: 'WAN ポートだけが「外」', text: 'WAN ポートは ONU（第15章）につながり、その先が回線事業者と ISP の網。LAN 側の 192.168.1.0/24 と WAN 側のグローバルアドレスの境目に SoC が立ち、外へ出るパケットだけが SoC の転送（経路の判定・NAT・ファイアウォール）を通る。' },
+      { title: 'SoC の中身', text: 'SoC には 1〜2 GHz 級の CPU と、多くの機種では転送を専用回路で肩代わりするハードウェア NAT エンジンが入る。横の RAM（数百 MB）で Linux ベースのファームウェアが動き、設定（SSID、パスワード、DHCP の範囲）はフラッシュメモリに残る。設定用の Web ページもこの CPU が出す。' },
+      { title: '2 つの通り道', text: '家の中どうし（PC→スマホ）はブリッジが MAC を見て中継するだけ、外へ（PC→YouTube）はルーターの処理を通って WAN へ。以後の場面は後者の「外へ出る 1 個のパケット」にルーターが何をするかを、[[2|DHCP]] → [[3|宛先の判定]] → [[4|NAT]] → [[5|ファイアウォール]] → [[6|転送]] の順で追う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 外: ONU と光回線
+      st.onu = box(svg, 30, 230, 100, 60, 'ONU', '光 ↔ 電気');
+      S.text(80, 215, '← 光回線（第15章）', { cls: 't-c t-xs t-p t-b' }, svg);
+      S.path('M0,260 H30', { cls: 'f-none s-p w4' }, svg);
+      S.line(130, 260, 180, 260, { cls: 's-e w3' }, svg);
+      // 筐体
+      st.chassis = S.rect(170, 70, 620, 370, { rx: 12, cls: 'f-in s-rule w15' }, svg);
+      S.text(480, 60, 'ホームルーター（Wi-Fi ルーター）', { cls: 't-c t-b t-lg' }, svg);
+      // アンテナ
+      [700, 740].forEach((x) => { S.line(x, 70, x, 28, { cls: 's-fg w3 round' }, svg); S.circle(x, 26, 4, { cls: 'f-fg' }, svg); });
+      // 部品
+      st.wan = box(svg, 180, 235, 70, 50, 'WAN', 'RJ45');
+      st.soc = box(svg, 330, 130, 200, 120, 'SoC', 'CPU ／ 転送エンジン');
+      st.mem = box(svg, 330, 290, 200, 90, 'RAM ／ フラッシュ', '設定・ファームウェア');
+      st.sw = box(svg, 590, 110, 150, 130, 'スイッチチップ', 'LAN 4 ポート');
+      st.wl = box(svg, 590, 290, 150, 110, '無線部', '2.4 GHz ／ 5 GHz');
+      // 内部配線
+      S.line(250, 260, 330, 200, { cls: 's-e w3' }, svg);
+      S.line(530, 175, 590, 175, { cls: 's-e w3' }, svg);
+      S.line(430, 250, 430, 290, { cls: 's-e w2' }, svg);
+      S.line(665, 240, 665, 290, { cls: 's-e w3' }, svg);
+      // LAN ポート
+      st.ports = [];
+      [120, 155, 190, 225].forEach((y, k) => {
+        st.ports.push(box(svg, 752, y - 12, 36, 24, 'LAN' + (k + 1), null, 'f-sf s-rule w1', 't-xs'));
+      });
+      // 家の機器
+      st.pc = box(svg, 830, 95, 110, 56, 'PC', '有線 → LAN1');
+      S.line(788, 120, 830, 120, { cls: 's-e w3' }, svg);
+      st.tv = box(svg, 830, 165, 110, 56, 'テレビ', '有線 → LAN2');
+      S.line(788, 155, 810, 155, { cls: 's-e w3' }, svg); S.line(810, 155, 810, 190, { cls: 's-e w3' }, svg); S.line(810, 190, 830, 190, { cls: 's-e w3' }, svg);
+      st.phone = box(svg, 830, 350, 110, 56, 'スマホ', 'Wi-Fi');
+      st.waves = S.g({}, svg);
+      for (let k = 1; k <= 3; k++) S.path(`M${760 + k * 14},${378 - k * 10} a${k * 12},${k * 12} 0 0 1 0,${k * 20}`, { cls: 'f-none s-r w2' }, st.waves);
+      // ブリッジの囲い
+      st.bridge = S.g({ cls: 'fade hide' }, svg);
+      S.rect(578, 96, 220, 318, { rx: 10, cls: 'f-none s-d w2 dash' }, st.bridge);
+      S.text(688, 432, 'LAN 側＝1 つのブリッジ（192.168.1.0/24）', { cls: 't-c t-sm t-d t-b' }, st.bridge);
+      // 境目の線
+      st.border = S.g({ cls: 'fade hide' }, svg);
+      S.line(300, 80, 300, 430, { cls: 's-x w2 dash' }, st.border);
+      S.text(292, 100, '外', { cls: 't-x t-b t-sm', 'text-anchor': 'end' }, st.border);
+      S.text(308, 100, '家の中', { cls: 't-x t-b t-sm' }, st.border);
+      S.text(215, 320, 'ここだけが', { cls: 't-c t-xs t-x' }, st.border);
+      S.text(215, 334, 'インターネット側', { cls: 't-c t-xs t-x' }, st.border);
+      // 役割の札
+      st.roles = S.g({ cls: 'fade' }, svg);
+      S.label(st.roles, 430, 118, 'ルーター', { cls: 't-sm t-b t-x', box: 'f-x-soft s-x w1' });
+      S.label(st.roles, 665, 98, 'スイッチ', { cls: 't-sm t-b t-x', box: 'f-x-soft s-x w1' });
+      S.label(st.roles, 665, 418, 'アクセスポイント', { cls: 't-sm t-b t-x', box: 'f-x-soft s-x w1' });
+      // SoC の中身（段階4）
+      st.socDetail = S.g({ cls: 'fade hide' }, svg);
+      S.rect(330, 130, 200, 120, { rx: 6, cls: 'f-sf s-x w2' }, st.socDetail);
+      [['SoC の中', 153, ' t-b t-x'], ['CPU（Linux が動く）', 176], ['ハードウェア NAT エンジン', 197], ['Ethernet MAC', 218], ['Wi-Fi を内蔵する品種もある', 239]].forEach(([s, y, c]) => S.text(430, y, s, { cls: 't-c t-xs' + (c || '') }, st.socDetail));
+      // 通り道
+      st.pLan = road(svg, 'M830,120 H770 V175 H665 V345 H770 L830,378');
+      st.pWan = road(svg, 'M830,120 H770 V175 H665 H530 L430,190 H330 L250,260 H130 H10');
+      st.lanPkt = pkt(svg, '家の中どうし', 'f-d');
+      st.wanPkt = pkt(svg, '外へ', 'f-d');
+      st.info = S.text(480, 500, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.info2 = S.text(480, 522, '', { cls: 't-c t-sm t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.roles, i === 0);
+      S.fade(st.bridge, i === 1 || i === 4);
+      S.fade(st.border, i === 2);
+      S.fade(st.socDetail, i === 3);
+      const all = [st.onu, st.wan, st.soc, st.mem, st.sw, st.wl, st.pc, st.tv, st.phone, st.waves].concat(st.ports);
+      all.forEach((g) => dim(g, false));
+      if (i === 1) [st.onu, st.wan, st.soc, st.mem, st.tv].forEach((g) => dim(g, true));
+      if (i === 2) [st.wl, st.tv, st.phone, st.waves, st.mem].concat(st.ports.slice(1)).forEach((g) => dim(g, true));
+      if (i === 3) [st.onu, st.wan, st.sw, st.wl, st.pc, st.tv, st.phone, st.waves].concat(st.ports).forEach((g) => dim(g, true));
+      st.lanPkt.show(i === 1 || i === 4);
+      st.wanPkt.show(i === 2 || i === 4);
+      st.info.textContent = ['3 つの役割の札。どれも同じ SoC が制御する', 'PC → ブリッジ → スマホ。ルーターの処理は通らない', 'PC → スイッチチップ → SoC（経路判定・NAT・FW）→ WAN → ONU', 'RAM は作業用、フラッシュは電源を切っても消えない記憶（第5章）', '家の中どうし: ブリッジだけ　外へ: SoC → WAN → ONU'][i];
+      st.info2.textContent = ['', 'ブロードキャスト（ARP、DHCP）もこのブリッジの全員に届く', 'WAN 側のアドレスは ISP からもらった 1 つのグローバル IP', '', '以後の場面は「外へ」の 1 個のパケットを追う'][i];
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 1 || i === 4) S.place(st.lanPkt.g, st.pLan, U.ease.inOut(U.cycle(t, 4)));
+      if (i === 2 || i === 4) {
+        const f = U.ease.inOut(U.cycle(t + 2, 5));
+        S.place(st.wanPkt.g, st.pWan, f);
+        st.wanPkt.rect.setAttribute('class', f > 0.6 ? 'f-fg' : 'f-d');   // SoC を出たら送信元は WAN 側の値
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 DHCP
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: 'DISCOVER：誰か IP をください', text: '自分の IP がまだ無いので、送信元 0.0.0.0、宛先 255.255.255.255（全員宛て）、UDP 68 番から 67 番へブロードキャストする。宛先 MAC も FF:FF:FF:FF:FF:FF で、同じブリッジにいる全機器に届くが、答えるのは DHCP サーバー（ルーター）だけ。' },
+      { title: 'OFFER：この IP はどうですか', text: 'ルーターは空いている 192.168.1.10 を候補にして、サブネットマスク 255.255.255.0、デフォルトゲートウェイ 192.168.1.1、DNS サーバー 192.168.1.1、リース時間（例: 24 時間）をまとめて提案する。PC はまだ IP を持たないので、PC の MAC 宛てに返す。' },
+      { title: 'REQUEST：それをください', text: 'PC は提案された IP を使うと宣言する。これもブロードキャストで送るのは、DHCP サーバーが複数あったとき「どの提案を選んだか」を全員に知らせ、選ばれなかったサーバーが候補を解放できるようにするため。' },
+      { title: 'ACK：確定', text: 'ルーターは割り当てを確定し、リース表に MAC・IP・期限を記録する。PC は受け取った 4 つの値を自分のネットワーク設定に書き込み、ここで初めて IP で会話できるようになる。RFC 2131 は、使い始める前に ARP で同じアドレスの機器がいないか確かめることを勧めている。' },
+      { title: 'リースの更新', text: '割り当ては期限付きで、期限の半分（T1）が過ぎると PC はルーター宛てに REQUEST を送って延長する。再接続時も前回の IP を要求するので、同じ機器には同じ IP が付きやすい。管理画面で MAC に IP を固定する「DHCP 予約」はこの仕組みの上にある。' },
+      { title: '配られた 4 つの値がこの先の前提', text: '自分の IP（名乗る名前）、マスクとゲートウェイ（[[3|宛先の判定]]で使う）、DNS サーバー（名前を番号にする問い合わせ先、第17章）。DNS が 192.168.1.1 なのは、ルーターが問い合わせを ISP の DNS サーバーへ転送する中継役を兼ねているから。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // PC
+      box(svg, 40, 90, 220, 70, 'PC（参加したばかり）', 'MAC 3C:4D:5E:6F:70:81');
+      // 設定欄
+      const cfg = S.g({}, svg);
+      S.rect(40, 180, 220, 150, { rx: 6, cls: 'f-sf s-rule w1' }, cfg);
+      S.text(150, 200, 'PC のネットワーク設定', { cls: 't-c t-xs t-b t-dim' }, cfg);
+      st.cfgRows = [['IP アドレス', '192.168.1.10'], ['マスク', '255.255.255.0'], ['ゲートウェイ', '192.168.1.1'], ['DNS サーバー', '192.168.1.1'], ['リース', '24 時間']].map(([k, v], r) => {
+        const y = 224 + r * 21;
+        const bg = S.rect(46, y - 14, 208, 19, { rx: 3, cls: 'f-x-soft', style: { opacity: 0 } }, cfg);
+        S.text(54, y, k, { cls: 't-xs t-dim' }, cfg);
+        const val = S.text(250, y, '—', { cls: 't-xs t-mono t-b', 'text-anchor': 'end' }, cfg);
+        return { bg, val, v };
+      });
+      // ルーター
+      box(svg, 700, 90, 220, 70, 'ルーター（DHCP サーバー）', '192.168.1.1 ／ プール .2〜.254');
+      st.lease = table(svg, 700, 180, 232, [8, 84, 172], ['MAC', 'IP', '期限'], [['…:7C テレビ', '192.168.1.5', '18h'], ['…:B2 スマホ', '192.168.1.11', '6h'], ['…:70:81 PC', '192.168.1.10', '24h']], { rh: 21 });
+      S.text(810, 172, 'リース表', { cls: 't-c t-xs t-b t-dim' }, svg);
+      st.lease.rows[2].g.style.opacity = 0;
+      // メッセージの道と注記
+      const defs = [
+        { name: '① DISCOVER', dir: 1, y: 120, sub: '0.0.0.0 → 255.255.255.255（ブロードキャスト）', sub2: 'UDP 68 → 67、宛先 MAC FF:FF:FF:FF:FF:FF' },
+        { name: '② OFFER', dir: -1, y: 190, sub: '192.168.1.1 → PC の MAC 宛て', sub2: '候補 192.168.1.10、マスク、GW、DNS、リース 24h' },
+        { name: '③ REQUEST', dir: 1, y: 260, sub: '0.0.0.0 → 255.255.255.255（ブロードキャスト）', sub2: '「192.168.1.10 をください」を全員に知らせる' },
+        { name: '④ ACK', dir: -1, y: 330, sub: '192.168.1.1 → PC の MAC 宛て', sub2: '確定。リース表に記録' }
+      ];
+      st.msgs = defs.map((d) => {
+        const g = S.g({}, svg);
+        // 線は x=320 から（段階6 の札「→ 場面3」などを PC の設定欄の右に置く余白）
+        const x0 = d.dir > 0 ? 320 : 670, x1 = d.dir > 0 ? 670 : 320;
+        S.line(320, d.y, 670, d.y, { cls: 's-rule w1' }, g);
+        const arr = S.line(x0, d.y, x1, d.y, { cls: 's-d w2', 'marker-end': mk('d'), style: { opacity: 0 } }, g);
+        S.text(495, d.y - 9, d.name, { cls: 't-c t-sm t-b' }, g);
+        S.text(495, d.y + 16, d.sub, { cls: 't-c t-xs t-dim t-mono' }, g);
+        S.text(495, d.y + 30, d.sub2, { cls: 't-c t-xs t-dim' }, g);
+        const p = road(g, `M${x0},${d.y} H${x1}`);
+        const pk = pkt(g, d.name.slice(2), 'f-d');
+        pk.show(false);
+        return { g, arr, p, pk, d };
+      });
+      // リースの時間軸（段階5）
+      st.tl = S.g({ cls: 'fade hide' }, svg);
+      S.rect(40, 380, 880, 150, { rx: 8, cls: 'f-sf s-rule w1' }, st.tl);
+      S.text(480, 404, 'リース 24 時間の時間軸', { cls: 't-c t-sm t-b' }, st.tl);
+      S.line(80, 460, 880, 460, { cls: 's-rule w2' }, st.tl);
+      [[80, '0h 取得'], [480, '12h T1：更新'], [780, '21h T2：再バインド'], [880, '24h 期限']].forEach(([x, s]) => { S.line(x, 452, x, 468, { cls: 's-fg w2' }, st.tl); S.text(x, 486, s, { cls: 't-c t-xs t-mono' }, st.tl); });
+      S.rect(80, 456, 400, 8, { cls: 'f-d-soft' }, st.tl);
+      S.text(480, 516, 'T1 で REQUEST（ユニキャスト）→ ACK で期限が 24 時間後に伸びる。ACK が無ければ T2 で全員宛てにやり直す', { cls: 't-c t-xs t-dim' }, st.tl);
+      st.tlPkt = pkt(st.tl, 'いま', 'f-d');
+      st.tlRoad = road(st.tl, 'M80,432 H480');
+      // 段階6: 行き先の札
+      st.uses = S.g({ cls: 'fade hide' }, svg);
+      [['自分の名前', 224], ['→ 場面3', 245], ['→ 場面3', 266], ['→ 第17章', 287]].forEach(([s, y]) => S.text(268, y + 4, s, { cls: 't-xs t-x t-b' }, st.uses));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.msgs.forEach((m, k) => {
+        m.g.style.opacity = (i <= 3 && k > i) ? 0.3 : (i >= 4 ? 0.35 : 1);
+        m.arr.style.opacity = (k < i) ? 1 : 0;
+        m.pk.show(k === i);
+      });
+      st.cfgRows.forEach((r, k) => {
+        const got = i >= 3 && k <= 4;
+        r.val.textContent = got ? r.v : '—';
+        r.bg.style.opacity = (i === 5 && k < 4) ? 1 : 0;
+      });
+      st.lease.rows[2].g.style.opacity = i >= 3 ? 1 : 0;
+      st.lease.rows[2].bg.style.opacity = i === 3 ? 1 : 0;
+      S.fade(st.tl, i === 4);
+      S.fade(st.uses, i === 5);
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i <= 3) {
+        const m = st.msgs[i];
+        const q = U.seq(ctx.ts, [1.4, 1.0], true);
+        S.place(m.pk.g, m.p, q.i === 0 ? U.ease.inOut(q.f) : 1);
+        m.arr.style.opacity = q.i === 1 ? 1 : 0;
+      }
+      if (i === 4) {
+        // 「いま」が 0h から T1 まで進み、T1 で更新の REQUEST を送る（ACK で延びて、また 0h から）
+        const q = U.seq(ctx.ts, [2.4, 1.6], true);
+        S.place(st.tlPkt.g, st.tlRoad, q.i === 0 ? q.f : 1);
+        st.tlPkt.set(q.i === 0 ? 'いま' : 'T1：REQUEST を送る');
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 宛先の判定
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'マスクでネットワーク部を取り出す', text: '自分の IP 192.168.1.10 とマスク 255.255.255.0 をビットごとに AND すると 192.168.1.0。これが自分のネットワーク。マスクの 1 が並ぶ桁数が 24 なので /24 と書き、残り 8 ビット（254 台分）がホスト部になる。' },
+      { title: '同じネットワークなら直接', text: '宛先がプリンタ 192.168.1.20 なら AND の結果が同じ 192.168.1.0。この場合はルーターを使わず、ARP（第13章）で相手の MAC を調べ、宛先 MAC ＝ プリンタ、宛先 IP ＝ プリンタ のフレームをブリッジに流す。' },
+      { title: '違うネットワークなら「外」', text: '宛先が 142.250.196.110（www.youtube.com の答えの例）なら AND の結果は 142.250.196.0 で一致しない。この相手に直接 ARP しても同じブリッジにいないので応答は無い。ゲートウェイに託すしかない。' },
+      { title: '宛先 MAC はルーター、宛先 IP は相手のまま', text: 'ARP でゲートウェイ 192.168.1.1 の MAC を調べ、宛先 MAC ＝ ルーター、宛先 IP ＝ 142.250.196.110 のフレームを送る。MAC は「次の一歩（ネクストホップ）」、IP は「最終目的地」。この二重の宛先が、以後の全区間で繰り返される。' },
+      { title: '経路表（ルーティングテーブル）', text: 'PC の経路表の要は 2 行。192.168.1.0/24 は直接、0.0.0.0/0（それ以外全部＝デフォルトルート）は 192.168.1.1 へ。ルーターも同じ形の表を持ち、LAN 宛てはブリッジへ、それ以外は WAN へ送る。合う行が複数あれば /n の長い行が勝つ規則（ロンゲストマッチ）は第16章で。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 上: AND の計算
+      const oct = (p, x, y, vals, clsNet, clsHost, lbl) => {
+        const g = S.g({}, p);
+        S.text(x - 10, y + 17, lbl, { cls: 't-xs t-dim', 'text-anchor': 'end' }, g);
+        vals.forEach((v, k) => {
+          S.rect(x + k * 62, y, 56, 26, { rx: 4, cls: k < 3 ? clsNet : clsHost }, g);
+          S.text(x + k * 62 + 28, y + 18, v, { cls: 't-c t-sm t-mono t-b' }, g);
+        });
+        return g;
+      };
+      // ネットワーク部は LAN 側の値（d）、一致しない相手は x、ホスト部は無色
+      S.text(230, 40, '自分（PC）', { cls: 't-c t-sm t-b' }, svg);
+      oct(svg, 120, 52, ['192', '168', '1', '10'], 'f-d-soft s-d w1', 'f-sf s-dim w1', 'IP');
+      oct(svg, 120, 86, ['255', '255', '255', '0'], 'f-in s-rule w1', 'f-in s-rule w1', 'AND マスク');
+      S.line(110, 120, 370, 120, { cls: 's-fg w1' }, svg);
+      oct(svg, 120, 126, ['192', '168', '1', '0'], 'f-d-soft s-d w1', 'f-in s-rule w1', '＝ ネットワーク');
+      S.text(230, 174, 'ネットワーク部 24 ビット（/24）　ホスト部 8 ビット', { cls: 't-c t-xs t-dim' }, svg);
+      // 右上: 宛先の候補
+      st.candA = S.g({ cls: 'fade' }, svg);
+      S.text(640, 40, '宛先 A：プリンタ', { cls: 't-c t-sm t-b' }, st.candA);
+      oct(st.candA, 530, 52, ['192', '168', '1', '20'], 'f-d-soft s-d w1', 'f-sf s-dim w1', 'IP');
+      oct(st.candA, 530, 86, ['192', '168', '1', '0'], 'f-d-soft s-d w1', 'f-in s-rule w1', 'AND マスク ＝');
+      st.candAres = S.text(640, 136, '一致 → 同じネットワーク → 直接送る', { cls: 't-c t-sm t-b t-d' }, st.candA);
+      st.candB = S.g({ cls: 'fade hide' }, svg);
+      S.text(640, 40, '宛先 B：www.youtube.com（例）', { cls: 't-c t-sm t-b' }, st.candB);
+      oct(st.candB, 530, 52, ['142', '250', '196', '110'], 'f-x-soft s-x w1', 'f-sf s-dim w1', 'IP');
+      oct(st.candB, 530, 86, ['142', '250', '196', '0'], 'f-x-soft s-x w1', 'f-in s-rule w1', 'AND マスク ＝');
+      st.candBres = S.text(640, 136, '不一致 → 外 → デフォルトゲートウェイへ', { cls: 't-c t-sm t-b t-x' }, st.candB);
+      // 下: 小さなネットワーク
+      const ny = 300;
+      st.pc = box(svg, 40, ny - 30, 120, 60, 'PC', '192.168.1.10');
+      st.sw = box(svg, 250, ny - 30, 130, 60, 'ブリッジ', 'スイッチ＋Wi-Fi');
+      st.pr = box(svg, 250, ny + 60, 130, 60, 'プリンタ', '192.168.1.20');
+      st.rt = box(svg, 470, ny - 30, 150, 60, 'ルーター', 'GW 192.168.1.1');
+      st.inet = box(svg, 720, ny - 30, 200, 60, 'インターネット', '→ 142.250.196.110');
+      S.line(160, ny, 250, ny, { cls: 's-e w3' }, svg);
+      S.line(315, ny + 30, 315, ny + 60, { cls: 's-e w3' }, svg);
+      S.line(380, ny, 470, ny, { cls: 's-e w3' }, svg);
+      S.path('M620,300 H720', { cls: 'f-none s-p w4' }, svg);
+      // 札（幅 約 180）は機器の間（90）に収まらないので、箱の上の縁に沿って運び、箱の文字を隠さない
+      st.pA = road(svg, 'M100,256 H315 V345');   // PC → プリンタ（ブリッジとプリンタの間で止まる）
+      st.pB = road(svg, 'M100,256 H545');        // PC → ルーター
+      // フレームの札
+      st.frame = S.g({ cls: 'fade hide' }, svg);
+      S.rect(40, 440, 410, 96, { rx: 6, cls: 'f-sf s-rule w1' }, st.frame);
+      S.text(52, 460, '送るフレーム', { cls: 't-xs t-b t-dim' }, st.frame);
+      S.rect(52, 470, 180, 54, { rx: 4, cls: 'f-e-soft s-e w1' }, st.frame);
+      S.text(60, 486, 'Ethernet', { cls: 't-xs t-b t-e' }, st.frame);
+      st.fDstMac = S.text(60, 502, '', { cls: 't-xs t-mono' }, st.frame);
+      S.text(60, 517, '送信元 MAC: PC', { cls: 't-xs t-mono t-dim' }, st.frame);
+      S.rect(240, 470, 200, 54, { rx: 4, cls: 'f-d-soft s-d w1' }, st.frame);
+      S.text(248, 486, 'IP', { cls: 't-xs t-b t-d' }, st.frame);
+      st.fDstIp = S.text(248, 502, '', { cls: 't-xs t-mono' }, st.frame);
+      S.text(248, 517, '送信元 IP: 192.168.1.10', { cls: 't-xs t-mono t-dim' }, st.frame);
+      st.pk = pkt(svg, 'データ', 'f-d');
+      st.arpQ = pkt(svg, 'ARP：…は誰？', 'f-x');
+      st.arpR = pkt(svg, 'ARP 応答：MAC …', 'f-x');
+      st.note = S.text(640, 500, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note2 = S.text(640, 522, '', { cls: 't-c t-sm t-dim' }, svg);
+      // 経路表（段階5）
+      st.routes = S.g({ cls: 'fade hide' }, svg);
+      st.rtPc = table(st.routes, 470, 400, 220, [8, 118], ['宛先', '出口'], [['192.168.1.0/24', '直接（eth0）'], ['0.0.0.0/0', '→ 192.168.1.1']], { rh: 20 });
+      S.text(580, 392, 'PC の経路表', { cls: 't-c t-xs t-b t-dim' }, st.routes);
+      st.rtRt = table(st.routes, 720, 400, 200, [8, 118], ['宛先', '出口'], [['192.168.1.0/24', 'LAN（ブリッジ）'], ['0.0.0.0/0', 'WAN（ISP）']], { rh: 20 });
+      S.text(820, 392, 'ルーターの経路表', { cls: 't-c t-xs t-b t-dim' }, st.routes);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.candA, i <= 1);
+      S.fade(st.candB, i >= 2);
+      st.candB.style.opacity = i === 4 ? 0.5 : '';
+      S.fade(st.frame, i === 1 || i === 3);
+      S.fade(st.routes, i === 4);
+      st.fDstMac.textContent = i === 1 ? '宛先 MAC: プリンタ' : '宛先 MAC: ルーター（GW）';
+      st.fDstMac.setAttribute('class', i === 3 ? 't-xs t-mono t-b t-x' : 't-xs t-mono t-b');
+      st.fDstIp.textContent = i === 1 ? '宛先 IP: 192.168.1.20' : '宛先 IP: 142.250.196.110';
+      [st.pc, st.sw, st.pr, st.rt, st.inet].forEach((g) => dim(g, false));
+      if (i <= 1) { dim(st.rt, true); dim(st.inet, true); }
+      if (i === 2 || i === 3) dim(st.pr, true);
+      st.pk.show(i === 1 || i === 3);
+      st.arpQ.show(i === 1 || i === 3);
+      st.arpR.show(i === 1 || i === 3);
+      st.arpQ.set(i === 1 ? 'ARP：192.168.1.20 は誰？' : 'ARP：192.168.1.1 は誰？');
+      st.arpR.set(i === 1 ? 'ARP 応答：プリンタの MAC' : 'ARP 応答：ルーターの MAC');
+      st.note.textContent = ['192.168.1.1 〜 .254 が「同じネットワーク」', 'ルーターは関与しない。ブリッジが MAC で運ぶ', '同じブリッジにいない相手。ARP は届かない', '宛先 IP は端から端まで、宛先 MAC は 1 区間だけ', '142.250.196.110 は 0.0.0.0/0 の行にだけ合う → 192.168.1.1 へ'][i];
+      st.note2.textContent = ['', 'ARP は同じブリッジの全員に届く問い合わせ', '', 'ルーターは宛先 IP を見て次の区間へ渡す（場面 6）', '192.168.1.20 は 2 行とも合うが、長い /24 の行が勝つ → 直接'][i];
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i !== 1 && i !== 3) return;
+      const q = U.seq(ctx.ts, [1.0, 1.0, 1.6, 0.8], true);
+      // ARP の問い合わせは相手（プリンタ／ルーター）まで行き、応答が戻ってから本物のフレームを送る
+      const road = i === 1 ? st.pA : st.pB;
+      st.arpQ.g.style.opacity = q.i === 0 ? 1 : 0;
+      st.arpR.g.style.opacity = q.i === 1 ? 1 : 0;
+      st.pk.g.style.opacity = q.i === 2 ? 1 : 0;
+      if (q.i === 0) S.place(st.arpQ.g, road, U.ease.inOut(q.f));
+      if (q.i === 1) S.place(st.arpR.g, road, 1 - U.ease.inOut(q.f));
+      if (q.i === 2) S.place(st.pk.g, road, U.ease.inOut(q.f));
+    }
+  };
+
+  /* ================================================================
+     場面4 NAT
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '私設アドレスは外に経路が無い', text: 'RFC 1918 が私的なネットワーク用に取り分けた 3 つの範囲は、どの家でも自由に使えるので、同じ 192.168.1.10 が何百万世帯にもある。インターネットのルーターはこの宛先への経路を持たず、そのままでは返事が帰れない。ルーターの WAN 側には ISP から 1 つのグローバル IP が付く。' },
+      { title: '出るときに送信元を書き換える', text: 'PC の送信元 192.168.1.10:51234 を 203.0.113.5:40001 に書き換えて WAN へ出す。同時にこの対応（内側・外側・宛先・種別）を変換表に 1 行記録する。相手のサーバーからは、ルーターが送っているようにしか見えない。' },
+      { title: '戻りは表を逆引きして戻す', text: 'サーバーからの返事は宛先 203.0.113.5:40001 で届く。ルーターは外側ポート 40001 で表を引き、宛先を 192.168.1.10:51234 に書き戻して LAN へ流す。IP ヘッダのチェックサムと UDP/TCP のチェックサムも、書き換えに合わせて計算し直す。' },
+      { title: '複数の機器を 1 つのアドレスで', text: 'スマホ 192.168.1.11 が同じ送信元ポート 51234 で出ても、外側ポートを 40002 に変えて区別する。ポート番号まで書き換えるので NAPT（ポートアドレス変換、IP マスカレード）と呼ぶ。1 つのグローバル IP で数万本の通信を同時にさばける。' },
+      { title: '表には寿命がある', text: '通信が止まった行は消される（UDP は 30 秒〜数分、TCP の確立済みは数時間〜数日、実装依存）。表に無い宛先ポートへ外から来たパケットは戻し先が無く破棄される。これが次の場面の「壁」の半分。IPv6 では機器ごとにグローバルアドレスがあり NAT は使わない（第15章の IPoE）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 機器
+      st.pc = box(svg, 40, 120, 170, 64, 'PC', '192.168.1.10');
+      st.ph = box(svg, 40, 260, 170, 64, 'スマホ', '192.168.1.11');
+      st.sv = box(svg, 760, 120, 170, 64, 'YouTube サーバー', '142.250.196.110:443');
+      S.text(845, 100, 'インターネット', { cls: 't-c t-xs t-dim' }, svg);
+      // ルーター（変換表の 4 列が収まる幅）
+      S.rect(300, 70, 360, 360, { rx: 10, cls: 'f-in s-rule w15' }, svg);
+      S.text(480, 60, 'ルーター', { cls: 't-c t-b t-lg' }, svg);
+      S.text(308, 92, 'LAN 側 192.168.1.1', { cls: 't-xs t-b t-d' }, svg);
+      S.text(652, 92, 'WAN 側 203.0.113.5', { cls: 't-xs t-b', 'text-anchor': 'end' }, svg);
+      S.line(210, 152, 300, 152, { cls: 's-e w3' }, svg);
+      S.line(210, 292, 300, 292, { cls: 's-e w3' }, svg);
+      S.path('M660,152 H760', { cls: 'f-none s-p w4' }, svg);
+      S.text(710, 124, '光回線 → ISP', { cls: 't-c t-xs t-p t-b' }, svg);
+      // 変換表（荷札の通り道より下に置く）
+      st.tbl = table(svg, 304, 330, 352, [10, 132, 176, 312], ['内側 IP:ポート', '外側', '宛先', '種別'], [
+        ['192.168.1.10:51234', '40001', '142.250.196.110:443', 'UDP'],
+        ['192.168.1.11:51234', '40002', '142.250.196.110:443', 'UDP']
+      ], { rh: 22 });
+      S.text(480, 322, 'NAT 変換表', { cls: 't-c t-xs t-b t-dim' }, svg);
+      st.tbl.rows.forEach((r) => { r.g.style.opacity = 0; });
+      st.ages = st.tbl.rows.map((r, k) => S.rect(314, 372 + k * 22, 0, 3, { cls: 'f-x' }, svg));
+      // 道
+      // 荷札（幅 約 160）が端で機器の箱に重ならないよう、箱の縁から半分の幅だけ内側で折り返す
+      st.rOut = road(svg, 'M305,152 H665');
+      st.rBack = road(svg, 'M665,182 H305');
+      st.rOut2 = road(svg, 'M305,292 H480 V175 H665');
+      st.rIn = road(svg, 'M880,300 H752');   // ルーターの縁の外で止まる
+      // 荷札
+      st.p1 = pkt(svg, ['From 192.168.1.10:51234', 'To 142.250.196.110:443'], 'f-d');
+      st.p2 = pkt(svg, ['From 142.250.196.110:443', 'To 203.0.113.5:40001'], 'f-d');
+      st.p3 = pkt(svg, ['From 192.168.1.11:51234', 'To 142.250.196.110:443'], 'f-d');
+      st.p4 = pkt(svg, ['From 192.0.2.7:4444', 'To 203.0.113.5:40555'], 'f-x');
+      st.drop = S.g({ cls: 'fade hide' }, svg);
+      S.text(752, 338, '✕ 表に無い → 破棄', { cls: 't-c t-sm t-b t-x' }, st.drop);
+      // 注記
+      st.note = S.text(480, 470, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note2 = S.text(480, 492, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note3 = S.text(480, 514, '', { cls: 't-c t-sm t-dim' }, svg);
+      // 段階1: 私設アドレスの範囲
+      st.priv = S.g({ cls: 'fade' }, svg);
+      S.rect(40, 360, 250, 100, { rx: 6, cls: 'f-sf s-rule w1' }, st.priv);
+      S.text(165, 380, '私設アドレス（RFC 1918）', { cls: 't-c t-xs t-b t-dim' }, st.priv);
+      [['10.0.0.0/8', '約 1,677 万個'], ['172.16.0.0/12', '約 105 万個'], ['192.168.0.0/16', '65,536 個']].forEach(([a, b], k) => { S.text(52, 402 + k * 18, a, { cls: 't-xs t-mono' }, st.priv); S.text(280, 402 + k * 18, b, { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.priv); });
+      st.world = S.g({ cls: 'fade' }, svg);
+      S.text(845, 215, '隣の家にも 192.168.1.10', { cls: 't-c t-xs t-x' }, st.world);
+      S.text(845, 231, '向かいの家にも 192.168.1.10', { cls: 't-c t-xs t-x' }, st.world);
+      S.text(845, 247, '→ 宛先として使えない', { cls: 't-c t-xs t-x t-b' }, st.world);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.priv, i === 0);
+      S.fade(st.world, i === 0);
+      st.tbl.rows[0].g.style.opacity = i >= 1 ? 1 : 0;
+      st.tbl.rows[1].g.style.opacity = i >= 3 ? 1 : 0;
+      st.tbl.rows[0].bg.style.opacity = i === 1 || i === 2 ? 1 : 0;
+      st.tbl.rows[1].bg.style.opacity = i === 3 ? 1 : 0;
+      st.p1.show(i === 1 || i === 3);
+      st.p2.show(i === 2);
+      st.p3.show(i === 3);
+      st.p4.show(i === 4);
+      S.fade(st.drop, i === 4);
+      dim(st.ph, i < 3 && i !== 0);
+      st.ages.forEach((a) => a.setAttribute('width', 0));
+      st.note.textContent = ['WAN 側のグローバル IP は 203.0.113.5（例）。これだけが世界で一意', '荷札がルーターを通るときに From が書き換わる', 'To が 40001 → 表の 1 行目 → 192.168.1.10:51234 に戻す', '同じ 51234 でも外側ポートで区別。これが NAPT', '赤い帯は行の残り寿命。時間とともに縮み、その行が使われると満タンに戻る'][i];
+      st.note2.textContent = ['', '表に無ければ戻りを誰に渡すか分からない。だから必ず記録する', 'チェックサムも計算し直す（IP ヘッダ、UDP）', '戻りは外側ポート（40001 ／ 40002）で行を引き分ける', '外から 40555 宛てに来ても表に無い → 破棄（場面 5 へ）'][i];
+      st.note3.textContent = i === 4 ? 'IPv6: 機器ごとにグローバルアドレス。NAT 無しで届き、壁はファイアウォールだけ' : '';
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 1 || i === 3) {
+        const q = U.seq(ctx.ts, [3.0, 0.8], true);
+        const f = q.i === 0 ? U.ease.inOut(q.f) : 1;
+        S.place(st.p1.g, st.rOut, f);
+        st.p1.set(f > 0.5 ? ['From 203.0.113.5:40001', 'To 142.250.196.110:443'] : ['From 192.168.1.10:51234', 'To 142.250.196.110:443'], f > 0.5 ? 'f-fg' : 'f-d');
+        if (i === 3) {
+          const q2 = U.seq(ctx.ts + 1.5, [3.0, 0.8], true);
+          const f2 = q2.i === 0 ? U.ease.inOut(q2.f) : 1;
+          S.place(st.p3.g, st.rOut2, f2);
+          st.p3.set(f2 > 0.55 ? ['From 203.0.113.5:40002', 'To 142.250.196.110:443'] : ['From 192.168.1.11:51234', 'To 142.250.196.110:443'], f2 > 0.55 ? 'f-fg' : 'f-d');
+        }
+      }
+      if (i === 2) {
+        const q = U.seq(ctx.ts, [3.0, 0.8], true);
+        const f = q.i === 0 ? U.ease.inOut(q.f) : 1;
+        S.place(st.p2.g, st.rBack, f);
+        st.p2.set(f > 0.5 ? ['From 142.250.196.110:443', 'To 192.168.1.10:51234'] : ['From 142.250.196.110:443', 'To 203.0.113.5:40001'], f > 0.5 ? 'f-d' : 'f-fg');
+      }
+      if (i === 4) {
+        // 残り寿命は時間とともに縮み、その行が使われると満タンに戻る
+        st.ages.forEach((a, k) => { a.setAttribute('width', ((1 - U.cycle(t / 4 + k * 0.45, 1)) * 332).toFixed(1)); });
+        const q = U.seq(ctx.ts, [1.5, 1.2], true);
+        S.place(st.p4.g, st.rIn, q.i === 0 ? U.ease.inOut(q.f) : 1);
+        st.p4.g.style.opacity = q.i === 0 ? 1 : 0.25;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 ファイアウォール
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '外から来た新規のパケットは止まる', text: 'インターネットには宛先を無差別に探るパケットが常に流れている。変換表にも状態表にも無い宛先ポートへ SYN（接続開始）が来ても、ルーターは渡す先が無いので捨てる。家の中の PC は、外から直接は見えない。' },
+      { title: '内側から始めた通信を覚える', text: 'PC が SYN を送ると、ルーターは状態表に「192.168.1.10:51234 → 142.250.196.110:443、SYN_SENT」と書く。戻りの SYN/ACK はこの行に一致するので通し（SYN_RECV）、PC の ACK を見届けて ESTABLISHED にする。以後も表に一致する限り通る。' },
+      { title: '通す・止めるの規則', text: '内→外の新規は許可、その戻りは許可、外→内の新規は拒否。これだけで Web、動画、メールは全部動く。UDP には接続の概念が無いので、出ていったパケットの送信元と宛先を入れ替えた組を一定時間だけ「戻り」と見なす。QUIC（第19章）もこの扱い。' },
+      { title: '穴を開ける：ポート開放と UPnP', text: '外から着信を受けたいサーバーやゲームでは、「外側ポート 25565 → 192.168.1.10:25565」の固定の行を、手で（ポートフォワーディング）または機器が自動で（UPnP）追加する。穴はその機器を直接インターネットにさらすので、必要な間だけにする。' },
+      { title: 'IPv6 では壁はファイアウォールだけ', text: 'IPv6 では各機器がグローバルアドレスを持ち NAT が無いので、外から直接到達できる。多くの家庭用ルーターは既定で「外→内の新規は拒否」を IPv6 にも適用し、IPv4 の NAT と同じく外から始まる通信を止める。経路があることと、通すことは別の問題。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.pc = box(svg, 40, 130, 170, 64, 'PC', '192.168.1.10');
+      st.pcV6 = S.text(125, 212, '2001:db8:1234:5600::10（IPv6）', { cls: 't-c t-xs t-mono t-x fade hide' }, svg);
+      st.sv = box(svg, 760, 130, 170, 64, 'YouTube サーバー', '142.250.196.110:443');
+      st.sc = box(svg, 760, 250, 170, 64, '見知らぬ送信元', '192.0.2.7（探り）', 'f-sf s-x w1');
+      st.scSub = st.sc.lastChild;   // 副題（IPv6 の段階で書き換える）
+      // 壁
+      st.wall = S.g({}, svg);
+      S.rect(450, 70, 60, 290, { rx: 6, cls: 'f-in s-fg w2' }, st.wall);
+      for (let r = 0; r < 9; r++) for (let c = 0; c < 2; c++) S.rect(454 + c * 27 + (r % 2 ? 13 : 0), 76 + r * 31, 24, 26, { rx: 2, cls: 'f-sf s-rule w1', style: { opacity: r % 2 && c ? 0 : 1 } }, st.wall);
+      S.text(480, 56, 'ファイアウォール', { cls: 't-c t-sm t-b' }, svg);
+      S.text(440, 100, 'LAN 側', { cls: 't-xs t-d t-b', 'text-anchor': 'end' }, svg);
+      S.text(520, 100, 'WAN 側', { cls: 't-xs t-b' }, svg);
+      // 道
+      S.line(210, 162, 450, 162, { cls: 's-e w2' }, svg);
+      S.line(510, 162, 760, 162, { cls: 's-rule w2' }, svg);
+      S.line(510, 282, 760, 282, { cls: 's-rule w2' }, svg);
+      st.rScan = road(svg, 'M760,282 H520');
+      st.rOut = road(svg, 'M210,162 H760');
+      st.rBack = road(svg, 'M760,172 H210');
+      st.rFwd = road(svg, 'M760,282 H480 V162 H210');
+      st.bang = S.text(528, 266, '✕', { cls: 't-x t-b t-xxl', style: { opacity: 0 } }, svg);
+      st.bangTxt = S.text(635, 310, '表に無い新規 → 破棄', { cls: 't-c t-xs t-b t-x', style: { opacity: 0 } }, svg);
+      st.gate = S.rect(452, 150, 56, 24, { rx: 3, cls: 'f-d', style: { opacity: 0 } }, svg);
+      st.gateTxt = S.text(480, 166, '通す', { cls: 't-c t-xs t-b t-sf', style: { opacity: 0 } }, svg);
+      // 状態表
+      // 1 行目: PC が始めた TCP（状態が進む）。2 行目: ポート開放の固定行
+      st.tbl = table(svg, 230, 380, 500, [8, 170, 332, 450], ['内側', '外側', '状態', '種別'], [
+        ['192.168.1.10:51234', '142.250.196.110:443', 'SYN_SENT', 'TCP'],
+        ['192.168.1.10:25565', '任意 → WAN の :25565', '固定（ポート開放）', 'TCP']
+      ], { rh: 22 });
+      S.text(480, 372, '状態表（conntrack）', { cls: 't-c t-xs t-b t-dim' }, svg);
+      st.tbl.rows.forEach((r) => { r.g.style.opacity = 0; });
+      // 規則表（段階3）
+      st.rules = S.g({ cls: 'fade hide' }, svg);
+      const rt = table(st.rules, 230, 380, 500, [8, 190, 330], ['向き', '新規／戻り', '扱い'], [
+        ['内 → 外', '新規（SYN、UDP の最初）', '許可し、表に記録'],
+        ['外 → 内', '表に一致する戻り', '許可'],
+        ['外 → 内', '新規（表に無い）', '拒否（破棄）']
+      ], { rh: 22 });
+      rt.rows[2].cells[2].setAttribute('class', 't-xs t-mono t-b t-x');
+      // 荷札
+      st.pScan = pkt(svg, 'SYN → :40555', 'f-x');
+      st.pSyn = pkt(svg, 'SYN', 'f-d');
+      st.pSynAck = pkt(svg, 'SYN/ACK', 'f-d');
+      st.pAck = pkt(svg, 'ACK', 'f-d');
+      st.pFwd = pkt(svg, 'SYN → :25565', 'f-d');
+      st.note = S.text(480, 498, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note2 = S.text(480, 518, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note3 = S.text(480, 538, '', { cls: 't-c t-sm t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      // 1 行目は段階2 で SYN_SENT → SYN_RECV → ESTABLISHED と進み（frame）、段階4・5 では確立済み
+      st.tbl.rows[0].g.style.opacity = i === 3 || i === 4 ? 1 : 0;
+      st.tbl.rows[0].cells[2].textContent = 'ESTABLISHED';
+      st.tbl.rows[0].bg.style.opacity = 0;
+      st.tbl.rows[1].g.style.opacity = i === 3 ? 1 : 0;
+      st.tbl.rows[1].bg.style.opacity = i === 3 ? 1 : 0;
+      st.tbl.g.style.opacity = i === 2 ? 0 : 1;
+      S.fade(st.rules, i === 2);
+      st.pScan.show(i === 0 || i === 2 || i === 4);
+      st.pScan.set(i === 4 ? 'SYN → PC の IPv6' : 'SYN → :40555');
+      st.scSub.textContent = i === 4 ? '探り（IPv6）' : '192.0.2.7（探り）';
+      st.pSyn.show(i === 1);
+      st.pSynAck.show(i === 1);
+      st.pAck.show(i === 1);
+      st.pFwd.show(i === 3);
+      S.fade(st.pcV6, i === 4);
+      st.bang.style.opacity = 0; st.bangTxt.style.opacity = 0; st.gate.style.opacity = 0; st.gateTxt.style.opacity = 0;
+      dim(st.sv, i === 0);
+      dim(st.sc, i === 1 || i === 3);
+      st.note.textContent = ['宛先ポート 40555 への SYN。表に無い → 壁で止まる', 'SYN がルーターを通った瞬間に行ができ、戻りの SYN/ACK はこの行に一致して通る', '規則は 3 行だけ。表に「一致するか」が全て', '固定の行があると、外からの新規でも 192.168.1.10 に届く', 'IPv6 には NAT が無い。それでも「外→内の新規は拒否」で守る'][i];
+      st.note2.textContent = ['PC は何も知らないまま。これが「外から見えない」の正体', '以後のパケットは ESTABLISHED の行に一致する限り通る', 'UDP／QUIC は「逆向きの組」を一定時間だけ戻りと見なす', 'UPnP は機器が自分でこの行を頼める仕組み。穴は最小限に', '届く経路があることと、通すことは別の判断'][i];
+      st.note3.textContent = i === 4 ? 'PC の IPv6 アドレスは例（2001:db8::/32 は説明用の範囲）' : '';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0 || i === 2 || i === 4) {
+        const q = U.seq(ctx.ts, [1.4, 0.8, 0.8], true);
+        if (q.i === 0) { S.place(st.pScan.g, st.rScan, U.ease.inOut(q.f)); st.pScan.g.style.opacity = 1; st.bang.style.opacity = 0; st.bangTxt.style.opacity = 0; }
+        else if (q.i === 1) { st.pScan.g.style.opacity = 0; st.bang.style.opacity = 1; st.bangTxt.style.opacity = 1; }
+        else { st.bang.style.opacity = 1 - q.f; st.bangTxt.style.opacity = 1 - q.f; }
+      }
+      if (i === 1) {
+        // SYN → SYN/ACK → ACK。壁を越えるたびに同じ 1 行の状態が進む
+        const q = U.seq(ctx.ts, [1.8, 0.4, 1.8, 1.4, 1.2], true);
+        st.pSyn.g.style.opacity = q.i === 0 ? 1 : 0;
+        st.pSynAck.g.style.opacity = q.i === 2 ? 1 : 0;
+        st.pAck.g.style.opacity = q.i === 3 ? 1 : 0;
+        if (q.i === 0) S.place(st.pSyn.g, st.rOut, U.ease.inOut(q.f));
+        if (q.i === 2) S.place(st.pSynAck.g, st.rBack, U.ease.inOut(q.f));
+        if (q.i === 3) S.place(st.pAck.g, st.rOut, U.ease.inOut(q.f));
+        const s = q.i === 0 ? (q.f > 0.5 ? 1 : 0) : q.i === 1 ? 1 : q.i === 2 ? (q.f > 0.5 ? 2 : 1) : q.i === 3 ? (q.f > 0.5 ? 3 : 2) : 3;
+        const row = st.tbl.rows[0];
+        row.g.style.opacity = s ? 1 : 0;
+        row.bg.style.opacity = s ? 1 : 0;
+        row.cells[2].textContent = ['SYN_SENT', 'SYN_SENT', 'SYN_RECV', 'ESTABLISHED'][s];
+        const pass = q.i === 2 && q.f > 0.35 && q.f < 0.65;
+        st.gate.style.opacity = pass ? 1 : 0; st.gateTxt.style.opacity = pass ? 1 : 0;
+      }
+      if (i === 3) {
+        const q = U.seq(ctx.ts, [2.4, 1.0], true);
+        S.place(st.pFwd.g, st.rFwd, q.i === 0 ? U.ease.inOut(q.f) : 1);
+        st.pFwd.g.style.opacity = q.i === 0 ? 1 : 0.3;
+        const pass = q.i === 0 && q.f > 0.4 && q.f < 0.6;
+        st.gate.style.opacity = pass ? 1 : 0; st.gateTxt.style.opacity = pass ? 1 : 0;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 転送
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '層をはがして IP を見る', text: 'PC から届いたフレームは、Ethernet ヘッダ（宛先 MAC＝ルーター、送信元 MAC＝PC）の中に IP ヘッダ、その中に UDP、その中に QUIC/TLS のデータという入れ子。宛先 MAC が自分なので受け取り、Ethernet ヘッダを外して IP ヘッダを読む。ここから先は IP の仕事。' },
+      { title: 'TTL を 1 減らす', text: 'IP ヘッダの TTL（Time To Live）はルーターを 1 台通るたびに 1 減る。PC が付けた 64 が 63 になり、ヘッダチェックサムを計算し直す。0 になったら捨てて、送信元に ICMP で知らせる。経路がループしても永遠に回らないための仕組みで、第18章の traceroute はこれを使う。' },
+      { title: '宛先 IP は変えない', text: '経路表を引くと 142.250.196.110 は LAN の 192.168.1.0/24 に無いので、デフォルトルート＝WAN が出口。出口が WAN と決まってから、NAT が送信元を書き換える。宛先 IP は最後まで変わらないので、途中のどのルーターでも同じ判定ができる。' },
+      { title: '新しい Ethernet ヘッダを付ける', text: 'WAN 側の媒体に合わせてヘッダを付け直す。送信元 MAC ＝ ルーターの WAN ポート、宛先 MAC ＝ ISP 側の最初のルーター。PPPoE 接続なら PPPoE/PPP のヘッダがさらに挟まる。MAC は 1 区間ごとに付け替えられ、IP は端から端まで運ばれる。' },
+      { title: '1 ホップで起きること', text: '家庭用ルーターでは、この 5 つの処理にかかる時間は 1 個あたり数 µs〜数十 µs ほど（専用回路を使う機種が速い）。ISP とインターネットのルーターも同じ手順を繰り返す（第16章・第18章）。NAT は家の出口で 1 回だけのことが多く、宛先 IP は最後まで 142.250.196.110 のまま。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ヘッダの積み木を描く
+      const stack = (p, x, y, items) => {
+        const g = S.g({}, p);
+        let cx = x;
+        const cells = {};
+        items.forEach((it) => {
+          const cg = S.g({}, g);
+          S.rect(cx, y, it.w, 46, { rx: 3, cls: it.cls }, cg);
+          S.text(cx + 6, y + 15, it.k, { cls: 't-xs t-b ' + (it.tcls || 't-dim') }, cg);
+          const v = S.text(cx + 6, y + 34, it.v, { cls: 't-xs t-mono t-b' }, cg);
+          cells[it.id] = { g: cg, v, x: cx, w: it.w, rect: cg.firstChild, base: it.cls };
+          cx += it.w + 3;
+        });
+        return { g, cells };
+      };
+      const ethW = [110, 110, 50], ipW = [130, 130, 50, 90], udpW = [120];
+      const mkItems = (eth, ip, udp) => [
+        { id: 'dmac', k: 'Ethernet 宛先 MAC', v: eth[0], w: ethW[0], cls: 'f-e-soft s-e w1', tcls: 't-e' },
+        { id: 'smac', k: '送信元 MAC', v: eth[1], w: ethW[1], cls: 'f-e-soft s-e w1', tcls: 't-e' },
+        { id: 'type', k: 'タイプ', v: 'IPv4', w: ethW[2], cls: 'f-e-soft s-e w1', tcls: 't-e' },
+        { id: 'sip', k: 'IP 送信元', v: ip[0], w: ipW[0], cls: 'f-d-soft s-d w1', tcls: 't-d' },
+        { id: 'dip', k: 'IP 宛先', v: ip[1], w: ipW[1], cls: 'f-d-soft s-d w1', tcls: 't-d' },
+        { id: 'ttl', k: 'TTL', v: ip[2], w: ipW[2], cls: 'f-d-soft s-d w1', tcls: 't-d' },
+        { id: 'sum', k: 'チェックサム', v: ip[3], w: ipW[3], cls: 'f-d-soft s-d w1', tcls: 't-d' },
+        { id: 'udp', k: 'UDP ポート', v: udp, w: udpW[0], cls: 'f-sf s-dim w1', tcls: 't-mid' },
+        { id: 'data', k: 'データ', v: 'QUIC / TLS …', w: 90, cls: 'f-in s-rule w1' }
+      ];
+      S.text(60, 80, 'PC から届いたフレーム（LAN 側）', { cls: 't-sm t-b' }, svg);
+      st.in = stack(svg, 60, 92, mkItems(['ルーター（LAN）', 'PC 3C:4D:…:81'], ['192.168.1.10', '142.250.196.110', '64', '0x7A12'], '51234 → 443'));
+      S.text(60, 410, 'WAN へ出すフレーム（WAN 側）', { cls: 't-sm t-b' }, svg);
+      st.out = stack(svg, 60, 422, mkItems(['ISP のルーター', 'ルーター（WAN）'], ['203.0.113.5', '142.250.196.110', '63', '0x00BF'], '40001 → 443'));
+      // 処理の列（Linux と同じく、経路表で出口を決めてから NAT で送信元を書き換える）
+      const ops = [['① Ethernet を', 'はがす'], ['② TTL − 1', 'チェックサム再計算'], ['③ 経路表', '出口 = WAN'], ['④ NAT', '送信元を書き換え'], ['⑤ Ethernet を', '付ける']];
+      st.ops = ops.map((o, k) => {
+        const x = 60 + k * 170;
+        const g = S.g({}, svg);
+        S.rect(x, 230, 150, 60, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 75, 254, o[0], { cls: 't-c t-sm t-b' }, g);
+        S.text(x + 75, 274, o[1], { cls: 't-c t-xs t-dim' }, g);
+        if (k < 4) S.path(`M${x + 152},260 H${x + 168}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, g);
+        return { g, rect: g.firstChild, x };
+      });
+      S.text(60, 220, 'ルーターの処理', { cls: 't-sm t-b' }, svg);
+      S.path('M480,142 V228', { cls: 'f-none s-dim w2 dash', 'marker-end': mk('dim') }, svg);
+      S.path('M480,292 V420', { cls: 'f-none s-dim w2 dash', 'marker-end': mk('dim') }, svg);
+      // 経路表（段階3）
+      st.rt = S.g({ cls: 'fade hide' }, svg);
+      table(st.rt, 640, 300, 280, [8, 150], ['宛先', '出口'], [['192.168.1.0/24', 'LAN'], ['0.0.0.0/0', 'WAN ← これ']], { rh: 20 });
+      // 注記
+      st.note = S.text(480, 520, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note2 = S.text(480, 542, '', { cls: 't-c t-sm t-dim' }, svg);
+      // 段階5 の流れる印
+      st.cursor = S.rect(0, 0, 150, 60, { rx: 6, cls: 'f-none s-x w3', style: { opacity: 0 } }, svg);
+      st.hopTxt = S.text(500, 342, '', { cls: 't-sm t-b t-x' }, svg);   // 点線の矢印の右に置く
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const ids = ['dmac', 'smac', 'type', 'sip', 'dip', 'ttl', 'sum', 'udp', 'data'];
+      // 既定: 入力は全部見える、出力は段階が進むほど埋まる
+      ids.forEach((id) => {
+        st.in.cells[id].g.style.opacity = 1;
+        st.out.cells[id].g.style.opacity = 0.25;
+        st.in.cells[id].rect.setAttribute('class', st.in.cells[id].base);
+        st.out.cells[id].rect.setAttribute('class', st.out.cells[id].base);
+      });
+      // 赤い枠: 塗りはそのまま、線の色と太さだけ差し替える（後に定義された s-dim などに負けないように）
+      const mark = (cell) => cell.rect.setAttribute('class', cell.base.split(' ')[0] + ' s-x w2');
+      // 段階ごとに注目する処理（段階3 は ③ 経路表 と ④ NAT、段階5 は全部を順に）
+      const hl = [[0], [1], [2, 3], [4], []][i];
+      st.ops.forEach((o, k) => { o.rect.setAttribute('class', hl.includes(k) ? 'f-x-soft s-x w2' : 'f-sf s-rule w1'); o.g.style.opacity = i === 4 || k <= Math.max(...hl) ? 1 : 0.35; });
+      const showOut = (list) => list.forEach((id) => { st.out.cells[id].g.style.opacity = 1; });
+      const out = st.out.cells;
+      // 出すフレームの値。チェックサムは TTL の分（0x7A12 → 0x7B12）と NAT の分（→ 0x00BF）の 2 回直る
+      out.ttl.v.textContent = i >= 1 ? '63' : '64';
+      out.sum.v.textContent = i >= 2 ? '0x00BF' : i === 1 ? '0x7B12' : '0x7A12';
+      out.sip.v.textContent = i >= 2 ? '203.0.113.5' : '192.168.1.10';
+      out.udp.v.textContent = i >= 2 ? '40001 → 443' : '51234 → 443';
+      showOut(['sip', 'dip', 'ttl', 'sum', 'udp', 'data']);
+      if (i >= 3) showOut(['dmac', 'smac', 'type']);
+      if (i === 0) ['dmac', 'smac', 'type'].forEach((id) => { st.in.cells[id].g.style.opacity = 0.3; mark(st.in.cells[id]); });
+      if (i === 1) { mark(out.ttl); mark(out.sum); }
+      if (i === 2) { mark(st.in.cells.dip); mark(out.dip); mark(out.sip); mark(out.udp); mark(out.sum); }
+      if (i === 3) { mark(out.dmac); mark(out.smac); }
+      S.fade(st.rt, i === 2);
+      st.cursor.style.opacity = i === 4 ? 1 : 0;
+      st.hopTxt.textContent = '';
+      st.note.textContent = ['Ethernet ヘッダは LAN の区間だけのもの。ルーターで役目を終える', '64 → 63。チェックサムは TTL が変わったぶんだけ差し引きで直せる（+0x0100）', '宛先 IP 142.250.196.110 は上下で同じ。NAT が変えるのは送信元の IP とポート', 'MAC は 1 区間だけ、IP は端から端まで。PPPoE なら間に PPPoE/PPP ヘッダ', 'ISP から先のルーターも ①②③⑤ を繰り返す'][i];
+      st.note2.textContent = ['タイプ欄の IPv4 を見て、中身を IP ヘッダとして読む', 'TTL が 0 → 破棄 ＋ ICMP Time Exceeded を送信元へ（traceroute の原理）', '経路表の 2 行目（0.0.0.0/0）に当たるので出口は WAN。チェックサムも直す', '宛先 MAC は ARP／NDP（PPPoE なら接続の手順）で知った相手のもの', 'TTL 63 → 62 → … と減りながら YouTube のサーバーへ'][i];
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i !== 4) return;
+      const q = U.seq(ctx.ts, [1, 1, 1, 1, 1, 1.5], true);
+      const k = Math.min(4, q.i);
+      const o = st.ops[k];
+      st.cursor.setAttribute('x', o.x); st.cursor.setAttribute('y', 230);
+      st.cursor.style.opacity = q.i <= 4 ? 1 : 0;
+      st.hopTxt.textContent = q.i <= 4 ? ['Ethernet をはがす', 'TTL 64 → 63', '出口 = WAN', '送信元 192.168.1.10:51234 → 203.0.113.5:40001', 'Ethernet を付けて送信'][k] : '→ 次のルーターでも同じ手順（NAT はふつう家の出口だけ）';
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第IV部 つながる ／ 第14章',
+      title: 'ホームルーター',
+      home: '../index.html',
+      prev: { href: '13-ethernet.html', title: 'Ethernet とスイッチ' },
+      next: { href: '15-hikari.html', title: '光回線' },
+      legend: [{ c: 'd', label: 'パケット・LAN 側の値' }, { c: 'fg', label: 'WAN 側の値' }, { c: 'e', label: '有線（電気信号）' }, { c: 'r', label: '無線（電波）' }, { c: 'x', label: '注目・変わった所' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

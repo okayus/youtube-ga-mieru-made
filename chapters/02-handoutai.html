@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>半導体とダイオード — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .f-red { fill: #E03B2B; } .f-grn { fill: #2FA84F; } .f-blu { fill: #2F6FE0; } .f-wht { fill: #F3EAC2; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第I部 電気 ／ 第2章 ／ 全25章</p>
+    <h1 id="h-s0">半導体とダイオード</h1>
+    <p class="standfirst">第1章で、電気を流す導体と止める絶縁体の間に、流れる量を調整できる半導体があることを見た。この章ではその中身に入る。シリコンの結晶に不純物をごく少量混ぜると、電子が余る n 型と、電子の空席（正孔）が動く p 型ができる。この2つを1枚の結晶の中で隣り合わせた pn 接合は電流を一方向にしか通さず（ダイオード）、電子と正孔が出会う所では光が生まれ、逆に光を当てれば電流が生まれる。トランジスタも、光ファイバーの光源と受光器も、ここから始まる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。原子の大きさや電子の数は見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>シリコン結晶</a><p>4本の手で隣とつながる共有結合。純粋な結晶は室温ではほぼ絶縁体。熱で結合が切れると電子と空席ができる。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>n 型</a><p>5価のリンを混ぜる。余った1個の電子が自由電子になり、リンは動けない＋イオンとして残る。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>p 型</a><p>3価のホウ素を混ぜる。足りない1個が空席（正孔）になり、空席が＋の粒のように動く。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>pn 接合と空乏層</a><p>境目で電子と正孔が消え合い、動けないイオンの層と約 0.7 V の内蔵電位が残る。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>ダイオード</a><p>順方向は 0.7 V で流れ、逆方向は流れない。交流を直流にする整流。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>LED とフォトダイオード</a><p>再結合が光になり、光が電子正孔対になる。光通信の送り手と受け手。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（トランジスタ）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図はすべて模式図。結晶は実際には三次元で、1 cm³ に 5×10²² 個の原子がある。本文に書いた数値だけが実際の値で、不純物の割合・空乏層の幅・光の速さは誇張してある。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 シリコン結晶 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="結晶" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>シリコン結晶 — 4本の手でつながる</h2>
+    <p class="sh-meta"><span class="chip">Si 原子番号 14</span><span class="chip">共有結合</span><span class="chip">1.12 eV</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">半導体の材料はシリコン（ケイ素）。砂の主成分で、地殻に酸素の次に多い元素。これを純度 99.999999999%（イレブンナイン）の1つの結晶に育てて使う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">結合を切るのに要る 1.12 eV はバンドギャップと呼ばれる。ゲルマニウムは 0.66 eV、ダイヤモンド（炭素）は 5.5 eV。この値が小さいほど熱で電子が外れやすく、大きいほど絶縁体に近い。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="シリコン原子の電子配置と、共有結合でつながった結晶の中で結合が切れて電子と空席ができる様子"></svg></div>
+    <figcaption>図1　段階1は原子1個の電子の配置、段階2以降は結晶の一部。原子をつなぐ線が共有結合で、2個1組の電子（青）が入る。段階4で結合が切れ、段階5で空席（橙の輪）が動く。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 n型 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="n型" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>n 型 — 電子が1個余る</h2>
+    <p class="sh-meta"><span class="chip">リン P 5価</span><span class="chip">ドナー 0.045 eV</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">純粋なシリコンに、価電子が5個のリン（P）を原子100万個に1個ほど混ぜる。これが n 型半導体。n は negative、電気を運ぶのが−の電子という意味。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">リンを 10¹⁶ 個/cm³ 加えた n 型シリコンの抵抗率は約 0.5 Ω·cm。純粋なシリコンの約 2.3×10⁵ Ω·cm から 6 桁近く下がる。混ぜる量を変えるだけで、抵抗率を桁単位で設計できる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="リンに置き換わった格子点から5個目の電子が外れて自由電子になり、電圧で流れる様子"></svg></div>
+    <figcaption>図2　格子点のうち2つがリン（P）。5個目の電子は弱く束縛されているだけで、熱で外れて自由電子になり、リンは動けない＋イオンとして残る。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 p型 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="p型" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>p 型 — 空席（正孔）が動く</h2>
+    <p class="sh-meta"><span class="chip">ホウ素 B 3価</span><span class="chip">アクセプタ 0.045 eV</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">今度は価電子が3個のホウ素（B）を混ぜる。結合に電子が1個足りない空席ができ、この空席が動いて電気を運ぶ。p は positive、運び手が＋の正孔という意味。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1枚の結晶の決めた場所だけを n 型や p 型にするには、不純物をイオンにして打ち込む（イオン注入）か、高温のガスから染み込ませる（拡散）。この「場所ごとの作り分け」が第3章の製造の中身になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ホウ素の隣にできた空席に隣の電子が順に移り、空席が逆向きに進む様子"></svg></div>
+    <figcaption>図3　格子点のうち2つがホウ素（B）。隣の結合に空席（橙の輪）がある。隣の電子が順に移ると空席は逆向きに進む。段階3以降は空席を＋の粒として描く。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 pn接合 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="pn接合" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>pn 接合と空乏層</h2>
+    <p class="sh-meta"><span class="chip">再結合</span><span class="chip">空乏層 0.1〜1 µm</span><span class="chip">内蔵電位 約 0.7 V</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">1枚のシリコンの左半分を p 型、右半分を n 型にすると、境目で電子と正孔が消え合い、「どちらもいない層」が残る。この層が pn 接合のはたらきの中心になる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">空乏層の幅は不純物の濃度で決まり、濃いほど薄い。内蔵電位 約 0.7 V は、このあと「シリコンダイオードの電圧降下 0.6〜0.7 V」として電源・論理回路・LED のどこにでも顔を出す。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="p型とn型の境目で再結合が起き、固定イオンの空乏層と内蔵電場ができる様子"></svg></div>
+    <figcaption>図4　左が p 型（正孔）、右が n 型（電子）。境目で再結合が起き、灰色の空乏層と固定イオン、n から p へ向かう電場が残る。段階5の下の図は電子から見た坂。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 ダイオード ================= -->
+<section class="scene sc-anim" id="s5" data-tab="ダイオード" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>ダイオード — 一方通行と整流</h2>
+    <p class="sh-meta"><span class="chip">順方向 0.6〜0.7 V</span><span class="chip">VT ≒ 26 mV</span><span class="chip">整流</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">pn 接合に電極を付けた部品がダイオード。外から電圧をかけると空乏層の坂が低くも高くもなり、電流は一方向にしか流れない。この性質で交流を直流に変える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">順方向で流れている間も 0.6〜0.7 V がダイオードにかかり、その分は熱になる。電圧降下が約 0.3 V と小さいショットキーダイオードは、パソコンの電源のように効率が要る所で使われる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="順方向と逆方向で空乏層の幅と電流が変わる様子、電流電圧特性、整流の波形、回路記号"></svg></div>
+    <figcaption>図5　上は接合と電池。順方向で空乏層が薄くなり電流が流れ、逆方向で広がって止まる。段階3は電流と電圧の関係、段階4は交流を入れたときの整流、段階5は記号と実物。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 LEDとフォトダイオード ================= -->
+<section class="scene sc-anim" id="s6" data-tab="LEDと受光" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>LED とフォトダイオード — 光と電気の変換</h2>
+    <p class="sh-meta"><span class="chip">λ ≒ 1240 / E</span><span class="chip">InGaN 450 nm</span><span class="chip">1310 / 1550 nm</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">再結合で放出されるエネルギーを光として取り出すのが LED。逆に、光で電子と正孔を作って電流にするのがフォトダイオード。光ファイバー通信の送り手と受け手はこの2つでできている。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">太陽電池はフォトダイオードを大面積にしたもの、カメラのイメージセンサーは画素ごとに小さなフォトダイオードを並べたもの。光と電気の変換はどれも「電子正孔対」の生成と再結合で行われる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="LEDの接合から光子が出る様子と、フォトダイオードで光子が電子正孔対になって電流になる様子、光で1と0を送る様子"></svg></div>
+    <figcaption>図6　上は LED。境目の再結合から光子（黄）が飛び出す。下はフォトダイオード。光子が空乏層で電子正孔対になり、電場で分けられて電流になる。段階4では LED の点滅が受光側の波形になる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 不純物で電気の流れを設計する</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>シリコンは価電子4個で隣と共有結合し、純粋な結晶の自由電子は 1 cm³ に約 10¹⁰ 個しかない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>5価のリンを混ぜると電子が1個余って自由電子になる n 型、3価のホウ素を混ぜると空席＝<span class="tag h">正孔</span>が動く p 型になる（<a class="xref" href="#s2" data-go="2">2</a>・<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>不純物の量で流れやすさを桁単位で調整でき、電子や正孔を出したあとの不純物はイオンとして格子に固定される（<a class="xref" href="#s2" data-go="2">2</a>・<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>pn 接合の境目では再結合でキャリアが消え、固定イオンの空乏層と約 0.7 V の内蔵電位が残る（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>順方向では 0.6〜0.7 V を超えると指数関数的に流れ、逆方向では流れない。この一方通行で交流を整流する（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>再結合のエネルギーが<span class="tag p">光</span>になるのが LED、光が電子正孔対になるのがフォトダイオード。光通信の送受信器はこの2つ（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>価電子・共有結合</th><td>原子のいちばん外側の電子と、隣の原子と1個ずつ出し合って2個1組で共有する結びつき。価電子はシリコン4個、リン5個、ホウ素3個。</td></tr>
+        <tr><th>バンドギャップ</th><td>結合から電子を引き離すのに要るエネルギー。Si 1.12 eV、Ge 0.66 eV、GaN 3.4 eV、ダイヤモンド 5.5 eV。LED の光の波長もこれで決まる。</td></tr>
+        <tr><th>ドーピング</th><td>不純物をわざと混ぜること。10¹⁵〜10²⁰ 個/cm³。電子を与える5価の元素がドナー（P・As・Sb）、受け取る3価がアクセプタ（B・Al・Ga）。</td></tr>
+        <tr><th><i class="sw e"></i>n 型</th><td>多数キャリアが電子の半導体。P を 10¹⁶ 個/cm³ 入れると抵抗率約 0.5 Ω·cm。</td></tr>
+        <tr><th><i class="sw h"></i>p 型・正孔</th><td>多数キャリアが正孔の半導体。正孔は共有結合に空いた電子の席で、＋の電荷を持つ粒として扱える。移動度は電子の約 1/3。</td></tr>
+        <tr><th>再結合</th><td>自由電子が正孔に入って両方が消えること。放出されるエネルギーは熱か光になる。</td></tr>
+        <tr><th>空乏層・内蔵電位</th><td>pn 接合の境目にできる、キャリアのない層（0.1〜1 µm）と、固定イオンが作る電位差（Si で約 0.7 V）。</td></tr>
+        <tr><th>ダイオード・整流</th><td>一方向にだけ電流を通す部品。順方向電圧 0.6〜0.7 V、I = Is(e^(V/VT) − 1)、VT ≒ 26 mV。交流から直流を作る。</td></tr>
+        <tr><th><i class="sw p"></i>LED・レーザーダイオード</th><td>再結合で光る素子。波長 λ(nm) ≒ 1240 / E(eV)。両端を鏡にして位相と向きをそろえたのがレーザーダイオード（光ファイバーの光源）。</td></tr>
+        <tr><th>フォトダイオード</th><td>光で電子正孔対を作り、空乏層の電場で分けて電流にする素子。光ファイバーの受光器（InGaAs）、イメージセンサー、太陽電池。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const TAU = Math.PI * 2;
+  const hash = (k) => U.mod(Math.sin(k * 12.9898 + 78.233) * 43758.5453, 1);   // 0..1 の疑似乱数（毎回同じ）
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 箱の中を熱運動する粒の群れ。drift（px/s）だけ平均して右へ流れる（第1章と同じ） */
+  function gas(parent, n, box, o) {
+    o = Object.assign({ r: 4, speed: 70, cls: 'f-e', wrap: false }, o || {});
+    const g = S.g({ cls: 'gas' }, parent);
+    const ps = [];
+    for (let i = 0; i < n; i++) {
+      const p = { x: rnd(box.x, box.x + box.w), y: rnd(box.y, box.y + box.h), a: rnd(0, TAU) };
+      p.el = S.circle(p.x, p.y, o.r, { cls: o.cls }, g);
+      ps.push(p);
+    }
+    const api = {
+      g, ps, box, drift: 0, speed: o.speed,
+      update(dt) {
+        const b = api.box;
+        for (const p of ps) {
+          if (dt) p.a += (Math.random() - 0.5) * 9 * Math.sqrt(dt);
+          p.x += (Math.cos(p.a) * api.speed + api.drift) * dt;
+          p.y += Math.sin(p.a) * api.speed * dt;
+          if (p.y < b.y) { p.y = b.y; p.a = -p.a; }
+          if (p.y > b.y + b.h) { p.y = b.y + b.h; p.a = -p.a; }
+          if (o.wrap) {
+            if (p.x > b.x + b.w) p.x -= b.w;
+            if (p.x < b.x) p.x += b.w;
+          } else {
+            if (p.x < b.x) { p.x = b.x; p.a = Math.PI - p.a; }
+            if (p.x > b.x + b.w) { p.x = b.x + b.w; p.a = Math.PI - p.a; }
+          }
+          p.el.setAttribute('cx', p.x.toFixed(1));
+          p.el.setAttribute('cy', p.y.toFixed(1));
+        }
+      },
+      show(on) { g.style.display = on ? '' : 'none'; return api; }
+    };
+    return api;
+  }
+
+  /* 結晶格子。原子の円と、原子をつなぐ結合線、結合ごとに2個の電子（slot）。subs で格子点を不純物に置き換える */
+  function lattice(parent, o) {
+    o = Object.assign({ cols: 5, rows: 4, x0: 200, y0: 110, dx: 130, dy: 105, subs: {} }, o || {});
+    const g = S.g({}, parent);
+    const gb = S.g({}, g), ga = S.g({}, g), ge = S.g({}, g);
+    const atoms = {}, bonds = [];
+    for (let i = 0; i < o.cols; i++) for (let j = 0; j < o.rows; j++) {
+      const x = o.x0 + i * o.dx, y = o.y0 + j * o.dy;
+      const sub = o.subs[i + ',' + j];
+      const el = S.circle(x, y, 22, { cls: sub ? sub.cls : 'f-in s-dim w15' }, ga);
+      const lbl = S.text(x, y + 5, sub ? sub.label : 'Si', { cls: 't-c t-b ' + (sub ? (sub.tcls || '') : 't-dim') }, ga);
+      atoms[i + ',' + j] = { i, j, x, y, el, lbl, sub };
+    }
+    const mkBond = (a, b) => {
+      S.line(a.x, a.y, b.x, b.y, { cls: 's-rule w2' }, gb);
+      const slots = [0.35, 0.65].map((f) => {
+        const x = a.x + (b.x - a.x) * f, y = a.y + (b.y - a.y) * f;
+        return { x, y, el: S.circle(x, y, 4.5, { cls: 'f-e' }, ge), on: true };
+      });
+      const bd = { a, b, slots };
+      bonds.push(bd);
+      return bd;
+    };
+    for (let i = 0; i < o.cols; i++) for (let j = 0; j < o.rows; j++) {
+      if (i + 1 < o.cols) mkBond(atoms[i + ',' + j], atoms[(i + 1) + ',' + j]);
+      if (j + 1 < o.rows) mkBond(atoms[i + ',' + j], atoms[i + ',' + (j + 1)]);
+    }
+    const bond = (i1, j1, i2, j2) => bonds.find((b) => b.a.i === i1 && b.a.j === j1 && b.b.i === i2 && b.b.j === j2);
+    return {
+      g, gb, ga, ge, atoms, bonds, bond,
+      /* 結合の電子を熱で小さく揺らす。on が偽の slot は消す */
+      vibrate(t) {
+        bonds.forEach((b, k) => b.slots.forEach((s, m) => {
+          s.el.style.opacity = s.on ? 1 : 0;
+          if (!s.on) return;
+          const dx = Math.sin(t * 6 + k * 1.7 + m) * 1.4, dy = Math.cos(t * 5 + k * 0.9 + m * 2) * 1.4;
+          s.el.setAttribute('cx', (s.x + dx).toFixed(1));
+          s.el.setAttribute('cy', (s.y + dy).toFixed(1));
+        }));
+      }
+    };
+  }
+
+  /* 空席が結合から結合へ渡り歩く動き。chain は slot の並び（先頭が最初の空席）。
+     tc 秒時点の状態を描く: 電子は chain[m+1] から chain[m] へ moveDur 秒で移り、空席は逆向きに進む。
+     hole（橙の輪）と、必要なら ball（＋の粒として見た空席）を置く */
+  function hopChain(chain, tc, hopDur, moveDur, hole, ball) {
+    const n = chain.length;
+    const m = Math.floor(tc / hopDur);
+    const f = m < n - 1 ? U.clamp((tc - m * hopDur) / moveDur, 0, 1) : 1;
+    const mm = Math.min(m, n - 1);
+    let hx, hy;
+    chain.forEach((s, j) => {
+      s.el.style.opacity = 1;
+      if (j === mm) {
+        if (m < n - 1 && f < 1) s.el.style.opacity = 0;
+        else if (m < n - 1) s.el.style.opacity = 1;
+        else s.el.style.opacity = 0;
+      }
+      if (m < n - 1 && j === mm + 1) {
+        if (f < 1) {
+          s.el.setAttribute('cx', U.lerp(chain[j].x, chain[mm].x, f).toFixed(1));
+          s.el.setAttribute('cy', U.lerp(chain[j].y, chain[mm].y, f).toFixed(1));
+        } else s.el.style.opacity = 0;
+      }
+    });
+    if (m < n - 1) {
+      hx = U.lerp(chain[mm].x, chain[mm + 1].x, f);
+      hy = U.lerp(chain[mm].y, chain[mm + 1].y, f);
+    } else { hx = chain[n - 1].x; hy = chain[n - 1].y; }
+    hole.setAttribute('cx', hx.toFixed(1)); hole.setAttribute('cy', hy.toFixed(1));
+    if (ball) { ball.setAttribute('cx', hx.toFixed(1)); ball.setAttribute('cy', hy.toFixed(1)); }
+    return { x: hx, y: hy, m, f };
+  }
+
+  /* 電圧をかけていることを示す端子の記号。left/right に '−' '＋' */
+  function terminals(parent, x1, x2, y, left, right, label) {
+    const g = S.g({}, parent);
+    S.text(x1, y + 8, left, { cls: (left === '−' ? 't-e' : 't-h') + ' t-b t-xxl', 'text-anchor': 'end' }, g);
+    S.text(x2, y + 8, right, { cls: (right === '−' ? 't-e' : 't-h') + ' t-b t-xxl' }, g);
+    if (label) S.text((x1 + x2) / 2, y + 40, label, { cls: 't-c t-xs t-dim' }, g);
+    return g;
+  }
+
+  /* 電池の記号。flip が真なら＋−を左右入れ替える */
+  function battery(parent, x, y, flip) {
+    const g = S.g({ transform: `translate(${x},${y})` + (flip ? ' scale(-1,1)' : '') }, parent);
+    S.rect(-26, -30, 52, 60, { cls: 'f-bg' }, g);
+    S.line(-8, -26, -8, 26, { cls: 's-h w3' }, g);
+    S.line(8, -14, 8, 14, { cls: 's-e w6' }, g);
+    const tp = S.text(-8, -36, '＋', { cls: 't-h t-b t-c t-lg' }, g);
+    const tm = S.text(8, -36, '−', { cls: 't-e t-b t-c t-lg' }, g);
+    if (flip) { tp.setAttribute('transform', 'scale(-1,1)'); tm.setAttribute('transform', 'scale(-1,1)'); tp.setAttribute('x', 8); tm.setAttribute('x', -8); }
+    return g;
+  }
+
+  /* p 型と n 型を並べた棒。zone は空乏層の半幅。戻り値で幅や表示を変える */
+  function junctionBar(parent, x, y, w, h, jx) {
+    const g = S.g({}, parent);
+    const pR = S.rect(x, y, jx - x, h, { cls: 'f-h-soft s-none' }, g);
+    const nR = S.rect(jx, y, x + w - jx, h, { cls: 'f-e-soft s-none' }, g);
+    const zone = S.rect(jx - 50, y, 100, h, { cls: 'f-in', style: { opacity: 0 } }, g);
+    S.rect(x, y, w, h, { rx: 10, cls: 'f-none s-rule w2' }, g);
+    const ions = S.g({ cls: 'fade hide' }, g);
+    const api = {
+      g, zone, ions, half: 0,
+      setZone(half) {
+        api.half = half;
+        zone.setAttribute('x', (jx - half).toFixed(1));
+        zone.setAttribute('width', (half * 2).toFixed(1));
+        zone.style.opacity = half > 0 ? 0.85 : 0;
+        pR.setAttribute('width', Math.max(0, jx - half - x));
+        nR.setAttribute('x', jx + half); nR.setAttribute('width', Math.max(0, x + w - jx - half));
+        // 固定イオン: 空乏層の中だけに出す
+        api.ionEls.forEach((e) => { e.style.opacity = Math.abs(e.__x - jx) < half - 6 ? 1 : 0; });
+      },
+      ionEls: []
+    };
+    // 固定イオンの候補（空乏層が広がるほど多く見える）
+    for (let c = 0; c < 10; c++) for (let r = 0; r < 4; r++) {
+      const xx = jx - 95 + c * 20 + (c >= 5 ? 10 : 0), yy = y + 22 + r * ((h - 44) / 3);
+      const neg = xx < jx;
+      const e = S.text(xx, yy + 5, neg ? '−' : '＋', { cls: 't-c t-b ' + (neg ? 't-e' : 't-h') + ' t-lg', style: { opacity: 0 } }, ions);
+      e.__x = xx;
+      api.ionEls.push(e);
+    }
+    return api;
+  }
+
+  /* ================================================================
+     場面1 シリコン結晶
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'シリコン原子は外側に電子が4個', text: 'シリコンは原子番号 14。電子 14 個は内側から 2・8・4 個の層に入り、いちばん外側の 4 個（**価電子**）が隣の原子との結びつきに使われる。銅の外側の 1 個と違って、この 4 個は原子核に比較的強く引かれていて、簡単には離れない。' },
+      { title: '隣と4本の手でつながる（共有結合）', text: '結晶の中では、各原子が 4 つの隣と電子を 1 個ずつ出し合い、2 個 1 組で共有する。これが**共有結合**。どの原子もまわりに 8 個の電子を持つ安定な形になり、電子はすべて結合に使われて、自由に動けるものが残らない。' },
+      { title: '純粋なシリコンは、ほぼ絶縁体', text: '室温で自由に動ける電子は 1 cm³ あたり約 10¹⁰ 個。銅の 8.5×10²² 個と比べると 1 兆分の 1 に満たない。結合が全部埋まった状態では電圧をかけても電流はほとんど流れず、このままでは部品にならない。' },
+      { title: '熱で結合が切れると、電子と空席のペアができる', text: '結合から電子を引き離すには約 1.12 eV（電子ボルト）のエネルギーが要る。室温の熱でもごくまれにこれが起き、{e|自由電子} 1 個と、電子の抜けた空席＝{h|正孔} 1 個が同時に生まれる。光でも同じことが起きる（[[6|LED とフォトダイオード]]）。' },
+      { title: '空席も動く', text: '空席の隣の結合にある電子が空席へ移ると、空席は逆向きに 1 つ動く。これを繰り返すと、空席は＋の電荷を持つ粒のように結晶の中を進む。電子が左へ順に動くことと、正孔が右へ動くことは、同じ現象の 2 つの見方。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 原子1個
+      const ga = st.ga = S.g({ transform: 'translate(480,290)', cls: 'fade' }, svg);
+      S.text(0, -250, 'シリコンの原子 1 個', { cls: 't-c t-b t-lg' }, ga);
+      st.shells = [];
+      [[2, 50], [8, 110], [4, 180]].forEach(([n, r], si) => {
+        S.circle(0, 0, r, { cls: 'f-none s-rule w1 dash2' }, ga);
+        const sg = S.g({}, ga);
+        for (let i = 0; i < n; i++) {
+          const a = TAU * i / n + (si === 2 ? Math.PI / 4 : 0);
+          S.circle(Math.cos(a) * r, Math.sin(a) * r, si === 2 ? 6.5 : 4.2, { cls: si === 2 ? 'f-e glow' : 'f-e' }, sg);
+        }
+        st.shells.push({ g: sg, speed: 0.9 - si * 0.25 });
+      });
+      S.circle(0, 0, 24, { cls: 'f-h-soft s-h w2' }, ga);
+      S.text(0, 4, '＋14', { cls: 't-c t-b t-sm t-h' }, ga);
+      S.text(0, 228, '電子 14 個 = 2 + 8 + 4', { cls: 't-c t-sm t-dim t-mono' }, ga);
+      S.text(0, 248, '外側の 4 個（価電子）が結合に使われる', { cls: 't-c t-sm t-dim' }, ga);
+      S.text(200, -150, '価電子 ×4', { cls: 't-e t-b t-sm' }, ga);
+      // 結晶
+      const gl = st.gl = S.g({ cls: 'fade hide' }, svg);
+      S.text(460, 40, 'シリコンの結晶（一部）', { cls: 't-c t-b t-lg' }, gl);
+      st.lat = lattice(gl, {});
+      st.bondLbl = S.text(460, 62, '線 1 本 = 共有結合（電子 2 個を共有）', { cls: 't-c t-sm t-dim fade' }, gl);
+      st.freeGas = gas(gl, 1, { x: 160, y: 80, w: 640, h: 380 }, { r: 5, speed: 90 });
+      st.freeGas.show(false);
+      st.hole = S.circle(0, 0, 7, { cls: 'f-none s-h w2 fade hide' }, gl);
+      st.eLbl = S.text(460, 500, '', { cls: 't-c t-sm t-mono' }, gl);
+      st.eLbl2 = S.text(460, 522, '', { cls: 't-c t-sm t-dim' }, gl);
+      st.energy = S.g({ cls: 'fade hide', transform: 'translate(760,120)' }, gl);
+      S.rect(0, 0, 170, 70, { rx: 6, cls: 'f-sf s-rule w1' }, st.energy);
+      S.text(85, 26, '結合を切るのに要る', { cls: 't-c t-xs t-dim' }, st.energy);
+      S.text(85, 52, '1.12 eV', { cls: 't-c t-b t-xl t-mono' }, st.energy);
+      // 空席の渡り歩き（1行目を右から左へ）
+      const L = st.lat;
+      st.brokenSlot = L.bond(2, 1, 3, 1).slots[0];
+      st.chain = [L.bond(2, 1, 3, 1).slots[0], L.bond(1, 1, 2, 1).slots[1], L.bond(1, 1, 2, 1).slots[0], L.bond(0, 1, 1, 1).slots[1], L.bond(0, 1, 1, 1).slots[0]];
+      st.dirLbl = S.g({ cls: 'fade hide' }, gl);
+      S.arrow(st.dirLbl, 520, 170, 240, 170, 'h', { cls: 's-h w3' });
+      S.text(380, 160, '空席（正孔）は左へ', { cls: 't-c t-sm t-h t-b' }, st.dirLbl);
+      S.arrow(st.dirLbl, 240, 268, 520, 268, 'e', { cls: 's-e w3' });
+      S.text(380, 288, '電子は 1 個ずつ右へ', { cls: 't-c t-sm t-e t-b' }, st.dirLbl);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.ga, i === 0);
+      S.fade(st.gl, i >= 1);
+      st.bondLbl.classList.toggle('hide', i !== 1);
+      st.lat.bonds.forEach((b) => b.slots.forEach((s) => { s.on = true; }));
+      st.brokenSlot.on = !(i >= 3);
+      st.freeGas.show(i >= 3);
+      if (i >= 3) { const p = st.freeGas.ps[0]; p.x = st.brokenSlot.x; p.y = st.brokenSlot.y; }
+      S.fade(st.hole, i >= 3);
+      S.fade(st.energy, i === 3);
+      S.fade(st.dirLbl, i === 4);
+      st.eLbl.textContent = i === 2 ? '自由電子: 約 10¹⁰ 個/cm³（銅は 8.5×10²² 個/cm³）' : i >= 3 ? '自由電子 1 個 ＋ 正孔 1 個（電子正孔対）' : '';
+      st.eLbl2.textContent = i === 2 ? '結合がすべて埋まっていて、動ける電子がない' : i === 3 ? '熱（室温）か光のエネルギーで結合が切れる' : i === 4 ? '空席が動く＝＋の電荷が動くのと同じ' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.shells.forEach((s) => s.g.setAttribute('transform', `rotate(${(t * s.speed * 40) % 360})`));
+      if (i < 1) return;
+      st.lat.vibrate(t);
+      if (i >= 3) st.freeGas.update(dt);
+      if (i === 3) { st.hole.setAttribute('cx', st.brokenSlot.x); st.hole.setAttribute('cy', st.brokenSlot.y); }
+      if (i === 4) {
+        const tc = U.mod(ctx.ts, 6.4);
+        hopChain(st.chain, tc, 1.1, 0.4, st.hole, null);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 n型
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: 'ドーピング：不純物をわざと混ぜる', text: 'シリコンの原子は 1 cm³ に 5×10²² 個。そこへリンを 10¹⁵〜10²⁰ 個/cm³ の割合で加える。格子の一部がリンに置き換わるだけで、結晶の形は変わらない。混ぜる量で電気の流れやすさをおよそ 10 桁の範囲で調整できる。' },
+      { title: 'リンは5価。1個余る', text: 'リンの価電子は 5 個。4 個は隣のシリコンとの結合に使われ、残り 1 個は行き場がなく、リンの原子核にごく弱く引かれているだけになる。引き離すのに要るエネルギーは 0.045 eV で、結合を切る 1.12 eV の 25 分の 1。室温の熱で十分に外れる。' },
+      { title: '自由電子と、動けない＋イオン', text: '外れた電子は結晶全体を動き回る{e|自由電子}になる。電子を失ったリンは{h|＋のイオン}になるが、格子に組み込まれているので動けない。自由電子の数と＋イオンの数は等しく、結晶全体は中性のまま。' },
+      { title: '電圧をかけると電子が流れる', text: '電圧をかけると自由電子が＋側へドリフトし、n 型の電流はこの電子が運ぶ。これを**多数キャリア**と呼ぶ。熱で生まれる正孔もわずかにあるが（少数キャリア）、数が桁違いに少ない。' },
+      { title: 'ドナーの仲間', text: '電子を「与える」不純物を**ドナー**と呼ぶ。シリコンに対しては 5 価の元素、リン（0.045 eV）、ヒ素（0.054 eV）、アンチモン（0.039 eV）が使われる。値は電子を引き離すのに要るエネルギーで、小さいほど室温で確実に自由電子になる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      S.text(460, 40, 'リンを混ぜたシリコン（n 型）', { cls: 't-c t-b t-lg' }, svg);
+      const sub = { label: 'P', cls: 'f-sf s-fg w2', tcls: '' };
+      st.lat = lattice(svg, { subs: { '1,1': sub, '3,2': sub } });
+      st.ps = ['1,1', '3,2'].map((k, n) => {
+        const a = st.lat.atoms[k];
+        const orbit = S.circle(0, 0, 5.5, { cls: 'f-e glow' }, svg);
+        const ring = S.circle(a.x, a.y, 40, { cls: 'f-none s-e w1 dash2' }, svg);
+        const plus = S.text(a.x + 22, a.y - 18, '＋', { cls: 't-h t-b t-lg fade hide' }, svg);
+        return { a, orbit, ring, plus, ph: n * 2.1, target: { x: a.x + (n ? -120 : 150), y: a.y + (n ? -60 : 80) } };
+      });
+      st.gas = gas(svg, 2, { x: 160, y: 80, w: 640, h: 380 }, { r: 5.5, speed: 80, wrap: true });
+      st.gas.show(false);
+      st.term = terminals(svg, 150, 770, 268, '−', '＋', '');
+      st.term.classList.add('fade', 'hide');
+      st.lbl = S.text(460, 500, '', { cls: 't-c t-sm t-mono' }, svg);
+      st.lbl2 = S.text(460, 522, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.energy = S.g({ cls: 'fade hide', transform: 'translate(760,100)' }, svg);
+      S.rect(0, 0, 170, 90, { rx: 6, cls: 'f-sf s-rule w1' }, st.energy);
+      S.text(85, 24, '5 個目を引き離すのに要る', { cls: 't-c t-xs t-dim' }, st.energy);
+      S.text(85, 52, '0.045 eV', { cls: 't-c t-b t-xl t-mono' }, st.energy);
+      S.text(85, 76, '（結合を切る 1.12 eV の 1/25）', { cls: 't-c t-xs t-dim' }, st.energy);
+      st.cur = S.g({ cls: 'fade hide' }, svg);
+      S.arrow(st.cur, 300, 478, 620, 478, 'e', { cls: 's-e w3' });
+      S.text(460, 468, '電子のドリフト（− → ＋）', { cls: 't-c t-sm t-e t-b' }, st.cur);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.ps.forEach((p) => { p.ring.style.opacity = i <= 1 ? 1 : 0; S.fade(p.plus, i >= 2); });
+      st.gas.show(i >= 2);
+      st.gas.drift = i >= 3 ? 45 : 0;
+      S.fade(st.term, i >= 3);
+      S.fade(st.energy, i === 1);
+      S.fade(st.cur, i >= 3);
+      st.detached = false;
+      st.lbl.textContent = ['シリコン 5×10²² 個/cm³ に対し、リン 10¹⁵〜10²⁰ 個/cm³', '5 個目の電子は原子核から遠く、弱く束縛されている', '自由電子 2 個 ／ 固定された＋イオン 2 個 → 全体は中性', 'n 型：電流を運ぶのは電子（多数キャリア）', 'ドナー: P 0.045 eV ／ As 0.054 eV ／ Sb 0.039 eV'][i];
+      st.lbl2.textContent = ['格子の形は変わらず、電気的な性質だけが変わる', '室温の熱エネルギー（約 0.026 eV の揺らぎ）で外れる', 'イオンは格子に組み込まれていて動かない', '電圧をかけている（左 −、右 ＋）', 'どれも 5 価。値が小さいほど室温で確実に自由になる'][i];
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.lat.vibrate(t);
+      st.ps.forEach((p, n) => {
+        if (i === 0) {
+          const a = t * 1.3 + p.ph;
+          p.orbit.style.opacity = 1;
+          p.orbit.setAttribute('cx', (p.a.x + Math.cos(a) * 40).toFixed(1));
+          p.orbit.setAttribute('cy', (p.a.y + Math.sin(a) * 40).toFixed(1));
+        } else if (i === 1) {
+          const f = U.ease.out(U.prog(ctx.ts, 0.5 + n * 0.4, 1.0));
+          const a = t * 1.3 + p.ph;
+          const ox = p.a.x + Math.cos(a) * 40, oy = p.a.y + Math.sin(a) * 40;
+          p.orbit.style.opacity = f < 1 ? 1 : 0;
+          p.orbit.setAttribute('cx', U.lerp(ox, p.target.x, f).toFixed(1));
+          p.orbit.setAttribute('cy', U.lerp(oy, p.target.y, f).toFixed(1));
+          p.ring.style.opacity = 1 - f;
+          if (f >= 1) { p.plus.classList.remove('hide'); if (!st.gas.g.style.display || st.gas.g.style.display === 'none') { st.gas.show(true); } }
+          if (f >= 1 && !p.handed) { p.handed = true; st.gas.ps[n].x = p.target.x; st.gas.ps[n].y = p.target.y; }
+          if (f < 1) p.handed = false;
+          st.gas.ps[n].el.style.opacity = f >= 1 ? 1 : 0;
+        } else {
+          p.orbit.style.opacity = 0;
+          st.gas.ps[n].el.style.opacity = 1;
+        }
+      });
+      if (i === 1) {
+        const anyFree = st.ps.some((p) => p.handed);
+        if (!anyFree) st.gas.show(false);
+      }
+      if (i >= 1) st.gas.update(dt);
+    }
+  };
+
+  /* ================================================================
+     場面3 p型
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'ホウ素は3価。1本の結合に電子が足りない', text: 'ホウ素の価電子は 3 個。隣のシリコン 4 つと結合しようとすると、1 本だけ電子が 1 個しか入らない。この空席が{h|正孔}。ホウ素を 10¹⁵〜10²⁰ 個/cm³ 混ぜると、同じ数の正孔ができる。' },
+      { title: '隣の電子が空席に移り、空席が動く', text: '隣の結合の電子は 0.045 eV ほどのエネルギーで空席へ移れる。移ると元の場所が新しい空席になり、空席は結晶の中を渡り歩く。電子を 1 個受け取ったホウ素は{e|−のイオン}になり、格子に固定されたまま動かない。' },
+      { title: '空席を「＋の粒」として扱う', text: '空席の動きは、結合に縛られた大勢の電子が 1 個ずつ順に動いた結果だが、計算では「＋の電荷を 1 個持つ粒（正孔）が 1 個動いた」と見なしてよい。p 型ではこの正孔が多数キャリアになる。' },
+      { title: '電圧をかけると正孔が−側へ動く', text: '電圧をかけると正孔は−極の側へドリフトし、電流の向き（＋から−）と同じ向きに進む。ただし動きやすさ（移動度）は電子の約 3 分の 1（シリコンで電子 1,400、正孔 450 cm²/V·s）で、同じ濃度なら p 型のほうが流れにくい。' },
+      { title: 'アクセプタの仲間', text: '電子を「受け取る」不純物を**アクセプタ**と呼ぶ。シリコンには 3 価のホウ素（0.045 eV）、アルミニウム（0.057 eV）、ガリウム（0.065 eV）が使われる。n 型と p 型を同じ結晶の中に作り分けると、次の pn 接合になる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      S.text(460, 40, 'ホウ素を混ぜたシリコン（p 型）', { cls: 't-c t-b t-lg' }, svg);
+      const sub = { label: 'B', cls: 'f-sf s-h w2', tcls: 't-h' };
+      st.lat = lattice(svg, { subs: { '1,2': sub, '3,1': sub } });
+      const L = st.lat;
+      // ホウ素 (1,2): 右の結合の電子が1個足りない → 空席は右へ渡り歩く
+      // ホウ素 (3,1): 左の結合の電子が1個足りない → 空席は左へ渡り歩く
+      st.chains = [
+        [L.bond(1, 2, 2, 2).slots[0], L.bond(1, 2, 2, 2).slots[1], L.bond(2, 2, 3, 2).slots[0], L.bond(2, 2, 3, 2).slots[1], L.bond(3, 2, 4, 2).slots[0]],
+        [L.bond(2, 1, 3, 1).slots[1], L.bond(2, 1, 3, 1).slots[0], L.bond(1, 1, 2, 1).slots[1], L.bond(1, 1, 2, 1).slots[0], L.bond(0, 1, 1, 1).slots[1]]
+      ];
+      st.holes = st.chains.map(() => S.circle(0, 0, 7, { cls: 'f-none s-h w2' }, svg));
+      st.balls = st.chains.map(() => S.circle(0, 0, 9, { cls: 'f-h fade hide' }, svg));
+      st.minus = ['1,2', '3,1'].map((k) => { const a = L.atoms[k]; return S.text(a.x + 22, a.y - 18, '−', { cls: 't-e t-b t-xl fade hide' }, svg); });
+      st.hgas = gas(svg, 4, { x: 160, y: 80, w: 640, h: 380 }, { r: 7, speed: 60, cls: 'f-h-soft s-h w2', wrap: true });
+      st.hgas.show(false);
+      st.term = terminals(svg, 150, 770, 268, '−', '＋', '');
+      st.term.classList.add('fade', 'hide');
+      st.cur = S.g({ cls: 'fade hide' }, svg);
+      S.arrow(st.cur, 620, 478, 300, 478, 'h', { cls: 's-h w3' });
+      S.text(460, 468, '正孔のドリフト（＋ → −）＝電流の向き', { cls: 't-c t-sm t-h t-b' }, st.cur);
+      st.lbl = S.text(460, 500, '', { cls: 't-c t-sm t-mono' }, svg);
+      st.lbl2 = S.text(460, 522, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.energy = S.g({ cls: 'fade hide', transform: 'translate(760,100)' }, svg);
+      S.rect(0, 0, 170, 70, { rx: 6, cls: 'f-sf s-rule w1' }, st.energy);
+      S.text(85, 24, '隣の電子が空席へ移るのに要る', { cls: 't-c t-xs t-dim' }, st.energy);
+      S.text(85, 52, '0.045 eV', { cls: 't-c t-b t-xl t-mono' }, st.energy);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.lat.bonds.forEach((b) => b.slots.forEach((s) => { s.on = true; s.el.style.opacity = 1; }));
+      const showLat = i <= 2;
+      st.lat.g.style.opacity = i === 2 ? 0.45 : (showLat ? 1 : 0.25);
+      st.holes.forEach((h) => { h.style.opacity = showLat ? 1 : 0; });
+      st.balls.forEach((b) => S.fade(b, i === 2));
+      st.minus.forEach((m) => S.fade(m, i >= 1 && i <= 2));
+      st.hgas.show(i >= 3);
+      st.hgas.drift = i >= 3 ? -40 : 0;
+      S.fade(st.term, i >= 3);
+      S.fade(st.cur, i >= 3);
+      S.fade(st.energy, i === 1);
+      st.lbl.textContent = ['ホウ素 1 個につき空席（正孔）1 個', '電子が移る → 空席が逆向きに進む', '正孔 ＝ ＋e の電荷を持つ粒として扱える', 'p 型：電流を運ぶのは正孔（多数キャリア）', 'アクセプタ: B 0.045 eV ／ Al 0.057 eV ／ Ga 0.065 eV'][i];
+      st.lbl2.textContent = ['3 本の結合は 2 個ずつ、1 本だけ 1 個', 'ホウ素は電子を 1 個受け取って −イオンになり、動かない', '大勢の電子の順送りを、1 個の粒の動きとして見る', '電圧をかけている（左 −、右 ＋）。移動度は電子の約 1/3', 'どれも 3 価'][i];
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.lat.vibrate(t);
+      if (i === 0) {
+        st.chains.forEach((c, k) => { c[0].el.style.opacity = 0; st.holes[k].setAttribute('cx', c[0].x); st.holes[k].setAttribute('cy', c[0].y); });
+      } else if (i === 1 || i === 2) {
+        const tc = U.mod(ctx.ts, 6.4);
+        st.chains.forEach((c, k) => hopChain(c, tc, 1.1, 0.4, st.holes[k], i === 2 ? st.balls[k] : null));
+      } else {
+        st.chains.forEach((c) => { c[0].el.style.opacity = 0; });
+        st.hgas.update(dt);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 pn接合
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'p 型と n 型を1枚の結晶の中に作る', text: '左の p 型には正孔が、右の n 型には自由電子が大量にある。別々の結晶を貼り合わせるのではなく、1 枚の結晶の中で不純物を作り分ける。境目では、左に正孔が多く右に電子が多いという濃度の差ができる。' },
+      { title: '境目で拡散し、出会って消える（再結合）', text: '濃度の差があると、電子は p 側へ、正孔は n 側へ広がる（拡散）。境目の近くで電子が正孔（空席）に入ると、自由電子も正孔も同時に消える。これが**再結合**。放出されるエネルギーは熱か光になる（[[6|LED とフォトダイオード]]）。' },
+      { title: '動けないイオンだけが残る：空乏層', text: '消えた電子のあとには{h|＋のリンイオン}、消えた正孔のあとには{e|−のホウ素イオン}が、格子に固定されたまま残る。境目の両側に、動けるキャリアがいない層ができる。これが**空乏層**で、幅は 0.1〜1 µm。' },
+      { title: '取り残されたイオンが電場を作り、拡散を止める', text: 'n 側の＋イオンと p 側の−イオンの間に電場ができ、p 側へ渡ろうとする電子を n 側へ押し戻す（正孔は逆向きに押し戻す）。拡散と押し戻しが釣り合った所で動きが止まる。この電場に相当する電位差が**内蔵電位**で、シリコンでは約 0.7 V。' },
+      { title: '結果：電子にとっての坂', text: '電子から見ると、n 側から p 側へ渡るには 0.7 eV の坂を上らなければならない。正孔から見ても逆向きに同じ坂がある。外から電圧をかけてこの坂を低くしたり高くしたりするのが、次の場面のダイオード。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      S.text(280, 128, 'p 型（正孔が多数）', { cls: 't-c t-b' }, svg);
+      S.text(680, 128, 'n 型（電子が多数）', { cls: 't-c t-b' }, svg);
+      st.bar = junctionBar(svg, 80, 150, 800, 180, 480);
+      st.hgas = gas(svg, 16, { x: 96, y: 166, w: 372, h: 148 }, { r: 6.5, speed: 55, cls: 'f-h-soft s-h w2' });
+      st.egas = gas(svg, 16, { x: 492, y: 166, w: 372, h: 148 }, { r: 4.5, speed: 70 });
+      // 拡散して再結合する4組
+      st.pairs = [0, 1, 2, 3].map((k) => {
+        const mx = 480 + (k % 2 ? 14 : -14), my = 186 + k * 36;
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const e = S.circle(0, 0, 4.5, { cls: 'f-e' }, g);
+        const h = S.circle(0, 0, 6.5, { cls: 'f-h-soft s-h w2' }, g);
+        const fl = S.circle(mx, my, 6, { cls: 'f-x', style: { opacity: 0 } }, g);
+        return { g, e, h, fl, mx, my, ex: mx + 110 + k * 12, ey: my + (k % 2 ? -22 : 26), hx: mx - 110 - k * 10, hy: my + (k % 2 ? 20 : -24), t0: 0.4 + k * 0.7 };
+      });
+      st.zoneLbl = S.text(480, 352, '', { cls: 't-c t-sm t-b fade hide' }, svg);
+      // 電場の矢印と、押し戻される電子・正孔
+      st.field = S.g({ cls: 'fade hide' }, svg);
+      [190, 240, 290].forEach((y) => S.arrow(st.field, 522, y, 438, y, 'x', { cls: 's-x w2' }));
+      S.text(480, 142, '電場（n → p）', { cls: 't-c t-sm t-x t-b' }, st.field);
+      st.probeE = S.circle(0, 240, 5, { cls: 'f-e glow fade hide' }, svg);
+      st.probeH = S.circle(0, 240, 7, { cls: 'f-h-soft s-h w2 fade hide' }, svg);
+      st.vLbl = S.g({ cls: 'fade hide', transform: 'translate(560,380)' }, svg);
+      S.rect(0, 0, 300, 70, { rx: 6, cls: 'f-sf s-rule w1' }, st.vLbl);
+      S.text(150, 26, '固定イオンが作る電位差 = 内蔵電位', { cls: 't-c t-xs t-dim' }, st.vLbl);
+      S.text(150, 54, '約 0.7 V（シリコン）', { cls: 't-c t-b t-lg t-mono' }, st.vLbl);
+      st.pushLbl = S.text(300, 420, '', { cls: 't-c t-sm t-dim' }, svg);
+      // 電子から見た坂
+      st.hill = S.g({ cls: 'fade hide' }, svg);
+      S.text(92, 392, '電子のエネルギー（高い＝行きにくい）', { cls: 't-sm t-b' }, st.hill);
+      S.line(92, 530, 868, 530, { cls: 's-rule w1' }, st.hill);
+      S.path('M92,420 H430 C480,420 480,510 530,510 H868', { cls: 'f-none s-fg w2 round' }, st.hill);
+      S.line(540, 420, 540, 510, { cls: 's-dim w1 dash' }, st.hill);
+      S.text(552, 470, '0.7 eV', { cls: 't-mono t-b' }, st.hill);
+      S.text(250, 412, 'p 側：高い', { cls: 't-c t-sm t-dim' }, st.hill);
+      S.text(700, 502, 'n 側：低い', { cls: 't-c t-sm t-dim' }, st.hill);
+      st.hillDot = S.circle(700, 503, 5, { cls: 'f-e glow' }, st.hill);
+      S.text(480, 552, '電子は坂を上れずに戻る。正孔にとっては上下が逆の同じ坂', { cls: 't-c t-xs t-dim' }, st.hill);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const half = i >= 2 ? 50 : 0;
+      st.bar.setZone(half);
+      S.fade(st.bar.ions, i >= 2);
+      st.hgas.box = { x: 96, y: 166, w: (i >= 2 ? 330 : 372), h: 148 };
+      st.egas.box = { x: (i >= 2 ? 534 : 492), y: 166, w: (i >= 2 ? 330 : 372), h: 148 };
+      st.pairs.forEach((p) => S.fade(p.g, i === 1));
+      S.fade(st.zoneLbl, i >= 2);
+      st.zoneLbl.textContent = i === 2 ? '空乏層（幅 0.1〜1 µm）：動けるキャリアがいない' : i >= 3 ? '空乏層：イオンの電場がキャリアを押し戻す' : '';
+      S.fade(st.field, i >= 3);
+      S.fade(st.probeE, i === 3); S.fade(st.probeH, i === 3);
+      S.fade(st.vLbl, i === 3);
+      S.fade(st.hill, i === 4);
+      st.pushLbl.textContent = i === 1 ? '境目に近いキャリアが渡って出会い、消える（×）' : i === 3 ? '渡ろうとした電子・正孔は、空乏層の途中で押し戻される' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.hgas.update(dt); st.egas.update(dt);
+      if (i === 1) {
+        const tc = U.mod(ctx.ts, 5.2);
+        st.pairs.forEach((p) => {
+          const f = U.clamp((tc - p.t0) / 1.0, 0, 1);
+          const after = tc - p.t0 - 1.0;
+          const alive = tc >= p.t0 && f < 1;
+          p.e.style.opacity = tc < p.t0 ? 1 : (alive ? 1 : 0);
+          p.h.style.opacity = p.e.style.opacity;
+          const ff = U.ease.inOut(f);
+          p.e.setAttribute('cx', U.lerp(p.ex, p.mx, ff).toFixed(1)); p.e.setAttribute('cy', U.lerp(p.ey, p.my, ff).toFixed(1));
+          p.h.setAttribute('cx', U.lerp(p.hx, p.mx, ff).toFixed(1)); p.h.setAttribute('cy', U.lerp(p.hy, p.my, ff).toFixed(1));
+          if (after >= 0 && after < 0.5) { p.fl.style.opacity = (1 - after / 0.5).toFixed(2); p.fl.setAttribute('r', (6 + after * 36).toFixed(1)); }
+          else p.fl.style.opacity = 0;
+        });
+      }
+      if (i === 3) {
+        const f = U.cycle(ctx.ts, 3);
+        const s = Math.sin(Math.PI * f);
+        st.probeE.setAttribute('cx', (600 - 150 * s).toFixed(1));
+        st.probeE.setAttribute('cy', (210 + 10 * Math.sin(t * 5)).toFixed(1));
+        st.probeH.setAttribute('cx', (360 + 150 * s).toFixed(1));
+        st.probeH.setAttribute('cy', (270 + 10 * Math.cos(t * 4)).toFixed(1));
+      }
+      if (i === 4) {
+        const f = U.cycle(ctx.ts, 3.2);
+        const x = 700 - 235 * Math.sin(Math.PI * f);
+        const sgm = U.clamp((x - 430) / 100, 0, 1);
+        const y = 420 + 90 * (3 * sgm * sgm - 2 * sgm * sgm * sgm);
+        st.hillDot.setAttribute('cx', x.toFixed(1)); st.hillDot.setAttribute('cy', (y - 7).toFixed(1));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 ダイオード
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '順方向：＋を p、−を n につなぐ', text: '外からの電圧が内蔵電位と逆向きにかかり、坂が低くなる。約 0.6〜0.7 V を超えると電子は n から p へ、正孔は p から n へ次々に渡り、境目で再結合しながら電流が流れ続ける。電流は電圧に対して指数関数的に増える。' },
+      { title: '逆方向：＋を n、−を p につなぐ', text: '外からの電圧が内蔵電位に加わり、坂が高くなって空乏層が広がる。キャリアは境目から引き離され、電流はほぼ流れない（漏れ電流はナノアンペア程度）。ただし逆電圧を上げすぎると降伏が起きて急に流れる。' },
+      { title: '電流と電圧の関係', text: '順方向の電流は I = Is(e^(V/VT) − 1) で表され、VT は室温で約 26 mV。V が 60 mV 増えるごとに電流が約 10 倍になるので、0.6 V 付近から急に立ち上がって見える。逆方向は −Is でほぼ 0。' },
+      { title: '整流：交流を一方向にする', text: '交流電圧をかけると、プラスの半周期だけ順方向になって電流が通り、マイナスの半周期は止まる（半波整流）。ダイオードを 4 個組み合わせたブリッジなら両方の半周期を使える（全波整流）。第1章の AC アダプタの「整流」はこれ。' },
+      { title: '記号と部品', text: '回路記号は三角と棒。三角の向きが電流の通る向き（アノードからカソードへ）、棒がカソード（n 側）。実物は小さな円筒や黒い樹脂で、カソード側に帯が印刷されている。1 本で 1 A を通す整流用から、高速スイッチ用まで種類がある。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.pLbl = S.text(200, 98, 'p（アノード）', { cls: 't-c t-sm t-h t-b' }, svg);
+      st.nLbl = S.text(760, 98, 'n（カソード）', { cls: 't-c t-sm t-e t-b' }, svg);
+      st.bar = junctionBar(svg, 80, 110, 800, 140, 480);
+      st.bar.setZone(50);
+      S.fade(st.bar.ions, true);
+      // 配線と電池
+      st.wires = S.g({}, svg);
+      ['M80,180 H40 V350 H454', 'M880,180 H920 V350 H506'].forEach((d) => S.path(d, { cls: 'f-none s-rule w6 round' }, st.wires));
+      st.wL = S.path('M80,180 H40 V350 H454', { cls: 'f-none s-none' }, st.wires);
+      st.wR = S.path('M880,180 H920 V350 H506', { cls: 'f-none s-none' }, st.wires);
+      st.flowL = A.flow(st.wL, { count: 10, speed: 0, r: 3.5, parent: st.wires });   // p 側 → 電池（電子）
+      st.flowR = A.flow(st.wR, { count: 10, speed: 0, r: 3.5, parent: st.wires, reverse: true }); // 電池 → n 側（電子）
+      st.batF = battery(st.wires, 480, 350, false);
+      st.batR = battery(st.wires, 480, 350, true);
+      st.ac = S.g({ transform: 'translate(480,350)' }, st.wires);
+      S.circle(0, 0, 26, { cls: 'f-sf s-fg w2' }, st.ac);
+      S.path('M-14,0 q7,-12 14,0 t14,0', { cls: 'f-none s-fg w2 round' }, st.ac);
+      S.text(0, 46, '交流電源', { cls: 't-c t-xs t-dim' }, st.ac);
+      // 接合の中の流れ
+      st.ePath = S.path('M868,180 H480', { cls: 'f-none s-none' }, svg);
+      st.hPath = S.path('M92,180 H480', { cls: 'f-none s-none' }, svg);
+      st.eFlow = A.flow(st.ePath, { count: 12, speed: 0, r: 4.5, jitter: 50, fade: true });
+      st.hFlow = A.flow(st.hPath, { count: 12, speed: 0, r: 6.5, cls: 'f-h-soft s-h w2', jitter: 50, fade: true });
+      st.flashes = [0, 1, 2, 3, 4].map(() => S.circle(480, 180, 6, { cls: 'f-x', style: { opacity: 0 } }, svg));
+      st.stray = gas(svg, 8, { x: 96, y: 124, w: 300, h: 112 }, { r: 6.5, speed: 50, cls: 'f-h-soft s-h w2' });
+      st.strayE = gas(svg, 8, { x: 564, y: 124, w: 300, h: 112 }, { r: 4.5, speed: 65 });
+      // 表示
+      st.meter = S.g({ transform: 'translate(600,300)' }, svg);
+      S.rect(0, 0, 300, 90, { rx: 6, cls: 'f-sf s-rule w1' }, st.meter);
+      st.mV = S.text(16, 34, '', { cls: 't-mono t-lg' }, st.meter);
+      st.mI = S.text(16, 68, '', { cls: 't-mono t-lg t-b' }, st.meter);
+      st.mNote = S.text(286, 34, '', { cls: 't-sm t-dim', 'text-anchor': 'end' }, st.meter);
+      st.mNote2 = S.text(286, 68, '', { cls: 't-sm t-dim', 'text-anchor': 'end' }, st.meter);
+      st.zLbl = S.text(480, 272, '', { cls: 't-c t-sm t-b' }, svg);
+      // I–V グラフ
+      const gv = st.gv = S.g({ cls: 'fade hide' }, svg);
+      S.rect(60, 300, 400, 250, { rx: 6, cls: 'f-sf s-rule w1' }, gv);
+      S.text(260, 322, '電流 I と電圧 V', { cls: 't-c t-b' }, gv);
+      const vx = (V) => 100 + (V + 2) / 3 * 320, iy = (I) => 520 - I * 170;
+      S.line(100, 520, 420, 520, { cls: 's-rule w1' }, gv);
+      S.line(vx(0), 340, vx(0), 530, { cls: 's-rule w1' }, gv);
+      [-2, -1, 0, 0.5, 1].forEach((V) => { S.text(vx(V), 538, String(V), { cls: 't-c t-xs t-mono t-dim' }, gv); S.line(vx(V), 517, vx(V), 523, { cls: 's-dim w1' }, gv); });
+      S.text(420, 548, 'V [V]', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, gv);
+      S.text(vx(0) - 6, 350, 'I', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, gv);
+      const iNorm = (V) => V <= 0 ? -0.025 : Math.min(1, (Math.exp(V / 0.05) - 1) / (Math.exp(0.85 / 0.05) - 1));
+      st.iNorm = iNorm; st.vx = vx; st.iy = iy;
+      let d = '';
+      for (let V = -2; V <= 0.86; V += 0.02) d += (d ? 'L' : 'M') + vx(V).toFixed(1) + ',' + iy(iNorm(V)).toFixed(1);
+      S.path(d, { cls: 'f-none s-fg w2 round' }, gv);
+      S.text(vx(0.7) - 8, iy(0.05) - 24, '0.6〜0.7 V で', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gv);
+      S.text(vx(0.7) - 8, iy(0.05) - 10, '急に立ち上がる', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gv);
+      S.text(vx(-1), 505, '逆方向：ほぼ 0（−Is）', { cls: 't-c t-xs t-dim' }, gv);
+      st.ivDot = S.circle(0, 0, 6, { cls: 'f-x' }, gv);
+      st.ivTxt = S.text(84, 348, '', { cls: 't-sm t-mono' }, gv);
+      // 整流
+      const gr = st.gr = S.g({ cls: 'fade hide' }, svg);
+      const graph = (x, title) => {
+        S.rect(x, 300, 380, 250, { rx: 6, cls: 'f-sf s-rule w1' }, gr);
+        S.text(x + 190, 322, title, { cls: 't-c t-b' }, gr);
+        S.line(x + 30, 440, x + 350, 440, { cls: 's-rule w1' }, gr);
+        S.text(x + 24, 444, '0', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, gr);
+        S.text(x + 350, 536, '時間 →', { cls: 't-xs t-dim', 'text-anchor': 'end' }, gr);
+        return { path: S.path('', { cls: 'f-none s-h w2 round' }, gr), cur: S.line(x + 30, 345, x + 30, 530, { cls: 's-x w15' }, gr), x };
+      };
+      st.gIn = graph(60, '入力（交流）');
+      st.gOut = graph(520, '出力（半波整流：＋の半周期だけ通る）');
+      st.gOut.path.setAttribute('class', 'f-none s-d w2 round');
+      // 記号
+      const gs = st.gs = S.g({ cls: 'fade hide' }, svg);
+      S.rect(60, 300, 840, 250, { rx: 6, cls: 'f-sf s-rule w1' }, gs);
+      S.text(300, 330, '回路記号', { cls: 't-c t-b' }, gs);
+      S.line(140, 420, 300, 420, { cls: 's-fg w3' }, gs);
+      S.polygon([[300, 390], [300, 450], [360, 420]], { cls: 'f-fg' }, gs);
+      S.line(360, 388, 360, 452, { cls: 's-fg w4' }, gs);
+      S.line(360, 420, 480, 420, { cls: 's-fg w3' }, gs);
+      S.text(220, 405, 'アノード（p）', { cls: 't-c t-sm t-h t-b' }, gs);
+      S.text(430, 405, 'カソード（n）', { cls: 't-c t-sm t-e t-b' }, gs);
+      S.arrow(gs, 200, 480, 420, 480, 'h', { cls: 's-h w3' });
+      S.text(310, 505, '電流が通る向き（三角の向き）', { cls: 't-c t-sm t-dim' }, gs);
+      S.text(700, 330, '実物（整流用の例）', { cls: 't-c t-b' }, gs);
+      S.line(560, 420, 640, 420, { cls: 's-dim w3' }, gs);
+      S.rect(640, 398, 120, 44, { rx: 6, cls: 'f-fg' }, gs);
+      S.rect(732, 398, 10, 44, { cls: 'f-sf' }, gs);
+      S.line(760, 420, 840, 420, { cls: 's-dim w3' }, gs);
+      S.text(700, 470, '帯のある側がカソード', { cls: 't-c t-sm t-dim' }, gs);
+      S.text(700, 492, '長さ 5 mm ほど。1 A・1,000 V 耐圧の整流用など', { cls: 't-c t-xs t-dim' }, gs);
+      st.zonePrev = 50;
+    },
+    onStep(ctx, i, prev) {
+      const st = ctx.state;
+      st.zonePrev = st.bar.half;
+      st.wires.style.opacity = i === 2 || i === 4 ? 0 : 1;
+      st.batF.style.opacity = i === 0 ? 1 : 0;
+      st.batR.style.opacity = i === 1 ? 1 : 0;
+      st.ac.style.opacity = i === 3 ? 1 : 0;
+      st.meter.style.opacity = i <= 1 ? 1 : 0;
+      S.fade(st.gv, i === 2);
+      S.fade(st.gr, i === 3);
+      S.fade(st.gs, i === 4);
+      st.mV.textContent = i === 0 ? 'V = +0.7 V（順方向）' : 'V = −5 V（逆方向）';
+      st.mI.textContent = i === 0 ? 'I = 20 mA' : 'I ≒ 0（漏れ ～nA）';
+      st.mNote.textContent = i === 0 ? '坂が低くなる' : '坂が高くなる';
+      st.mNote2.textContent = i === 0 ? '空乏層が薄くなる' : '空乏層が広がる';
+      st.pLbl.textContent = i === 1 ? 'p（アノード）← −' : i === 0 ? 'p（アノード）← ＋' : 'p（アノード）';
+      st.nLbl.textContent = i === 1 ? '＋ → n（カソード）' : i === 0 ? '− → n（カソード）' : 'n（カソード）';
+    },
+    /* 順方向の強さ s（0..1）と逆方向の強さ r（0..1）から接合の見た目を決める */
+    apply(st, s, r, dt) {
+      const half = s > 0 ? U.lerp(50, 14, s) : U.lerp(50, 95, r);
+      st.bar.setZone(half);
+      st.eFlow.set('speed', 90 * s); st.hFlow.set('speed', 90 * s);
+      st.eFlow.g.style.opacity = s > 0.05 ? 1 : 0; st.hFlow.g.style.opacity = s > 0.05 ? 1 : 0;
+      st.flowL.set('speed', 70 * s); st.flowR.set('speed', 70 * s);
+      st.flowL.g.style.opacity = s > 0.05 ? 1 : 0; st.flowR.g.style.opacity = s > 0.05 ? 1 : 0;
+      st.eFlow.update(dt); st.hFlow.update(dt); st.flowL.update(dt); st.flowR.update(dt);
+      st.stray.box = { x: 96, y: 124, w: 384 - half - 10 - 96, h: 112 };
+      st.strayE.box = { x: 480 + half + 10, y: 124, w: 864 - (480 + half + 10), h: 112 };
+      st.stray.update(dt); st.strayE.update(dt);
+      st.zLbl.textContent = s > 0.3 ? '空乏層が薄い → キャリアが渡って再結合しながら流れる' : r > 0.3 ? '空乏層が広い → キャリアが境目から離れ、流れない' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      let s = 0, r = 0;
+      if (i === 0) s = 1;
+      else if (i === 1) r = 1;
+      else if (i === 2) {
+        const V = -2 + 2.85 * U.cycle(ctx.ts, 7);
+        const I = st.iNorm(V);
+        st.ivDot.setAttribute('cx', st.vx(V).toFixed(1)); st.ivDot.setAttribute('cy', st.iy(I).toFixed(1));
+        st.ivTxt.textContent = `V = ${V >= 0 ? '+' : ''}${V.toFixed(2)} V   I = ${I <= 0 ? '≒ 0' : (I * 20).toFixed(2) + ' mA'}`;
+        if (V >= 0) s = Math.pow(I, 0.4); else r = -V / 2;
+      } else if (i === 3) {
+        const ph = U.cycle(ctx.ts, 8);
+        const sig = (f) => Math.sin(f * TAU * 2);
+        const v = sig(ph);
+        if (v > 0.15) s = (v - 0.15) / 0.85; else if (v < 0) r = -v;
+        const draw = (g, fn) => {
+          let d = '';
+          const n = Math.floor(ph * 320);
+          for (let k = 0; k <= n; k++) { const f = k / 320; d += (k ? 'L' : 'M') + (g.x + 30 + k).toFixed(1) + ',' + (440 - fn(sig(f)) * 80).toFixed(1); }
+          g.path.setAttribute('d', d);
+          g.cur.setAttribute('x1', (g.x + 30 + n).toFixed(1)); g.cur.setAttribute('x2', (g.x + 30 + n).toFixed(1));
+        };
+        draw(st.gIn, (v) => v);
+        draw(st.gOut, (v) => Math.max(0, v - 0.1) * 0.95);
+      } else { s = 0; r = 0; }
+      // 幅の変化をなめらかに（止めているときは時刻が進まないので、すぐにその段階の幅にする）
+      const target = s > 0 ? U.lerp(50, 14, s) : U.lerp(50, 95, r);
+      const k = YT.motion.playing ? U.ease.out(U.prog(ctx.ts, 0, 0.9)) : 1;
+      const shown = U.lerp(st.zonePrev, target, k);
+      st.bar.setZone(shown);
+      s5.apply(st, s, r, dt);
+      st.bar.setZone(shown);
+      // 再結合の閃光
+      st.flashes.forEach((fl, n) => {
+        if (s < 0.2) { fl.style.opacity = 0; return; }
+        const age = U.mod(t - n * 0.37, 1.85);
+        if (age < 0.5) { fl.style.opacity = ((1 - age / 0.5) * 0.9).toFixed(2); fl.setAttribute('r', (4 + age * 28).toFixed(1)); fl.setAttribute('cx', (480 + Math.sin(n * 7.3) * 16).toFixed(1)); fl.setAttribute('cy', (130 + U.mod(n * 53, 100)).toFixed(1)); }
+        else fl.style.opacity = 0;
+      });
+    }
+  };
+
+  /* ================================================================
+     場面6 LEDとフォトダイオード
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '再結合が光になる', text: '順方向の pn 接合では、境目で電子が正孔に落ちるたびにバンドギャップ分のエネルギーが放出される。それが光子（光の粒）として出るのが{p|発光}。波長はバンドギャップで決まり、λ(nm) ≒ 1240 ÷ E(eV)。シリコンは 1.12 eV で赤外になるうえ、エネルギーがほぼ熱になる性質（間接遷移）のため光らない。' },
+      { title: '色は材料で決まる', text: '光る材料は化合物半導体。赤は AlGaInP（約 2.0 eV、625 nm）、緑と青は InGaN（青 450 nm は約 2.7 eV）。青色 LED の実用化は 1990 年代で、2014 年のノーベル物理学賞の対象になった。白色 LED は青の LED に黄色の蛍光体を重ねて作る。' },
+      { title: 'フォトダイオード：光で電子正孔対を作る', text: '逆方向電圧をかけて空乏層を広げた接合に光を当てると、光子が吸収されて電子と正孔のペアが生まれる。空乏層の電場がすぐに 2 つを引き離し、電子は n 側へ、正孔は p 側へ流れて電流になる。電流は光の強さに比例し、応答はナノ秒以下。' },
+      { title: '光で 1 と 0 を送る', text: '送り手の LED やレーザーを 1 で点け 0 で消し、受け手のフォトダイオードが電流に戻せば、光で情報を送れる。光ファイバーでは 1310 nm や 1550 nm の赤外線を使い、受光には InGaAs を使う。10 Gbps なら 1 秒に約 100 億回の点滅になる（第15章）。' },
+      { title: 'レーザーダイオード', text: 'LED の光は位相も向きもばらばらで、遠くへ飛ばしにくい。接合の両端を鏡にして光を往復させると、光が光を誘い出す**誘導放出**がそろった光を増幅し、位相と向きのそろった細い光が出る。これがレーザーダイオードで、光ファイバーの光源はほぼこれ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // LED
+      st.ledG = S.g({}, svg);
+      st.ledTitle = S.text(300, 70, 'LED（順方向）', { cls: 't-c t-b' }, st.ledG);
+      st.led = junctionBar(st.ledG, 80, 90, 440, 110, 300);
+      st.led.setZone(12);
+      terminals(st.ledG, 70, 530, 145, '＋', '−', '');
+      st.ledE = A.flow(S.path('M510,145 H300', { cls: 'f-none s-none' }, st.ledG), { count: 9, speed: 80, r: 4.5, jitter: 36, fade: true, parent: st.ledG });
+      st.ledH = A.flow(S.path('M90,145 H300', { cls: 'f-none s-none' }, st.ledG), { count: 9, speed: 80, r: 6.5, cls: 'f-h-soft s-h w2', jitter: 36, fade: true, parent: st.ledG });
+      st.photons = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ el: S.circle(0, 0, 5.5, { cls: 'f-p glow' }, st.ledG), k, color: '' }));
+      st.mat = S.g({}, svg);
+      st.matRows = [];
+      const mats = [['赤', 'AlGaInP', '625 nm', '2.0 eV', 'f-red'], ['緑', 'InGaN', '525 nm', '2.4 eV', 'f-grn'], ['青', 'InGaN', '450 nm', '2.7 eV', 'f-blu'], ['白', '青 + 黄色蛍光体', '—', '—', 'f-wht']];
+      S.rect(560, 60, 370, 200, { rx: 6, cls: 'f-sf s-rule w1' }, st.mat);
+      st.matTitle = S.text(745, 84, '', { cls: 't-c t-b' }, st.mat);
+      mats.forEach((m, k) => {
+        const y = 112 + k * 36;
+        const bg = S.rect(570, y - 16, 350, 30, { rx: 4, cls: 'f-in', style: { opacity: 0 } }, st.mat);
+        S.circle(590, y - 2, 7, { cls: m[4] + ' s-rule w1' }, st.mat);
+        S.text(610, y + 3, m[0], { cls: 't-b t-sm' }, st.mat);
+        S.text(650, y + 3, m[1], { cls: 't-sm t-mono' }, st.mat);
+        S.text(800, y + 3, m[2], { cls: 't-sm t-mono t-dim' }, st.mat);
+        S.text(870, y + 3, m[3], { cls: 't-sm t-mono t-dim' }, st.mat);
+        st.matRows.push({ bg, cls: m[4] });
+      });
+      st.siNote = S.g({ transform: 'translate(560,60)' }, svg);
+      S.rect(0, 0, 370, 200, { rx: 6, cls: 'f-sf s-rule w1' }, st.siNote);
+      S.text(185, 28, '波長 λ(nm) ≒ 1240 ÷ E(eV)', { cls: 't-c t-b t-mono' }, st.siNote);
+      [['Si', '1.12 eV', '1,100 nm 赤外', '間接遷移。熱になり光らない'], ['GaAs', '1.42 eV', '870 nm 赤外', 'リモコンなど'], ['InGaN', '2.7 eV', '450 nm 青', '青色 LED・白色 LED の元']].forEach((r, k) => {
+        const y = 66 + k * 42;
+        S.text(16, y, r[0], { cls: 't-b t-mono' }, st.siNote);
+        S.text(80, y, r[1], { cls: 't-mono t-sm' }, st.siNote);
+        S.text(160, y, r[2], { cls: 't-sm' }, st.siNote);
+        S.text(16, y + 18, r[3], { cls: 't-xs t-dim' }, st.siNote);
+      });
+      // フォトダイオード
+      st.pdG = S.g({}, svg);
+      S.text(300, 312, 'フォトダイオード（逆方向）', { cls: 't-c t-b' }, st.pdG);
+      st.pd = junctionBar(st.pdG, 80, 330, 440, 110, 300);
+      st.pd.setZone(70);
+      S.fade(st.pd.ions, true);
+      terminals(st.pdG, 70, 530, 385, '−', '＋', '');
+      // 光源
+      st.lampG = S.g({}, st.pdG);
+      S.circle(300, 252, 14, { cls: 'f-p-soft s-p w2' }, st.lampG);
+      [-30, -10, 10, 30].forEach((dx) => S.line(300 + dx * 0.4, 268, 300 + dx, 298, { cls: 's-p w1' }, st.lampG));
+      st.lampLbl = S.text(300, 234, '光', { cls: 't-c t-xs t-p t-b' }, st.lampG);
+      st.pdPhotons = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => {
+        const g = S.g({}, st.pdG);
+        return { ph: S.circle(0, 0, 5, { cls: 'f-p glow' }, g), e: S.circle(0, 0, 4.5, { cls: 'f-e' }, g), h: S.circle(0, 0, 6.5, { cls: 'f-h-soft s-h w2' }, g), x: 245 + hash(k + 3) * 110, k };
+      });
+      // 電流計
+      st.meter = S.g({ transform: 'translate(560,300)' }, svg);
+      S.rect(0, 0, 370, 160, { rx: 6, cls: 'f-sf s-rule w1' }, st.meter);
+      S.text(185, 26, '光電流（光の強さに比例）', { cls: 't-c t-b' }, st.meter);
+      S.path('M60,120 A125,125 0 0 1 310,120', { cls: 'f-none s-rule w3 round' }, st.meter);
+      st.needle = S.line(185, 120, 185, 20, { cls: 's-x w3 round' }, st.meter);
+      S.circle(185, 120, 6, { cls: 'f-fg' }, st.meter);
+      S.text(60, 142, '0', { cls: 't-c t-xs t-mono t-dim' }, st.meter);
+      st.meterTxt = S.text(185, 150, '', { cls: 't-c t-sm t-mono' }, st.meter);
+      // 1 と 0
+      st.fiber = S.g({}, svg);
+      S.line(300, 200, 300, 330, { cls: 's-p w10 round', style: { opacity: 0.35 } }, st.fiber);
+      S.text(318, 268, '光ファイバー', { cls: 't-sm t-p t-b' }, st.fiber);
+      st.bitPhotons = [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => S.circle(300, 0, 5.5, { cls: 'f-p glow' }, st.fiber));
+      st.bitG = S.g({ transform: 'translate(560,300)' }, svg);
+      S.rect(0, 0, 370, 240, { rx: 6, cls: 'f-sf s-rule w1' }, st.bitG);
+      S.text(185, 24, '送った 1 と 0 → 受け取った電流', { cls: 't-c t-b' }, st.bitG);
+      S.text(14, 60, '送信', { cls: 't-xs t-dim' }, st.bitG);
+      S.text(14, 150, '受信', { cls: 't-xs t-dim' }, st.bitG);
+      S.line(50, 110, 350, 110, { cls: 's-rule w1' }, st.bitG);
+      S.line(50, 200, 350, 200, { cls: 's-rule w1' }, st.bitG);
+      st.txPath = S.path('', { cls: 'f-none s-p w2 round' }, st.bitG);
+      st.rxPath = S.path('', { cls: 'f-none s-e w2 round' }, st.bitG);
+      st.bitTxt = S.text(185, 228, '1 0 1 1 0 0 1 0（0.7 秒ごと。実際は 10 Gbps で 0.1 ns ごと）', { cls: 't-c t-xs t-dim' }, st.bitG);
+      st.bits = [1, 0, 1, 1, 0, 0, 1, 0];
+      // レーザー
+      st.ldG = S.g({}, svg);
+      S.text(300, 70, 'レーザーダイオード（両端が鏡）', { cls: 't-c t-b' }, st.ldG);
+      st.ld = junctionBar(st.ldG, 80, 90, 440, 110, 300);
+      st.ld.setZone(12);
+      S.rect(72, 86, 10, 118, { cls: 'f-fg' }, st.ldG);
+      S.rect(518, 86, 6, 118, { cls: 'f-dim', style: { opacity: 0.7 } }, st.ldG);
+      S.text(76, 226, '全反射の鏡', { cls: 't-c t-xs t-dim' }, st.ldG);
+      S.text(521, 226, '半透明の鏡', { cls: 't-c t-xs t-dim' }, st.ldG);
+      st.ldPhotons = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => S.circle(0, 0, 5, { cls: 'f-p glow' }, st.ldG));
+      st.beamPath = S.path('', { cls: 'f-none s-p w3 round' }, st.ldG);
+      st.beam = A.wave(st.beamPath, { x0: 530, x1: 930, y: 145, amp: 10, lambda: 36, speed: 180 });
+      S.arrow(st.ldG, 540, 180, 920, 180, 'p', { cls: 's-p w2' });
+      S.text(730, 200, '位相と向きのそろった光 → 光ファイバーへ（第15章）', { cls: 't-c t-sm t-p t-b' }, st.ldG);
+      S.text(730, 222, '1310 nm ／ 1550 nm（InGaAsP）', { cls: 't-c t-sm t-mono t-dim' }, st.ldG);
+      st.ldNote = S.g({ transform: 'translate(80,300)' }, st.ldG);
+      S.rect(0, 0, 850, 150, { rx: 6, cls: 'f-sf s-rule w1' }, st.ldNote);
+      S.text(425, 30, '誘導放出：通りかかった光子が、同じ波長・同じ位相・同じ向きの光子をもう 1 個引き出す', { cls: 't-c t-b t-sm' }, st.ldNote);
+      S.text(425, 60, 'LED：自然放出だけ。向きも位相もばらばら。', { cls: 't-c t-sm t-dim' }, st.ldNote);
+      S.text(425, 84, 'レーザー：鏡の間を往復するうちに誘導放出がそろった光を増やし、半透明の鏡から細い光が出る。', { cls: 't-c t-sm t-dim' }, st.ldNote);
+      S.text(425, 108, '光ファイバーの細い芯（直径 9 µm）に光を入れ、長い距離を飛ばすには、このそろった光が要る。', { cls: 't-c t-sm t-dim' }, st.ldNote);
+      S.text(425, 132, '読み出し用の赤いレーザー（DVD 650 nm、BD 405 nm）も同じ部品。', { cls: 't-c t-sm t-dim' }, st.ldNote);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.ledG.style.opacity = i <= 3 && i !== 2 ? 1 : (i === 2 ? 0.3 : 0);
+      st.mat.style.opacity = i === 1 ? 1 : 0;
+      st.siNote.style.opacity = i === 0 ? 1 : 0;
+      st.pdG.style.opacity = i >= 2 && i <= 3 ? 1 : (i < 2 ? 0.3 : 0);
+      st.lampG.style.opacity = i === 2 ? 1 : 0;
+      st.meter.style.opacity = i === 2 ? 1 : 0;
+      st.fiber.style.opacity = i === 3 ? 1 : 0;
+      st.bitG.style.opacity = i === 3 ? 1 : 0;
+      st.ldG.style.opacity = i === 4 ? 1 : 0;
+      st.ledTitle.textContent = i === 3 ? 'LED（送り手）：1 で点き、0 で消える' : 'LED（順方向）';
+      st.lampLbl.textContent = i === 2 ? '光' : '';
+      st.photons.forEach((p) => { p.el.setAttribute('class', 'f-p glow'); p.el.style.fill = ''; });
+      st.pdPhotons.forEach((p) => { p.ph.style.opacity = 0; p.e.style.opacity = 0; p.h.style.opacity = 0; });
+    },
+    frame(ctx, t, dt) {
+      t = ctx.ts;   // 光子の出る時刻は段階に入ってから数える（どの段階から来ても同じ姿で始まる）
+      const st = ctx.state, i = ctx.step;
+      if (i <= 1 || i === 3) {
+        // LED: 再結合 → 光子
+        const on = i !== 3 || st.bits[Math.floor(U.mod(t, 5.6) / 0.7)] === 1;
+        st.ledE.set('speed', on ? 80 : 0); st.ledH.set('speed', on ? 80 : 0);
+        st.ledE.g.style.opacity = on ? 1 : 0.25; st.ledH.g.style.opacity = on ? 1 : 0.25;
+        st.ledE.update(dt); st.ledH.update(dt);
+        const matIdx = Math.floor(U.cycle(ctx.ts, 10) * 4);
+        if (i === 1) { st.matRows.forEach((r, k) => { r.bg.style.opacity = k === matIdx ? 1 : 0; }); st.matTitle.textContent = '材料と色（2.5 秒ごとに切り替え）'; }
+        st.photons.forEach((p) => {
+          const period = 3.6, age = U.mod(t - p.k * 0.45, period);
+          const life = 1.3;
+          if (i === 3 || age > life) { p.el.style.opacity = 0; return; }
+          const bornBit = i === 3 ? 1 : 1;
+          const x0 = 300 + (hash(p.k) - 0.5) * 36;
+          p.el.setAttribute('cx', (x0 + age * 26 * (hash(p.k + 9) - 0.5) * 2).toFixed(1));
+          p.el.setAttribute('cy', (145 - age * 95).toFixed(1));
+          p.el.style.opacity = bornBit ? Math.min(1, (life - age) * 2).toFixed(2) : 0;
+          if (i === 1) { p.el.setAttribute('class', st.matRows[matIdx].cls + ' glow'); }
+        });
+      }
+      if (i === 2) {
+        // 光の強さ: 3 秒ごとに弱／強
+        const strong = Math.floor(U.cycle(ctx.ts, 6) * 2) === 1;
+        const active = strong ? 8 : 3;
+        let rate = 0;
+        st.pdPhotons.forEach((p, k) => {
+          if (k >= active) { p.ph.style.opacity = 0; p.e.style.opacity = 0; p.h.style.opacity = 0; return; }
+          rate++;
+          const period = 2.4, age = U.mod(t - k * 0.3, period);
+          if (age < 0.6) {
+            p.ph.style.opacity = 1; p.e.style.opacity = 0; p.h.style.opacity = 0;
+            p.ph.setAttribute('cx', p.x.toFixed(1)); p.ph.setAttribute('cy', (270 + (age / 0.6) * 115).toFixed(1));
+          } else if (age < 1.5) {
+            const f = (age - 0.6) / 0.9;
+            p.ph.style.opacity = 0; p.e.style.opacity = 1; p.h.style.opacity = 1;
+            p.e.setAttribute('cx', U.lerp(p.x, 512, f).toFixed(1)); p.e.setAttribute('cy', (385 + 8 * Math.sin(t * 6 + k)).toFixed(1));
+            p.h.setAttribute('cx', U.lerp(p.x, 90, f).toFixed(1)); p.h.setAttribute('cy', (385 + 8 * Math.cos(t * 5 + k)).toFixed(1));
+          } else { p.ph.style.opacity = 0; p.e.style.opacity = 0; p.h.style.opacity = 0; }
+        });
+        const ang = -90 + (strong ? 70 : 25) + Math.sin(t * 3) * 2;
+        const rad = ang * Math.PI / 180;
+        st.needle.setAttribute('x2', (185 + Math.cos(rad) * 100).toFixed(1)); st.needle.setAttribute('y2', (120 + Math.sin(rad) * 100).toFixed(1));
+        st.meterTxt.textContent = strong ? '強い光 → 大きな電流' : '弱い光 → 小さな電流';
+        st.lampLbl.textContent = strong ? '強い光' : '弱い光';
+      }
+      if (i === 3) {
+        // 光ファイバーの中の光子（0.1 秒ごとに出て 0.9 秒で届く）
+        const now = Math.floor(t / 0.1) * 0.1;
+        st.bitPhotons.forEach((p, k) => {
+          const tau = now - k * 0.1;
+          const bit = st.bits[Math.floor(U.mod(tau, 5.6) / 0.7)];
+          const f = (t - tau) / 0.9;
+          if (!bit || f > 1 || f < 0) { p.style.opacity = 0; return; }
+          p.style.opacity = 1;
+          p.setAttribute('cy', (200 + f * 130).toFixed(1));
+          p.setAttribute('cx', (300 + Math.sin(f * 12 + k) * 3).toFixed(1));
+        });
+        // 受信側: 直近 5.6 秒の波形
+        const mk = (delay, cls) => {
+          let d = '';
+          for (let k = 0; k <= 150; k++) {
+            const tt = t - (1 - k / 150) * 5.6 - delay;
+            const b = st.bits[Math.floor(U.mod(tt, 5.6) / 0.7)];
+            d += (k ? 'L' : 'M') + (50 + k * 2).toFixed(1) + ',' + (cls ? (b ? 160 : 200) : (b ? 70 : 110));
+          }
+          return d;
+        };
+        st.txPath.setAttribute('d', mk(0, 0));
+        st.rxPath.setAttribute('d', mk(0.9, 1));
+        // 受け手の電流（電子・正孔）の見せ方は省略し、受信の波形で表す
+      }
+      if (i === 4) {
+        st.ldPhotons.forEach((p, k) => {
+          const f = U.cycle(t * (0.8 + hash(k) * 0.3) + hash(k + 1), 1);
+          const x = f < 0.5 ? U.lerp(90, 510, f * 2) : U.lerp(510, 90, (f - 0.5) * 2);
+          p.setAttribute('cx', x.toFixed(1)); p.setAttribute('cy', (130 + k * 4).toFixed(1));
+        });
+        st.beam.update(dt);
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第I部 電気 ／ 第2章',
+      title: '半導体とダイオード',
+      home: '../index.html',
+      prev: { href: '01-denshi.html', title: '電子と電流' },
+      next: { href: '03-transistor.html', title: 'トランジスタ' },
+      legend: [{ c: 'e', label: '電子・−イオン' }, { c: 'h', label: '正孔・＋イオン' }, { c: 'p', label: '光' }, { c: 'x', label: '再結合・電場' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

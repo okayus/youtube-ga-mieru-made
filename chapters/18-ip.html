@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>IP — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第V部 約束ごと ／ 第18章 ／ 全25章</p>
+    <h1 id="h-s0">IP</h1>
+    <p class="standfirst">DNS が番号を返すと、ブラウザの最初のパケットは宛先 142.250.196.110 を書いた IP ヘッダを付けて家を出る。IP は、宛先の番号だけを頼りにルーターからルーターへパケットを 1 個ずつ渡す約束ごとで、届くことも順番も保証しない。この章では、IPv4 ヘッダの 20 バイト、番号の範囲の書き方と配り方、128 ビットの IPv6、ホップごとに変わる欄と変わらない欄、区間ごとの大きさの上限（MTU）、そして ping と traceroute を支える ICMP を順に見る。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。パケットの動きは、見やすいように実際よりずっと遅くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>IPv4 ヘッダ</a><p>20 バイトに、版・全長・TTL・プロトコル・チェックサム・送信元・宛先が決まった位置で並ぶ。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>アドレスとサブネット</a><p>番号は /n の範囲で書き、まとめて広告する。IANA から家までの配り方と、尽きた在庫。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>IPv6</a><p>128 ビットの番号と省略の書き方、/56 と /64、SLAAC、40 バイトの固定ヘッダ。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>ホップごとに起きること</a><p>ルーターを越えるたびに TTL・チェックサム・MAC が変わり、宛先 IP は変わらない。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>MTU と断片化</a><p>区間ごとの大きさの上限。IPv4 の断片化と DF、経路 MTU 探索、MSS、QUIC の 1,200 バイト。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>ICMP</a><p>宛先との往復を測る ping と、TTL を 1 ずつ増やして道をたどる traceroute。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（TCP・UDP・QUIC）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。192.168.1.x は家の中の私設アドレス、203.0.113.x と 198.51.100.x（RFC 5737）、2001:db8: で始まる番号（RFC 3849）、AS64500（RFC 5398）は説明用に予約された値。142.250.196.110・142.250.x.x・2404:6800:4004:80a::200e は Google の範囲の中の例で、ホップの数と往復時間も例。数値は本文に書いたものだけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 IPv4 ヘッダ ================= -->
+<section class="scene sc-anim" id="s1" data-tab="ヘッダ" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>IPv4 ヘッダ — 20 バイトに決まった欄が並ぶ</h2>
+    <p class="sh-meta"><span class="chip">RFC 791（1981 年）</span><span class="chip">20 バイト</span><span class="chip">プロトコル 17 = UDP</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IP パケットは、20 バイトの<span class="tag d">IPv4 ヘッダ</span>と中身でできている。途中のルーターが読むのはヘッダだけ。宛先と送信元の番号、全体の長さ、残りの寿命（TTL）、中身の種類、検算の値が決まった位置に入る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">欄の位置と長さは 1981 年の RFC 791 から変わらず、2 バイト目は後に DSCP と ECN に定義し直された。Wireshark などでパケットを取ると、図の 20 バイトと各欄の値を並べて見られる。IPv6 では欄を整理し直した（<a class="xref" href="#s3" data-go="3">3「IPv6」</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="IPv4 ヘッダを 32 ビットずつ 5 行に並べ、版・ヘッダ長・全長・識別子・フラグ・断片位置・TTL・プロトコル・チェックサム・送信元・宛先の各欄と例の値を示す図"></svg></div>
+    <figcaption>図1　IPv4 ヘッダを 32 ビットずつ 5 行に並べた図。値は PC が www.youtube.com へ送る最初の QUIC のパケット（例）で、下はパケット全体の並びと、段階ごとの計算。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 アドレスとサブネット ================= -->
+<section class="scene sc-anim" id="s2" data-tab="アドレス" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>アドレスとサブネット — /n で範囲を書き、切り分けて配る</h2>
+    <p class="sh-meta"><span class="chip">CIDR（1993 年）</span><span class="chip">IANA → RIR → ISP</span><span class="chip">約 43 億個</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IPv4 アドレスは 32 ビットで、約 43 億個しかない。番号は先頭の n ビットが共通の範囲（/n）で書いて配り、経路表に載せる。範囲は IANA から地域の登録機関、ISP、家へと切り分けられる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">範囲の持ち主は whois や RDAP で調べられ、142.250.0.0/15 は ARIN に登録された Google の範囲。マスクで「同じネットワークか」を決める手順は<a class="xref" href="14-router.html#s3">第14章</a>、いちばん長く一致する行を選ぶ手順は<a class="xref" href="16-internet.html#s5">第16章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="142.250.196.110 の 32 ビットと /15 の範囲、/n と個数の表、/26 を /24 にまとめる集約、IANA から家までの配る階層、特別な範囲、在庫が尽きた年表"></svg></div>
+    <figcaption>図2　上は 142.250.196.110 の 32 ビット。下は段階ごとに、ビットと 10 進数、/n と個数、集約、配る階層、特別な範囲、在庫が尽きた年。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 IPv6 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="IPv6" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>IPv6 — 128 ビットの番号と 40 バイトのヘッダ</h2>
+    <p class="sh-meta"><span class="chip">RFC 8200</span><span class="chip">/56 と /64</span><span class="chip">SLAAC</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">IPv6 は番号を 128 ビットに広げた IP の新しい版。家には /56 などの範囲が丸ごと配られ、機器は自分で番号を作る。ヘッダは 40 バイトの固定長に整理され、NAT を使わずに端から端まで同じ番号で通信する。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ブラウザは DNS で A と AAAA の両方を引き、IPv6 で先に接続を試し、すぐに応答が無ければ IPv4 も試す（Happy Eyeballs、RFC 8305）。IPoE の家（<a class="xref" href="15-hikari.html#s5">第15章</a>）では、YouTube への接続の多くが IPv6 になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="www.youtube.com の IPv6 アドレス（例）を 16 ビットずつ 8 組に分けた図と、省略の規則、/56 と /64 の分け方、SLAAC の手順、40 バイトの IPv6 ヘッダ、NAT の有無と普及率"></svg></div>
+    <figcaption>図3　上は www.youtube.com の IPv6 アドレス（例）の 8 組。下は段階ごとに、桁の大きさ、省略の手順、/56 と /64、SLAAC、40 バイトのヘッダ、IPv4 との違いと普及率。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 ホップごとに起きること ================= -->
+<section class="scene sc-anim" id="s4" data-tab="ホップ" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>ホップごとに起きること — 変わる欄と変わらない欄</h2>
+    <p class="sh-meta"><span class="chip">ルーター 9 台（例）</span><span class="chip">TTL 64 → 55</span><span class="chip">宛先は 142.250.196.110 のまま</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">家から YouTube のサーバーまで、パケットは数台から十台ほどのルーターを順に渡る。どのルーターも第14章と同じ手順で転送し、そのたびに TTL・チェックサム・MAC が変わる。宛先 IP は最後まで変わらない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1 ホップの遅れは、光が線を進む時間（1 km あたり約 5 µs）、送り出す時間、転送の処理（数 µs 程度）、待ち行列の待ちの合計。混んでいなければ距離の分が大半を占め、国内の YouTube のサーバーまでの往復は数 ms〜十数 ms。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PC から家のルーター、ISP の 5 台、Google の 3 台のルーターを経てサーバーへ向かう道と、10 の区間それぞれでパケットに付いている MAC・TTL・チェックサム・送信元 IP・宛先 IP の表"></svg></div>
+    <figcaption>図4　上は家から YouTube のサーバーまでの道（台数と番号は例）。下は 10 区間それぞれでパケットに付いている値で、色の付いた列がその段階で見る欄。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 MTU と断片化 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="MTU" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>MTU と断片化 — 区間ごとの大きさの上限</h2>
+    <p class="sh-meta"><span class="chip">Ethernet 1,500</span><span class="chip">PPPoE 1,492</span><span class="chip">IPv6 の最小 1,280</span><span class="chip">QUIC 1,200</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">1 区間で運べる IP パケットの最大の長さが <b>MTU</b>。Ethernet は 1,500 バイトで、トンネルを通る区間はヘッダの分だけ小さい。途中に小さい区間があれば、パケットは分けられるか、捨てられて知らされる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">MTU の不一致による不調は、小さいパケットは通るのに大きいものだけ消えるのが特徴。Linux の tracepath は途中の MTU を表示し、Windows では ping に -f（DF を立てる）と -l（大きさ）を付けて、通る最大の長さを探せる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家から YouTube までの区間と MTU、1,500 バイトのパケットの断片化、DF を立てたパケットが捨てられ ICMP で MTU が知らされる流れ、IPv6 の決まり、TCP の MSS、QUIC の 1,200 バイト"></svg></div>
+    <figcaption>図5　上は家から YouTube までの区間と MTU（PPPoE の場合）。下は段階ごとに、区間の上限、断片化、ICMP での知らせ、IPv6 の決まり、MSS、QUIC の大きさ。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 ICMP ================= -->
+<section class="scene sc-anim" id="s6" data-tab="ICMP" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>ICMP — ping と traceroute</h2>
+    <p class="sh-meta"><span class="chip">プロトコル 1</span><span class="chip">Echo 8 / 0</span><span class="chip">Time Exceeded 11</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ICMP は IP の上で送る連絡用のメッセージ。宛先に応答を頼んで往復時間を測るのが ping。TTL を 1 から順に増やして送り、途中のルーターが返す「TTL 切れ」を集めて道を並べるのが traceroute。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Windows の tracert は UDP の代わりに Echo Request を使う。2026 年 10 月 12 日に家庭の光回線から www.youtube.com へ ICMP で測ると 6 ホップ、往復は最小約 7 ms だった。ホップの数は回線の方式で変わる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家から YouTube のサーバーまでの道と、ICMP のメッセージの形、ping の往復、TTL を 1 ずつ増やして送る traceroute の出力"></svg></div>
+    <figcaption>図6　上は家から YouTube のサーバーまでの道（図4 と同じ例）。下は段階ごとに、ICMP の形、ping、traceroute の出力（番号と時間は例）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 番号だけを頼りに、1 個ずつ渡す</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>IPv4 ヘッダは 20 バイト。宛先と送信元の番号、全長、TTL、中身の種類（プロトコル）、ヘッダだけの検算が決まった位置に入る（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>番号は /n の範囲で書いて配り、まとめて広告する。IANA → RIR → ISP → 家と切り分けられ、IPv4 の在庫は 2011 年に尽きた（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>IPv6 は 128 ビット。家には /56 などの範囲が配られ、LAN は /64 で、機器は RA を見て番号を自分で作る。ヘッダは 40 バイトの固定長で、NAT を使わない（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>ルーターを越えるたびに TTL は 1 減り、チェックサムと MAC は区間ごとに変わる。宛先 IP は端から端まで変わらない（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>道全体で通せる大きさは最も小さい区間の MTU。IPv4 は DF が 0 なら途中で分け、1 なら捨てて ICMP で知らせる。IPv6 と QUIC は途中で分けない前提で大きさを選ぶ（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>ICMP は IP の連絡用のメッセージ。ping は往復時間を測り、traceroute は TTL を 1 ずつ増やして Time Exceeded を集め、道の上のルーターを並べる（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>IPv4 ヘッダ</th><td>パケットの先頭に付く 20 バイトの欄の並び（RFC 791）。版・全長・識別子・フラグ・TTL・プロトコル・チェックサム・送信元・宛先など。</td></tr>
+        <tr><th>TTL ／ ホップリミット</th><td>通ってよいルーターの残り台数（8 ビット）。1 台ごとに 1 減り、0 で破棄。初期値は Linux・macOS が 64、Windows が 128。</td></tr>
+        <tr><th>プロトコル番号</th><td>中身の種類。1 が ICMP、6 が TCP、17 が UDP。IPv6 では次ヘッダの欄で、ICMPv6 は 58。</td></tr>
+        <tr><th>ヘッダチェックサム</th><td>ヘッダを 16 ビットずつ足し、あふれた桁を足し戻して反転した値。ヘッダだけを守る。IPv6 には無い。</td></tr>
+        <tr><th>CIDR・プレフィックス</th><td>先頭 n ビットが共通の範囲を /n で書く方式（1993 年）。/24 は 256 個、/15 は 131,072 個、/32 は 1 個。</td></tr>
+        <tr><th>RIR</th><td>地域ごとに番号を配る 5 つの登録機関（APNIC、ARIN、RIPE NCC、LACNIC、AFRINIC）。日本は APNIC の下の JPNIC。</td></tr>
+        <tr><th>IPv6</th><td>128 ビットの番号の IP（RFC 8200）。16 ビットずつ 16 進で書き、0 の組の連続を :: に省く。ヘッダは 40 バイト。</td></tr>
+        <tr><th>SLAAC</th><td>RA で知らされた /64 に、機器が自分で決めた後半 64 ビットを付けて番号を作る方式（RFC 4862）。</td></tr>
+        <tr><th>MTU・経路 MTU</th><td>1 区間で運べる IP パケットの最大長。Ethernet 1,500、PPPoE 1,492（フレッツの推奨は 1,454 以下）、IPv4 over IPv6 1,460、IPv6 の最小 1,280。道全体の最小が経路 MTU。</td></tr>
+        <tr><th>ICMP</th><td>IP の誤りの知らせと問い合わせのメッセージ（プロトコル 1）。Echo 8 / 0、到達不能 3、TTL 切れ 11。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 動きを止めているときは、段階の動きの終わりの姿を見せる */
+  const playing = () => YT.motion.playing;
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+
+  /* ヘッダの欄。名前と値を持ち、set('base' | 'hl' | 'dim') で枠と濃さを変える */
+  const HL = 'f-x-soft s-x w2';
+  function cell(p, x, y, w, h, name, val, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    const base = o.cls || 'f-d-soft s-d w1';
+    const r = S.rect(x + 1.5, y + 1.5, w - 3, h - 3, { rx: 3, cls: base }, g);
+    const tn = name ? S.text(x + w / 2, y + (o.ny || 22), name, { cls: 't-c ' + (o.ncls || 't-sm t-dim') }, g) : null;
+    const tv = S.text(x + w / 2, y + (o.vy || 44), val, { cls: 't-c t-mono t-b ' + (o.vcls || 't-md') }, g);
+    return {
+      g, r, tn, tv, base,
+      set(state) { r.setAttribute('class', state === 'hl' ? HL : base); g.style.opacity = state === 'dim' ? 0.4 : ''; }
+    };
+  }
+  /* 荷札（パケット）。中央が原点で、S.place で道の上に置く */
+  function pkt(p, text, cls, tcls) {
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = tw(text, 11) + 14;
+    const r = S.rect(-w / 2, -11, w, 22, { rx: 4, cls: cls || 'f-d' }, g);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (tcls || 't-sf') }, g);
+    g.set = (s, c, tc) => {
+      t.textContent = s;
+      const nw = tw(s, 11) + 14;
+      r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+      if (c) r.setAttribute('class', c);
+      if (tc) t.setAttribute('class', 't-c t-sm t-b ' + tc);
+    };
+    return g;
+  }
+
+  /* 題と副題の付いた箱。g.rect が枠、g.base が元の枠のクラス */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({}, p);
+    g.base = o.cls || 'f-sf s-rule w15';
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: g.base }, g);
+    if (title) g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim ' + (o.scls || '') }, g);
+    return g;
+  }
+
+  /* ================================================================
+     場面1 IPv4 ヘッダ
+     ================================================================ */
+  /* 例のパケットのヘッダ（16 進）: 45 00 04 FE  A6 C1 40 00  40 11 7A 12  C0 A8 01 0A  8E FA C4 6E
+     識別子 0xA6C1 は、チェックサムが第14章の例（TTL 64 で 0x7A12）と同じになるように選んだ値。
+     QUIC の中身 1,250 バイトは、Chrome 155 が最初に送るデータグラムの大きさ（2026-10-17 に netlog で確認） */
+  const s1 = {
+    steps: [
+      { title: '32 ビット × 5 行', text: 'IPv4 ヘッダは 32 ビット（4 バイト）の行が 5 つ、計 20 バイト。どの欄も位置と長さが決まっていて、ルーターは先頭からの位置だけで値を読み出す。例は、PC が www.youtube.com へ送る最初の QUIC のパケットで、ヘッダの後ろに UDP ヘッダと QUIC の中身が続く。' },
+      { title: '版・ヘッダ長・全長', text: '版は 4。ヘッダ長は 4 バイト単位で、5 なら 20 バイト。全長はヘッダと中身を合わせたバイト数で、受け手はここで終わりを知る。Ethernet が短いフレームの後ろに詰めた 0（第13章）は、全長より後ろなので読まれない。DSCP と ECN は優先度と混雑の印で、ふだんは 0。' },
+      { title: '識別子・フラグ・断片位置', text: '2 行目は、大きすぎるパケットを途中で分けるとき（[[5|MTU と断片化]]）に使う。識別子は元のパケットの番号、断片位置は元の中での位置（8 バイト単位）。フラグの **MF** は「後ろに続きがある」、**DF** は「途中で分けるな」で、QUIC は DF を 1 にして送る決まり。' },
+      { title: 'TTL とプロトコル', text: '{x|TTL} は、あと何台のルーターを通ってよいか。PC は 64（Windows は 128）から始め、ルーターを通るたびに 1 減る（[[4|ホップ]]）。プロトコルは中身の種類で、受け取った OS はこの値を見て、中身を UDP や TCP の処理に渡す（第19章）。' },
+      { title: 'ヘッダチェックサム', text: 'ヘッダを 16 ビットずつ足し、あふれた桁を足し戻して、ビットを反転した値。受け手がこの欄も含めて足すと 0xFFFF になり、ならなければ壊れたとみなして捨てる。調べるのはヘッダだけで、中身は UDP・TCP の検算と Ethernet の FCS が守る。' },
+      { title: '送信元と宛先', text: '最後の 2 行が 32 ビットずつの送信元と宛先。宛先は Google のサーバーに着くまで変わらず、家のルーターの NAT は送信元だけを書き換える（第14章）。ヘッダ長を増やせば後ろにオプションを足せるが、今はほとんど使われず、ヘッダはほぼいつも 20 バイト。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const X0 = 96, BW = 26, Y0 = 74, RH = 58, W = 32 * BW;
+      Object.assign(st, { X0, BW, Y0, RH });
+      S.text(40, 32, 'IPv4 ヘッダ（20 バイト）', { cls: 't-lg t-b' }, svg);
+      S.text(X0 + W, 32, '例：PC が www.youtube.com へ送る最初のパケット', { cls: 't-sm t-dim t-end' }, svg);
+      // ビットの目盛り
+      for (let b = 0; b <= 32; b++) S.line(X0 + b * BW, b % 8 === 0 ? 60 : 65, X0 + b * BW, 70, { cls: 's-rule w1' }, svg);
+      [0, 8, 16, 24].forEach((b) => S.text(X0 + b * BW + 4, 57, String(b), { cls: 't-xs t-dim t-mono' }, svg));
+      S.text(X0 + W - 4, 57, '31', { cls: 't-xs t-dim t-mono t-end' }, svg);
+      S.text(X0 - 10, 57, 'ビット', { cls: 't-xs t-dim t-end' }, svg);
+      S.text(X0 - 10, 70, 'バイト', { cls: 't-xs t-dim t-end' }, svg);
+      ['0〜3', '4〜7', '8〜11', '12〜15', '16〜19'].forEach((s, r) => S.text(X0 - 10, Y0 + r * RH + RH / 2 + 4, s, { cls: 't-xs t-dim t-mono t-end' }, svg));
+      // 欄: [行, 始めのビット, 終わりのビット, 名前の鍵, 名前, 値]
+      const F = [
+        [0, 0, 4, 'ver', '版', '4'], [0, 4, 8, 'ihl', 'ヘッダ長', '5'], [0, 8, 14, 'dscp', 'DSCP', '0'], [0, 14, 16, 'ecn', 'ECN', '0'], [0, 16, 32, 'len', '全長', '1,278'],
+        [1, 0, 16, 'id', '識別子', '0xA6C1'], [1, 16, 19, 'flag', 'フラグ', 'DF=1'], [1, 19, 32, 'off', '断片位置', '0'],
+        [2, 0, 8, 'ttl', 'TTL', '64'], [2, 8, 16, 'proto', 'プロトコル', '17（UDP）'], [2, 16, 32, 'sum', 'ヘッダチェックサム', '0x7A12'],
+        [3, 0, 32, 'src', '送信元 IP アドレス', '192.168.1.10'],
+        [4, 0, 32, 'dst', '宛先 IP アドレス', '142.250.196.110']
+      ];
+      st.f = {};
+      F.forEach(([r, b0, b1, k, name, val]) => { st.f[k] = cell(svg, X0 + b0 * BW, Y0 + r * RH, (b1 - b0) * BW, RH, name, val); });
+      // オプション（ふつうは無い）
+      S.rect(X0 + 1.5, Y0 + 5 * RH + 8, W - 3, 26, { rx: 3, cls: 'f-none s-dim w1 dash' }, svg);
+      S.text(X0 + W / 2, Y0 + 5 * RH + 25, 'オプション（ヘッダ長が 6 以上のときだけ後ろに続く。ふつうは無い）', { cls: 't-c t-xs t-dim' }, svg);
+      // 16 ビットずつ足すときのカーソル（段階5）
+      st.cur = S.rect(X0, Y0, 16 * BW, RH, { rx: 3, cls: 'f-none s-x w3' }, svg);
+      // パケット全体
+      S.text(X0, 428, 'パケット全体（全長 1,278 バイト）', { cls: 't-sm t-b' }, svg);
+      let x = X0;
+      [['IPv4 ヘッダ 20', 150, 'f-d s-d w1', 't-sf'], ['UDP ヘッダ 8', 110, 'f-sf s-dim w1', ''], ['QUIC の中身 1,250（暗号化されている）', W - 260, 'f-in s-rule w1', 't-mid']].forEach(([s, w, c, tc]) => {
+        S.rect(x, 438, w - 3, 30, { rx: 3, cls: c }, svg);
+        S.text(x + (w - 3) / 2, 458, s, { cls: 't-c t-sm t-b ' + tc }, svg);
+        x += w;
+      });
+      S.text(X0, 486, '幅は比例していない。Ethernet で送るときは、前に 14 バイトのヘッダ、後ろに 4 バイトの FCS が付く（第13章）', { cls: 't-xs t-dim' }, svg);
+      // 段階ごとの計算の欄
+      S.rect(X0, 496, W, 56, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      st.n1 = S.text(X0 + 14, 518, '', { cls: 't-sm' }, svg);
+      st.n2 = S.text(X0 + 14, 541, '', { cls: 't-sm' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const hl = [[], ['ver', 'ihl', 'dscp', 'ecn', 'len'], ['id', 'flag', 'off'], ['ttl', 'proto'], ['sum'], ['src', 'dst']][i];
+      Object.keys(st.f).forEach((k) => st.f[k].set(hl.includes(k) ? 'hl' : i === 0 ? 'base' : 'dim'));
+      const N = [
+        ['16 進で書くと（4 バイトずつ）', '45 00 04 FE ｜ A6 C1 40 00 ｜ 40 11 7A 12 ｜ C0 A8 01 0A ｜ 8E FA C4 6E'],
+        ['先頭の 1 バイト 0x45 ＝ 版 4（0100）とヘッダ長 5（0101）。5 × 4 ＝ 20 バイト', '全長 0x04FE ＝ 1,278 ＝ IP ヘッダ 20 ＋ UDP ヘッダ 8 ＋ QUIC 1,250'],
+        ['2 行目 A6 C1 40 00：識別子 0xA6C1、フラグ 010（予約 0・DF 1・MF 0）、断片位置 0', '分けていないパケットは MF＝0・断片位置＝0。識別子は断片を組み立て直すときだけ使う'],
+        ['TTL 0x40 ＝ 64　　プロトコル 0x11 ＝ 17（UDP）', 'プロトコルの値の例：1 ＝ ICMP、6 ＝ TCP、17 ＝ UDP'],
+        ['', ''],
+        ['送信元 C0 A8 01 0A ＝ 192.168.1.10　　宛先 8E FA C4 6E ＝ 142.250.196.110', '家のルーターを出た後：送信元 CB 00 71 05 ＝ 203.0.113.5、TTL 63、チェックサム 0x00BF（第14章、場面6）']
+      ][i];
+      st.n1.textContent = N[0];
+      st.n2.textContent = N[1];
+      st.n1.setAttribute('class', 't-sm' + (i === 0 ? ' t-dim' : ''));
+      st.n2.setAttribute('class', 't-sm' + (i === 0 ? ' t-mono t-b' : ''));
+      op(st.cur, 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i !== 4) { op(st.cur, 0); return; }
+      // 16 ビットずつ足す（チェックサムの欄は 0 として飛ばす）
+      const WD = [[0, 0, '4500'], [0, 1, '04FE'], [1, 0, 'A6C1'], [1, 1, '4000'], [2, 0, '4011'], [3, 0, 'C0A8'], [3, 1, '010A'], [4, 0, '8EFA'], [4, 1, 'C46E']];
+      const DT = 0.7, n = WD.length, LOOP = n * DT + 3.5;
+      const k = playing() ? Math.min(n, Math.floor(U.mod(ctx.ts, LOOP) / DT)) : n;
+      if (k < n) {
+        st.cur.setAttribute('x', st.X0 + WD[k][1] * 16 * st.BW);
+        st.cur.setAttribute('y', st.Y0 + WD[k][0] * st.RH);
+        op(st.cur, 1);
+      } else op(st.cur, 0);
+      st.n1.textContent = WD.slice(0, Math.min(n, k + 1)).map((w) => w[2]).join(' ＋ ') + (k >= n ? ' ＝ 0x385EA' : '');
+      st.n2.textContent = k >= n ? 'あふれた 3 を足し戻して 0x85EA ＋ 3 ＝ 0x85ED。反転して 0x7A12。受け手が欄も含めて足すと 0xFFFF' : '（チェックサムの欄は 0 として足す）';
+      st.n1.setAttribute('class', 't-sm t-mono t-b');
+      st.n2.setAttribute('class', 't-sm' + (k >= n ? ' t-x' : ' t-dim'));
+    }
+  };
+
+  /* ================================================================
+     場面2 アドレスとサブネット
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '32 ビットを 10 進数 4 つで書く', text: 'IPv4 アドレスは 32 ビットを 8 ビットずつ区切り、0〜255 の 10 進数 4 つで書く。全部で 2³² 通り、約 43 億個（第4章）で、世界の人口より少ない。家の中の機器は私設アドレスと NAT（第14章）で、1 つの番号を分け合っている。' },
+      { title: '/n は先頭から何ビットが共通か', text: '142.250.0.0/15 は「先頭 15 ビットが 142.250.0.0 と同じ番号すべて」。残り 17 ビットは自由なので 131,072 個ある。この書き方を **CIDR** と呼ぶ（1993 年）。それまでは /8・/16・/24（クラス A・B・C）の 3 種類しかなく、中間の大きさで配れなかった。' },
+      { title: '範囲はまとめて広告する', text: 'ISP は 203.0.113.0/24（例）を 4 つの /26 に分けて局舎ごとに使っても、外へは /24 の 1 行だけを広告する。4 つは先頭 24 ビットが同じなので、1 行で全部を指せる（**集約**）。集約のおかげで、外のルーターの経路表は約 100 万行（第16章）で済んでいる。' },
+      { title: 'IANA → RIR → ISP → 家', text: '番号の元締めは IANA で、/8 単位で 5 つの地域インターネットレジストリ（**RIR**）に渡してきた。日本は APNIC の地域で、多くの場合 JPNIC が ISP へ割り振る。ISP は範囲を切り分けて、家のルーターの WAN 側に 1 個（例：203.0.113.5）を付ける。' },
+      { title: '私設と特別な範囲', text: '私設の範囲は家や会社の中で自由に使え、インターネットには経路が無い（第14章）。100.64.0.0/10 は ISP が CGNAT の内側で使う範囲、127.0.0.0/8 は機器が自分自身に送るための範囲。224.0.0.0 から上はマルチキャストと予約。これらを除くと、世界で使える番号は約 37 億個。' },
+      { title: '在庫が尽きた', text: 'IANA の在庫は 2011 年 2 月に尽き、APNIC と JPNIC も同年 4 月に通常の割り振りを終えた。以後、新たに番号が要る組織の多くは、使われていない範囲の移転（売買）を受けるか、NAT・CGNAT で 1 つの番号を多くの家で分け合う。根本の解決が [[3|IPv6]]。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const X0 = 58, BW = 25, GAP = 14;
+      const bx = (b) => X0 + b * BW + Math.floor(b / 8) * GAP;
+      const OCT = [142, 250, 196, 110];
+      const bits = OCT.map((v) => v.toString(2).padStart(8, '0')).join('');
+      /* 上: 32 ビット */
+      S.text(40, 22, 'www.youtube.com の番号（例）142.250.196.110 の 32 ビット', { cls: 't-sm t-b' }, svg);
+      OCT.forEach((v, k) => {
+        S.text(bx(8 * k) + 4 * BW, 48, String(v), { cls: 't-c t-mono t-lg t-b' }, svg);
+        if (k) S.text(bx(8 * k) - GAP / 2, 50, '.', { cls: 't-c t-mono t-lg t-b' }, svg);
+      });
+      st.bits = [];
+      for (let b = 0; b < 32; b++) {
+        st.bits.push(S.rect(bx(b) + 1, 56, BW - 2, 28, { rx: 2, cls: 'f-in s-rule w1' }, svg));
+        S.text(bx(b) + BW / 2, 75, bits[b], { cls: 't-c t-mono t-md' }, svg);
+      }
+      const gb = st.br = S.g({ cls: 'fade hide' }, svg);
+      const e15 = bx(14) + BW, e32 = bx(31) + BW;
+      S.path(`M${X0},90 V96 H${e15} V90`, { cls: 'f-none s-d w15' }, gb);
+      S.text((X0 + e15) / 2, 113, '/15 ＝ 先頭 15 ビット（ネットワーク部）', { cls: 't-c t-sm t-d t-b' }, gb);
+      S.path(`M${bx(15)},90 V96 H${e32} V90`, { cls: 'f-none s-dim w15' }, gb);
+      S.text((bx(15) + e32) / 2, 113, '残り 17 ビットは自由（2¹⁷ ＝ 131,072 個）', { cls: 't-c t-sm t-dim' }, gb);
+
+      /* 下: 段階ごとの板。位置は段階が進んでも変えない */
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+      // 0: 8 ビットと 10 進数
+      let g = P[0];
+      S.text(X0, 184, '1 つの 10 進数 ＝ 8 ビット（0〜255）。142 の場合', { cls: 't-sm t-b' }, g);
+      const PV = [128, 64, 32, 16, 8, 4, 2, 1];
+      '10001110'.split('').forEach((c, k) => {
+        const x = X0 + k * 62;
+        S.text(x + 28, 208, String(PV[k]), { cls: 't-c t-xs t-dim t-mono' }, g);
+        S.rect(x, 214, 56, 36, { rx: 3, cls: c === '1' ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, g);
+        S.text(x + 28, 239, c, { cls: 't-c t-mono t-lg t-b' }, g);
+      });
+      S.text(X0 + 8 * 62 + 12, 239, '＝ 128 ＋ 8 ＋ 4 ＋ 2 ＝ 142', { cls: 't-lg' }, g);
+      S.text(X0, 302, '32 ビット全部で', { cls: 't-sm t-dim' }, g);
+      S.text(X0, 336, '2³² ＝ 4,294,967,296 通り（約 43 億）', { cls: 't-xl t-b' }, g);
+      S.rect(X0, 380, 43 * 8, 26, { rx: 3, cls: 'f-d' }, g);
+      S.text(X0 + 43 * 8 + 10, 398, 'IPv4 アドレス 約 43 億個', { cls: 't-sm t-b' }, g);
+      S.rect(X0, 416, 80 * 8, 26, { rx: 3, cls: 'f-in s-rule w1' }, g);
+      S.text(X0 + 80 * 8 + 10, 434, '世界の人口 約 80 億人', { cls: 't-sm' }, g);
+      // 1: /n と個数
+      g = P[1];
+      S.text(X0, 184, '/n と、範囲に入る番号の数（2 の 32−n 乗）', { cls: 't-sm t-b' }, g);
+      S.text(X0 + 10, 210, '書き方', { cls: 't-xs t-dim t-b' }, g);
+      S.text(X0 + 210, 210, '番号の数', { cls: 't-xs t-dim t-b t-end' }, g);
+      S.text(X0 + 250, 210, '例', { cls: 't-xs t-dim t-b' }, g);
+      [['/8', '16,777,216', '10.0.0.0/8', '私設の範囲の 1 つ'], ['/15', '131,072', '142.250.0.0/15', 'Google の範囲'], ['/24', '256', '192.168.1.0/24', '家の LAN'], ['/26', '64', '203.0.113.0/26', 'ISP の局舎ごとの範囲（例）'], ['/32', '1', '203.0.113.5/32', '家のルーターの WAN 側']].forEach(([n, c, ex, note], r) => {
+        const y = 218 + r * 34;
+        S.rect(X0, y, 780, 30, { rx: 3, cls: r === 1 ? 'f-d-soft s-d w1' : 'f-sf s-rule w1' }, g);
+        S.text(X0 + 10, y + 20, n, { cls: 't-mono t-md t-b' }, g);
+        S.text(X0 + 210, y + 20, c, { cls: 't-mono t-md t-end' }, g);
+        S.text(X0 + 250, y + 20, ex, { cls: 't-mono t-md' }, g);
+        S.text(X0 + 440, y + 20, note, { cls: 't-sm t-dim' }, g);
+      });
+      S.text(X0, 424, '範囲の最初と最後（/15 の例）', { cls: 't-sm t-b' }, g);
+      S.text(X0, 450, '最初 ＝ 残りの 17 ビットを全部 0 にした番号 → 142.250.0.0', { cls: 't-sm' }, g);
+      S.text(X0, 474, '最後 ＝ 残りの 17 ビットを全部 1 にした番号 → 142.251.255.255', { cls: 't-sm' }, g);
+      S.text(X0, 512, '1993 年まではクラス A（/8）・B（/16）・C（/24）の 3 種類だけだった', { cls: 't-sm t-dim' }, g);
+      // 2: 集約
+      g = P[2];
+      S.text(X0, 184, 'ISP（AS64500）が持つ 203.0.113.0/24（例）を、4 つの /26 に分けて使う', { cls: 't-sm t-b' }, g);
+      const gl = S.g({}, g);      // 線は箱の下に描く
+      box(g, 300, 212, 360, 50, '外へ広告するのは 203.0.113.0/24 の 1 行', '上流やほかの AS へ（BGP、第16章）', { cls: 'f-d-soft s-d w2' });
+      S.rect(X0 - 8, 372, 860, 118, { rx: 8, cls: 'f-none s-dim w1 dash' }, g);
+      S.text(X0, 366, 'ISP の中', { cls: 't-xs t-dim' }, g);
+      st.agg = [['203.0.113.0/26', '局舎 A', '00'], ['203.0.113.64/26', '局舎 B', '01'], ['203.0.113.128/26', '局舎 C', '10'], ['203.0.113.192/26', '局舎 D', '11']].map(([n, name, b2], k) => {
+        const x = X0 + 8 + k * 212, w = 196, cx = x + w / 2;
+        box(g, x, 384, w, 56, n, name, { tcls: 't-sm t-mono' });
+        S.text(cx, 462, `末尾の 8 ビットが ${b2}xxxxxx`, { cls: 't-c t-xs t-dim' }, g);
+        const d = `M${cx},384 V330 H480 V262`;
+        S.path(d, { cls: 'f-none s-d w15' }, gl);
+        return A.flow(road(gl, d), { count: 2, speed: 55, r: 4, cls: 'f-d', parent: g });
+      });
+      S.text(500, 300, '先頭 24 ビットが同じ 4 つを', { cls: 't-sm t-b' }, g);
+      S.text(500, 318, '1 行にまとめる（集約）', { cls: 't-sm t-b' }, g);
+      // 3: 配る階層
+      g = P[3];
+      const gl3 = S.g({}, g);
+      const iana = box(g, 380, 172, 200, 46, 'IANA', '全体の元締め（/8 単位で配った）');
+      const rir = [['AFRINIC', 'アフリカ'], ['APNIC', 'アジア太平洋'], ['ARIN', '北米'], ['LACNIC', '中南米'], ['RIPE NCC', '欧州・中東']].map(([n, a], k) => {
+        S.path(`M480,218 V236 H${X0 + k * 170 + 75} V252`, { cls: 'f-none s-dim w15' }, gl3);
+        return box(g, X0 + k * 170, 252, 150, 46, n, a);
+      });
+      const jpnic = box(g, 228, 326, 150, 46, 'JPNIC', '日本（国別の登録機関）');
+      const isp = box(g, 228, 400, 150, 46, 'ISP（AS64500）', '203.0.113.0/24（例）');
+      const home = box(g, 228, 474, 150, 46, '家のルーター', 'WAN 側 203.0.113.5');
+      box(g, 398, 326, 150, 46, 'Google', '142.250.0.0/15 ほか');
+      box(g, 398, 400, 150, 46, 'YouTube のサーバー', '142.250.196.110');
+      [[303, 298, 326], [303, 372, 400], [303, 446, 474], [473, 298, 326], [473, 372, 400]].forEach(([x, y1, y2]) => S.line(x, y1, x, y2, { cls: 's-dim w15' }, gl3));
+      st.chain = [iana, rir[1], jpnic, isp, home];
+      // 4: 特別な範囲
+      g = P[4];
+      S.text(X0, 184, 'インターネットの宛先にしない範囲（主なもの）', { cls: 't-sm t-b' }, g);
+      [['10.0.0.0/8', '私設（RFC 1918）'], ['172.16.0.0/12', '私設'], ['192.168.0.0/16', '私設。家の LAN の 192.168.1.0/24 もここ'], ['100.64.0.0/10', 'ISP の中で共有する範囲（CGNAT）'], ['127.0.0.0/8', '機器自身（ループバック）'], ['169.254.0.0/16', 'リンクローカル（DHCP の答えが無いとき）'], ['224.0.0.0/4', 'マルチキャスト'], ['240.0.0.0/4', '予約（使わない）'], ['0.0.0.0/8', '「この網」（DHCP の送信元 0.0.0.0 など）'], ['192.0.2.0/24', '説明用（ほか 198.51.100.0/24・203.0.113.0/24。RFC 5737）']].forEach(([a, b], r) => {
+        const y = 196 + r * 30;
+        S.rect(X0, y, 590, 27, { rx: 3, cls: 'f-sf s-rule w1' }, g);
+        S.text(X0 + 10, y + 18, a, { cls: 't-mono t-sm t-b' }, g);
+        S.text(X0 + 200, y + 18, b, { cls: 't-sm' }, g);
+      });
+      S.text(728, 188, '2³² 全体', { cls: 't-c t-xs t-dim' }, g);
+      S.rect(700, 196, 56, 258, { cls: 'f-d-soft s-d w1' }, g);
+      S.rect(700, 454, 56, 42, { cls: 'f-x-soft s-x w1' }, g);
+      S.text(770, 318, '使える番号', { cls: 't-sm t-b' }, g);
+      S.text(770, 338, '約 37 億（86%）', { cls: 't-sm' }, g);
+      S.text(770, 470, '特別な範囲', { cls: 't-sm t-b t-x' }, g);
+      S.text(770, 490, '約 6 億（14%）', { cls: 't-sm' }, g);
+      // 5: 在庫が尽きるまで
+      g = P[5];
+      S.text(X0, 184, 'IPv4 の番号の在庫が尽きるまで', { cls: 't-sm t-b' }, g);
+      const TX = (y) => 80 + (y - 1980) * 16.4;
+      S.line(TX(1980), 330, TX(2030), 330, { cls: 's-dim w2' }, g);
+      for (let y = 1980; y <= 2030; y += 10) {
+        S.line(TX(y), 324, TX(y), 336, { cls: 's-dim w15' }, g);
+        S.text(TX(y), 352, String(y), { cls: 't-c t-xs t-dim t-mono' }, g);
+      }
+      [[1981.7, 'IPv4（RFC 791）', '1981 年 9 月', -1, 0], [1993.7, 'CIDR', '1993 年', 1, 0], [1994.4, 'NAT（RFC 1631）', '1994 年', -1, 1], [1995.9, 'IPv6 の最初の仕様', '1995 年', 1, 1],
+       [2011.1, 'IANA の在庫が尽きる', '2011 年 2 月', -1, 0, 1], [2011.3, 'APNIC・JPNIC', '2011 年 4 月', 1, 0, 1], [2015.7, 'ARIN', '2015 年 9 月', 1, 1, 1], [2019.9, 'RIPE NCC', '2019 年 11 月', -1, 1, 1]].forEach(([yr, name, date, side, lvl, out]) => {
+        const x = TX(yr);
+        const yn = side < 0 ? 282 - lvl * 50 : 386 + lvl * 50;
+        S.line(x, 330, x, side < 0 ? yn + 20 : yn - 14, { cls: 's-rule w1' }, g);
+        S.circle(x, 330, 5, { cls: out ? 'f-x' : 'f-mid' }, g);
+        S.text(x, yn, name, { cls: 't-c t-sm t-b' + (out ? ' t-x' : '') }, g);
+        S.text(x, yn + 15, date, { cls: 't-c t-xs t-dim' }, g);
+      });
+      S.rect(X0, 484, 842, 40, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(X0 + 421, 509, 'その後：使われていない範囲の移転（売買）・NAT と CGNAT での共有・IPv6 への移行', { cls: 't-c t-sm' }, g);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      S.fade(st.br, i >= 1);
+      st.bits.forEach((r, b) => r.setAttribute('class', i >= 1 && b < 15 ? 'f-d-soft s-d w1' : 'f-in s-rule w1'));
+      st.chain.forEach((b) => b.rect.setAttribute('class', b.base));
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 2) st.agg.forEach((f) => f.update(dt));
+      if (i === 3) {
+        // 元締めから家まで、配る順に枠を付ける（止めているときは全部）
+        const n = st.chain.length;
+        const k = playing() ? Math.floor(U.mod(ctx.ts, (n + 2) * 0.7) / 0.7) : n;
+        st.chain.forEach((b, j) => b.rect.setAttribute('class', j <= k ? 'f-x-soft s-x w2' : b.base));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 IPv6
+     ================================================================ */
+  /* PC の IPv6 アドレス（例）。後半 64 ビットは SLAAC で機器が乱数で決めた値の例 */
+  const PC6 = '2001:db8:1234:5600:9c1e:4b7a:d203:5f68';
+  const YT6 = '2404:6800:4004:80a::200e';
+  const s3 = {
+    steps: [
+      { title: '128 ビット', text: 'IPv6 の番号は 128 ビットで、2¹²⁸（約 3.4×10³⁸）通り。16 ビットずつ 8 組に分け、各組を 16 進数 4 桁にしてコロンで区切る。図は www.youtube.com の IPv6 の番号の例（第11章）。サーバーは IPv4 と IPv6 の番号を両方持つ。' },
+      { title: '省略の規則', text: '各組の先頭の 0 は省ける（080a → 80a）。0 だけの組が続く所は、1 か所だけ :: にまとめられる。2 か所に使うと、それぞれ何組の 0 か決まらないので使えない。英字は小文字で書き、:: はいちばん長く続く所に使う（RFC 5952）。' },
+      { title: '前半 64 ビットが網、後半が機器', text: 'LAN 1 つは /64 で、後半 64 ビットを機器ごとの部分に使う。ISP が家に /56 を配れば（第15章）、家の中に /64 の網を 256 個まで作れる。PC の番号は 2001:db8:1234:5600: の後ろに機器の部分を付けた形で、LAN 1 つで 2⁶⁴ 個を使える。' },
+      { title: 'SLAAC：番号は機器が自分で作る', text: 'PC は LAN に参加すると、ルーターの RA（ルーター広告）で /64 の前半とゲートウェイを知り、後半 64 ビットを自分で決めて付ける（**SLAAC**）。多くの OS は後半を乱数で作り、外への接続には一定時間ごとに変わる一時アドレスを使う。重複は NDP で確かめる。' },
+      { title: '40 バイトの固定ヘッダ', text: 'IPv6 ヘッダは 40 バイトの固定長で、うち 32 バイトが 2 つの番号。ヘッダ長、断片化の欄、チェックサムは無い。TTL はホップリミットと名を変え、次ヘッダが IPv4 のプロトコルに当たる。オプションは次ヘッダでつなぐ拡張ヘッダとして、必要なときだけ足す。' },
+      { title: 'NAT の要らない番号', text: 'PC は自分のグローバルな番号のまま YouTube とやり取りし、ルーターは番号を書き換えない。外から始まる通信は、ルーターのファイアウォールが止める（第14章）。日本では利用者の約 6 割が IPv6 を使える（世界は約 4 割、APNIC の測定、2026 年 10 月）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 上: 8 組 */
+      S.text(40, 22, 'www.youtube.com の IPv6 アドレス（例）', { cls: 't-sm t-b' }, svg);
+      const GR = [['', '2404'], ['', '6800'], ['', '4004'], ['0', '80a'], ['000', '0'], ['000', '0'], ['000', '0'], ['', '200e']];
+      st.groups = GR.map(([z, rest], k) => {
+        const x = 40 + k * 112;
+        const r = S.rect(x, 34, 100, 40, { rx: 4, cls: 'f-d-soft s-d w1' }, svg);
+        const t = S.text(x + 50, 61, '', { cls: 't-c t-mono t-lg t-b' }, svg);
+        const tz = S.el('tspan', { text: z }, t);
+        S.el('tspan', { text: rest }, t);
+        if (k < 7) S.text(x + 106, 60, ':', { cls: 't-c t-mono t-lg t-b' }, svg);
+        return { r, tz, zero: k >= 4 && k <= 6, lead: !!z };
+      });
+      S.path('M40,82 V88 H924 V82', { cls: 'f-none s-dim w1' }, svg);
+      for (let k = 1; k < 8; k++) S.line(40 + k * 112 - 6, 84, 40 + k * 112 - 6, 92, { cls: 's-dim w1' }, svg);
+      S.text(482, 106, '16 ビット × 8 組 ＝ 128 ビット。1 組を 16 進数 4 桁で書く', { cls: 't-c t-xs t-dim' }, svg);
+      st.short = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 138, '省略して書くと', { cls: 't-sm t-dim' }, st.short);
+      const ts = S.text(140, 140, '', { cls: 't-mono t-xl t-b' }, st.short);
+      S.el('tspan', { text: '2404:6800:4004:80a' }, ts);
+      S.el('tspan', { cls: 't-x', text: '::' }, ts);
+      S.el('tspan', { text: '200e' }, ts);
+
+      /* 下: 段階ごとの板 */
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+      // 0: 長さと数
+      let g = P[0];
+      S.text(40, 184, '番号の長さと数', { cls: 't-sm t-b' }, g);
+      S.rect(40, 198, 200, 30, { rx: 3, cls: 'f-in s-rule w1' }, g);
+      S.text(140, 218, 'IPv4 32 ビット', { cls: 't-c t-sm t-b' }, g);
+      S.text(252, 218, '2³² ≒ 4.3×10⁹（約 43 億）', { cls: 't-sm' }, g);
+      S.rect(40, 240, 800, 30, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+      S.text(440, 260, 'IPv6 128 ビット（長さは IPv4 の 4 倍）', { cls: 't-c t-sm t-b' }, g);
+      S.text(40, 292, '2¹²⁸ ≒ 3.4×10³⁸ 通り。IPv4 の数をさらに約 7.9×10²⁸ 倍したもの', { cls: 't-sm' }, g);
+      S.text(40, 346, '1 組 ＝ 16 ビット ＝ 16 進数 4 桁（1 桁 ＝ 4 ビット）。080a の場合', { cls: 't-sm t-b' }, g);
+      [['0', '0000'], ['8', '1000'], ['0', '0000'], ['a', '1010']].forEach(([h, b], k) => {
+        const x = 40 + k * 112;
+        S.rect(x, 360, 100, 36, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text(x + 50, 385, h, { cls: 't-c t-mono t-lg t-b' }, g);
+        S.text(x + 50, 418, b, { cls: 't-c t-mono t-md' }, g);
+      });
+      S.text(500, 385, '16 進数：0〜9 と a〜f で 0〜15', { cls: 't-sm t-dim' }, g);
+      // 1: 省略の手順
+      g = P[1];
+      S.text(40, 184, '省略の手順', { cls: 't-sm t-b' }, g);
+      [['そのまま', '2404:6800:4004:080a:0000:0000:0000:200e', 214], ['① 各組の先頭の 0 を省く', '2404:6800:4004:80a:0:0:0:200e', 266], ['② 0 の組の連続を :: に', '2404:6800:4004:80a::200e', 318]].forEach(([l, a, y], k) => {
+        S.text(40, y, l, { cls: 't-sm' + (k ? ' t-b' : ' t-dim') }, g);
+        S.text(250, y, a, { cls: 't-mono t-lg' + (k === 2 ? ' t-b' : '') }, g);
+        if (k < 2) S.path(`M300,${y + 9} V${y + 32}`, { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, g);
+      });
+      S.rect(40, 352, 880, 170, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      [['×', '2001:db8::1::1', ':: が 2 か所。それぞれ何組の 0 か決まらない'], ['○', '2001:db8::1:0:0:1', '0 の連続が同じ長さなら、前の方だけを :: にする（元は 2001:db8:0:0:1:0:0:1）'], ['○', '2001:db8:0:1:1:1:1:1', '0 の組が 1 つだけのときは :: にしない'], ['○', '2404:6800:4004:80a::200e', '英字は小文字（80A ではなく 80a）']].forEach(([m, a, why], k) => {
+        const y = 382 + k * 36;
+        S.text(60, y, m, { cls: 't-c t-b t-md' + (m === '×' ? ' t-x' : ' t-d') }, g);
+        S.text(80, y, a, { cls: 't-mono t-md' }, g);
+        S.text(330, y, why, { cls: 't-sm t-dim' }, g);
+      });
+      // 2: /56 と /64
+      g = P[2];
+      S.text(40, 184, `PC の番号（例）${PC6} の内訳`, { cls: 't-sm t-b' }, g);
+      const PX = (b) => 40 + b * 880 / 128;
+      [[0, 56, '2001:0db8:1234:56', 'f-d-soft s-d w1'], [56, 64, '00', 'f-x-soft s-x w1'], [64, 128, '9c1e:4b7a:d203:5f68', 'f-in s-rule w1']].forEach(([a, b, txt, c]) => {
+        S.rect(PX(a), 198, PX(b) - PX(a) - 2, 40, { rx: 3, cls: c }, g);
+        S.text((PX(a) + PX(b)) / 2, 223, txt, { cls: 't-c t-mono t-md t-b' }, g);
+      });
+      [[0, 56, '/56：ISP が家に配る範囲（56 ビット）', '2001:db8:1234:5600::/56'], [56, 64, '家の中の網', '256 通り'], [64, 128, '機器ごとの部分（64 ビット）', 'SLAAC では機器が自分で決める']].forEach(([a, b, l1, l2]) => {
+        const cx = (PX(a) + PX(b)) / 2;
+        S.text(cx, 258, l1, { cls: 't-c t-xs t-b' }, g);
+        S.text(cx, 273, l2, { cls: 't-c t-xs t-dim' }, g);
+      });
+      S.path(`M${PX(0)},288 V296 H${PX(64) - 2} V288`, { cls: 'f-none s-d w15' }, g);
+      S.text(PX(32), 314, '/64 ＝ 1 つの LAN：2001:db8:1234:5600::/64', { cls: 't-c t-sm t-b t-d' }, g);
+      S.text(40, 352, '家の中の /64 の網（例）', { cls: 't-sm t-b' }, g);
+      [['2001:db8:1234:5600::/64', 'LAN（Wi-Fi と有線）。PC もスマホもここ'], ['2001:db8:1234:5601::/64', '2 つ目の網（ゲスト用の Wi-Fi など、ルーターが対応していれば）'], ['⋮', ''], ['2001:db8:1234:56ff::/64', '256 個目']].forEach(([a, b], k) => {
+        const y = 380 + k * 28;
+        S.text(40, y, a, { cls: 't-mono t-sm' + (k === 0 ? ' t-b' : '') }, g);
+        S.text(260, y, b, { cls: 't-sm t-dim' }, g);
+      });
+      S.text(40, 506, 'LAN 1 つだけで 2⁶⁴ ≒ 1.8×10¹⁹ 個', { cls: 't-sm t-b' }, g);
+      S.text(40, 528, 'フレッツでひかり電話の契約が無い家は、/56 ではなく /64 を 1 つだけ受け取る（第15章）', { cls: 't-xs t-dim' }, g);
+      // 3: SLAAC
+      g = P[3];
+      box(g, 40, 184, 220, 56, '家のルーター', 'fe80::1（リンクローカル、例）');
+      box(g, 700, 184, 220, 56, 'PC', 'LAN に参加したばかり');
+      const MSG = [['RS（133）：ルーターはいるか', 268, -1], ['RA（134）：2001:db8:1234:5600::/64、ゲートウェイは私', 314, 1], ['NS（135）：この番号を使っている機器はいるか（マルチキャスト）', 452, -1]];
+      st.slaacRoads = MSG.map(([l, y, dir]) => {
+        const x1 = dir > 0 ? 262 : 698, x2 = dir > 0 ? 698 : 262;
+        S.line(x1, y, x2, y, { cls: 's-dim w15', 'marker-end': mk('dim') }, g);
+        S.text(480, y - 8, l, { cls: 't-c t-sm' }, g);
+        return road(g, `M${x1},${y + 13} H${x2}`);
+      });
+      S.text(480, 362, 'PC が自分の番号を作る', { cls: 't-c t-sm t-b' }, g);
+      const tb = S.text(480, 392, '', { cls: 't-c t-mono t-lg t-b' }, g);
+      S.el('tspan', { cls: 't-d', text: '2001:db8:1234:5600:' }, tb);
+      S.el('tspan', { cls: 't-x', text: '9c1e:4b7a:d203:5f68' }, tb);
+      S.text(400, 414, 'RA で知った前半', { cls: 't-c t-xs t-d' }, g);
+      S.text(640, 414, '自分で決めた後半（乱数）', { cls: 't-c t-xs t-x' }, g);
+      S.text(480, 490, '返事が無ければ使い始める（重複の確認：DAD）', { cls: 't-c t-sm' }, g);
+      S.text(40, 534, '::10 のような短い番号は、DHCPv6 や手で設定したときの形（第15章の例）', { cls: 't-xs t-dim' }, g);
+      st.slaacPkt = pkt(g, '', 'f-d');
+      // 4: 40 バイトのヘッダ
+      g = P[4];
+      const HX = 96, HB = 26;
+      S.text(40, 180, 'IPv6 ヘッダ（40 バイト）', { cls: 't-sm t-b' }, g);
+      const H6 = [[0, 0, 4, 44, '版', '6'], [0, 4, 12, 44, 'トラフィッククラス', '0'], [0, 12, 32, 44, 'フローラベル', '0x8A3C5'],
+        [1, 0, 16, 44, 'ペイロード長', '1,258'], [1, 16, 24, 44, '次ヘッダ', '17（UDP）'], [1, 24, 32, 44, 'ホップリミット', '64'],
+        [2, 0, 32, 88, '送信元 IP アドレス（128 ビット）', PC6], [3, 0, 32, 88, '宛先 IP アドレス（128 ビット）', YT6]];
+      const RY = [190, 234, 278, 366];
+      H6.forEach(([r, b0, b1, h, name, val]) => {
+        cell(g, HX + b0 * HB, RY[r], (b1 - b0) * HB, h, name, val, h > 44 ? { ny: 36, vy: 60 } : { ny: 17, vy: 36, ncls: 't-xs t-dim' });
+      });
+      ['0〜3', '4〜7', '8〜23', '24〜39'].forEach((l, r) => S.text(HX - 10, RY[r] + (r < 2 ? 26 : 48), l, { cls: 't-xs t-dim t-mono t-end' }, g));
+      S.rect(HX, 466, 32 * HB, 76, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(HX + 14, 488, 'IPv4 から無くなった欄：ヘッダ長、識別子・フラグ・断片位置、チェックサム', { cls: 't-sm' }, g);
+      S.text(HX + 14, 510, 'ペイロード長 1,258 ＝ UDP ヘッダ 8 ＋ QUIC 1,250（IPv4 の全長と違い、ヘッダの 40 を含まない）', { cls: 't-sm' }, g);
+      S.text(HX + 14, 532, '拡張ヘッダを挟むときは、次ヘッダにその種類の番号を書いて順につなぐ', { cls: 't-sm t-dim' }, g);
+      // 5: NAT の有無と普及
+      g = P[5];
+      S.text(40, 184, '外へ出るときの送信元', { cls: 't-sm t-b' }, g);
+      [['IPv4', 200, 'PC 192.168.1.10', 'NAT で書き換え', '203.0.113.5', 1], ['IPv6', 330, 'PC 2001:db8:1234:5600:9c1e:…', '書き換えない', '2001:db8:1234:5600:9c1e:…', 0]].forEach(([v, y, a, mid, b, nat]) => {
+        S.text(40, y + 14, v, { cls: 't-sm t-b' }, g);
+        box(g, 40, y + 24, 200, 44, a, '', { tcls: 't-xs t-mono' });
+        S.line(242, y + 46, 278, y + 46, { cls: 's-dim w15', 'marker-end': mk('dim') }, g);
+        box(g, 280, y + 24, 100, 44, 'ルーター', mid, { cls: nat ? 'f-x-soft s-x w15' : 'f-sf s-rule w15', tcls: 't-sm' });
+        S.line(382, y + 46, 418, y + 46, { cls: 's-dim w15', 'marker-end': mk('dim') }, g);
+        box(g, 420, y + 24, 60, 44, '外へ', '', { tcls: 't-sm' });
+        S.text(40, y + 94, '送信元 ' + b, { cls: 't-xs t-mono' + (nat ? ' t-x t-b' : '') }, g);
+      });
+      // 普及率のグラフ（APNIC の測定。各年 10 月 1 日、2026 年は 10 月 9 日の 30 日平均）
+      const GX = (y) => 560 + (y - 2016) * 34, GY = (p) => 470 - p * 3;
+      S.text(540, 184, 'IPv6 を使える利用者の割合（APNIC の測定）', { cls: 't-sm t-b' }, g);
+      [0, 20, 40, 60, 80].forEach((p) => {
+        S.line(GX(2016), GY(p), GX(2026), GY(p), { cls: 's-soft w1' }, g);
+        S.text(GX(2016) - 8, GY(p) + 4, p + '%', { cls: 't-xs t-dim t-mono t-end' }, g);
+      });
+      [2016, 2018, 2020, 2022, 2024, 2026].forEach((y) => S.text(GX(y), GY(0) + 18, String(y), { cls: 't-c t-xs t-dim t-mono' }, g));
+      const YRS = [2016, 2018, 2020, 2022, 2024, 2026];
+      const JP = [14.2, 28.3, 40.5, 49.2, 57.1, 61.6], WD = [6.7, 16.0, 26.6, 33.1, 38.1, 43.6];
+      S.poly(YRS.map((y, k) => [GX(y), GY(WD[k])]), { cls: 'f-none s-dim w2' }, g);
+      S.poly(YRS.map((y, k) => [GX(y), GY(JP[k])]), { cls: 'f-none s-d w3' }, g);
+      YRS.forEach((y, k) => { S.circle(GX(y), GY(JP[k]), 4, { cls: 'f-d' }, g); S.circle(GX(y), GY(WD[k]), 3.5, { cls: 'f-dim' }, g); });
+      S.text(GX(2026) + 8, GY(61.6) + 4, '日本 62%', { cls: 't-sm t-b t-d' }, g);
+      S.text(GX(2026) + 8, GY(43.6) + 4, '世界 44%', { cls: 't-sm t-b t-mid' }, g);
+      S.text(540, 520, '各年 10 月（2026 年は 10 月 9 日）の 30 日平均。APNIC Labs の広告を使った測定', { cls: 't-xs t-dim' }, g);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      S.fade(st.short, i >= 1);
+      st.groups.forEach((gr) => {
+        gr.r.setAttribute('class', i === 1 && gr.zero ? 'f-x-soft s-x w2' : 'f-d-soft s-d w1');
+        gr.tz.setAttribute('class', i === 1 && gr.lead ? 't-dim' : '');
+      });
+      op(st.slaacPkt, 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i !== 3 || !playing()) { op(st.slaacPkt, 0); return; }
+      // RS → RA → 番号を作る → NS → 待つ、を繰り返す
+      const q = U.seq(ctx.ts, [1.4, 1.6, 1.4, 1.6, 1.6], true);
+      const k = [0, 1, -1, 2, -1][q.i];
+      if (k < 0) { op(st.slaacPkt, 0); return; }
+      st.slaacPkt.set(['RS', 'RA', 'NS'][k], 'f-d');
+      S.place(st.slaacPkt, st.slaacRoads[k], U.ease.inOut(q.f));
+      op(st.slaacPkt, 1);
+    }
+  };
+
+  /* 家から YouTube のサーバーまでの道（場面4・6 で同じ例）。ルーター 9 台、10 区間。番号は例 */
+  const HOPS = [['PC', '192.168.1.10'], ['R1', '家'], ['R2', '入口'], ['R3', '地域'], ['R4', '基幹'], ['R5', '基幹'], ['R6', '境目'], ['R7', '境目'], ['R8', '網'], ['R9', '網'], ['サーバー', '142.250.196.110']];
+  const HX = HOPS.map((_, k) => Math.round(52 + k * 84.8));
+  function route(p, y) {
+    const g = S.g({}, p);
+    [['家', 0, 1], ['ISP（AS64500、例）', 2, 6], ['Google（AS15169）', 7, 10]].forEach(([l, a, b]) => {
+      const x1 = HX[a] - (a ? 22 : 28), x2 = HX[b] + (b === 10 ? 36 : 22);
+      S.path(`M${x1},${y - 42} V${y - 47} H${x2} V${y - 42}`, { cls: 'f-none s-dim w1' }, g);
+      S.text((x1 + x2) / 2, y - 53, l, { cls: 't-c t-xs t-b t-dim' }, g);
+    });
+    for (let k = 0; k < 10; k++) S.line(HX[k], y, HX[k + 1], y, { cls: 's-rule w3' }, g);
+    const nodes = HOPS.map(([n, sub], k) => {
+      const x = HX[k], end = k === 0 || k === 10;
+      const shape = end ? S.rect(x - (k ? 32 : 24), y - 15, k ? 64 : 48, 30, { rx: 4, cls: 'f-sf s-fg w15' }, g)
+        : S.circle(x, y, 17, { cls: 'f-sf s-fg w15' }, g);
+      S.text(x, y + 4, n, { cls: 't-c t-b ' + (k === 10 ? 't-xs' : 't-sm') }, g);
+      const label = S.text(x, y + 34, sub, { cls: 't-c t-xs t-dim' + (end ? ' t-mono' : '') }, g);
+      return { shape, x, label };
+    });
+    // 道: 線の上（roads）と、線の少し上（up。荷札が節を隠さないように）
+    const roads = [], up = [];
+    for (let k = 0; k < 10; k++) {
+      roads.push(road(g, `M${HX[k]},${y} H${HX[k + 1]}`));
+      up.push(road(g, `M${HX[k]},${y - 24} H${HX[k + 1]}`));
+    }
+    return { g, nodes, roads, up };
+  }
+
+  /* ================================================================
+     場面4 ホップごとに起きること
+     ================================================================ */
+  /* 区間ごとのチェックサム（実際に計算した値）。家を出る前は送信元 192.168.1.10、出た後は 203.0.113.5 */
+  const SUM4 = (k) => k === 0 ? '0x7A12' : '0x' + (0x00BF + (k - 1) * 0x0100).toString(16).toUpperCase().padStart(4, '0');
+  const MEDIA = ['Wi-Fi', 'PPPoE', 'ISP の網', 'ISP の網', 'ISP の網', 'ISP の網', 'IX か直結', 'Google の網', 'Google の網', '拠点の中'];
+  const s4 = {
+    steps: [
+      { title: '1 ホップ＝ルーター 1 台', text: 'ルーターを 1 台越えることを 1 ホップと呼ぶ。例の道は、家のルーター、ISP の 5 台、Google の 3 台の計 9 台を通る 10 区間（台数は回線や時期で変わる）。区間ごとに通り道も違い、家の中は Wi-Fi、ISP までは PPPoE、その先は ISP と Google の光回線（第15・16章）。' },
+      { title: 'TTL は 1 ずつ減る', text: 'ルーターはパケットを受け取るたびに TTL を 1 減らす。PC が付けた 64 は、9 台を越えてサーバーに着くとき 55 になる。途中で 0 になれば、そのルーターが捨てて送り主に ICMP で知らせる（[[6|ICMP]]）。経路が輪になっても、パケットが回り続けることはない。' },
+      { title: 'チェックサムは差分で直す', text: 'TTL が 1 減るとヘッダの和が 0x0100 減るので、チェックサムは 0x0100 増える。ルーターはヘッダ全体を足し直さず、この差分だけで直せる（RFC 1624）。家のルーターだけは NAT で送信元も書き換えたので、値が大きく変わった（第14章）。' },
+      { title: 'MAC は区間ごと、IP は端から端まで', text: 'Ethernet の宛先 MAC は区間の先のルーター、送信元 MAC は今のルーターで、区間ごとに付け替わる。IP の宛先は 10 区間すべて同じで、各ルーターはこの番号で経路表を引き、次の出口を決める（第16章）。送信元 IP が変わるのは家の NAT の 1 回だけ。' },
+      { title: '出口で順番を待つ', text: '出口の線が使用中なら、パケットはルーターの待ち行列に並ぶ。1 Gbps の線で 1,500 バイトを送り出すには 12 µs かかり、前に 100 個並べば 1.2 ms 待つ。行列があふれると、後から来たパケットは捨てられ、送り手が気づいて送り直す（第19章）。' },
+      { title: 'IPv6 では', text: 'IPv6 では TTL の代わりにホップリミットが 1 ずつ減り、MAC の付け替えも同じ。ヘッダにチェックサムが無いので、ルーターは検算をし直さない。中身の誤りは UDP・TCP のチェックサムと各区間の FCS が見つける。NAT が無いので送信元も最後まで同じ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.rt = route(svg, 80);
+      /* 区間ごとの値の表 */
+      const COLS = [['区間', 92], ['通り道', 88], ['宛先 MAC', 70], ['送信元 MAC', 70], ['TTL', 86], ['チェックサム', 82], ['送信元 IP', 154], ['宛先 IP', 166]];
+      const TX0 = 80, TY = 134, RH = 25;
+      const colX = [];
+      let cx = TX0;
+      COLS.forEach(([, w]) => { colX.push(cx); cx += w; });
+      st.colBg = COLS.map(([, w], c) => S.rect(colX[c] + 1, TY, w - 2, 26 + 10 * RH, { rx: 3, cls: 'f-none s-none' }, svg));
+      st.rowBg = S.rect(TX0, 0, cx - TX0, RH - 2, { rx: 3, cls: 'f-none s-mid w15' }, svg);
+      st.head = COLS.map(([n], c) => S.text(colX[c] + 8, TY + 16, n, { cls: 't-xs t-b t-dim' }, svg));
+      S.line(TX0, TY + 22, cx, TY + 22, { cls: 's-rule w1' }, svg);
+      st.cells = [];
+      for (let k = 0; k < 10; k++) {
+        const y = TY + 42 + k * RH;
+        const fixed = [`${k + 1}  ${HOPS[k][0]}→${HOPS[k + 1][0]}`, MEDIA[k], HOPS[k + 1][0], HOPS[k][0]];
+        st.cells.push([0, 1, 2, 3, 4, 5, 6, 7].map((c) => S.text(colX[c] + 8, y, c < 4 ? fixed[c] : '', { cls: 't-sm' + (c >= 4 ? ' t-mono' : '') }, svg)));
+      }
+      st.TY = TY; st.RH = RH;
+      /* 下: 変わる欄と変わらない欄 */
+      const gs = st.sum = S.g({ cls: 'fade' }, svg);
+      S.rect(80, 424, 808, 72, { rx: 6, cls: 'f-sf s-rule w1' }, gs);
+      S.text(96, 451, '区間ごとに変わる', { cls: 't-xs t-b t-dim' }, gs);
+      S.text(96, 479, '変わらない', { cls: 't-xs t-b t-dim' }, gs);
+      st.chg = S.text(206, 452, '', { cls: 't-md' }, gs);
+      st.same = S.text(206, 480, '', { cls: 't-md' }, gs);
+      /* 下: 待ち行列（段階5） */
+      const gq = st.q = S.g({ cls: 'fade hide' }, svg);
+      S.text(80, 440, '家のルーター R1 の出口の待ち行列（1 Gbps の線、模式図）', { cls: 't-sm t-b' }, gq);
+      const inRoad = road(gq, 'M80,500 H174');
+      S.line(80, 500, 174, 500, { cls: 's-rule w2 dash' }, gq);
+      S.rect(176, 482, 12 * 30 + 8, 36, { rx: 4, cls: 'f-none s-dim w1 dash' }, gq);
+      st.slots = [];
+      for (let j = 0; j < 12; j++) st.slots.push(S.rect(180 + j * 30, 486, 26, 28, { rx: 3, cls: 'f-d' }, gq));
+      S.line(548, 500, 700, 500, { cls: 's-rule w3' }, gq);
+      st.qIn = A.flow(inRoad, { count: 2, speed: 140, r: 5, cls: 'f-d', parent: gq });
+      st.qOut = A.flow(road(gq, 'M552,500 H700'), { count: 3, speed: 100, r: 5, cls: 'f-d', parent: gq });
+      S.text(628, 482, '1,500 バイトを 12 µs で送り出す', { cls: 't-c t-xs' }, gq);
+      st.qTxt = S.text(720, 496, '', { cls: 't-sm t-b' }, gq);
+      S.text(720, 520, '前に 100 個なら 1.2 ms', { cls: 't-sm t-dim' }, gq);
+      st.qDrop = S.text(128, 474, '× あふれて捨てる', { cls: 't-c t-sm t-b t-x' }, gq);
+      st.qLbl = S.text(362, 540, '待ち行列（右端から順に出ていく）', { cls: 't-c t-xs t-dim' }, gq);
+      /* 道を進むパケット */
+      st.p = pkt(svg, 'TTL 64', 'f-d');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const v6 = i === 5;
+      st.head[4].textContent = v6 ? 'ホップリミット' : 'TTL';
+      st.rt.nodes[0].label.textContent = v6 ? '' : '192.168.1.10';
+      st.rt.nodes[10].label.textContent = v6 ? '' : '142.250.196.110';
+      st.cells.forEach((row, k) => {
+        row[1].textContent = v6 && k === 1 ? 'IPoE' : MEDIA[k];   // IPv6 は PPPoE ではなく IPoE で運ぶ（第15章）
+        row[4].textContent = String(64 - k);
+        row[5].textContent = v6 ? '（無い）' : SUM4(k);
+        row[6].textContent = v6 ? '2001:db8:1234:5600:…' : (k === 0 ? '192.168.1.10' : '203.0.113.5');
+        row[7].textContent = v6 ? YT6 : '142.250.196.110';
+        row[5].setAttribute('class', 't-sm t-mono' + (v6 ? ' t-dim' : ''));
+        [6, 7].forEach((c) => row[c].setAttribute('class', (v6 ? 't-xs' : 't-sm') + ' t-mono'));
+      });
+      // 列の色: x はその段階で見る「変わる欄」、d は変わらない宛先
+      const X = 'f-x-soft s-x w15', D = 'f-d-soft s-d w15', N = 'f-none s-none';
+      const col = [
+        [N, N, N, N, N, N, N, N],
+        [N, N, N, N, X, N, N, N],
+        [N, N, N, N, N, X, N, N],
+        [N, N, X, X, N, N, X, D],
+        [N, N, N, N, N, N, N, N],
+        [N, N, X, X, X, N, N, D]
+      ][i];
+      st.colBg.forEach((r, c) => r.setAttribute('class', col[c]));
+      // 表は待ち行列の段階では薄く
+      [...st.colBg, ...st.head, ...st.cells.flat()].forEach((e) => { e.style.opacity = i === 4 ? 0.35 : ''; });
+      S.fade(st.sum, i !== 4);
+      S.fade(st.q, i === 4);
+      // 変わる欄と変わらない欄（その段階の欄を x で）
+      S.clear(st.chg); S.clear(st.same);
+      const put = (t, items) => items.forEach(([s, on], k) => S.el('tspan', { cls: on ? 't-x t-b' : '', text: (k ? '・' : '') + s }, t));
+      if (v6) {
+        put(st.chg, [['ホップリミット', 1], ['宛先 MAC', 1], ['送信元 MAC', 1]]);
+        put(st.same, [['宛先 IP', 0], ['送信元 IP', 0], ['中身（UDP・QUIC）', 0], ['チェックサムの欄は無い', 0]]);
+      } else {
+        put(st.chg, [['TTL', i === 1], ['チェックサム', i === 2], ['宛先 MAC', i === 3], ['送信元 MAC', i === 3], ['送信元 IP（家の NAT で 1 回）', i === 3]]);
+        put(st.same, [['宛先 IP', 0], ['中身（UDP・QUIC）', 0]]);
+      }
+      op(st.p, 0);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const RY = (k) => st.TY + 26 + k * st.RH;
+      if (i === 4) {
+        // 待ち行列: たまる → あふれる → はける を繰り返す（止めているときは途中の姿）
+        op(st.p, 0);
+        st.rowBg.setAttribute('y', RY(1)); op(st.rowBg, 1);
+        const c = playing() ? U.mod(ctx.ts, 12) : 3;
+        const n = c < 5 ? 4 + Math.floor(c / 5 * 8) : c < 8 ? 12 : 12 - Math.floor((c - 8) / 4 * 8);
+        st.slots.forEach((r, j) => r.setAttribute('class', j >= 12 - n ? 'f-d' : 'f-none s-soft w1'));
+        st.qTxt.textContent = `待ち ${n} 個 × 12 µs ＝ ${n * 12} µs`;
+        op(st.qDrop, playing() && c >= 5 && c < 8 ? 1 : 0);
+        st.qIn.show(!(playing() && c >= 8));
+        st.qIn.set('cls', playing() && c >= 5 && c < 8 ? 'f-x' : 'f-d');
+        st.qIn.update(dt); st.qOut.update(dt);
+        return;
+      }
+      // パケットが区間を 1 つずつ進む（止めているときは 2 つ目の区間の中ほど）
+      const LOOP = 11.5;
+      const c = playing() ? U.mod(ctx.ts, LOOP) : 1.5;
+      const k = Math.min(9, Math.floor(c)), f = c >= 10 ? 1 : c - k;
+      st.p.set((i === 5 ? 'HL ' : 'TTL ') + (64 - k), 'f-d');
+      S.place(st.p, st.rt.up[k], f);
+      op(st.p, 1);
+      st.rowBg.setAttribute('y', RY(k));
+      op(st.rowBg, 1);
+    }
+  };
+
+  /* ================================================================
+     場面5 MTU と断片化
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: '区間ごとに上限が違う', text: 'Ethernet と Wi-Fi の区間は 1,500 バイト（第13章）。PPPoE は 8 バイトのヘッダの分だけ小さい 1,492、IPv4 を IPv6 に包んで運ぶ区間（第15章）は 40 バイト小さい 1,460。道全体で通せる大きさは、最も小さい区間で決まる（**経路 MTU**）。' },
+      { title: 'IPv4 はルーターが分ける', text: 'DF が 0 のパケットが次の区間の MTU より大きければ、ルーターは中身を 8 バイトの倍数で切り、同じ識別子を付けた**断片**にする。組み立て直すのは宛先だけで、途中の 1 個を失えば全部が無駄になる。ルーターの手間も増えるので、今は分けずに済ませるのが基本。' },
+      { title: 'DF なら捨てて知らせる', text: 'DF が 1 なら、ルーターはパケットを捨て、ICMP の「分割が必要」（タイプ 3・コード 4）に次の区間の MTU を書いて送り主へ返す。送り主はそれより小さくして送り直す（経路 MTU 探索、RFC 1191）。この ICMP を途中で止めると、大きいパケットだけが消え続ける。' },
+      { title: 'IPv6 は送り主だけが分ける', text: 'IPv6 のルーターはパケットを分けない。大きすぎれば捨てて、ICMPv6 の Packet Too Big（タイプ 2）で MTU を知らせる。分けてよいのは送り主だけで、断片の情報は 8 バイトの断片ヘッダに入れる。どの区間も 1,280 バイトは通せることが前提。' },
+      { title: 'TCP は MSS で大きさを決める', text: 'TCP は接続の最初に、受け取れる中身の最大（**MSS**）を伝え合う。MTU 1,500 から IPv4 と TCP のヘッダ 40 バイトを引いて 1,460。PPPoE を使う家のルーターの多くは、通る SYN の MSS を 1,452 などに書き換え、分割を防ぐ（MSS クランプ、TCP は第19章）。' },
+      { title: 'QUIC は 1,200 バイトを前提にする', text: 'QUIC は、UDP の中身が 1,200 バイト以上通る道でしか使わない決まり。最初のパケットを 1,200 バイト以上に詰めて送り、その大きさが通ることを確かめる。DF も 1 にする。IPv6 の最小 1,280 からヘッダ 48 バイトを引いても収まり、より大きい値は探りながら試す。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* 上: 区間と MTU（PPPoE の家の例） */
+      S.text(40, 22, '家から YouTube までの区間と MTU（PPPoE の家の例）', { cls: 't-sm t-b' }, svg);
+      [[40, 110, 'PC'], [220, 330, '家のルーター'], [450, 560, 'ISP のルーター'], [680, 790, 'Google のルーター'], [860, 930, 'サーバー']].forEach(([x1, x2, l]) => box(svg, x1, 62, x2 - x1, 36, l, '', { tcls: 't-sm' }));
+      st.links = [[110, 220, 'Wi-Fi・Ethernet', '1,500'], [330, 450, 'PPPoE', '1,492'], [560, 680, 'ISP〜Google の網', '1,500 以上'], [790, 860, 'Ethernet', '1,500']].map(([x1, x2, m, v], k) => {
+        const ln = S.line(x1, 80, x2, 80, { cls: 's-rule w4' }, svg);
+        S.text((x1 + x2) / 2, 44, m, { cls: 't-c t-xs t-dim' }, svg);
+        const tv = S.text((x1 + x2) / 2, 58, v, { cls: 't-c t-sm t-b' }, svg);
+        return { ln, tv };
+      });
+      S.text(390, 116, 'IPv4 over IPv6 なら 1,460', { cls: 't-c t-xs t-dim' }, svg);
+      st.pmtu = S.text(480, 142, '経路 MTU ＝ 1,492（最も小さい区間で決まる）', { cls: 't-c t-sm t-b' }, svg);
+
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+      /* 0: 区間ごとの上限（棒の長さは実際の比） */
+      let g = P[0];
+      S.text(40, 180, 'Ethernet の中身 1,500 バイトのうち、IP パケットに使える長さ（棒は実際の比）', { cls: 't-sm t-b' }, g);
+      const BX = 200, SC = 0.42;
+      [['Ethernet・Wi-Fi', 1500, 0, '1,500'], ['PPPoE', 1492, 8, '1,492 ＝ 1,500 − 8（PPPoE 6 ＋ PPP 2）'], ['IPv4 over IPv6', 1460, 40, '1,460 ＝ 1,500 − 40（外側の IPv6 ヘッダ）'], ['IPv6 の最小 MTU', 1280, 0, '1,280（どの区間も必ず通せる大きさ）'], ['IPv4 の最小 MTU', 68, 0, '68（組み立てて受け取れる大きさは 576）']].forEach(([l, v, oh, txt], r) => {
+        const y = 200 + r * 64;
+        S.text(BX - 12, y + 19, l, { cls: 't-sm t-b t-end' }, g);
+        if (oh) S.rect(BX, y, oh * SC, 28, { cls: 'f-x-soft s-x w1' }, g);
+        S.rect(BX + oh * SC, y, v * SC, 28, { cls: 'f-d-soft s-d w1' }, g);
+        S.text(BX + 4, y + 46, txt, { cls: 't-xs' + (oh ? ' t-x' : ' t-dim') }, g);
+        if (l === 'PPPoE') S.text(BX + 4 + tw(txt, 10) + 16, y + 46, 'フレッツでは 1,454 以下が推奨（NTT 西日本）', { cls: 't-xs t-dim' }, g);
+      });
+      S.line(BX + 1500 * SC, 192, BX + 1500 * SC, 470, { cls: 's-dim w1 dash' }, g);
+      S.text(BX + 1500 * SC, 488, '1,500', { cls: 't-c t-xs t-dim t-mono' }, g);
+      S.text(40, 528, '赤い部分は、トンネルの外側のヘッダが同じ 1,500 バイトの中で使う分', { cls: 't-xs t-dim' }, g);
+      /* 1: IPv4 の断片化 */
+      g = P[1];
+      const FX = 160, FS = 0.4;
+      const bar = (y, data, lbl, fields) => {
+        S.rect(FX, y, 20 * FS + 24, 30, { cls: 'f-d s-d w1' }, g);
+        S.text(FX + (20 * FS + 24) / 2, y + 19, 'IP', { cls: 't-c t-xs t-b t-sf' }, g);
+        S.rect(FX + 20 * FS + 24, y, Math.max(6, data * FS), 30, { cls: 'f-d-soft s-d w1' }, g);
+        S.text(FX - 12, y + 19, lbl, { cls: 't-sm t-b t-end' }, g);
+        S.text(FX, y + 48, fields, { cls: 't-xs' }, g);
+      };
+      S.text(40, 180, '1,500 バイトのパケット（DF＝0）を、MTU 1,492 の区間へ送るとき（IP ヘッダの幅は誇張）', { cls: 't-sm t-b' }, g);
+      bar(198, 1480, '元のパケット', '全長 1,500　識別子 0x1C46　MF=0　断片位置 0（中身 1,480）');
+      st.cut = S.line(FX + 20 * FS + 24 + 1472 * FS, 190, FX + 20 * FS + 24 + 1472 * FS, 236, { cls: 's-x w3' }, g);
+      S.text(FX + 20 * FS + 24 + 1472 * FS + 6, 190, '1,472 バイト目で切る', { cls: 't-xs t-x t-b' }, g);
+      S.path('M480,262 V288', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, g);
+      S.text(496, 280, '家のルーターが 2 つに分ける', { cls: 't-sm t-dim' }, g);
+      bar(300, 1472, '断片 1', '全長 1,492　識別子 0x1C46　MF=1　断片位置 0');
+      bar(380, 8, '断片 2', '全長 28　識別子 0x1C46　MF=0　断片位置 184（＝ 1,472 ÷ 8）');
+      S.rect(40, 452, 880, 70, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(56, 478, '中身は 8 バイトの倍数で切る（1,472 ＝ 8 × 184）。断片 2 は 8 バイトの中身に 20 バイトのヘッダ', { cls: 't-sm' }, g);
+      S.text(56, 504, 'サーバーは識別子 0x1C46 の断片を、断片位置の順に並べて組み立て直す', { cls: 't-sm' }, g);
+      /* 2: DF＝1 と ICMP（時系列） */
+      g = P[2];
+      const lane = (gg, yEnd) => {
+        [[70, 170, 'PC', 120], [450, 590, '家のルーター', 520], [770, 910, 'ISP の先', 840]].forEach(([x1, x2, l, x]) => {
+          S.line(x, 206, x, yEnd, { cls: 's-rule w1 dash' }, gg);
+          box(gg, x1, 172, x2 - x1, 34, l, '', { tcls: 't-sm' });
+        });
+      };
+      lane(g, 424);   // 縦線は ③ の矢印の下で止め、下の 1 行に重ねない
+      S.text(40, 162, '時間は下へ進む', { cls: 't-xs t-dim' }, g);
+      S.line(120, 250, 510, 250, { cls: 's-d w2', 'marker-end': mk('d') }, g);
+      S.text(315, 236, '① 1,500 バイト・DF＝1', { cls: 't-c t-sm t-b' }, g);
+      S.text(520, 256, '×', { cls: 't-c t-xl t-b t-x' }, g);
+      S.text(540, 246, '次の区間は 1,492 まで。', { cls: 't-xs t-x' }, g);
+      S.text(540, 262, '分けられないので捨てる', { cls: 't-xs t-x' }, g);
+      S.line(520, 320, 130, 320, { cls: 's-x w2', 'marker-end': mk('x') }, g);
+      S.text(320, 306, '② ICMP タイプ 3・コード 4「分割が必要」', { cls: 't-c t-sm t-b' }, g);
+      S.text(320, 348, '次の MTU ＝ 1,492 と、捨てたパケットの先頭の写し', { cls: 't-c t-xs t-dim' }, g);
+      S.line(120, 400, 830, 400, { cls: 's-d w2', 'marker-end': mk('d') }, g);
+      S.text(315, 386, '③ 1,492 バイト以下・DF＝1 で送り直す', { cls: 't-c t-sm t-b' }, g);
+      S.text(120, 460, 'PC は宛先ごとに経路 MTU（1,492）を覚え、以後はそれ以下の大きさで送る', { cls: 't-sm' }, g);
+      st.dfRoads = [road(g, 'M120,250 H510'), road(g, 'M520,320 H130'), road(g, 'M120,400 H830')];
+      st.dfPkt = pkt(g, '', 'f-d');
+      /* 3: IPv6 の決まり */
+      g = P[3];
+      S.text(40, 180, 'IPv4 と IPv6 の違い', { cls: 't-sm t-b' }, g);
+      const RW = [['', 'IPv4', 'IPv6'], ['途中のルーター', 'DF＝0 なら分ける', '分けない'], ['大きすぎて捨てたとき', 'ICMP タイプ 3・コード 4', 'ICMPv6 Packet Too Big（タイプ 2）'], ['分けてよいのは', 'ルーターと送り主', '送り主だけ'], ['断片の情報', 'ヘッダの 2 行目（識別子・MF・断片位置）', '断片ヘッダ（8 バイト、要るときだけ）'], ['最小 MTU', '68（576 は受け取れる）', '1,280']];
+      RW.forEach((r, k) => {
+        const y = 194 + k * 38;
+        if (k) S.rect(40, y, 880, 34, { rx: 3, cls: 'f-sf s-rule w1' }, g);
+        S.text(52, y + 22, r[0], { cls: 't-sm t-b' }, g);
+        S.text(240, y + 22, r[1], { cls: 't-sm' + (k ? '' : ' t-b t-dim') }, g);
+        S.text(580, y + 22, r[2], { cls: 't-sm' + (k ? ' t-b' : ' t-b t-dim') }, g);
+      });
+      S.text(40, 450, '送り主が分けた IPv6 の断片の並び', { cls: 't-sm t-b' }, g);
+      [['IPv6 ヘッダ 40', 160, 'f-d s-d w1', 't-sf'], ['断片ヘッダ 8', 120, 'f-x-soft s-x w1', ''], ['中身（UDP など）の一部', 420, 'f-d-soft s-d w1', '']].reduce((x, [l, w, c, tc]) => {
+        S.rect(x, 462, w - 3, 32, { rx: 3, cls: c }, g);
+        S.text(x + (w - 3) / 2, 483, l, { cls: 't-c t-sm t-b ' + tc }, g);
+        return x + w;
+      }, 40);
+      S.text(40, 520, '断片ヘッダに識別子・断片位置・続きの印（M）が入る。ふつうは分けずに済む大きさで送る', { cls: 't-xs t-dim' }, g);
+      /* 4: TCP の MSS */
+      g = P[4];
+      lane(g, 276);   // 縦線は SYN の矢印の下で止め、「書き換える」の札に重ねない
+      S.text(40, 162, '時間は下へ進む', { cls: 't-xs t-dim' }, g);
+      S.line(120, 260, 830, 260, { cls: 's-dim w2', 'marker-end': mk('dim') }, g);
+      S.text(320, 244, 'SYN（MSS 1,460）', { cls: 't-c t-sm t-b' }, g);
+      S.text(680, 244, 'SYN（MSS 1,452）', { cls: 't-c t-sm t-b t-x' }, g);
+      S.text(520, 292, '家のルーターが MSS を書き換える', { cls: 't-c t-xs t-x' }, g);
+      st.mssRoad = road(g, 'M120,260 H830');
+      st.mssPkt = pkt(g, '', 'f-d');
+      S.rect(40, 330, 880, 150, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(56, 358, 'MSS ＝ MTU − IP ヘッダ − TCP ヘッダ', { cls: 't-sm t-b' }, g);
+      [['Ethernet（IPv4）', '1,500 − 20 − 20 ＝ 1,460'], ['PPPoE（IPv4）', '1,492 − 20 − 20 ＝ 1,452'], ['Ethernet（IPv6）', '1,500 − 40 − 20 ＝ 1,440']].forEach(([l, v], k) => {
+        S.text(56, 390 + k * 28, l, { cls: 't-sm' }, g);
+        S.text(260, 390 + k * 28, v, { cls: 't-sm t-mono' + (k === 1 ? ' t-x t-b' : '') }, g);
+      });
+      /* 5: QUIC の大きさ */
+      g = P[5];
+      S.text(40, 180, 'QUIC の中身を下限の 1,200 バイトにしたときの全長（棒は実際の比）', { cls: 't-sm t-b' }, g);
+      const QX = 200, QS = 0.45;
+      [['IPv4 で送るとき', 20, 1228, '1,228 ＝ IPv4 20 ＋ UDP 8 ＋ QUIC 1,200'], ['IPv6 で送るとき', 40, 1248, '1,248 ＝ IPv6 40 ＋ UDP 8 ＋ QUIC 1,200']].forEach(([l, h, tot, txt], r) => {
+        const y = 206 + r * 80;
+        S.text(QX - 12, y + 20, l, { cls: 't-sm t-b t-end' }, g);
+        S.rect(QX, y, h * QS, 30, { cls: 'f-d s-d w1' }, g);
+        S.rect(QX + h * QS, y, 8 * QS, 30, { cls: 'f-sf s-dim w1' }, g);
+        S.rect(QX + (h + 8) * QS, y, 1200 * QS, 30, { cls: 'f-d-soft s-d w1' }, g);
+        S.text(QX + 4, y + 50, txt, { cls: 't-xs' }, g);
+      });
+      [[1280, 'IPv6 の最小 MTU 1,280'], [1492, 'この道の経路 MTU 1,492']].forEach(([v, l], k) => {
+        const x = QX + v * QS;
+        S.line(x, 196, x, 360, { cls: 's-x w15 dash' }, g);
+        S.text(x, 378 + k * 18, l, { cls: 't-c t-xs t-x' }, g);
+      });
+      S.rect(40, 424, 880, 98, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(56, 452, 'UDP の中身が 1,200 バイト通らない道では QUIC を使わず、TCP の HTTPS に切り替える', { cls: 't-sm' }, g);
+      S.text(56, 478, 'IPv4 でも DF を立て、途中で分けさせない。より大きい値は、詰め物をしたパケットで試して確かめる（DPLPMTUD、RFC 8899）', { cls: 't-sm' }, g);
+      S.text(56, 504, 'Chrome は最初から中身を 1,250 バイトに詰めて送る（場面1 の例。2026 年 10 月に Chrome 155 で確認）', { cls: 't-sm t-dim' }, g);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      // 上の区間: 小さい区間（PPPoE）を x で
+      const hlLink = i === 0 || i === 1 || i === 2 || i === 4;
+      st.links.forEach((l, k) => {
+        l.ln.setAttribute('class', k === 1 && hlLink ? 's-x w4' : 's-rule w4');
+        l.tv.setAttribute('class', 't-c t-sm t-b' + (k === 1 && hlLink ? ' t-x' : ''));
+      });
+      op(st.dfPkt, 0); op(st.mssPkt, 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 1) op(st.cut, playing() ? 0.35 + 0.65 * U.pulse(ctx.ts, 1.6) : 1);
+      if (i === 2) {
+        if (!playing()) { op(st.dfPkt, 0); return; }
+        const q = U.seq(ctx.ts, [1.6, 1.6, 2.2, 1.6], true);
+        if (q.i === 3) { op(st.dfPkt, 0); return; }
+        st.dfPkt.set(['1,500', 'ICMP', '1,492'][q.i], q.i === 1 ? 'f-x' : 'f-d');
+        S.place(st.dfPkt, st.dfRoads[q.i], U.ease.inOut(q.f));
+        op(st.dfPkt, 1);
+      } else op(st.dfPkt, 0);
+      if (i === 4) {
+        if (!playing()) { op(st.mssPkt, 0); return; }
+        const q = U.seq(ctx.ts, [3, 1.2], true);
+        if (q.i === 1) { op(st.mssPkt, 0); return; }
+        const f = U.ease.inOut(q.f);
+        st.mssPkt.set(f < 0.5 ? 'MSS 1,460' : 'MSS 1,452', f < 0.5 ? 'f-d' : 'f-x');
+        S.place(st.mssPkt, st.mssRoad, f);
+        op(st.mssPkt, 1);
+      } else op(st.mssPkt, 0);
+    }
+  };
+
+  /* ================================================================
+     場面6 ICMP（ping と traceroute）
+     ================================================================ */
+  /* traceroute の結果（例）。行 n は図4 の Rn（10 行目はサーバー）。null は応答しないルーター */
+  const TR = [['192.168.1.1', '1.2', '1.0', '1.1', '家のルーター（LAN 側の番号）'], ['198.51.100.1', '3.6', '3.4', '3.5', 'ISP の入口'], ['198.51.100.9', '4.0', '3.8', '3.9', 'ISP'], null,
+    ['198.51.100.25', '4.9', '4.7', '4.8', 'ISP'], ['198.51.100.33', '5.3', '5.1', '5.2', 'ISP の境目'], ['142.250.236.1', '5.9', '5.7', '5.8', 'Google の境目'],
+    ['142.250.236.9', '8.4', '8.9', '8.2', 'Google の網'], ['142.250.237.17', '6.3', '6.2', '6.4', 'Google の網'], ['142.250.196.110', '6.4', '6.2', '6.3', '宛先。「ポートに届かない」が返る']];
+  const TR_LOOP = 31;   // 段階4（TTL を 1 ずつ増やす）の一巡の秒数
+  const s6 = {
+    steps: [
+      { title: 'ICMP：IP の連絡用メッセージ', text: 'ICMP は IP ヘッダのプロトコルが 1 のパケットで、先頭のタイプとコードで用件を表す。届かなかった理由を知らせるメッセージには、原因になったパケットの IP ヘッダと、中身の少なくとも先頭 8 バイトの写しを入れる。IPv6 では ICMPv6（58）が RA などの近隣の手続きも受け持つ。' },
+      { title: 'ping：往復の時間を測る', text: 'ping は Echo Request（タイプ 8）を送り、相手は中身をそのまま Echo Reply（タイプ 0）に入れて返す。送ってから返事が着くまでが往復時間（RTT）。返事の ttl は、サーバーが付けた初期値から帰り道のルーターの数だけ減った値。応答しない設定の機器もある。' },
+      { title: 'traceroute：TTL 1 から送る', text: 'traceroute は、TTL を 1 にしたパケットを宛先へ送る。家のルーターが TTL を 0 にして捨て、Time Exceeded（タイプ 11）を返す。その送信元が 1 ホップ目の番号、送ってから返事までが往復時間になる。写しに入ったポート番号で、どの送信への返事かを見分ける。' },
+      { title: 'TTL を 1 ずつ増やす', dur: TR_LOOP, text: 'TTL を 2、3 … と増やすと、2 台目、3 台目のルーターが順に知らせを返し、道の上のルーターが手前から並ぶ。宛先に着くと、Linux などの traceroute が送る UDP（ポート 33434 以降）には「ポートに届かない」（タイプ 3）が返り、そこで終わる。各 TTL で 3 回ずつ測る。' },
+      { title: '往復時間の読み方', text: '各行の時間は、そのルーターまでの往復時間。多くのルーターは転送を専用の回路で行い、ICMP は CPU で作るので、途中の行だけ遅く出ることがある（8 行目）。その先の行が速ければ、そこで遅れているわけではない。道の遅れは、最後の行まで続く増え方で読む。' },
+      { title: '応答しないホップ', text: 'ICMP を返さない設定のルーターや、返す数を絞っているルーターの行は * になる（4 行目）。パケット自体は転送されていて、次の行は表示される。見えるのは行きの道だけで、返事は別の道で戻ることもあるので、往復時間には帰り道の分も入る（第16章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.rt = route(svg, 80);
+      const Y = 56;   // 荷札が進む高さ（線の少し上）
+      st.go = HX.map((x) => road(svg, `M${HX[0]},${Y} H${x}`));    // PC から n 番目まで
+      st.back = HX.map((x) => road(svg, `M${x},${Y} H${HX[0]}`));  // n 番目から PC まで
+      st.x = S.text(0, Y + 7, '×', { cls: 't-c t-xl t-b t-x' }, svg);
+      st.wait = S.text(0, Y + 2, '応答なし', { cls: 't-sm t-b t-x' }, svg);   // × の右に置く（x は frame で決める）
+
+      /* 0: ICMP の形と種類 */
+      const g0 = st.g0 = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 168, 'ICMP のメッセージ（IP パケットの中身として運ばれる）', { cls: 't-sm t-b' }, g0);
+      [['IP ヘッダ（プロトコル 1）', 200, 'f-d s-d w1', 't-sf'], ['タイプ', 70, 'f-x-soft s-x w1', ''], ['コード', 70, 'f-x-soft s-x w1', ''], ['チェックサム', 110, 'f-sf s-rule w1', ''], ['用件ごとの 4 バイト', 160, 'f-sf s-rule w1', ''], ['データ', 270, 'f-d-soft s-d w1', '']].reduce((x, [l, w, c, tc]) => {
+        S.rect(x, 180, w - 3, 32, { rx: 3, cls: c }, g0);
+        S.text(x + (w - 3) / 2, 201, l, { cls: 't-c t-sm t-b ' + tc }, g0);
+        return x + w;
+      }, 40);
+      S.text(40, 232, '20 バイト', { cls: 't-xs t-dim' }, g0);
+      S.text(240, 232, '1 バイトずつ', { cls: 't-xs t-dim' }, g0);
+      [['タイプ', '名前', '使いみち', 1], ['0 ／ 8', 'Echo Reply ／ Echo Request', 'ping の応答と要求'], ['3', 'Destination Unreachable（届かない）', 'コード 3：ポートに届かない、コード 4：分割が必要（場面5）'], ['11', 'Time Exceeded（TTL 切れ）', 'TTL が 0 になって捨てたとき。traceroute が使う'],
+       ['ICMPv6 1 ／ 2 ／ 3', '届かない ／ Packet Too Big ／ TTL 切れ', 'IPv6 の同じ知らせ'], ['ICMPv6 128 ／ 129', 'Echo Request ／ Echo Reply', 'IPv6 の ping'], ['ICMPv6 133〜137', 'RS・RA・NS・NA・Redirect（NDP）', 'SLAAC と近隣の MAC 調べ（場面3）']].forEach(([a, b, c, head], k) => {
+        const y = 252 + k * 36;
+        if (!head) S.rect(40, y, 880, 32, { rx: 3, cls: 'f-sf s-rule w1' }, g0);
+        S.text(52, y + 21, a, { cls: 't-sm' + (head ? ' t-b t-dim' : ' t-b') }, g0);
+        S.text(220, y + 21, b, { cls: 't-sm' + (head ? ' t-b t-dim' : '') }, g0);
+        S.text(540, y + 21, c, { cls: 't-sm' + (head ? ' t-b t-dim' : ' t-dim') }, g0);
+      });
+      S.text(40, 528, 'タイプ 11 のデータ：捨てたパケットの IP ヘッダ 20 バイトと、その中身の先頭 8 バイト以上（UDP ならポート番号が入る）', { cls: 't-xs' }, g0);
+
+      /* 端末の枠（ping と traceroute） */
+      const term = (p) => S.rect(40, 150, 880, 330, { rx: 6, cls: 'f-in s-rule w1' }, p);
+      /* 1: ping */
+      const g1 = st.g1 = S.g({ cls: 'fade hide' }, svg);
+      term(g1);
+      S.text(56, 178, '$ ping 142.250.196.110', { cls: 't-mono t-md t-b' }, g1);
+      S.text(56, 204, 'PING 142.250.196.110 (142.250.196.110) 56(84) bytes of data.', { cls: 't-mono t-md' }, g1);
+      st.pingLines = [1, 2, 3].map((n, k) => S.text(56, 234 + k * 28, `64 bytes from 142.250.196.110: icmp_seq=${n} ttl=119 time=${['6.4', '6.2', '6.3'][k]} ms`, { cls: 't-mono t-md' }, g1));
+      [['56(84)', '中身 56 バイト。ICMP のヘッダ 8 と IP ヘッダ 20 を足すと 84'], ['ttl=119', 'サーバーが返事に付けた TTL（例では 128 から）が、帰り道の 9 台で減った値'], ['time=6.4 ms', '要求を送ってから応答が着くまで（往復）。止めるまで 1 秒ごとに続く']].forEach(([a, b], k) => {
+        S.text(56, 350 + k * 30, a, { cls: 't-mono t-sm t-b t-d' }, g1);
+        S.text(170, 350 + k * 30, b, { cls: 't-sm' }, g1);
+      });
+
+      /* 2〜5: traceroute */
+      const g2 = st.g2 = S.g({ cls: 'fade hide' }, svg);
+      term(g2);
+      S.text(56, 176, '$ traceroute -n 142.250.196.110', { cls: 't-mono t-md t-b' }, g2);
+      S.text(56, 198, 'traceroute to 142.250.196.110 (142.250.196.110), 30 hops max, 60 byte packets', { cls: 't-mono t-sm t-dim' }, g2);
+      S.text(80, 222, 'TTL', { cls: 't-xs t-dim t-b t-end' }, g2);
+      S.text(96, 222, '返事の送信元', { cls: 't-xs t-dim t-b' }, g2);
+      S.text(270, 222, '往復時間（3 回）', { cls: 't-xs t-dim t-b' }, g2);
+      st.rttBg = S.rect(262, 228, 250, 10 * 24 + 4, { rx: 3, cls: 'f-x-soft s-none' }, g2);
+      st.trRows = TR.map((r, k) => {
+        const y = 248 + k * 24;
+        const g = S.g({}, g2);
+        const bg = S.rect(46, y - 17, 868, 23, { rx: 3, cls: 'f-none s-x w15' }, g);
+        S.text(80, y, String(k + 1), { cls: 't-mono t-md t-end' }, g);
+        if (r) {
+          S.text(96, y, r[0], { cls: 't-mono t-md' }, g);
+          [1, 2, 3].forEach((j) => S.text(270 + (j - 1) * 80, y, r[j] + ' ms', { cls: 't-mono t-md' }, g));
+          S.text(540, y, r[4], { cls: 't-sm t-dim' }, g);
+        } else {
+          S.text(96, y, '*  *  *', { cls: 't-mono t-md' }, g);
+          S.text(540, y, 'ISP（ICMP を返さない）', { cls: 't-sm t-dim' }, g);
+        }
+        return { g, bg };
+      });
+      st.trNote = S.text(56, 518, '', { cls: 't-sm t-b t-x' }, g2);
+      st.pk = pkt(svg, '', 'f-d');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.g0, i === 0);
+      S.fade(st.g1, i === 1);
+      S.fade(st.g2, i >= 2);
+      op(st.rttBg, i === 4 ? 1 : 0);
+      st.trRows.forEach((r, k) => {
+        op(r.bg, (i === 4 && k === 7) || (i === 5 && k === 3) ? 1 : 0);
+        op(r.g, i === 2 && k > 0 ? 0 : 1);
+      });
+      st.trNote.textContent = ['', '', '', '', '8 行目 8.2〜8.9 ms → 9 行目 6.2〜6.4 ms、10 行目 6.2〜6.4 ms', '4 行目は 3 回とも返事なし → 5 行目からは表示される'][i];
+      st.pingLines.forEach((l) => op(l, 1));
+      op(st.pk, 0); op(st.x, 0); op(st.wait, 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const hide = () => { op(st.pk, 0); op(st.x, 0); op(st.wait, 0); };
+      const at = (rd, f, txt, cls) => { st.pk.set(txt, cls); S.place(st.pk, rd, f); op(st.pk, 1); };
+      const cross = (n, on) => { st.x.setAttribute('x', HX[n]); op(st.x, on ? 1 : 0); };
+      if (i === 0 || i === 4 || !playing()) {
+        hide();
+        if (i === 1) st.pingLines.forEach((l) => op(l, 1));
+        if (i === 3) st.trRows.forEach((r) => op(r.g, 1));
+        return;
+      }
+      if (i === 1) {
+        // ping: 要求がサーバーまで行き、応答が戻ると 1 行増える（3 回で一巡）
+        const RND = 2.6, c = U.mod(ts, RND * 3 + 2), n = Math.floor(c / RND), f = (c % RND) / RND;
+        st.pingLines.forEach((l, k) => op(l, k < n || (k === n && f > 0.85) ? 1 : 0));
+        op(st.x, 0); op(st.wait, 0);
+        if (n >= 3 || f > 0.85) { op(st.pk, 0); return; }
+        if (f < 0.42) at(st.go[10], U.ease.inOut(f / 0.42), '要求（8）', 'f-d');
+        else at(st.back[10], U.ease.inOut((f - 0.42) / 0.43), '応答（0）', 'f-d-soft s-d w1');
+        st.pk.lastChild.setAttribute('class', 't-c t-sm t-b ' + (f < 0.42 ? 't-sf' : 't-d'));
+        return;
+      }
+      // traceroute の 1 回分: TTL=n のパケットが n 台目まで行き、捨てられ、知らせが戻る
+      const probe = (n, c) => {
+        const tGo = 0.16 * n + 0.3, tX = 0.45, tBack = 0.16 * n + 0.3;
+        if (c < tGo) { cross(n, 0); op(st.wait, 0); at(st.go[n], U.ease.inOut(c / tGo), 'TTL=' + n, 'f-d'); st.pk.lastChild.setAttribute('class', 't-c t-sm t-b t-sf'); return false; }
+        if (c < tGo + tX) { op(st.pk, 0); cross(n, n < 10); op(st.wait, 0); return false; }
+        if (n === 4) {   // 4 台目は知らせを返さない
+          op(st.pk, 0); cross(n, 1);
+          st.wait.setAttribute('x', HX[n] + 14); op(st.wait, c < tGo + tX + 1.2 ? 1 : 0);
+          return c >= tGo + tX + 1.2;
+        }
+        cross(n, 0); op(st.wait, 0);
+        if (c < tGo + tX + tBack) { at(st.back[n], U.ease.inOut((c - tGo - tX) / tBack), n < 10 ? 'ICMP 11' : 'ICMP 3', 'f-d-soft s-d w1'); st.pk.lastChild.setAttribute('class', 't-c t-sm t-b t-d'); return false; }
+        op(st.pk, 0);
+        return true;
+      };
+      if (i === 2 || i === 5) {
+        const n = i === 2 ? 1 : 4;
+        const c = U.mod(ts, 3.4);
+        const done = probe(n, c);
+        if (i === 2) op(st.trRows[0].g, ts > 1.4 || done ? 1 : 0);
+        return;
+      }
+      if (i === 3) {
+        // TTL を 1 から 10 まで順に。行は知らせが戻った所から表示する
+        // 10 回分で約 28.7 秒かかるので、一巡は 31 秒（全部の行がそろった姿を約 2 秒見せる）。段階の dur も 31
+        const dur = (n) => 0.32 * n + 0.6 + 0.45 + (n === 4 ? 0.6 : 0);
+        let c = U.mod(ts, TR_LOOP), n = 1;
+        while (n <= 10 && c >= dur(n)) { c -= dur(n); n++; }
+        st.trRows.forEach((r, k) => op(r.g, k + 1 < n ? 1 : 0));
+        if (n > 10) { hide(); return; }
+        probe(n, c);
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第V部 約束ごと ／ 第18章',
+      title: 'IP',
+      home: '../index.html',
+      prev: { href: '17-dns.html', title: 'DNS' },
+      next: { href: '19-tcp.html', title: 'TCP・UDP・QUIC' },
+      legend: [{ c: 'd', label: 'IP パケット・ヘッダの値' }, { c: 'x', label: '注目・変わる値' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

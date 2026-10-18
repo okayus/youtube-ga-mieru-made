@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>OS — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg .code { font-family: var(--mono); font-size: 12px; }
+  svg .code-sm { font-family: var(--mono); font-size: 10.5px; }
+  /* d の中間の濃さ（区別のための濃淡。場面4 のページキャッシュ、場面5 のレンダラ） */
+  .f-d-mid { fill: color-mix(in srgb, var(--c-d) 42%, transparent); }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第III部 ソフトウェア ／ 第9章 ／ 全25章</p>
+    <h1 id="h-s0">OS</h1>
+    <p class="standfirst">CPU・メモリ・NIC・GPU は、そのままでは1つのプログラムしか相手にできない。OS のカーネルが、それらを数百のプロセスに貸し出し、互いを隔て、装置の違いを隠す。この章では、カーネルとユーザー空間の境界、プロセスとスレッド、システムコールで境界を越える手順、仮想メモリ、スケジューラ、そしてネットワークのパケットがソケットに届くまでを追う。ブラウザ（第10章）はこの章のソケット API を呼び、パケット（第11章以降）はその下で作られる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図は Linux と x86-64 を例にした模式図。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>カーネルとユーザー空間</a><p>CPU の2つのモード。境界を越える入口は、システムコール・割り込み・例外の3つだけ。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>プロセスとスレッド</a><p>ブラウザは複数のプロセスでできている。アドレス空間、状態、プロセス間通信。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>システムコール</a><p><code>recvfrom()</code> 1回の往復を、レジスタと CPU のモードの切り替えで追う。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>仮想メモリ</a><p>4段のページテーブル、TLB、ページフォールト、共有メモリ、ページキャッシュ。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>スケジューラ</a><p>タイマー割り込み、コンテキストスイッチ、vruntime、待ちと起床、アイドル。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>ドライバとネットワークスタック</a><p>NIC の受信リングから IP・UDP を上がってソケットへ。送信はその逆。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（ブラウザ）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は Linux（x86-64）と Chrome の構成を例にした模式図。PID や番地の値は例で、時間の比率は見やすく変えてある。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 カーネルとユーザー空間 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="カーネル" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>カーネルとユーザー空間</h2>
+    <p class="sh-meta"><span class="chip">ring 0 / ring 3</span><span class="chip">システムコール・割り込み・例外</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">プログラムは装置に直接触れない。CPU のモードで区切られた<b>カーネル空間</b>だけが装置と全メモリを扱え、ブラウザなどの<b>ユーザー空間</b>は決まった入口からカーネルに頼む。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Linux のカーネルは1つの大きなプログラム（モノリシックカーネル）で、ドライバもネットワークスタックも同じ特権で動く。macOS の XNU や Windows NT も、構成は違うがモードの境界と3つの入口の考え方は同じ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ユーザー空間・カーネル空間・ハードウェアの3層と、境界を越える3つの入口、CPU のモードの表示"></svg></div>
+    <figcaption>図1　上から、ユーザー空間・カーネル空間・ハードウェア。赤い線がモードの境界、赤い点がいま実行している場所。右は CPU がいまどちらのモードで、何ができるか。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 プロセスとスレッド ================= -->
+<section class="scene sc-anim" id="s2" data-tab="プロセス" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>プロセスとスレッド</h2>
+    <p class="sh-meta"><span class="chip">PID</span><span class="chip">task_struct</span><span class="chip">R / S</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">YouTube を映している「ブラウザ」は1つのプログラムではなく、役割の違う5つ前後の<b>プロセス</b>の集まり。それぞれが自分のアドレス空間と複数の<b>スレッド</b>を持ち、カーネルの表で管理される。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">プロセスの数は、タブと拡張機能ごとに増える。Chrome の「タスクマネージャ」（Shift+Esc）や Linux の <code>ps -eLf</code> で、プロセスとスレッドの実際の一覧が見える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザを構成する5つのプロセスと、その中のスレッド、カーネルのプロセス表、4つの CPU コア"></svg></div>
+    <figcaption>図2　上段はブラウザの5プロセス（箱の中の三角がスレッド）。下段左はカーネルのプロセス表、右は4つのコアでいま走っているスレッド。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 システムコール ================= -->
+<section class="scene sc-anim" id="s3" data-tab="システムコール" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>システムコール</h2>
+    <p class="sh-meta"><span class="chip">syscall / sysret</span><span class="chip">recvfrom = 45</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ネットワークから届いたデータをブラウザが受け取る <code>recvfrom()</code> 1回を、レジスタと CPU のモードの切り替えで追う。<b>システムコール</b>は、ユーザー空間がカーネルに仕事を頼む唯一の正規の手段。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">往復の費用が無視できないので、ブラウザは 64 KiB のような大きなバッファで一度に受け取り、<code>epoll_wait()</code> で多数のソケットをまとめて待つ。Linux 5.1 以降の io_uring は、複数の要求を1回の境界越えで出せる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="recvfrom システムコールの往復。左にユーザー空間とカーネル空間のコード、右にレジスタと7つの段階"></svg></div>
+    <figcaption>図3　左はユーザー空間の呼び出しとカーネルの処理、右はレジスタの中身と7つの段階。赤い点がいま実行している場所。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 仮想メモリ ================= -->
+<section class="scene sc-anim" id="s4" data-tab="仮想メモリ" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>仮想メモリ</h2>
+    <p class="sh-meta"><span class="chip">4 KiB ページ</span><span class="chip">4段のページテーブル</span><span class="chip">TLB</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">プロセスが使う番地（仮想アドレス）と DRAM の番地（物理アドレス）は別物で、カーネルが作る対応表で結ばれる。この仕組みが、プロセスどうしの隔離、共有メモリ、ページキャッシュを同時に実現する。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">4 KiB のページだと大きなメモリで表が巨大になるので、2 MiB や 1 GiB のヒュージページも使える。レンダラのアドレス空間は <code>/proc/&lt;pid&gt;/maps</code> で、TLB のミス回数は <code>perf stat -e dTLB-load-misses</code> で実測できる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="2つのプロセスの仮想アドレス空間、4段のページテーブルと TLB、物理メモリのフレーム"></svg></div>
+    <figcaption>図4　左は2つのプロセスの仮想アドレス空間、中央は仮想アドレスの分解と4段の表と TLB、右は物理メモリのフレーム（1 マス = 4 KiB）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 スケジューラ ================= -->
+<section class="scene sc-anim" id="s5" data-tab="スケジューラ" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>スケジューラ</h2>
+    <p class="sh-meta"><span class="chip">HZ=1000</span><span class="chip">CFS / EEVDF</span><span class="chip">コンテキストスイッチ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">コアの数より多いタスクを、タイマー割り込みの刻みで交代させる。<b>スケジューラ</b>は次に走るタスクを選び、<b>コンテキストスイッチ</b>でレジスタを入れ替える。再生中のブラウザは、ほとんどの時間を待ちで過ごす。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の時間軸は実時間の 500 分の 1。実際の 1 ms の刻みは、図では 0.5 秒。<code>top</code> の <code>%us</code>・<code>%sy</code>・<code>%id</code>、<code>/proc/sched_debug</code>、<code>perf sched</code> で、取り分と切り替えの実測が見える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="2つのコアの実行の時間軸、ランキュー、コンテキストスイッチの中身、タスクの状態"></svg></div>
+    <figcaption>図5　上は2つのコアで時間とともに走るタスク（右端がいま）。下は左からランキュー、交代の中身、タスクごとの状態。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 ドライバとネットワークスタック ================= -->
+<section class="scene sc-anim" id="s6" data-tab="ネットワーク" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>ドライバとネットワークスタック</h2>
+    <p class="sh-meta"><span class="chip">DMA</span><span class="chip">NAPI</span><span class="chip">sk_buff</span><span class="chip">ソケット</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">動画のデータは、NIC が DMA でメモリに置いたフレームとして始まり、ドライバ・IP・UDP の各層でヘッダを外されてソケットに届き、待っていたブラウザのプロセスを起こす。この道の上端が<b>ソケット API</b>。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1080p（約 5 Mbps）では 1 秒に約 400〜600 パケット、4K では数千パケットがこの道を通る。<code>ethtool -S</code> でリングの統計、<code>ss -tunp</code> でソケットとプロセスの対応、<code>/proc/interrupts</code> で割り込みの回数が見える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="NIC の受信リングから、ドライバ・IP・UDP・ソケットを経てユーザー空間のバッファへ届くパケットの道"></svg></div>
+    <figcaption>図6　下から上へ、NIC と受信リング、カーネルの各層、ユーザー空間のプロセス。パケットは層を上がるたびにヘッダを1つ外される。右は補助の図。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — OS は何を貸し、何を隔てるか</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>CPU の2つのモードがカーネル空間とユーザー空間を分け、境界を越える入口はシステムコール・割り込み・例外の3つだけ（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>ブラウザは役割ごとの複数のプロセスでできている。プロセスはアドレス空間と資源の単位、スレッドは実行の流れの単位（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>システムコールは番号と引数をレジスタに置いて <code>syscall</code>。入口でモードを切り替え、表を引いて処理し、<code>sysret</code> で戻る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>仮想アドレスは4段の表で物理アドレスに変換され、TLB が控える。対応が無ければページフォールトでカーネルが割り当てる（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>タイマー割り込みの刻みで vruntime の小さいタスクを選び、レジスタを入れ替える。待つタスクは CPU を使わず、届いたら起きる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>パケットは NIC の DMA から層を上がってソケットに届き、プロセスを起こす。ユーザー空間から見える境界はソケット API だけ（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>カーネル／ユーザー空間</th><td>特権モード（ring 0 / EL1）で動く OS の中核と、制限モード（ring 3 / EL0）で動くプログラムの領域。</td></tr>
+        <tr><th>システムコール</th><td>番号で頼むカーネルの入口。x86-64 Linux では read=0、write=1、socket=41、sendto=44、recvfrom=45、epoll_wait=232。往復 0.1〜0.5 µs 程度。</td></tr>
+        <tr><th>割り込み・例外</th><td>装置からの通知と、CPU が検出した異常（ページフォールトなど）。どちらも決まったハンドラへ飛ぶ。</td></tr>
+        <tr><th>プロセス／スレッド</th><td>アドレス空間・fd 表・権限の単位と、その中の実行の流れ。Linux ではどちらも task_struct。</td></tr>
+        <tr><th>ページ・ページテーブル・TLB</th><td>4 KiB の単位、仮想→物理の4段の対応表（根は CR3）、その控え（数十〜数千エントリ）。</td></tr>
+        <tr><th>ページフォールト</th><td>対応の無いページへのアクセスで起きる例外。デマンドページングの要。不正なら SIGSEGV。</td></tr>
+        <tr><th>スケジューラ・vruntime</th><td>次に走るタスクを選ぶ仕組み。CFS は重み付き実行時間が最小のものを選ぶ。Linux 6.6 から EEVDF。</td></tr>
+        <tr><th>コンテキストスイッチ</th><td>レジスタと CR3 の入れ替え。直接の費用は数 µs。</td></tr>
+        <tr><th>受信リング・DMA・NAPI</th><td>NIC が直接書き込む記述子の環、CPU を介さない転送、割り込みを抑えてまとめて処理する方式。</td></tr>
+        <tr><th>ソケット</th><td>プロセスとネットワークスタックの接点。socket / connect / sendto / recvfrom / epoll で操作する。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+  const box = (parent, x, y, w, h, title, sub, cls, tcls) => {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const r = S.rect(0, 0, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    if (title) S.text(w / 2, sub ? h / 2 - 3 : h / 2 + 4.5, title, { cls: 't-c t-b ' + (tcls || 't-md') }, g);
+    if (sub) S.text(w / 2, h / 2 + 13, sub, { cls: 't-c t-xs t-dim' }, g);
+    g.box = r;
+    return g;
+  };
+  const P = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ');
+  const packet = (parent, cls, w, h, label) => {
+    const g = S.g({}, parent);
+    S.rect(-w / 2, -h / 2, w, h, { rx: 3, cls }, g);
+    if (label) S.text(0, 4, label, { cls: 't-c t-xs t-sf t-b' }, g);
+    return g;
+  };
+  const setCls = (el, cls) => el.setAttribute('class', cls);
+  /* 点の列の上を、全体の進み f (0..1) で滑らかに移動した位置 */
+  const alongPts = (pts, f) => {
+    const n = pts.length - 1;
+    if (n <= 0) return pts[0];
+    const k = Math.min(n - 1, Math.floor(f * n));
+    const u = f * n - k;
+    return [U.lerp(pts[k][0], pts[k + 1][0], u), U.lerp(pts[k][1], pts[k + 1][1], u)];
+  };
+  const panel = (parent, x, y, w, h, title) => {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    S.rect(0, 0, w, h, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+    if (title) S.text(12, 20, title, { cls: 't-b t-sm' }, g);
+    return g;
+  };
+
+  /* ================================================================
+     場面1 カーネルとユーザー空間
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'OS の中核がカーネル', text: '一台の機械を多数のプログラムで分け合わせ、装置の違いを隠し、プログラムどうしを守るのが OS の仕事。その中核が**カーネル**で、起動時に最初にメモリへ読み込まれ、電源を切るまで常駐する。Linux のカーネル本体は圧縮して約 10 MB。' },
+      { title: 'CPU には2つのモードがある', text: 'x86 では ring 0 と ring 3、Arm では EL1 と EL0。カーネルモードでだけ、装置のレジスタの読み書き、ページテーブルの変更、割り込みの禁止といった特権命令が使える。ユーザーモードで特権命令を実行すると CPU が例外を起こし、制御はカーネルへ移る。' },
+      { title: '境界を越える入口は3つ', text: 'プログラムが自分から頼む**システムコール**、装置が知らせる**割り込み**、不正な操作やページフォールトで起きる**例外**。どれも CPU がモードを切り替え、あらかじめ登録された決まった入口へ飛ぶ。ユーザー空間から好きな番地でカーネルに入る道はない。' },
+      { title: 'カーネルの中の分担', text: 'プロセス管理とスケジューラ（[[2|プロセス]]・[[5|スケジューラ]]）、メモリ管理（[[4|仮想メモリ]]）、ファイルシステム、ネットワークスタックとドライバ（[[6|ネットワーク]]）。ブラウザが YouTube を開いている間、この5つ全部が働く。' },
+      { title: 'ユーザー空間の側', text: 'ブラウザは libc の関数を通してシステムコールを呼ぶ。libc もデスクトップ環境も systemd のようなサービスも、すべてユーザー空間のプロセス。カーネルは画面に文字を描かず、ネットワークの中身も解釈しない。装置と資源を貸し出すことに徹する。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 3つの帯
+      st.uband = S.rect(20, 20, 700, 170, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(32, 40, 'ユーザー空間（ring 3 ／ EL0）', { cls: 't-b t-sm' }, svg);
+      st.kband = S.rect(20, 212, 700, 196, { rx: 8, cls: 'f-in s-fg w15' }, svg);
+      S.text(708, 231, 'カーネル空間（ring 0 ／ EL1）', { cls: 't-b t-sm t-end' }, svg);
+      S.rect(20, 428, 700, 112, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(32, 448, 'ハードウェア', { cls: 't-b t-sm' }, svg);
+      S.line(20, 201, 720, 201, { cls: 's-x w3' }, svg);
+      S.text(712, 196, 'モードの境界', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, svg);
+      // アプリ
+      st.apps = [];
+      st.browser = box(svg, 44, 56, 190, 120, 'ブラウザ', 'Chrome ／ Firefox', 'f-sf s-fg w15');
+      st.libc = S.rect(8, 92, 174, 20, { rx: 3, cls: 'f-sf s-rule w1' }, st.browser);
+      st.libcTxt = S.text(95, 106, 'libc（システムコールの包み）', { cls: 't-c t-xs t-dim' }, st.browser);
+      st.apps.push(box(svg, 250, 56, 130, 120, '端末', 'bash'));
+      st.apps.push(box(svg, 396, 56, 130, 120, '音楽プレーヤー', ''));
+      st.svc = box(svg, 542, 56, 160, 120, 'サービス', 'systemd, sshd, …');
+      st.apps.push(st.svc);
+      // 入口の帯
+      S.rect(40, 238, 668, 24, { rx: 4, cls: 'f-sf s-rule w1 dash' }, svg);
+      st.entTxt = [
+        S.text(150, 254, 'システムコール入口', { cls: 't-sm' }, svg),
+        S.text(316, 254, '割り込みハンドラ', { cls: 't-sm' }, svg),
+        S.text(588, 254, '例外ハンドラ', { cls: 't-sm' }, svg)
+      ];
+      // サブシステム
+      const subs = [['プロセス管理', 'スケジューラ'], ['メモリ管理', 'ページテーブル'], ['ファイルシステム', 'VFS, ext4'], ['ネットワーク', 'IP, TCP, UDP'], ['ドライバ', 'NIC, GPU, 入力']];
+      st.subs = subs.map(([a, b], k) => box(svg, 40 + k * 136, 270, 124, 66, a, b));
+      S.rect(40, 344, 668, 54, { rx: 4, cls: 'f-sf s-rule w1' }, svg);
+      S.text(170, 375, 'カーネルのデータ構造', { cls: 't-c t-sm t-b' }, svg);
+      S.text(442, 366, 'プロセス表 ／ ページテーブル ／ ソケット', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(442, 384, 'ページキャッシュ ／ 割り込み表', { cls: 't-c t-xs t-dim' }, svg);
+      // ハードウェア
+      const hw = [['DRAM', 'メモリ'], ['SSD', 'ストレージ'], ['NIC / Wi-Fi', 'ネットワーク'], ['GPU', '描画・復号'], ['入力', 'キーボード等'], ['CPU', 'コア ×4']];
+      st.hw = hw.map(([a, b], k) => box(svg, 32 + k * 108, 466, 100, 60, a, b));
+      // 入口の矢印
+      st.arrSys = S.path('M139,176 V236', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, svg);
+      st.arrIrq = S.path('M306,466 V264', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, svg);   // サブシステムの箱の隙間を通す
+      st.arrExc = S.path('M578,466 V264', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, svg);
+      st.arrSysL = S.text(146, 196, 'システムコール', { cls: 't-xs t-dim' }, svg);
+      st.arrIrqL = S.text(314, 420, '割り込み', { cls: 't-xs t-dim' }, svg);
+      st.arrExcL = S.text(586, 420, '例外', { cls: 't-xs t-dim' }, svg);
+      // 右: モード
+      const gm = panel(svg, 740, 20, 200, 160, 'CPU のモード');
+      st.modeBox = gm;
+      st.modeU = S.rect(10, 36, 180, 44, { rx: 5, cls: 'f-sf s-rule w1' }, gm);
+      S.text(22, 54, 'ring 3 ユーザーモード', { cls: 't-sm t-b' }, gm);
+      S.text(22, 70, '制限つき。アプリが動く', { cls: 't-xs t-dim' }, gm);
+      st.modeK = S.rect(10, 92, 180, 44, { rx: 5, cls: 'f-sf s-rule w1' }, gm);
+      S.text(22, 110, 'ring 0 カーネルモード', { cls: 't-sm t-b' }, gm);
+      S.text(22, 126, '特権あり。カーネルだけ', { cls: 't-xs t-dim' }, gm);
+      st.modeNow = S.text(100, 152, '', { cls: 't-c t-xs t-x t-b' }, gm);
+      const gc = panel(svg, 740, 196, 200, 212, 'いまのモードでできること');
+      const caps = ['計算・自分のメモリの読み書き', '装置のレジスタの読み書き', 'ページテーブルの変更', '割り込みの禁止・許可', '他のプロセスのメモリ'];
+      st.capMarks = caps.map((c, k) => {
+        S.text(34, 46 + k * 30, c, { cls: 't-xs' }, gc);
+        return S.text(20, 46 + k * 30, '', { cls: 't-xs t-b' }, gc);
+      });
+      const gl = panel(svg, 740, 428, 200, 112, 'この章の見取り図');
+      ['2 プロセス　3 システムコール', '4 仮想メモリ　5 スケジューラ', '6 ネットワーク', '→ 10 ブラウザは API を呼ぶ側'].forEach((t, k) => S.text(14, 44 + k * 18, t, { cls: 't-xs t-dim' }, gl));
+      // 制御の点
+      st.route = [[139, 88], [139, 250], [510, 250], [510, 303], [646, 303], [646, 371], [306, 371], [306, 496], [306, 250], [139, 250], [139, 88]];
+      st.dot = S.circle(139, 88, 8, { cls: 'f-x glow' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.dot.style.opacity = i <= 1 ? 1 : 0;
+      setCls(st.modeBox.firstChild, i === 1 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.kband.style.opacity = i === 4 ? 0.45 : 1;
+      st.subs.forEach((g) => { g.style.opacity = i === 4 ? 0.45 : 1; setCls(g.box, 'f-sf s-rule w1'); });
+      setCls(st.libc, i === 4 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      setCls(st.svc.box, i === 4 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      [st.arrSys, st.arrIrq, st.arrExc].forEach((a) => setCls(a, 'f-none s-dim w2'));
+      [st.arrSysL, st.arrIrqL, st.arrExcL].forEach((a) => setCls(a, 't-xs t-dim'));
+      st.entTxt.forEach((t) => setCls(t, 't-sm'));
+      if (i !== 1) { setCls(st.modeU, 'f-sf s-rule w1'); setCls(st.modeK, 'f-sf s-rule w1'); st.modeNow.textContent = ''; st.capMarks.forEach((m) => { m.textContent = ''; }); }
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const svgEl = ctx.svg, mk = S.markers(svgEl);
+      if (i <= 1) {
+        const f = U.cycle(t, 12);
+        const p = alongPts(st.route, f);
+        st.dot.setAttribute('cx', p[0].toFixed(1)); st.dot.setAttribute('cy', p[1].toFixed(1));
+        const user = p[1] < 201;
+        setCls(st.modeU, user ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+        setCls(st.modeK, !user ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+        st.modeNow.textContent = user ? 'いま: ユーザーモード（アプリ）' : p[1] > 428 ? 'いま: カーネルモード（装置）' : 'いま: カーネルモード（カーネル）';
+        st.capMarks.forEach((m, k) => { const ok = user ? k === 0 : true; m.textContent = ok ? '✓' : '×'; setCls(m, ok ? 't-xs t-b t-d' : 't-xs t-b t-x'); });
+      }
+      if (i === 2) {
+        const q = U.seq(t, [1.6, 1.6, 1.6], true);
+        const arrs = [st.arrSys, st.arrIrq, st.arrExc], lbls = [st.arrSysL, st.arrIrqL, st.arrExcL];
+        arrs.forEach((a, k) => { setCls(a, k === q.i ? 'f-none s-x w3' : 'f-none s-dim w2'); a.setAttribute('marker-end', mk(k === q.i ? 'x' : 'dim')); });
+        lbls.forEach((l, k) => setCls(l, k === q.i ? 't-xs t-x t-b' : 't-xs t-dim'));
+        st.entTxt.forEach((e, k) => setCls(e, k === q.i ? 't-sm t-b t-x' : 't-sm'));
+      }
+      if (i === 3) {
+        const q = U.seq(t, [1.3, 1.3, 1.3, 1.3, 1.3], true);
+        st.subs.forEach((g, k) => setCls(g.box, k === q.i ? 'f-x-soft s-x w2' : 'f-sf s-rule w1'));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 プロセスとスレッド
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: 'プロセス＝実行中のプログラムの実体', text: 'プロセスは、固有の仮想アドレス空間（[[4|仮想メモリ]]）、PID、開いたファイルやソケットの表、権限を持つ。カーネルは1つにつき1つの task_struct で管理し、`ps` や `/proc/<pid>` で見える。新しいプロセスは `fork()` で複製し、`execve()` でプログラムを入れ替えて作る。' },
+      { title: 'スレッド＝プロセスの中の実行の流れ', text: '同じアドレス空間を共有し、スタックとレジスタの組だけを別に持つ。Linux では `clone()` で作り、カーネルから見ればスレッドもタスクの一つ。レンダラにはメインスレッド、合成スレッド、JavaScript の Worker、I/O スレッドなどが並走する。' },
+      { title: 'ブラウザは1つの仕事を複数のプロセスに分ける', text: 'Chrome は、UI と調整を担うブラウザプロセス、サイトごとのレンダラ、GPU プロセス、ネットワークサービス、音声などのユーティリティに分かれる。レンダラは**サンドボックス**でファイルやネットワークに直接触れない。1つが壊れても他のタブは生き残る。' },
+      { title: 'プロセスの状態', text: '状態は、CPU で実行中（R）、CPU 待ちの実行可能（R）、何かを待つ待ち（S）、停止（T）、終了処理待ちのゾンビ（Z）。再生中のレンダラは、ほとんどの時間をデータ待ち（S）で過ごし、パケットが届くと実行可能に戻る（[[5|スケジューラ]]）。' },
+      { title: 'プロセス間の通信（IPC）', text: 'アドレス空間が別なので、直接は相手のメモリに触れない。カーネル経由のパイプ・UNIX ドメインソケット・シグナルか、同じ物理ページを両方に見せる**共有メモリ**を使う。Chrome の Mojo は前者で命令を、後者で描画の命令列や動画のデータのような大きなものを運ぶ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const procs = [
+        { key: 'br', name: 'ブラウザ本体', pid: 4120, x: 28, w: 168, th: ['UI', 'I/O'], role: 'UI・調整役' },
+        { key: 'rd', name: 'レンダラ（YouTube のタブ）', pid: 4188, x: 210, w: 218, th: ['メイン', '合成', 'Worker', 'I/O'], role: 'HTML・CSS・JS' },
+        { key: 'gpu', name: 'GPU プロセス', pid: 4150, x: 442, w: 150, th: ['GPU', '復号'], role: '描画・動画復号' },
+        { key: 'net', name: 'ネットワークサービス', pid: 4133, x: 606, w: 168, th: ['I/O', 'QUIC'], role: 'ソケットの持ち主' },
+        { key: 'aud', name: '音声サービス', pid: 4201, x: 788, w: 144, th: ['出力'], role: '音の出力' }
+      ];
+      st.procs = {};
+      procs.forEach((p) => {
+        const g = S.g({ transform: `translate(${p.x},36)` }, svg);
+        const r = S.rect(0, 0, p.w, 150, { rx: 6, cls: p.key === 'rd' ? 'f-sf s-fg w15' : 'f-sf s-rule w1' }, g);
+        S.text(p.w / 2, 20, p.name, { cls: 't-c t-b ' + (p.w < 160 ? 't-sm' : 't-md') }, g);
+        S.text(p.w / 2, 36, `PID ${p.pid}`, { cls: 't-c t-xs t-dim t-mono' }, g);
+        // アドレス空間の帯
+        const segs = [['コード', 'f-in'], ['データ', 'f-soft'], ['ヒープ', 'f-d-soft'], ['スタック', 'f-rule']];
+        const bw = (p.w - 20) / 4;
+        const asg = S.g({}, g);
+        segs.forEach(([n, c], k) => { S.rect(10 + k * bw, 46, bw, 14, { cls: c + ' s-rule w1' }, asg); });
+        S.text(p.w / 2, 72, 'アドレス空間（4 領域）', { cls: 't-c t-xs t-dim' }, g);
+        // スレッド
+        const tg = S.g({}, g);
+        const tw = (p.w - 20) / p.th.length;
+        const tris = p.th.map((n, k) => {
+          const cx = 10 + tw * (k + 0.5);
+          const tri = S.polygon([[cx - 7, 98], [cx + 7, 105], [cx - 7, 112]], { cls: 'f-mid' }, tg);
+          S.text(cx, 128, n, { cls: 't-c t-xs' }, tg);
+          return tri;
+        });
+        const role = S.text(p.w / 2, 144, p.role, { cls: 't-c t-xs t-dim' }, g);
+        const sand = S.rect(-4, -4, p.w + 8, 158, { rx: 8, cls: 'f-none s-x w15 dash fade hide' }, g);
+        st.procs[p.key] = Object.assign({}, p, { g, r, tris, asg, role, sand, tg, roleText: p.role });
+      });
+      // IPC バス
+      st.bus = S.g({ cls: 'fade hide' }, svg);
+      S.line(112, 214, 860, 214, { cls: 's-dim w2' }, st.bus);
+      ['br', 'rd', 'gpu', 'net', 'aud'].forEach((k) => { const p = st.procs[k]; S.line(p.x + p.w / 2, 186, p.x + p.w / 2, 214, { cls: 's-dim w2' }, st.bus); });
+      S.text(112, 236, 'IPC（Mojo：パイプ／UNIX ドメインソケット）命令と小さなデータ', { cls: 't-xs t-dim' }, st.bus);
+      st.shm = S.g({ cls: 'fade hide' }, svg);
+      S.rect(330, 244, 260, 24, { rx: 4, cls: 'f-d-soft s-d w15' }, st.shm);
+      S.text(460, 260, '共有メモリ：動画のデータ・描画命令（コピーなし）', { cls: 't-c t-xs t-d t-b' }, st.shm);
+      S.path('M319,186 V256 H330', { cls: 'f-none s-d w15', 'marker-end': mk('d') }, st.shm);
+      S.path('M517,186 V244', { cls: 'f-none s-d w15', 'marker-end': mk('d') }, st.shm);
+      st.msgs = [0, 1, 2].map(() => packet(st.bus, 'f-d', 20, 12));
+      // プロセス表
+      const gt = panel(svg, 28, 280, 540, 260, 'カーネルのプロセス表（task_struct の一覧）');
+      ['PID', '名前', '状態', '', '備考'].forEach((h, k) => S.text([14, 70, 300, 0, 400][k], 44, h, { cls: 't-xs t-dim t-b' }, gt));
+      const rows = [
+        [1, 'systemd', 'S', '最初のプロセス'],
+        [4120, 'chrome（ブラウザ本体）', 'S', '入力待ち'],
+        [4133, 'chrome（ネットワーク）', 'S', 'epoll_wait で待ち'],
+        [4150, 'chrome（GPU）', 'R', '合成中'],
+        [4188, 'chrome（レンダラ）', 'S', 'データ待ち'],
+        [4201, 'chrome（音声）', 'S', 'タイマー待ち'],
+        [612, 'kworker/u8:2', 'S', 'カーネルスレッド'],
+        [15, 'ksoftirqd/0', 'S', 'ソフト割り込み']
+      ];
+      st.rows = rows.map((r, k) => {
+        const y = 60 + k * 24;
+        S.text(14, y + 13, String(r[0]), { cls: 't-xs t-mono' }, gt);
+        S.text(70, y + 13, r[1], { cls: 't-xs' }, gt);
+        const chip = S.rect(292, y, 96, 18, { rx: 4, cls: 'f-in s-rule w1' }, gt);
+        const ct = S.text(340, y + 13, '', { cls: 't-c t-xs t-b' }, gt);
+        S.text(400, y + 13, r[3], { cls: 't-xs t-dim' }, gt);
+        return { chip, ct, base: r[2], pid: r[0] };
+      });
+      st.event = S.g({ cls: 'fade hide' }, svg);
+      S.rect(28, 548, 540, 10, { cls: 'f-none' }, st.event);
+      st.evTxt = S.text(300, 534, '', { cls: 't-c t-xs t-b' }, st.event);
+      // コア
+      const gcpu = panel(svg, 600, 280, 332, 260, 'CPU のコア（いま走っているスレッド）');
+      st.cores = [0, 1, 2, 3].map((k) => {
+        const x = 14 + (k % 2) * 156, y = 36 + Math.floor(k / 2) * 106;
+        const g = S.g({ transform: `translate(${x},${y})` }, gcpu);
+        S.rect(0, 0, 148, 94, { rx: 6, cls: 'f-in s-rule w1' }, g);
+        S.text(10, 20, `コア ${k}`, { cls: 't-xs t-dim t-b' }, g);
+        const tri = S.polygon([[12, 46], [26, 53], [12, 60]], { cls: 'f-mid' }, g);
+        const name = S.text(34, 57, '', { cls: 't-sm t-b' }, g);
+        const sub = S.text(10, 80, '', { cls: 't-xs t-dim' }, g);
+        return { g, tri, name, sub };
+      });
+      st.corePlan = [
+        ['レンダラ メイン', 'PID 4188', 'GPU 復号', 'PID 4150', 'アイドル', '省電力', 'ネットワーク I/O', 'PID 4133'],
+        ['合成スレッド', 'PID 4188', 'アイドル', '省電力', '音声 出力', 'PID 4201', 'アイドル', '省電力'],
+        ['アイドル', '省電力', 'レンダラ Worker', 'PID 4188', 'kworker', 'カーネル', 'アイドル', '省電力']
+      ];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const dimOthers = i === 1;
+      Object.values(st.procs).forEach((p) => {
+        p.g.style.opacity = dimOthers && p.key !== 'rd' ? 0.35 : 1;
+        S.fade(p.sand, i === 2 && (p.key === 'rd' || p.key === 'gpu' || p.key === 'net'));
+        setCls(p.asg.firstChild.parentNode === p.asg ? p.asg : p.asg, '');
+        p.asg.style.outline = '';
+        p.role.textContent = i === 2 ? (p.key === 'rd' ? 'サンドボックス：ファイル・ネットワーク不可' : p.key === 'gpu' ? 'サンドボックス：GPU だけ' : p.key === 'net' ? 'サンドボックス：ソケットだけ' : p.key === 'br' ? '権限あり：ファイル・UI' : p.roleText) : p.roleText;
+        setCls(p.role, i === 2 && p.key !== 'aud' ? 't-c t-xs t-x t-b' : 't-c t-xs t-dim');
+      });
+      const rd = st.procs.rd;
+      rd.asg.querySelectorAll('rect').forEach((r) => setCls(r, r.getAttribute('class').replace(/ s-\S+ w\S+/, '') + (i === 1 ? ' s-x w15' : ' s-rule w1')));
+      S.fade(st.bus, i === 4);
+      S.fade(st.shm, i === 4);
+      S.fade(st.event, i === 3);
+      st.rows.forEach((r) => { r.state = r.base; });
+      st.lastCore = -1;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // スレッドの三角が小さく揺れる（走っている印）
+      Object.values(st.procs).forEach((p, pi) => {
+        p.tris.forEach((tri, k) => { tri.setAttribute('transform', `translate(0,${(Math.sin(t * 4 + k * 1.7 + pi) * 2).toFixed(1)})`); });
+      });
+      // コアの表示（1.6 秒ごとに切り替え）
+      const slot = Math.floor(t / 1.6) % 3;
+      if (slot !== st.lastCore) {
+        st.lastCore = slot;
+        const plan = st.corePlan[slot];
+        st.cores.forEach((c, k) => {
+          c.name.textContent = plan[k * 2];
+          c.sub.textContent = plan[k * 2 + 1];
+          const idle = plan[k * 2] === 'アイドル';
+          setCls(c.tri, idle ? 'f-rule' : 'f-x');
+          setCls(c.name, idle ? 't-sm t-dim' : 't-sm t-b');
+        });
+      }
+      // 状態
+      let evText = '';
+      if (i === 3) {
+        const q = U.seq(t, [2.2, 0.8, 1.2, 1.2, 1.6], true);
+        const rd = st.rows[4], net = st.rows[2];
+        rd.state = 'S'; net.state = 'S';
+        if (q.i === 0) { evText = 'レンダラもネットワークサービスも待ち（S）。CPU を使わない'; }
+        else if (q.i === 1) { evText = 'NIC にパケットが届いた → 割り込み'; net.state = 'RR'; }
+        else if (q.i === 2) { evText = 'ネットワークサービスが実行中（R）：受け取ってレンダラへ渡す'; net.state = 'R'; }
+        else if (q.i === 3) { evText = 'レンダラが実行可能（R）→ 実行中（R）'; rd.state = q.f < 0.4 ? 'RR' : 'R'; }
+        else { evText = '処理が終わり、また待ち（S）へ戻る'; }
+        st.evTxt.textContent = evText;
+      }
+      st.rows.forEach((r) => {
+        const s = r.state || r.base;
+        const lbl = s === 'R' ? 'R 実行中' : s === 'RR' ? 'R 実行可能' : 'S 待ち';
+        if (r.ct.textContent !== lbl) {
+          r.ct.textContent = lbl;
+          setCls(r.chip, s === 'R' ? 'f-x-soft s-x w15' : s === 'RR' ? 'f-sf s-fg w1' : 'f-in s-rule w1');
+          setCls(r.ct, s === 'R' ? 't-c t-xs t-b t-x' : s === 'RR' ? 't-c t-xs t-b' : 't-c t-xs t-b t-dim');
+        }
+      });
+      // IPC のメッセージ
+      if (i === 4) {
+        const routes = [[st.procs.br, st.procs.rd], [st.procs.rd, st.procs.net], [st.procs.net, st.procs.rd]];
+        st.msgs.forEach((m, k) => {
+          const f = U.cycle(t + k * 0.9, 2.7);
+          const [a, b] = routes[k];
+          const x1 = a.x + a.w / 2, x2 = b.x + b.w / 2;
+          const pts = [[x1, 186], [x1, 214], [x2, 214], [x2, 186]];
+          const p = alongPts(pts, f);
+          m.setAttribute('transform', `translate(${p[0].toFixed(1)},${p[1].toFixed(1)})`);
+          m.style.opacity = f < 0.05 || f > 0.95 ? 0 : 1;
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 システムコール
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '頼み方は番号で決まっている', text: 'プログラムは装置にもカーネルのメモリにも触れないので、番号で頼む。Linux x86-64 では read が 0、write が 1、socket が 41、sendto が 44、recvfrom が 45、epoll_wait が 232。libc が番号を rax に、引数を rdi・rsi・rdx… に入れて `syscall` 命令を実行する。' },
+      { title: '境界を越える瞬間', text: '`syscall` 命令で CPU はカーネルモードに切り替わり、MSR LSTAR に登録された入口へ飛ぶ。入口でユーザーのレジスタをカーネルのスタックに保存する。ここまでハードウェアと入口の処理で 0.1〜0.5 µs ほど（CPU の世代と脆弱性対策で変わる）。' },
+      { title: 'カーネルの中で何をするか', text: '番号でシステムコール表を引き `sys_recvfrom` へ。fd 23 からソケットのオブジェクトをたどり、受信キューにあるデータを `copy_to_user` でユーザーのバッファへ写す。データがまだ無ければプロセスを待ち（S）にして別のタスクへ交代し、届いたら続きから再開する。' },
+      { title: '戻る', text: '戻り値（写したバイト数、失敗なら −errno）を rax に入れ、保存したレジスタを戻し、`sysret` でユーザーモードへ。libc は負の値なら errno を設定して −1 を返す。呼んだ側からは、ただの関数呼び出しに見える。' },
+      { title: 'YouTube を見ているときのシステムコール', text: '`socket()`→`connect()`→`sendto()`／`recvfrom()` の繰り返し、`epoll_wait()` で多数のソケットをまとめて待つ、`mmap()` でメモリを確保、`ioctl()` で GPU やデコーダに命令、`write()` で音声装置へ。1 秒に数千回。`strace -p <pid>` で全部観察できる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ユーザー空間
+      const gu = panel(svg, 20, 20, 400, 200, 'ユーザー空間：ブラウザのネットワークサービス（PID 4133）');
+      S.text(16, 52, 'n = recvfrom(23, buf, 65536, 0, …);', { cls: 'code t-b' }, gu);
+      S.text(16, 74, '// libc の中', { cls: 'code t-dim' }, gu);
+      st.cRegs = S.text(16, 94, 'rax←45  rdi←23  rsi←buf  rdx←65536', { cls: 'code' }, gu);   // buf の箱（x=300〜）に掛からない長さ
+      st.cSys = S.text(16, 118, 'syscall', { cls: 'code t-b' }, gu);
+      S.text(90, 118, '← ここで境界を越える', { cls: 't-xs t-dim' }, gu);
+      st.cRet = S.text(16, 152, '戻り: rax = 1452 → n = 1452', { cls: 'code' }, gu);
+      S.text(16, 176, 'if (n < 0) errno = -n;  // libc が整える', { cls: 'code t-dim' }, gu);
+      st.ubuf = S.rect(300, 40, 92, 120, { rx: 4, cls: 'f-in s-rule w1' }, gu);
+      S.text(346, 58, 'buf 64 KiB', { cls: 't-c t-xs t-dim' }, gu);
+      st.ubufFill = S.rect(304, 150, 84, 0, { rx: 2, cls: 'f-d' }, gu);
+      st.ubufTxt = S.text(346, 176, '', { cls: 't-c t-xs t-d t-b' }, gu);
+      // 境界
+      S.line(20, 232, 420, 232, { cls: 's-x w3' }, svg);
+      S.text(420, 228, 'CPU がモードを切り替える', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, svg);
+      // カーネル
+      const gk = S.g({ transform: 'translate(20,244)' }, svg);
+      S.rect(0, 0, 400, 232, { rx: 8, cls: 'f-in s-fg w15' }, gk);
+      S.text(12, 20, 'カーネル空間', { cls: 't-b t-sm' }, gk);
+      st.kEntry = box(gk, 10, 30, 124, 44, 'entry_SYSCALL_64', 'レジスタ保存・stack 切替');
+      st.kRet = box(gk, 10, 86, 124, 44, 'sysret', 'rax に戻り値・ring 3 へ');
+      st.kWait = box(gk, 10, 142, 124, 78, 'データが無いとき', '');
+      st.kWait.querySelector('text').setAttribute('y', 24);
+      S.text(62, 46, '待ち（S）にして交代', { cls: 't-c t-xs t-dim' }, st.kWait);   // 箱の中の座標
+      S.text(62, 62, '届いたら続きから再開', { cls: 't-c t-xs t-dim' }, st.kWait);
+      // 表
+      const gtab = S.g({ transform: 'translate(146,30)' }, gk);
+      S.rect(0, 0, 110, 134, { rx: 4, cls: 'f-sf s-rule w1' }, gtab);
+      S.text(55, 14, 'システムコール表', { cls: 't-c t-xs t-b' }, gtab);
+      const tabRows = [['0', 'read'], ['1', 'write'], ['41', 'socket'], ['44', 'sendto'], ['45', 'recvfrom'], ['232', 'epoll_wait']];
+      st.tabHl = S.rect(4, 94, 102, 17, { rx: 3, cls: 'f-x-soft' }, gtab);
+      tabRows.forEach(([n, name], k) => { S.text(10, 32 + k * 18, n, { cls: 'code-sm' }, gtab); S.text(40, 32 + k * 18, name, { cls: 'code-sm' }, gtab); });
+      st.kHandler = box(gk, 268, 30, 122, 44, 'sys_recvfrom', 'fd 23 → ソケット');
+      st.kQueue = box(gk, 268, 86, 122, 78, 'ソケットの受信キュー', '', null, 't-sm');
+      st.kQueue.querySelector('text').setAttribute('y', 22);   // 題はパケットの上
+      st.qPk = [0, 1, 2].map((k) => S.rect(10 + k * 36, 38, 30, 20, { rx: 3, cls: 'f-d' }, st.kQueue));
+      [0, 1, 2].forEach((k) => S.text(25 + k * 36, 52, '1452', { cls: 't-c t-xs t-sf t-b' }, st.kQueue));
+      S.text(146, 196, 'copy_to_user（1452 バイト）', { cls: 't-xs' }, gk);
+      S.text(146, 212, 'カーネルのバッファ → ユーザーの buf', { cls: 't-xs t-dim' }, gk);
+      st.copyArrow = S.path('M410,380 H430 V160 H414', { cls: 'f-none s-d w3 fade hide', 'marker-end': mk('d') }, svg);
+      // ハードウェア
+      S.rect(20, 488, 400, 52, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(220, 510, 'ハードウェア：NIC → DMA → カーネルのバッファ（[[6]] 場面6）'.replace('[[6]] ', ''), { cls: 't-c t-sm' }, svg);
+      S.text(220, 528, 'syscall / sysret 命令、MSR LSTAR、ring の切り替えは CPU の機能', { cls: 't-c t-xs t-dim' }, svg);
+      // 右: レジスタ
+      const gr = panel(svg, 440, 20, 230, 164, 'レジスタ（x86-64）');
+      const regNames = ['rax', 'rdi', 'rsi', 'rdx', 'rip', 'モード'];
+      st.regVals = regNames.map((n, k) => { S.text(14, 44 + k * 20, n, { cls: 'code t-dim' }, gr); return S.text(70, 44 + k * 20, '', { cls: 'code' }, gr); });
+      // 段階一覧
+      const gs = panel(svg, 440, 198, 230, 288, '7 つの段階');
+      const stages = ['① libc が番号と引数をレジスタへ', '② syscall → ring 0、入口へ', '③ レジスタ保存、カーネルスタック', '④ 表を引いて sys_recvfrom へ', '⑤ 受信キュー → copy_to_user', '⑥ rax に戻り値（1452）', '⑦ sysret → ring 3、libc が返す'];
+      st.stageRows = stages.map((s, k) => {
+        const y = 34 + k * 35;
+        const bg = S.rect(8, y, 214, 30, { rx: 4, cls: 'f-sf' }, gs);
+        S.rect(8, y, 6, 30, { rx: 2, cls: k === 0 || k === 6 ? 'f-mid' : 'f-rule' }, gs);
+        S.text(22, y + 19, s, { cls: 't-xs' }, gs);
+        return bg;
+      });
+      S.rect(14, 273, 6, 11, { rx: 1, cls: 'f-mid' }, gs);
+      S.text(24, 282, 'ユーザーモード', { cls: 't-xs t-dim' }, gs);
+      S.rect(104, 273, 6, 11, { rx: 1, cls: 'f-rule' }, gs);
+      S.text(114, 282, 'カーネルモード', { cls: 't-xs t-dim' }, gs);
+      // 右端: 費用 or strace
+      st.gCost = panel(svg, 690, 20, 264, 466, 'この往復の費用の目安');
+      ['入口と出口（モード切替・保存）', '　約 0.1〜0.5 µs', 'copy_to_user 1452 バイト', '　約 0.1 µs', '1 秒に数千回 → CPU 時間の数 %', '', '減らす工夫', '・64 KiB の大きなバッファで受ける', '・epoll_wait で多数をまとめて待つ', '・io_uring で複数の要求を一度に', '・GSO/GRO でパケットをまとめる'].forEach((s, k) => S.text(14, 46 + k * 22, s, { cls: s.startsWith('　') ? 'code' : (s === '減らす工夫' ? 't-sm t-b' : 't-xs') }, st.gCost));
+      st.gTrace = panel(svg, 690, 20, 264, 466, 'strace -p 4133 の一部（再生中）');
+      st.gTrace.classList.add('fade', 'hide');
+      S.rect(8, 30, 248, 428, { rx: 4, cls: 'f-in' }, st.gTrace);
+      st.traceLines = [];
+      for (let k = 0; k < 22; k++) st.traceLines.push(S.text(12, 48 + k * 19, '', { cls: 't-xs t-mono' }, st.gTrace));
+      st.trace = [   // 引数の一部を … で省いた（パネルの幅 244 に収める）
+        'epoll_wait(5, […], 64, -1) = 1',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = -1 EAGAIN',
+        'sendto(23, …, 38, 0, …) = 38 ← ACK',
+        'epoll_wait(5, […], 64, -1) = 1',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = 1200',
+        'write(31, …, 4096) = 4096 ← 音声',
+        'ioctl(17, DRM_IOCTL_…, …) = 0 ← GPU',
+        'mmap(NULL, 2097152, …) = 0x7f3a2c400000',
+        'epoll_wait(5, […], 64, -1) = 1',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'futex(0x7f3a2d0010a8, FUTEX_WAKE, 1) = 1',
+        'sendto(23, …, 1250, 0, …) = 1250 ← 要求',
+        'epoll_wait(5, [], 64, 4) = 0 ← 4ms 待ち',
+        'clock_gettime(CLOCK_MONOTONIC, …) = 0',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
+        'write(31, …, 4096) = 4096'
+      ];
+      // 制御の点
+      st.stagePts = [[26, 110], [26, 134], [22, 296], [162, 376], [284, 369], [22, 352], [26, 168]];   // 文字の左の余白・箱の左端に止まる
+      st.dot = S.circle(26, 110, 8, { cls: 'f-x glow' }, svg);
+      st.regSets = [
+        ['45 (recvfrom)', '23 (fd)', 'buf の番地', '65536', 'libc の中', 'ring 3 ユーザー'],
+        ['45', '23', 'buf の番地', '65536', 'syscall 命令', 'ring 3 → ring 0'],
+        ['45', '23', 'buf の番地', '65536', 'entry_SYSCALL_64', 'ring 0 カーネル'],
+        ['45', '23', 'buf の番地', '65536', 'sys_recvfrom', 'ring 0 カーネル'],
+        ['45', '23', 'buf の番地', '65536', 'copy_to_user', 'ring 0 カーネル'],
+        ['1452（戻り値）', '23', 'buf の番地', '65536', 'syscall の出口', 'ring 0 カーネル'],
+        ['1452', '23', 'buf の番地', '65536', 'syscall の次の命令', 'ring 0 → ring 3']
+      ];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.stageSet = [[0], [0, 1, 2], [2, 3, 4], [4, 5, 6], [0, 1, 2, 3, 4, 5, 6]][i];
+      S.fade(st.gCost, i !== 4);
+      S.fade(st.gTrace, i === 4);
+      S.fade(st.copyArrow, i === 2 || i === 3);
+      st.ubufFill.setAttribute('height', i >= 3 ? 20 : 0);
+      st.ubufFill.setAttribute('y', i >= 3 ? 130 : 150);
+      st.ubufTxt.textContent = i >= 3 ? '1452 バイト' : '';
+      setCls(st.kWait.box, i === 2 ? 'f-sf s-x w15 dash' : 'f-sf s-rule w1');
+      st.traceOff = -1;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const set = st.stageSet;
+      const per = i === 4 ? 0.55 : 1.6;
+      const q = U.seq(t, set.map(() => per), true);
+      const k = set[q.i];
+      // 点の移動（段階の点どうしを補間）
+      const from = st.stagePts[k], to = st.stagePts[set[(q.i + 1) % set.length]];
+      const mv = q.f > 0.7 ? U.ease.inOut((q.f - 0.7) / 0.3) : 0;
+      st.dot.setAttribute('cx', U.lerp(from[0], to[0], mv).toFixed(1));
+      st.dot.setAttribute('cy', U.lerp(from[1], to[1], mv).toFixed(1));
+      st.stageRows.forEach((bg, n) => setCls(bg, n === k ? 'f-x-soft' : 'f-sf'));
+      st.regSets[k].forEach((v, n) => { st.regVals[n].textContent = v; setCls(st.regVals[n], n === 5 ? 'code t-b' + (v.startsWith('ring 3') && !v.includes('→') ? '' : ' t-x') : 'code'); });
+      setCls(st.cSys, k === 1 ? 'code t-b t-x' : 'code t-b');
+      setCls(st.cRegs, k === 0 ? 'code t-x' : 'code');
+      setCls(st.cRet, k === 6 ? 'code t-x t-b' : 'code');
+      setCls(st.kEntry.box, k === 2 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      setCls(st.kHandler.box, k === 3 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      setCls(st.kQueue.box, k === 4 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      setCls(st.kRet.box, k === 5 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      st.tabHl.style.opacity = k === 3 ? 1 : 0.35;
+      if (i === 2 || i === 3) {
+        // 受信キューの1つ目が buf へ写る
+        const f = k === 4 ? q.f : (k > 4 ? 1 : 0);
+        st.qPk[0].style.opacity = 1 - f;
+        st.ubufFill.setAttribute('height', (20 * f).toFixed(1));
+        st.ubufFill.setAttribute('y', (150 - 20 * f).toFixed(1));
+        st.ubufTxt.textContent = f > 0.95 ? '1452 バイト' : '';
+      } else { st.qPk[0].style.opacity = 1; }
+      if (i === 4) {
+        const off = Math.floor(t / 0.55);
+        if (off !== st.traceOff) {
+          st.traceOff = off;
+          st.traceLines.forEach((ln, n) => { ln.textContent = st.trace[U.mod(off + n - 21, st.trace.length)]; setCls(ln, n === 21 ? 't-xs t-mono t-x' : 't-xs t-mono'); });
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 仮想メモリ
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'プロセスごとに独自のアドレス空間', text: 'どのプロセスも 0 番地から始まる自分だけの仮想アドレスを見る。x86-64 では下位 128 TiB（2^47）がユーザー空間。同じ 0x401000 でも、レンダラと GPU プロセスでは別の物理ページを指す。だから互いのメモリは見えず、壊せない。' },
+      { title: 'ページ単位で対応表を引く', text: '仮想も物理も 4 KiB の**ページ**に区切る。対応表（ページテーブル）は4段の木で、48 ビットの仮想アドレスを 9 ビットずつ4回引き、残り 12 ビットのオフセットを足す。木の根の物理アドレスは CR3 レジスタにあり、プロセスの切り替えで入れ替わる。' },
+      { title: '変換は MMU と TLB が担う', text: '変換は CPU の MMU が命令ごとに自動で行う。4段を歩くと4回メモリを読むので、最近の結果を **TLB**（数十〜数千エントリ）に控える。ヒットなら 1 サイクル未満、ミスなら表を歩いて数十〜数百サイクル。アクセスの 99% 以上はヒットする。' },
+      { title: '無いページに触るとページフォールト', text: '対応の無いページや書き込み禁止のページに触ると CPU が例外 #PF を起こし、カーネルへ。初めて触るヒープやまだ読んでいないファイルなら、物理ページを割り当てて命令をやり直す（デマンドページング）。不正なら SIGSEGV でプロセスを止める。' },
+      { title: '共有と保護', text: 'libc のコードは全プロセスで1つの物理ページを共有し、読み取り専用で写す。レンダラが GPU プロセスへ渡す動画のデータも、同じ物理ページを両方の表に載せた**共有メモリ**で渡し、コピーしない。表の属性で読み・書き・実行を別々に許す。' },
+      { title: 'ページキャッシュとスワップ', text: '読んだファイルはカーネルが物理メモリに**ページキャッシュ**として残し、次は SSD を読まない。空きが足りなければ、使われていないページをスワップ領域へ追い出して空ける。`free` で「空き」が小さく見えるのは、残りをキャッシュに使っているため。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: 2 つのアドレス空間
+      const strip = (x, name, cls) => {
+        const g = S.g({ transform: `translate(${x},0)` }, svg);
+        S.text(50, 30, name, { cls: 't-c t-xs t-b' }, g);
+        S.rect(0, 40, 100, 470, { rx: 4, cls: 'f-sf s-rule w1' }, g);
+        const regions = [['スタック', 40, 60, 'f-rule'], ['libc 共有', 110, 50, 'f-d-soft'], ['（空き）', 160, 150, 'f-none'], ['ヒープ', 310, 80, 'f-d-soft'], ['データ', 390, 40, 'f-soft'], ['コード', 430, 80, 'f-in']];
+        const rg = {};
+        regions.forEach(([n, y, h, c]) => {
+          const r = S.rect(1, y, 98, h, { cls: c + (c === 'f-none' ? ' s-rule w1 dash' : '') }, g);
+          S.text(50, y + h / 2 + 4, n, { cls: 't-c t-xs' }, g);
+          rg[n] = r;
+        });
+        S.text(96, 54, '0x7ffd…', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, g);
+        S.text(96, 124, '0x7f3a…', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, g);
+        S.text(96, 444, '0x401000', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, g);
+        S.text(96, 506, '0x0', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, g);
+        return { g, rg, x };
+      };
+      st.sA = strip(20, 'レンダラ PID 4188', '');
+      st.sB = strip(128, 'GPU プロセス 4150', '');
+      S.text(124, 540, '仮想アドレス空間（128 TiB のうち使っている所）', { cls: 't-c t-xs t-dim' }, svg);
+      st.ptr = S.polygon([[0, 0], [10, -6], [10, 6]], { cls: 'f-x' }, svg);
+      st.ptrLbl = S.text(0, 0, '', { cls: 'code-sm t-x' }, svg);
+      // 中央: アドレスの分解
+      st.mid = [];   // 中央の列（アドレスの分解・4 段の表・TLB）。使わない段階では薄くする
+      const ga = S.g({ transform: 'translate(250,40)' }, svg);
+      st.mid.push(ga);
+      S.text(0, -10, '仮想アドレス 0x00007f3a2c41_1b20（48 ビット）', { cls: 't-xs t-b' }, ga);
+      const fields = [['PML4', '0x0fe', 69], ['PDPT', '0x0e8', 69], ['PD', '0x162', 69], ['PT', '0x01b', 69], ['オフセット', '0xb20', 94]];
+      let fx = 0;
+      st.fieldRects = fields.map(([n, v, w]) => {
+        const r = S.rect(fx, 0, w, 30, { cls: 'f-sf s-rule w1' }, ga);
+        S.text(fx + w / 2, 19, v, { cls: 't-c code-sm' }, ga);
+        S.text(fx + w / 2, 44, n + (n === 'オフセット' ? ' 12b' : ' 9b'), { cls: 't-c t-xs t-dim' }, ga);
+        fx += w;
+        return r;
+      });
+      // 4 段の表
+      st.tables = ['PML4', 'PDPT', 'PD', 'PT'].map((n, k) => {
+        const g = S.g({ transform: `translate(${250 + k * 94},110)` }, svg);
+        S.text(38, -4, n, { cls: 't-c t-xs t-b' }, g);
+        S.rect(0, 0, 76, 170, { rx: 3, cls: 'f-sf s-rule w1' }, g);
+        const rows = [];
+        for (let r = 0; r < 8; r++) {
+          const rr = S.rect(2, 2 + r * 21, 72, 19, { rx: 2, cls: 'f-sf' }, g);
+          const tt = S.text(38, 16 + r * 21, r === 3 ? '→' : '…', { cls: 't-c code-sm t-dim' }, g);
+          rows.push({ rr, tt });
+        }
+        st.mid.push(g);
+        return { g, rows, hl: 3 };
+      });
+      st.tables[3].rows[5].tt.textContent = '無し';
+      st.walkArrows = [0, 1, 2].map((k) => S.path(`M${326 + k * 94},183 H${344 + k * 94}`, { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, svg));
+      st.frameArrow = S.path('M608,183 H660', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, svg);
+      st.mid.push(...st.walkArrows, st.frameArrow, S.text(250, 300, 'CR3 → PML4 の物理アドレス（プロセスごとに違う）', { cls: 't-xs t-dim' }, svg));
+      // TLB
+      const gt = panel(svg, 250, 318, 370, 96, 'TLB（最近の変換の控え。数十〜数千行）');
+      st.mid.push(gt);
+      st.tlbRows = [['0x7f3a2c41', '0x1a2b4'], ['0x7f3a2c42', '0x1a2b5'], ['0x0000401', '0x08c10']].map(([a, b], k) => {
+        const bg = S.rect(8, 30 + k * 20, 354, 18, { rx: 3, cls: 'f-sf' }, gt);
+        S.text(16, 43 + k * 20, `VPN ${a}  →  PFN ${b}`, { cls: 'code-sm' }, gt);
+        return bg;
+      });
+      st.tlbStat = S.text(360, 43, '', { cls: 't-xs t-b', 'text-anchor': 'end' }, gt);
+      st.tlbHitArrow = S.path('M620,55 C640,55 650,120 660,170', { cls: 'f-none s-d w3 fade hide', 'marker-end': mk('d') }, svg);
+      // 状態の文
+      st.info = [0, 1, 2, 3].map((k) => S.text(250, 446 + k * 20, '', { cls: 't-xs' }, svg));
+      // 右: 物理メモリ
+      S.text(780, 30, '物理メモリ（DRAM）1 マス = 4 KiB のフレーム', { cls: 't-c t-xs t-b' }, svg);
+      const kinds = 'rrrkkkpprrrrkkppggrrhhhhkkppffrrrhhhffppggrrkkrrffrrhhppffffrrrrkkhhffpprrrrffffggrrhh'.split('');
+      st.frames = [];
+      for (let r = 0; r < 10; r++) for (let c = 0; c < 8; c++) {
+        const k = kinds[(r * 8 + c) % kinds.length];
+        const cls = { r: 'f-rule', h: 'f-dim', k: 'f-in', p: 'f-d-mid', g: 'f-d-soft', f: 'f-sf' }[k];   // 持ち主の区別は無彩色と d の濃淡
+        const rect = S.rect(660 + c * 30, 44 + r * 30, 28, 28, { rx: 2, cls: cls + ' s-rule w1' }, svg);
+        st.frames.push({ rect, kind: k, cls, x: 660 + c * 30 + 14, y: 44 + r * 30 + 14 });
+      }
+      const lg = [['f-rule', 'レンダラ'], ['f-dim', 'GPU プロセス'], ['f-in', 'カーネル'], ['f-d-mid', 'ページキャッシュ'], ['f-d-soft', '共有'], ['f-sf', '空き']];
+      lg.forEach(([c, n], k) => { const x = 660 + (k % 3) * 100, y = 352 + Math.floor(k / 3) * 16; S.rect(x, y, 12, 12, { cls: c + ' s-rule w1' }, svg); S.text(x + 16, y + 10, n, { cls: 't-xs t-dim' }, svg); });
+      st.ssd = box(svg, 660, 432, 240, 44, 'SSD', 'ファイル ／ スワップ領域');
+      // 凡例と SSD の間に、矢印 2 本と札 2 つを高さをずらして置く
+      st.ssdArrow1 = S.path('M700,432 V388', { cls: 'f-none s-d w2 fade hide', 'marker-end': mk('d') }, svg);
+      st.ssdArrow2 = S.path('M860,388 V432', { cls: 'f-none s-d w2 fade hide', 'marker-end': mk('d') }, svg);
+      st.ssdTxt1 = S.text(708, 404, '読んだファイルを残す', { cls: 't-xs t-d fade hide' }, svg);
+      st.ssdTxt2 = S.text(852, 420, '使っていない頁を追い出す', { cls: 't-xs t-d t-end fade hide' }, svg);
+      S.text(780, 500, 'free の見え方：total 16 GB ／ used 5 GB ／ buff/cache 9.8 GB ／ free 1.2 GB', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(780, 518, '「空き」が少ないのは正常。キャッシュは必要になれば手放す', { cls: 't-c t-xs t-dim' }, svg);
+      // 対応の矢印（段階0, 4）
+      st.mapA = S.path('', { cls: 'f-none s-x w2 fade hide', 'marker-end': mk('x') }, svg);
+      st.mapB = S.path('', { cls: 'f-none s-x w2 fade hide', 'marker-end': mk('x') }, svg);
+      st.mapA2 = S.path('', { cls: 'f-none s-d w2 fade hide', 'marker-end': mk('d') }, svg);
+      st.mapB2 = S.path('', { cls: 'f-none s-d w2 fade hide', 'marker-end': mk('d') }, svg);
+      st.pfLabel = S.text(438, 428, '', { cls: 't-c t-xs t-x t-b' }, svg);
+      const fr = (ix) => st.frames[ix];
+      st.frA = fr(2); st.frB = fr(28); st.frShared = fr(15); st.frShared2 = fr(40); st.frFree = fr(45);
+      st.frShared.rect.setAttribute('class', 'f-d-soft s-rule w1'); st.frShared.cls = 'f-d-soft';
+      st.frShared2.rect.setAttribute('class', 'f-d-soft s-rule w1'); st.frShared2.cls = 'f-d-soft';
+      st.frFree.rect.setAttribute('class', 'f-sf s-rule w1'); st.frFree.cls = 'f-sf'; st.frFree.kind = 'f';
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.frames.forEach((f) => setCls(f.rect, f.cls + ' s-rule w1'));
+      S.fade(st.mapA, i === 0 || i === 4); S.fade(st.mapB, i === 0 || i === 4);
+      S.fade(st.mapA2, i === 4); S.fade(st.mapB2, i === 4);
+      st.mid.forEach((e) => { e.style.opacity = i === 0 || i === 4 || i === 5 ? 0.3 : 1; });
+      const mk = S.markers(ctx.svg);
+      [st.mapA, st.mapB].forEach((m) => { setCls(m, (i === 4 ? 'f-none s-d w2' : 'f-none s-x w2') + (i === 0 || i === 4 ? ' fade' : ' fade hide')); m.setAttribute('marker-end', mk(i === 4 ? 'd' : 'x')); });
+      if (i === 0) {
+        // 中央の列と文字を避け、下を回って右の隙間（x=636・648）を上がる
+        st.mapA.setAttribute('d', `M120,480 H636 V${st.frA.y} H${st.frA.x - 16}`);
+        st.mapB.setAttribute('d', `M228,487 H648 V${st.frB.y} H${st.frB.x - 16}`);
+        setCls(st.frA.rect, 'f-rule s-x w2'); setCls(st.frB.rect, 'f-dim s-x w2');
+      }
+      if (i === 4) {
+        // 隣の帯の文字の下（y=150・372）を抜ける。中央の列は薄くしてある
+        st.mapA.setAttribute('d', `M120,150 C400,150 520,${st.frShared.y} ${st.frShared.x - 16},${st.frShared.y}`);
+        st.mapB.setAttribute('d', `M228,155 C420,155 540,${st.frShared.y + 6} ${st.frShared.x - 16},${st.frShared.y + 6}`);
+        st.mapA2.setAttribute('d', `M120,372 C380,372 520,${st.frShared2.y} ${st.frShared2.x - 16},${st.frShared2.y}`);
+        st.mapB2.setAttribute('d', `M228,380 C400,380 540,${st.frShared2.y + 6} ${st.frShared2.x - 16},${st.frShared2.y + 6}`);
+        setCls(st.frShared.rect, 'f-d-soft s-d w2'); setCls(st.frShared2.rect, 'f-d-soft s-d w2');
+      }
+      const infos = [
+        ['同じ仮想アドレス 0x401000 を、2 つのプロセスが使っている', '→ 表が違うので、別のフレームに着く', '', ''],
+        ['9 ビット = 512 行の表を 4 回引く', '1 プロセスの表の全体は数 MB（使う所だけ作る）', '', ''],
+        ['TLB ヒット：表を読まずに PFN が出る（1 サイクル未満）', 'TLB ミス：ページウォーク（数十〜数百サイクル）', 'CR3 を切り替えると TLB は原則やり直し（PCID で緩和）', ''],
+        ['#PF の原因は CR2 レジスタ（番地）と誤りコードで分かる', '正当なら：空きフレームを取り、PT に書き、命令をやり直す', '不正なら：SIGSEGV（Segmentation fault）', ''],
+        ['libc 2.39 のコードは約 2 MB → 全プロセスで同じフレーム', '属性：R（読み）X（実行）のみ。書くと #PF', '共有メモリ：両方の PT が同じフレームを指す', ''],
+        ['ページキャッシュ：ファイルのページをフレームに残す', 'ダーティなら、あとでまとめて SSD に書き戻す', 'スワップ：最近使われないページを SSD へ退避', '']
+      ][i];
+      st.info.forEach((e, k) => { e.textContent = infos[k]; });
+      S.fade(st.ssdArrow1, i === 5); S.fade(st.ssdArrow2, i === 5); S.fade(st.ssdTxt1, i === 5); S.fade(st.ssdTxt2, i === 5);
+      S.fade(st.tlbHitArrow, false);
+      st.pfLabel.textContent = '';
+      st.tlbStat.textContent = '';
+      st.tables.forEach((tb) => tb.rows.forEach((r) => setCls(r.rr, 'f-sf')));
+      st.fieldRects.forEach((r) => setCls(r, 'f-sf s-rule w1'));
+      st.walkArrows.forEach((a) => setCls(a, 'f-none s-dim w15'));
+      setCls(st.frameArrow, 'f-none s-dim w15');
+      st.tlbRows.forEach((r) => setCls(r, 'f-sf'));
+      st.tables[3].rows[5].tt.textContent = '無し';
+      // ポインタ
+      const py = i === 0 ? 470 : i === 3 ? 235 : 350;
+      st.ptr.setAttribute('transform', `translate(${i === 3 ? 20 : 20},${py}) rotate(180)`);
+      st.ptr.setAttribute('transform', `translate(12,${py})`);
+      st.ptrLbl.textContent = '';
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const mk = S.markers(ctx.svg);
+      if (i === 1) {
+        const q = U.seq(t, [0.9, 0.9, 0.9, 0.9, 0.9, 1.5], true);
+        st.fieldRects.forEach((r, k) => setCls(r, k === q.i || (q.i === 4 && k === 4) ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+        st.tables.forEach((tb, k) => tb.rows.forEach((r, n) => setCls(r.rr, n === 3 && k <= q.i && q.i < 5 ? 'f-x-soft' : 'f-sf')));
+        st.walkArrows.forEach((a, k) => { const on = q.i >= k + 1 && q.i < 5; setCls(a, on ? 'f-none s-x w2' : 'f-none s-dim w15'); a.setAttribute('marker-end', mk(on ? 'x' : 'dim')); });
+        const on = q.i === 4;
+        setCls(st.frameArrow, on ? 'f-none s-x w2' : 'f-none s-dim w15'); st.frameArrow.setAttribute('marker-end', mk(on ? 'x' : 'dim'));
+        setCls(st.frA.rect, q.i >= 4 && q.i < 5 ? 'f-rule s-x w2' : 'f-rule s-rule w1');
+      }
+      if (i === 2) {
+        const q = U.seq(t, [2.4, 0.9, 0.9, 0.9, 0.9], true);
+        const miss = q.i === 0;
+        st.tlbStat.textContent = miss ? 'ミス → ページウォーク' : 'ヒット';
+        setCls(st.tlbStat, miss ? 't-xs t-b t-x' : 't-xs t-b t-d');
+        st.tlbRows.forEach((r, k) => setCls(r, !miss && k === 0 ? 'f-d-soft' : 'f-sf'));
+        S.fade(st.tlbHitArrow, !miss);
+        const w = miss ? Math.min(4, Math.floor(q.f * 5)) : -1;
+        st.tables.forEach((tb, k) => tb.rows.forEach((r, n) => setCls(r.rr, n === 3 && k <= w ? 'f-x-soft' : 'f-sf')));
+        st.walkArrows.forEach((a, k) => setCls(a, miss && w >= k + 1 ? 'f-none s-x w2' : 'f-none s-dim w15'));
+        setCls(st.frameArrow, (miss && w >= 4) || !miss ? (miss ? 'f-none s-x w2' : 'f-none s-d w2') : 'f-none s-dim w15');
+        setCls(st.frA.rect, (miss && w >= 4) || !miss ? 'f-rule s-d w2' : 'f-rule s-rule w1');
+        st.info[3].textContent = miss ? '' : `ヒット ${q.i} 回目：PFN 0x1a2b4 が即座に出る`;
+      }
+      if (i === 3) {
+        const q = U.seq(t, [1.2, 1.2, 1.4, 1.2, 1.4], true);
+        const pt = st.tables[3];
+        const labels = ['ヒープの新しい番地 0x7f3a2c43_1000 に初めて書く', 'PT の行が「無し」→ CPU が例外 #PF を起こす', 'カーネル：空きフレーム（右）を1つ取る', 'PT の行に PFN を書き、属性 RW を付ける', '命令をやり直す → 今度は成功'];
+        st.pfLabel.textContent = labels[q.i];
+        pt.rows.forEach((r, n) => setCls(r.rr, n === 5 ? (q.i === 1 ? 'f-x-soft' : q.i >= 3 ? 'f-d-soft' : 'f-sf') : 'f-sf'));
+        pt.rows[5].tt.textContent = q.i >= 3 ? '→' : '無し';
+        setCls(pt.rows[5].tt, q.i === 1 ? 't-c code-sm t-x t-b' : 't-c code-sm t-dim');
+        setCls(st.frFree.rect, q.i === 2 ? 'f-sf s-x w2' : q.i >= 3 ? 'f-rule s-x w2' : 'f-sf s-rule w1');   // 割り当て後はレンダラのフレーム
+        setCls(st.fieldRects[3], q.i === 1 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        st.ptrLbl.textContent = '';
+      }
+      if (i === 5) {
+        const q = U.seq(t, [1.5, 1.5], true);
+        st.frames.filter((f) => f.kind === 'p').forEach((f, k) => setCls(f.rect, q.i === 0 && k % 3 === Math.floor(q.f * 3) ? 'f-d-mid s-x w2' : 'f-d-mid s-rule w1'));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 スケジューラ
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'CPU より多いタスクを順番に回す', text: '4 コアに数百のタスク。実行可能なタスクはコアごとの**ランキュー**に並び、スケジューラが次を選ぶ。1 回に走るのは数 ms（取り分は負荷で変わる）。人間には全部が同時に動いて見える。図は実時間の 500 分の 1 に遅くしてある。' },
+      { title: 'タイマー割り込みが交代の合図', text: 'タイマーが一定間隔（HZ=250〜1000、1〜4 ms）で割り込みを出す。カーネルは走っているタスクの消費時間を更新し、取り分を使い切っていれば交代を予約する。割り込みが無ければ、無限ループのプログラムが CPU を独占してしまう。' },
+      { title: 'コンテキストスイッチ', text: '走っていたタスクのレジスタ（命令ポインタ・スタックポインタ・汎用レジスタ）を task_struct に保存し、次のタスクの分を読み込む。別プロセスなら CR3 も切り替える。直接の費用は 1 回数 µs。TLB やキャッシュが冷える間接の費用も付く。' },
+      { title: '次を選ぶ規則', text: 'Linux の CFS は、重み付きの実行時間 **vruntime** が最小のタスクを赤黒木から選ぶ。nice 値が低いほど重みが大きく、同じ時間走っても vruntime が増えにくい。6.6 以降の EEVDF は、これに「いつまでに走りたいか」の締め切りを加えて遅延も抑える。' },
+      { title: '待ちと起床', text: 'ネットワークの応答を待つタスクはランキューから外れ、CPU を使わない。パケットが届くと割り込み→ドライバ→ソケット（[[6|ネットワーク]]）の順に処理され、待っていたタスクを実行可能に戻す。起きたタスクは vruntime が小さいので、すぐに選ばれる。' },
+      { title: '複数コアとアイドル', text: 'コアごとにランキューがあり、偏りは定期的に均す（ロードバランス）。走るものが無いコアはアイドルタスクで省電力状態（C ステート）に入り、割り込みで起きる。動画再生中、CPU の大半はアイドルで、復号は回路がある形式なら GPU のハードウェアが担う（第24章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      st.TASKS = {   // タスクの区別は d の濃淡と無彩色（文字を載せるレンダラとアイドルは明るい塗り）
+        ren: { name: 'レンダラ メイン', cls: 'f-d-mid s-d', w: 1 },
+        comp: { name: '合成スレッド', cls: 'f-d-soft s-d', w: 1 },
+        net: { name: 'ネットワーク', cls: 'f-rule s-mid', w: 1 },
+        aud: { name: '音声', cls: 'f-dim s-dim', w: 1 },
+        kw: { name: 'kworker', cls: 'f-fg s-fg', w: 1 },
+        idle: { name: 'アイドル', cls: 'f-in s-rule', w: 0 }
+      };
+      st.pat = [
+        [['ren', 3], ['comp', 1], ['idle', 3.5], ['net', 0.5], ['ren', 2.5], ['idle', 5.5]],
+        [['aud', 0.5], ['idle', 6], ['kw', 1], ['idle', 3], ['net', 0.5], ['idle', 5]]
+      ];
+      st.PX = 44; st.X0 = 216; st.X1 = 920; st.WIN = 16;
+      // 時間軸
+      S.text(st.X1, 30, 'いま →', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, svg);
+      S.text(st.X0, 30, '時間（1 目盛 = 1 ms、図では 0.5 秒）', { cls: 't-xs t-dim' }, svg);
+      st.ticks = S.g({}, svg);
+      st.lanes = [0, 1].map((k) => {
+        const y = 44 + k * 56;
+        S.text(20, y + 22, `コア ${k}`, { cls: 't-sm t-b' }, svg);
+        const cur = S.text(20, y + 40, '', { cls: 't-xs t-dim' }, svg);
+        S.rect(st.X0, y, st.X1 - st.X0, 40, { cls: 'f-sf s-rule w1' }, svg);
+        const g = S.g({}, svg);
+        return { y, g, cur };
+      });
+      S.line(st.X1, 40, st.X1, 160, { cls: 's-x w2' }, svg);
+      st.bolt = S.text(st.X1 - 8, 170, '⚡', { cls: 't-sm' }, svg);
+      st.boltLbl = S.text(st.X1 - 20, 172, 'タイマー割り込み', { cls: 't-xs t-e t-b fade hide', 'text-anchor': 'end' }, svg);
+      // ランキュー
+      st.gq = panel(svg, 20, 190, 280, 350, 'コア 0 のランキュー（実行可能なタスク）');
+      S.text(14, 42, '並び順: vruntime の小さい順（赤黒木）', { cls: 't-xs t-dim' }, st.gq);
+      st.qRows = [0, 1, 2, 3].map((k) => {
+        const y = 56 + k * 44;
+        const bg = S.rect(10, y, 260, 36, { rx: 4, cls: 'f-sf s-rule w1' }, st.gq);
+        const nm = S.text(22, y + 16, '', { cls: 't-sm t-b' }, st.gq);
+        const vr = S.text(22, y + 30, '', { cls: 'code-sm t-dim' }, st.gq);
+        const mark = S.text(258, y + 23, '', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, st.gq);
+        return { bg, nm, vr, mark };
+      });
+      st.qNote = [0, 1, 2].map((k) => S.text(14, 258 + k * 18, '', { cls: 't-xs' }, st.gq));
+      st.vr0 = { ren: 120.0, comp: 121.5, net: 118.2, aud: 119.0, kw: 125.0 };   // vruntime の初めの値（図の時刻 0）
+      // 交代の中身
+      st.gsw = panel(svg, 320, 190, 320, 350, 'コンテキストスイッチの中身');
+      st.swA = box(st.gsw, 14, 40, 130, 90, '', 'task_struct', 'f-sf s-rule w1');
+      st.swB = box(st.gsw, 176, 40, 130, 90, '', 'task_struct', 'f-sf s-rule w1');
+      st.swAName = st.swA.querySelector('text');
+      st.swBName = st.swB.querySelector('text');
+      const regs = S.g({ transform: 'translate(96,150)' }, st.gsw);
+      S.rect(0, 0, 128, 70, { rx: 4, cls: 'f-in s-rule w1' }, regs);
+      S.text(64, 18, 'CPU のレジスタ', { cls: 't-c t-xs t-b' }, regs);
+      S.text(64, 36, 'rip  rsp  rax…r15', { cls: 't-c code-sm' }, regs);
+      S.text(64, 54, 'CR3（ページテーブル）', { cls: 't-c code-sm' }, regs);
+      st.swArrow1 = S.path('M96,170 H79 V130', { cls: 'f-none s-x w2 fade hide', 'marker-end': mk('x') }, st.gsw);
+      st.swArrow2 = S.path('M241,130 V170 H224', { cls: 'f-none s-x w2 fade hide', 'marker-end': mk('x') }, st.gsw);
+      st.swTxt1 = S.text(14, 250, '', { cls: 't-xs' }, st.gsw);
+      st.swTxt2 = S.text(14, 270, '', { cls: 't-xs' }, st.gsw);
+      st.swTxt3 = S.text(14, 290, '', { cls: 't-xs' }, st.gsw);
+      st.swTxt4 = S.text(14, 310, '', { cls: 't-xs' }, st.gsw);
+      st.swCount = S.text(306, 330, '', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, st.gsw);
+      // 起床の図（段階5）
+      st.gw = S.g({ cls: 'fade hide' }, svg);
+      S.rect(334, 440, 292, 90, { rx: 6, cls: 'f-d-soft s-d w1' }, st.gw);
+      S.text(346, 460, 'NIC にパケット → 割り込み → ドライバ → ソケット', { cls: 't-xs t-b' }, st.gw);
+      S.text(346, 478, '→ 待っていた「ネットワーク」を実行可能に（wake_up）', { cls: 't-xs' }, st.gw);
+      S.text(346, 496, '→ vruntime が小さいので、次の交代ですぐ走る', { cls: 't-xs' }, st.gw);
+      S.text(346, 514, '→ データをソケットから取り出し、レンダラを起こす', { cls: 't-xs' }, st.gw);
+      st.wakePk = packet(svg, 'f-d', 20, 12);
+      st.wakePk.style.opacity = 0;
+      // タスクの状態
+      st.gs = panel(svg, 660, 190, 280, 350, 'タスクと状態');
+      const keys = ['ren', 'comp', 'net', 'aud', 'kw', 'idle'];
+      st.stRows = keys.map((k, n) => {
+        const y = 40 + n * 46;
+        S.rect(14, y, 16, 16, { rx: 3, cls: st.TASKS[k].cls + ' w1' }, st.gs);
+        S.text(38, y + 13, st.TASKS[k].name, { cls: 't-sm t-b' }, st.gs);
+        const chip = S.rect(170, y - 2, 96, 20, { rx: 4, cls: 'f-in s-rule w1' }, st.gs);
+        const ct = S.text(218, y + 12, '', { cls: 't-c t-xs t-b' }, st.gs);
+        const sub = S.text(38, y + 30, '', { cls: 't-xs t-dim' }, st.gs);
+        return { k, chip, ct, sub };
+      });
+      st.stRows[0].sub.textContent = 'JS・レイアウト。PID 4188';
+      st.stRows[1].sub.textContent = '画面の合成。PID 4188';
+      st.stRows[2].sub.textContent = 'パケットの受け取り。PID 4133';
+      st.stRows[3].sub.textContent = '音の出力。PID 4201';
+      st.stRows[4].sub.textContent = 'カーネルの後回し仕事';
+      st.stRows[5].sub.textContent = '走るものが無いとき。C ステートへ';
+      st.idleTxt = S.text(14, 334, '', { cls: 't-xs t-b' }, st.gs);
+    },
+    /* 図の時刻 u（ms）までに、タスク key が 2 つのコアで走った時間の合計。vruntime は時刻だけから決める（段階を飛んでも同じ表示） */
+    ranUntil(st, key, u) {
+      let sum = 0;
+      st.pat.forEach((pat) => {
+        const tot = pat.reduce((a, q) => a + q[1], 0);
+        const full = Math.floor(u / tot), rest = u - full * tot;
+        let acc = 0;
+        pat.forEach(([k, d]) => { if (k === key) sum += full * d + U.clamp(rest - acc, 0, d); acc += d; });
+      });
+      return sum;
+    },
+    segAt(st, lane, u) {
+      const pat = st.pat[lane];
+      let acc = 0;
+      const tot = pat.reduce((a, s) => a + s[1], 0);
+      const m = U.mod(u, tot);
+      for (let k = 0; k < pat.length; k++) {
+        if (m < acc + pat[k][1]) return { k, key: pat[k][0], start: u - (m - acc), end: u - (m - acc) + pat[k][1], tot };
+        acc += pat[k][1];
+      }
+      return { k: 0, key: pat[0][0], start: u, end: u + pat[0][1], tot };
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.boltLbl, i === 1);
+      S.fade(st.gw, i === 4);
+      setCls(st.gq.firstChild, i === 3 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      setCls(st.gsw.firstChild, i === 2 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      setCls(st.gs.firstChild, i === 5 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.qNote.forEach((n) => { n.textContent = ''; });
+      if (i === 3) { st.qNote[0].textContent = '次 = vruntime が最小のタスク'; st.qNote[1].textContent = '走った時間 × (1024 / 重み) を足す'; st.qNote[2].textContent = 'nice 0 の重み 1024、nice -5 は 3121'; }
+      if (i === 0) { st.qNote[0].textContent = '取り分（タイムスライス）を使い切るか、'; st.qNote[1].textContent = '待ちに入ると、次のタスクへ交代する'; }
+      if (i === 1) { st.qNote[0].textContent = '割り込みごとに消費時間を加算し、'; st.qNote[1].textContent = '取り分を超えていれば交代を予約'; }
+      st.idleTxt.textContent = i === 5 ? 'アイドルの割合：コア 0 56% ／ コア 1 88%' : '';
+      st.swTxt1.textContent = i === 2 ? '① 前のタスクのレジスタを task_struct へ保存' : '';
+      st.swTxt2.textContent = i === 2 ? '② 次のタスクの task_struct からレジスタを復元' : '';
+      st.swTxt3.textContent = i === 2 ? '③ 別のプロセスなら CR3 を書き換える' : '';
+      st.swTxt4.textContent = i === 2 ? '④ 復元した rip から、何事も無かったように続く' : '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const u = t * 2;  // ms（図の時間）
+      const toX = (ms) => st.X1 - (u - ms) * st.PX;
+      // 時間軸の目盛り（タイマー割り込み）
+      S.clear(st.ticks);
+      for (let k = Math.ceil(u - st.WIN); k <= u; k++) {
+        const x = toX(k);
+        if (x < st.X0) continue;
+        S.line(x, 40, x, 160, { cls: i === 1 ? 's-e w1' : 's-soft w1' }, st.ticks);
+        if (i === 1 && u - k < 0.5) S.circle(x, 40, 4, { cls: 'f-e' }, st.ticks);
+      }
+      // レーン
+      st.lanes.forEach((ln, lane) => {
+        S.clear(ln.g);
+        let cur = this.segAt(st, lane, u - st.WIN);
+        for (let guard = 0; guard < 40 && cur.start < u; guard++) {
+          const x1 = Math.max(st.X0, toX(cur.start)), x2 = Math.min(st.X1, toX(cur.end));
+          if (x2 > x1) {
+            const tk = st.TASKS[cur.key];
+            S.rect(x1, ln.y + 4, x2 - x1, 32, { rx: 3, cls: tk.cls + ' w1' }, ln.g);
+            if (x2 - x1 > 54) S.text((x1 + x2) / 2, ln.y + 24, tk.name, { cls: 't-c t-xs' + (cur.key === 'idle' ? ' t-dim' : '') }, ln.g);
+          }
+          cur = this.segAt(st, lane, cur.end + 0.001);
+        }
+        const now = this.segAt(st, lane, u);
+        ln.cur.textContent = 'いま: ' + st.TASKS[now.key].name;
+      });
+      // vruntime（初めの値 + 走った時間）
+      const now0 = this.segAt(st, 0, u), now1 = this.segAt(st, 1, u);
+      st.vr = {};
+      Object.keys(st.vr0).forEach((k) => { st.vr[k] = st.vr0[k] + this.ranUntil(st, k, u); });
+      // コア 0 の直前の交代：いまの区間の始まり。回数は時刻 0 からの区間の始まりの数
+      const prev0 = this.segAt(st, 0, now0.start - 0.001);
+      st.swAt = now0.start / 2; st.swFrom = prev0.key; st.swTo = now0.key;
+      const starts = [];
+      st.pat[0].reduce((a, q) => { starts.push(a); return a + q[1]; }, 0);
+      const tot0 = now0.tot;
+      st.nSw = 0;
+      for (let c = 0; c * tot0 <= u; c++) starts.forEach((a) => { const x = c * tot0 + a; if (x > 0 && x <= u) st.nSw++; });
+      // ランキュー（コア 0）: 走っていない実行可能タスク
+      const cand = ['ren', 'comp', 'net'].filter((k) => k !== now0.key && k !== now1.key);
+      // net は起きている時間帯だけ実行可能
+      const netAwake = (() => { const m = U.mod(u, 16); return m > 7 && m < 8.6; })();
+      const list = cand.filter((k) => k !== 'net' || netAwake).sort((a, b) => st.vr[a] - st.vr[b]);
+      st.qRows.forEach((r, k) => {
+        const key = k === 0 ? now0.key : list[k - 1];
+        if (!key || (k === 0 && key === 'idle' && !list.length)) { r.bg.style.opacity = key ? 1 : 0; r.nm.textContent = key ? 'アイドル（走るものが無い）' : ''; r.vr.textContent = ''; r.mark.textContent = ''; setCls(r.bg, 'f-sf s-rule w1'); return; }
+        r.bg.style.opacity = 1;
+        r.nm.textContent = st.TASKS[key].name + (k === 0 ? '（実行中）' : '');
+        r.vr.textContent = key === 'idle' ? '' : `vruntime ${st.vr[key].toFixed(2)} ms`;
+        r.mark.textContent = k === 1 ? '次 ▶' : '';
+        setCls(r.bg, k === 0 ? st.TASKS[key].cls + ' w15' : 'f-sf s-rule w1');
+      });
+      // 交代の中身
+      const since = t - st.swAt;
+      const active = since < 1.4;
+      S.fade(st.swArrow1, active && since < 0.7);
+      S.fade(st.swArrow2, active && since >= 0.5);
+      st.swAName.textContent = st.swFrom ? st.TASKS[st.swFrom].name : '';
+      st.swBName.textContent = st.swTo ? st.TASKS[st.swTo].name : '';
+      setCls(st.swA.box, active && since < 0.7 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      setCls(st.swB.box, active && since >= 0.5 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      st.swCount.textContent = st.nSw ? `切り替え ${st.nSw} 回（コア 0）` : '';
+      // 状態
+      st.stRows.forEach((r) => {
+        const running = r.k === now0.key || r.k === now1.key;
+        const runnable = list.includes(r.k);
+        const s = r.k === 'idle' ? (running ? 'R' : '-') : running ? 'R' : runnable ? 'RR' : 'S';
+        const lbl = s === 'R' ? 'R 実行中' : s === 'RR' ? 'R 実行可能' : s === 'S' ? 'S 待ち' : '—';
+        r.ct.textContent = lbl;
+        setCls(r.chip, s === 'R' ? 'f-x-soft s-x w15' : s === 'RR' ? 'f-sf s-fg w1' : 'f-in s-rule w1');
+        setCls(r.ct, s === 'R' ? 't-c t-xs t-b t-x' : s === 'RR' ? 't-c t-xs t-b' : 't-c t-xs t-b t-dim');
+      });
+      // 起床のパケット（段階5）: net が走る少し前に左下から現れる
+      if (i === 4) {
+        const m = U.mod(u, 16);
+        const f = U.remap(m, 6.4, 7.5, 0, 1);
+        const vis = m > 6.4 && m < 7.5;
+        st.wakePk.style.opacity = vis ? 1 : 0;
+        st.wakePk.setAttribute('transform', `translate(${(340 + f * 260).toFixed(1)},${(560 - f * 120).toFixed(1)})`);
+      } else st.wakePk.style.opacity = 0;
+      st.bolt.style.opacity = i === 1 ? 1 : 0.35;
+    }
+  };
+
+  /* ================================================================
+     場面6 ドライバとネットワークスタック
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: 'ドライバが装置の言葉を話す', text: '装置ごとにレジスタの配置も手順も違う。ドライバがそれを隠し、カーネル共通の形 `net_device`（open・start_xmit・poll …）に合わせる。Wi-Fi カードでも有線 NIC でも USB テザリングでも、上の層からは同じ装置に見える。' },
+      { title: '受信リングと DMA', text: 'ドライバは空のバッファを**受信リング**（記述子の環）に並べておく。NIC は届いたフレームを DMA で直接そのバッファへ書き、割り込みで知らせる。カーネルは NAPI で割り込みを止め、溜まった分をまとめて取り出す。1 回の割り込みで数十フレーム処理することもある。' },
+      { title: '層を上がる', text: 'Ethernet／Wi-Fi のヘッダを外し、IP 層で宛先が自分か確かめ、プロトコル番号（17=UDP、6=TCP）で振り分け、ポート番号でソケットを探して受信キューにつなぐ。データは `sk_buff` 1 つのまま、ヘッダの先頭を指すポインタを進めるだけで層を通る。' },
+      { title: '待っているプロセスを起こす', text: '受信キューにデータが入ると、`epoll_wait()` で待っていたネットワークサービスを実行可能にする（[[5|スケジューラ]]）。走り出したプロセスは `recvfrom()` でユーザー空間のバッファへ写す。YouTube の既定の QUIC では、TLS の復号とストリームの組み立てはここから先、ブラウザの中で行う。' },
+      { title: '送信の道', text: '逆向き。`sendto()`→ソケット→UDP がヘッダを付ける→IP が経路表を引いて次の送り先と出口の装置を決め、ヘッダを付ける→キュー（qdisc）で順番と速度を整える→ドライバが送信リングに載せ、NIC が電線や電波へ。送信完了も割り込みで知り、バッファを回収する。' },
+      { title: 'ここが上と下のつなぎ目', text: 'ユーザー空間から見える境界は**ソケット API**（socket・connect・sendto・recvfrom・epoll）だけ。[[3|システムコール]]の形で呼ばれ、その下でパケットが作られる。第10章のブラウザはこの API を呼び、第11章以降はこの下の道を追う。1080p の再生で、1 秒に約 400〜600 パケットが通る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ユーザー空間
+      S.rect(20, 20, 660, 140, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(32, 40, 'ユーザー空間', { cls: 't-b t-sm' }, svg);
+      st.proc = box(svg, 300, 50, 360, 96, '', '', 'f-sf s-fg w15');
+      S.text(180, 20, 'ネットワークサービス（PID 4133）', { cls: 't-c t-b t-sm' }, st.proc);
+      st.procState = S.rect(12, 32, 90, 20, { rx: 4, cls: 'f-in s-rule w1' }, st.proc);
+      st.procStateTxt = S.text(57, 46, 'S 待ち', { cls: 't-c t-xs t-b t-dim' }, st.proc);
+      st.procCall = S.text(112, 46, 'epoll_wait(5, …)  ← 届くまで眠る', { cls: 'code-sm' }, st.proc);
+      st.ubuf = S.rect(12, 60, 336, 26, { rx: 3, cls: 'f-in s-rule w1' }, st.proc);
+      st.ubufTxt = S.text(180, 77, 'buf（64 KiB）', { cls: 't-c t-xs t-dim' }, st.proc);
+      st.ubufFill = S.rect(14, 62, 0, 22, { rx: 2, cls: 'f-d' }, st.proc);
+      st.quicTxt = [0, 1, 2].map((k) => S.text(32, 100 + k * 16, '', { cls: 't-xs t-dim' }, svg));   // パケットの道（x≥360）の左に 3 行で
+      // 境界
+      S.line(20, 172, 680, 172, { cls: 's-x w3' }, svg);
+      st.apiLbl = S.text(32, 190, 'ソケット API：socket / connect / sendto / recvfrom / epoll_wait（システムコール）', { cls: 't-xs t-x t-b' }, svg);
+      // カーネルの層
+      S.rect(20, 200, 660, 222, { rx: 8, cls: 'f-in s-fg w15' }, svg);
+      S.text(32, 218, 'カーネル空間', { cls: 't-b t-sm' }, svg);
+      const layers = [
+        ['sock', 226, 'ソケットの受信キュー', '51234 番の UDP ソケット（相手は 443 番、fd 23）'],
+        ['udp', 276, 'UDP ／ TCP', 'ポート番号で振り分け。UDP ヘッダ 8 B を外す'],
+        ['ip', 326, 'IP', '宛先は自分か。プロトコル 17=UDP。IP ヘッダ 20 B を外す'],
+        ['drv', 376, 'ドライバ（NAPI poll）', 'Ethernet ヘッダ 14 B を外す。net_device で共通化']
+      ];
+      st.layers = {};
+      layers.forEach(([k, y, n, sub]) => {
+        const g = S.g({}, svg);
+        const r = S.rect(60, y, 600, 44, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+        S.text(72, y + 18, n, { cls: 't-sm t-b' }, g);
+        S.text(72, y + 34, sub, { cls: 't-xs t-dim' }, g);
+        st.layers[k] = { g, r, y };
+      });
+      // ハードウェア
+      S.rect(20, 432, 660, 108, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(32, 450, 'ハードウェア', { cls: 't-b t-sm' }, svg);
+      st.nic = box(svg, 40, 460, 150, 72, 'NIC ／ Wi-Fi カード', 'PHY（電波・電線）＋ MAC');
+      st.devChips = ['Wi-Fi', 'Ethernet', 'USB'].map((n, k) => S.label(svg, 70 + k * 50, 548, n, { cls: 't-xs', box: 'f-sf s-rule w1', h: 16, pad: 10 }));
+      st.devChips.forEach((c) => c.classList.add('fade', 'hide'));
+      const gr = S.g({}, svg);
+      S.rect(220, 460, 300, 72, { rx: 6, cls: 'f-sf s-rule w1' }, gr);
+      S.text(232, 476, 'DRAM：受信リング（記述子 ×8）', { cls: 't-xs t-b' }, gr);
+      st.rx = [];
+      for (let k = 0; k < 8; k++) st.rx.push(S.rect(232 + k * 34, 482, 28, 18, { rx: 2, cls: 'f-sf s-rule w1' }, gr));
+      S.text(232, 516, '送信リング', { cls: 't-xs t-b' }, gr);
+      st.tx = [];
+      for (let k = 0; k < 8; k++) st.tx.push(S.rect(300 + k * 26, 506, 22, 14, { rx: 2, cls: 'f-sf s-rule w1' }, gr));
+      st.cpu = box(svg, 560, 460, 100, 72, 'CPU', '割り込みを受ける');
+      st.dmaArrow = S.path('M190,491 H230', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, svg);
+      S.text(210, 486, 'DMA', { cls: 't-c t-xs t-d t-b' }, svg);
+      st.irqPath = S.path('M115,460 V444 H610 V460', { cls: 'f-none s-e w15 dash' }, svg);
+      S.text(360, 440, '割り込み線（IRQ）', { cls: 't-c t-xs t-e' }, svg);
+      st.irqDot = S.circle(0, 0, 5, { cls: 'f-e glow' }, svg);
+      st.irqDot.style.opacity = 0;
+      // パケット（4 つの部品）
+      st.pk = S.g({}, svg);
+      const segs = [['eth', 'f-dim', 14, 'E'], ['ip', 'f-mid', 16, 'IP'], ['udp', 'f-rule', 14, 'U'], ['pay', 'f-d', 96, '動画の断片 1,350 B']];
+      let px = -70;
+      st.pkSeg = {};
+      segs.forEach(([k, c, w, l]) => {
+        const g = S.g({ transform: `translate(${px + w / 2},0)` }, st.pk);
+        S.rect(-w / 2, -9, w, 18, { rx: 2, cls: c }, g);
+        if (w > 30) S.text(0, 4, l, { cls: 't-c t-xs t-sf t-b' }, g);
+        st.pkSeg[k] = g;
+        px += w;
+      });
+      st.pk.style.opacity = 0;
+      // 右の補助パネル
+      st.gside = panel(svg, 700, 20, 240, 520, '');
+      st.sideTitle = S.text(12, 20, '', { cls: 't-b t-sm' }, st.gside);
+      st.sideLines = [];
+      for (let k = 0; k < 20; k++) st.sideLines.push(S.text(12, 46 + k * 22, '', { cls: 't-xs' }, st.gside));
+      // sk_buff の図（段階3）
+      st.skb = S.g({ cls: 'fade hide', transform: 'translate(712,300)' }, svg);
+      S.rect(0, 0, 216, 30, { rx: 3, cls: 'f-sf s-rule w1' }, st.skb);
+      [['f-dim', 0, 22], ['f-mid', 22, 26], ['f-rule', 48, 22], ['f-d', 70, 146]].forEach(([c, x, w]) => S.rect(x, 1, w, 28, { cls: c }, st.skb));
+      st.skbPtr = S.polygon([[0, 46], [-6, 56], [6, 56]], { cls: 'f-x' }, st.skb);
+      st.skbLbl = S.text(0, 72, 'data →', { cls: 'code-sm t-x' }, st.skb);
+      S.text(0, 94, 'head', { cls: 'code-sm t-dim' }, st.skb);
+      S.text(216, 94, 'tail', { cls: 'code-sm t-dim', 'text-anchor': 'end' }, st.skb);
+      // 送信の波
+      st.wave = S.g({ cls: 'fade hide' }, svg);
+      for (let k = 1; k <= 3; k++) S.path(`M${40 - k * 6},${496 - k * 10} a${k * 12},${k * 12} 0 0 0 0,${k * 20}`, { cls: 'f-none s-r w2' }, st.wave);
+    },
+    side(st, title, lines) {
+      st.sideTitle.textContent = title;
+      st.sideLines.forEach((l, k) => { l.textContent = lines[k] || ''; setCls(l, (lines[k] || '').startsWith('■') ? 't-xs t-b' : 't-xs'); });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.devChips.forEach((c) => S.fade(c, i === 0));
+      S.fade(st.skb, i === 2);
+      S.fade(st.wave, false);
+      st.pk.style.opacity = 0;
+      st.ubufFill.setAttribute('width', 0);
+      st.rx.forEach((r) => setCls(r, 'f-sf s-rule w1'));
+      st.tx.forEach((r) => setCls(r, 'f-sf s-rule w1'));
+      Object.values(st.layers).forEach((l) => setCls(l.r, 'f-sf s-rule w1'));
+      setCls(st.procState, 'f-in s-rule w1'); st.procStateTxt.textContent = 'S 待ち'; setCls(st.procStateTxt, 't-c t-xs t-b t-dim');
+      st.procCall.textContent = 'epoll_wait(5, …)  ← 届くまで眠る';
+      ['ここから先は QUIC：TLS 1.3 の復号と', 'ストリームの組み立ては', 'ブラウザ（ユーザー空間）の仕事'].forEach((x, k) => { st.quicTxt[k].textContent = i === 3 ? x : ''; });
+      setCls(st.apiLbl, i === 5 ? 't-sm t-x t-b' : 't-xs t-x t-b');
+      const sides = [
+        ['ドライバの共通の形 net_device', ['■ カーネルが呼ぶ入口（ops）', 'ndo_open   装置を使い始める', 'ndo_start_xmit  1 フレーム送る', 'napi poll  届いた分を取り出す', 'ndo_set_rx_mode  受信の条件', '', '■ 装置ごとの違いはドライバの中', 'iwlwifi（Intel の Wi-Fi）', 'r8169 / igc（有線 NIC）', 'rndis_host（USB テザリング）', '', '■ 上の層が見るもの', 'wlan0 / eth0 という名前', 'MTU 1500、MAC アドレス', '統計（ip -s link）']],
+        ['受信リングと NAPI', ['■ 受信リング', '記述子 = バッファの番地 + 長さ + 状態', '環状。NIC が書く位置と', 'ドライバが読む位置が追いかける', '典型は 256〜4096 個', '', '■ DMA', 'NIC が DRAM に直接書く。CPU は使わない', '書き終えたら記述子に「済」を立てる', '', '■ 割り込みと NAPI', '最初の 1 個で割り込み →', '割り込みを止めて poll で取り出す', '（予算 64 個）→ 空になったら再び許可', '毎パケット割り込むより CPU が空く']],
+        ['sk_buff：1 つの入れ物で層を通る', ['■ ヘッダを外す = ポインタを進める', 'head / data / tail / end の 4 つ', 'data を 14 進めると Ethernet を外した', 'さらに 20 で IP、8 で UDP', 'コピーは起きない', '', '■ 各層で見る所', 'Ethernet: 宛先 MAC は自分か', 'IP: 宛先 IP、プロトコル番号、', '   チェックサム（NIC が計算済み）', 'UDP: 宛先ポート → ソケットを探す', '', '（下の図：data ポインタの位置）']],
+        ['起床と copy', ['■ 受信キューに入ったとき', 'sock_def_readable() →', '待ち行列のタスクを wake_up', 'epoll なら準備完了リストに追加', '', '■ プロセス側', 'epoll_wait が戻る（fd 23 が読める）', 'recvfrom(23, buf, 65536) →', 'skb から copy_to_user', '戻り値 1,350 バイト', '', '■ QUIC の場合（YouTube）', 'UDP の中身は暗号文のまま届く', '復号・順序づけ・再送はブラウザ', 'カーネルは UDP までしか見ない']],
+        ['送信の道', ['① sendto(23, buf, 1250)', '   ユーザーのバッファ → skb に copy', '② UDP: 送信元/宛先ポート + 長さ', '③ IP: 経路表（ip route）を引く', '   → 次の送り先 192.168.1.1', '   → 出口 wlan0、宛先 MAC は ARP 表', '④ qdisc（fq_codel など）に並ぶ', '   順番・公平さ・速度の調整', '⑤ ドライバ ndo_start_xmit', '   送信リングの記述子に載せる', '⑥ NIC が DMA で読み、電波へ', '⑦ 送信完了の割り込み → skb を回収']],
+        ['つなぎ目の API と量', ['■ ユーザー空間が呼ぶもの', 'socket(AF_INET6, SOCK_DGRAM) = 23', 'connect(23, youtube の IP:443)', 'sendto / recvfrom（または sendmsg）', 'epoll_ctl / epoll_wait', 'setsockopt（バッファ大きさなど）', '', '■ 量の目安', '1080p 約 5 Mbps → 1 秒に', '約 430 パケット（1,452 B）', '4K 約 20 Mbps → 約 1,700', '1 パケットあたりカーネルの処理', '数 µs → CPU の数 %', '', '■ 次の章', '10 ブラウザ：この API を呼ぶ側', '11〜：この下のパケットの道']]
+      ][i];
+      this.side(st, sides[0], sides[1]);
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const L = st.layers;
+      const yUser = 100, ySock = L.sock.y + 22, yUdp = L.udp.y + 22, yIp = L.ip.y + 22, yDrv = L.drv.y + 22, yRing = 491, yNic = 470;   // yNic: NIC の箱の上の方（題の上）
+      const col = 360;
+      const showPk = (x, y, segsOn) => {
+        st.pk.style.opacity = 1;
+        st.pk.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)})`);
+        ['eth', 'ip', 'udp', 'pay'].forEach((k) => { st.pkSeg[k].style.opacity = segsOn.includes(k) ? 1 : 0; });
+      };
+      if (i === 0) {
+        const q = U.seq(t, [1.5, 1.5], true);
+        const f = U.ease.inOut(q.i === 0 ? q.f : 1);
+        showPk(U.lerp(115, col, f), U.lerp(yNic, yDrv, f), ['eth', 'ip', 'udp', 'pay']);
+        if (q.i === 1) st.pk.style.opacity = 1 - q.f;
+        st.devChips.forEach((c, k) => setCls(c.firstChild, Math.floor(t / 1.5) % 3 === k ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+        setCls(L.drv.r, 'f-sf s-x w15');
+      }
+      if (i === 1) {
+        const q = U.seq(t, [0.5, 0.5, 0.5, 0.5, 0.9, 1.6, 1.0], true);
+        // 4 個届いて埋まる → 割り込み → poll で空に
+        st.rx.forEach((r, k) => setCls(r, (q.i < 5 && k <= Math.min(3, q.i)) || (q.i === 5 && k <= 3 && k > Math.floor(q.f * 4) - 1) ? 'f-d s-d w1' : 'f-sf s-rule w1'));
+        if (q.i < 4) { showPk(U.lerp(115, 246 + q.i * 34, U.ease.out(q.f)), U.lerp(yNic, yRing, U.ease.out(q.f)), ['eth', 'ip', 'udp', 'pay']); st.pk.setAttribute('transform', st.pk.getAttribute('transform') + ' scale(0.5)'); }
+        else st.pk.style.opacity = 0;
+        const irq = q.i === 4;
+        st.irqDot.style.opacity = irq ? 1 : 0;
+        if (irq) { const p = S.along(st.irqPath, q.f); st.irqDot.setAttribute('cx', p.x); st.irqDot.setAttribute('cy', p.y); }
+        setCls(st.cpu.box, irq && q.f > 0.9 || q.i === 5 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        setCls(L.drv.r, q.i === 5 ? 'f-sf s-x w15' : 'f-sf s-rule w1');
+        st.sideLines[18].textContent = q.i < 4 ? `届いたフレーム ${q.i + 1} 個（割り込みはまだ）` : q.i === 4 ? '割り込み → CPU がドライバの poll を予約' : q.i === 5 ? 'poll：4 個をまとめて取り出す' : '空になった → 割り込みを再び許可';
+        setCls(st.sideLines[18], 't-xs t-b t-x');
+      }
+      if (i === 2) {
+        const q = U.seq(t, [1.0, 1.0, 1.0, 1.0, 1.4], true);
+        const ys = [yRing, yDrv, yIp, yUdp, ySock];
+        const xs = [246, col, col, col, col];
+        const k = Math.min(3, q.i);
+        const f = q.i < 4 ? U.ease.inOut(q.f) : 1;
+        const x = U.lerp(xs[k], xs[k + 1], f), y = U.lerp(ys[k], ys[k + 1], f);
+        const segs = [['eth', 'ip', 'udp', 'pay'], ['ip', 'udp', 'pay'], ['udp', 'pay'], ['pay'], ['pay']];
+        showPk(x, y, segs[q.i < 4 ? (f > 0.5 ? q.i + 1 : q.i) : 4]);
+        Object.keys(L).forEach((key) => setCls(L[key].r, 'f-sf s-rule w1'));
+        const hl = ['drv', 'ip', 'udp', 'sock'][q.i < 4 ? q.i : 3];
+        if (q.i >= 1 || f > 0.5) setCls(L[hl].r, 'f-sf s-x w15');
+        const ptrX = [0, 22, 48, 70, 70][q.i < 4 ? (f > 0.5 ? q.i + 1 : q.i) : 4];
+        st.skbPtr.setAttribute('transform', `translate(${ptrX},0)`);
+        st.skbLbl.setAttribute('x', ptrX);
+      }
+      if (i === 3) {
+        const q = U.seq(t, [1.0, 0.8, 0.8, 1.2, 1.4], true);
+        const waiting = q.i === 0;
+        setCls(st.procState, q.i === 0 ? 'f-in s-rule w1' : q.i === 1 ? 'f-sf s-fg w1' : 'f-x-soft s-x w15');
+        st.procStateTxt.textContent = q.i === 0 ? 'S 待ち' : q.i === 1 ? 'R 実行可能' : 'R 実行中';
+        setCls(st.procStateTxt, q.i === 0 ? 't-c t-xs t-b t-dim' : q.i === 1 ? 't-c t-xs t-b' : 't-c t-xs t-b t-x');
+        st.procCall.textContent = q.i === 0 ? 'epoll_wait(5, …)  ← 届くまで眠る' : q.i === 1 ? '起こされた（wake_up）' : q.i === 2 ? 'epoll_wait が戻る：fd 23 が読める' : q.i === 3 ? 'recvfrom(23, buf, 65536, …)' : '戻り値 1350 → QUIC の復号へ';
+        setCls(L.sock.r, waiting ? 'f-sf s-rule w1' : 'f-sf s-x w15');
+        if (q.i <= 2) { showPk(col, ySock, ['pay']); st.pk.style.opacity = waiting ? U.ease.out(q.f) : 1; }
+        else if (q.i === 3) { const f = U.ease.inOut(q.f); showPk(U.lerp(col, 480, f), U.lerp(ySock, yUser + 23, f), ['pay']); }
+        else { st.pk.style.opacity = 0; st.ubufFill.setAttribute('width', 80); st.ubufTxt.textContent = '1,350 B を受け取った'; }
+        if (q.i < 4) { st.ubufFill.setAttribute('width', 0); st.ubufTxt.textContent = 'buf（64 KiB）'; }
+      }
+      if (i === 4) {
+        const q = U.seq(t, [0.9, 0.9, 0.9, 0.9, 0.9, 0.9, 1.4], true);
+        const pts = [[480, yUser + 23], [col, ySock], [col, yUdp], [col, yIp], [col, yDrv], [310, 513], [115, yRing]];
+        const segsAt = [['pay'], ['pay'], ['udp', 'pay'], ['ip', 'udp', 'pay'], ['eth', 'ip', 'udp', 'pay'], ['eth', 'ip', 'udp', 'pay'], ['eth', 'ip', 'udp', 'pay']];
+        if (q.i < 6) {
+          const f = U.ease.inOut(q.f);
+          const a = pts[q.i], b = pts[q.i + 1];
+          showPk(U.lerp(a[0], b[0], f), U.lerp(a[1], b[1], f), segsAt[f > 0.5 ? q.i + 1 : q.i]);
+          if (q.i === 5) st.pk.setAttribute('transform', st.pk.getAttribute('transform') + ` scale(${(1 - f * 0.5).toFixed(2)})`);
+        } else st.pk.style.opacity = 0;
+        Object.keys(L).forEach((key) => setCls(L[key].r, 'f-sf s-rule w1'));
+        const hl = [null, 'sock', 'udp', 'ip', 'drv', null, null][q.i];
+        if (hl) setCls(L[hl].r, 'f-sf s-x w15');
+        st.tx.forEach((r, k) => setCls(r, (q.i === 5 && q.f > 0.8) || q.i === 6 ? (k === 0 ? 'f-d s-d w1' : 'f-sf s-rule w1') : 'f-sf s-rule w1'));
+        S.fade(st.wave, q.i === 6);
+        st.procCall.textContent = q.i === 0 ? 'sendto(23, buf, 1250, …)  ← 要求を送る' : 'sendto の戻りを待たずに次へ';
+        st.sideLines.forEach((l, k) => { if (k < 12) setCls(l, Math.floor(k / 2) === q.i && q.i < 6 ? 't-xs t-b t-x' : 't-xs'); });
+      }
+      if (i === 5) {
+        const f = U.cycle(t, 3);
+        showPk(U.lerp(115, col, Math.min(1, f * 1.3)), U.lerp(yNic, ySock, Math.min(1, f * 1.3)), ['pay']);
+        st.pk.style.opacity = f < 0.9 ? 1 : 0;
+        st.apiLbl.style.opacity = 0.7 + 0.3 * Math.sin(t * 4);
+      } else st.apiLbl.style.opacity = 1;
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第III部 ソフトウェア ／ 第9章',
+      title: 'OS',
+      home: '../index.html',
+      prev: { href: '08-display.html', title: '画面と音' },
+      next: { href: '10-browser.html', title: 'ブラウザ' },
+      legend: [{ c: 'd', label: 'データ・パケット' }, { c: 'e', label: '割り込み' }, { c: 'r', label: '電波' }, { c: 'x', label: '注目・実行中' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

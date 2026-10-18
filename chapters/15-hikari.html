@@ -1,0 +1,1534 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>光回線 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .tok text { pointer-events: none; }
+  html.fit table.gloss th .nw { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第IV部 つながる ／ 第15章 ／ 全25章</p>
+    <h1 id="h-s0">光回線</h1>
+    <p class="standfirst">ホームルーターを出たパケットは、ONU で光の点滅に変わり、髪の毛ほどの太さのガラスの糸を通って数 km 先の局舎へ向かう。この章では、光がガラスの芯に閉じ込められる理由、レーザーとフォトダイオードによる 1 と 0 の変換、ONU の仕事、32 軒で 1 本を分け合う PON の約束、局舎から ISP へのつなぎ方（PPPoE と IPoE）を順に見て、最後に光と電気の違いを減衰と遅延で比べる。例には日本の FTTH（NTT 東西のフレッツ光）を使う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。光の角度・点滅の速さ・距離は見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>光ファイバー</a><p>屈折率が少し高いコアに、浅い角度の光が全反射で閉じ込められる。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>光を出す・受ける</a><p>レーザーの電流で光を強弱させ、InGaAs のフォトダイオードで電流に戻す。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>ONU の仕事</a><p>1 本で上りと下りを波長で分け、自分の LLID だけ受け取り、許可の間だけ送る。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>PON</a><p>4 分岐 × 8 分岐で 32 軒が共有。下りは全員に届き、上りは時間を分けて順番に送る。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>局舎から ISP へ</a><p>OLT の先は NTT 東西の網。PPPoE は網終端装置へのトンネル、IPoE は IPv6 のまま。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>光と電気の違い</a><p>速さはどちらも光速の約 3 分の 2。違うのは弱まり方で、同じだけ弱まる距離が約 1000 倍違う。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（インターネットの骨格）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。IPv6 プレフィックス 2001:db8:1234:5600::/56（RFC 3849 の説明用の範囲）と IPv4 の 203.0.113.5（RFC 5737）は例の値。数値は本文に書いたものだけが実際の値で、方式と設備は 2025 年時点の NTT 東西のフレッツ光を例にした。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 光ファイバー ================= -->
+<section class="scene sc-anim" id="s1" data-tab="光ファイバー" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>光ファイバー — ガラスの芯に光を閉じ込める</h2>
+    <p class="sh-meta"><span class="chip">石英ガラス</span><span class="chip">コア 約 9 µm ／ クラッド 125 µm</span><span class="chip">全反射</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">光ファイバーは石英ガラスの細い糸で、中心の<b>コア</b>の屈折率がまわりの<b>クラッド</b>よりわずかに高い。この差によって、境目に浅い角度で当たった光はすべて跳ね返り（全反射）、糸が曲がっていても数十 km 先まで進む。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">光が 1 km 進むあいだに失われる割合は、波長 1310 nm で約 8%（0.35 dB）、1550 nm で約 5%（0.2 dB）。1970 年に損失 20 dB/km を下回るガラスが作られて、光通信が実用に向かった。波長と損失の関係は<a class="xref" href="#s6" data-go="6">6「光と電気の違い」</a>で見る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="光ファイバーを縦に切った図でコアの中を光が全反射しながら進む様子と、実際の比率の断面、段階ごとの補足図"></svg></div>
+    <figcaption>図1　上は光ファイバーを縦に切った図で、コアの中を光が全反射しながら進む（太さと角度は誇張）。左下は断面を実際の比率で描いたもの、右下は段階ごとの補足。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 光を出す・受ける ================= -->
+<section class="scene sc-anim" id="s2" data-tab="出す・受ける" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>光を出す・受ける — レーザーとフォトダイオードで 1 と 0</h2>
+    <p class="sh-meta"><span class="chip">LD 1310 / 1490 nm</span><span class="chip">PD InGaAs</span><span class="chip">8B/10B 1.25 G ボー</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">送り手はレーザーダイオード（LD）に流す電流を切り替えて光を強弱させ、受け手はフォトダイオード（PD）で光を電流に戻す。<a class="xref" href="02-handoutai.html#s6">第2章</a>の pn 接合が、GE-PON では 1 秒に 12.5 億回の点滅を担う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">10G-EPON（フレッツ 光クロスなど）は 64B/66B 符号で 1 秒に約 103 億回点滅する。速いほど 1 ビットあたりの光子が減って読み違えが増えるので、誤り訂正符号 RS(255,223) を必ず付けて送る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ビット列からドライバ、レーザー、光ファイバー、フォトダイオード、増幅器、判定までの部品の並びと、同じ10ビットが光と電流に変わる波形"></svg></div>
+    <figcaption>図2　上は送り手から受け手までの部品の並び。左下は段階ごとの拡大（LD の電流と光、8B/10B、フォトダイオードの中、アイパターン）、右下は同じ 10 ビットが光と電流に変わる波形。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 ONU の仕事 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="ONU" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>ONU の仕事 — 波長を分け、宛先を選び、順番を守る</h2>
+    <p class="sh-meta"><span class="chip">BOSA</span><span class="chip">LLID</span><span class="chip">MPCP（GATE / REPORT）</span><span class="chip">1000BASE-T</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ONU（光回線終端装置）は、1 本のファイバーで下りの光を受けて上りの光を出し、家側の Ethernet とつなぐ箱。IP アドレスでは転送しないが、OLT が決めた順番を守って送るという PON 特有の仕事を受け持つ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ONU と OLT の制御の手順は MPCP と呼ばれ、GATE・REPORT・REGISTER などはどれも 64 バイトの Ethernet の制御フレーム（タイプ 0x8808）として送られる。ONU とルーターを 1 台にまとめた製品もあるが、中の役割の分け方は同じ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ONUの内部。光の送受信部品、PONの制御チップ、Ethernetの送受信部と、下りのフレームの選別、上りの待ち行列と送信の許可のやりとり"></svg></div>
+    <figcaption>図3　ONU の中身。左が局舎へ続くファイバー、右がルーター。上の流れが下り（OLT → 家）、下の流れが上り（家 → OLT）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 PON ================= -->
+<section class="scene sc-anim" id="s4" data-tab="PON" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>PON — 1 本のファイバーを 32 軒で分け合う</h2>
+    <p class="sh-meta"><span class="chip">1:4 × 1:8 = 32</span><span class="chip">下り 全員に届く</span><span class="chip">上り TDMA</span><span class="chip">1490 / 1310 nm</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">局舎からの 1 本のファイバーは、電源の要らないガラスの分岐器（光スプリッタ）で最大 32 本に分かれる。分岐では全員に同じ光が届くので、下りは全員への放送になり、上りは時間を区切って順番に送る。これが PON。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">GE-PON の 1 Gbps は、同じ PON の最大 32 軒で分け合う上限で、1 軒の速さは周りの家の使い方で変わる（ベストエフォート）。10G-EPON は同じファイバーと分岐をそのまま使えるように作られた方式で、上限は 10 Gbps。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="局舎のOLTから4分岐、電柱の8分岐を経て32軒のONUにつながるPONの図と、下りの選別、上りの時間割、距離の補正、使う波長の補足"></svg></div>
+    <figcaption>図4　左が局舎（OLT と 4 分岐）、中央が電柱の 8 分岐、右が家々の ONU（距離は例）。下は段階ごとの補足（分岐の構造、光の強さ、下りの選別、上りの時間割、波長）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 局舎から ISP へ ================= -->
+<section class="scene sc-anim" id="s5" data-tab="局舎から ISP へ" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>局舎から ISP へ — PPPoE と IPoE</h2>
+    <p class="sh-meta"><span class="chip">OLT</span><span class="chip">NGN</span><span class="chip">PPPoE（網終端装置）</span><span class="chip">IPoE（VNE）</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">OLT から先は NTT 東西の網（NGN）で、ISP へのつなぎ方は 2 つある。家のルーターが網の出口までトンネルを張る <b>PPPoE</b> と、IPv6 のまま網を通り抜ける <b>IPoE</b>。方式で、通る装置と混み方が変わる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">YouTube のサーバーは IPv6 にも対応しているので、IPoE の家ではブラウザは多くの場合 IPv6 で接続する（両方使えるときは IPv6 を先に試す）。この教材の例は IPv4 で追うが、IPv6 でも道筋は同じで、違いは NAT が無いこと。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家のルーターとONUから、局舎のOLT、NTT東西の網の中のルーターを通り、PPPoEなら網終端装置からISPへ、IPoEならゲートウェイルーターからVNEへ出る道"></svg></div>
+    <figcaption>図5　左が家、中央が NTT 東西の網（NGN）、右が ISP と VNE。上の出口が PPPoE（網終端装置）、下の出口が IPoE（ゲートウェイルーター）。下は段階ごとの補足。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 光と電気の違い ================= -->
+<section class="scene sc-anim" id="s6" data-tab="光と電気" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>光と電気の違い — 減衰と遅延</h2>
+    <p class="sh-meta"><span class="chip">光速の約 2/3</span><span class="chip">0.2 dB/km</span><span class="chip">約 5 µs/km</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">光にしたからといって、信号が速く届くわけではない。ガラスの中の光も銅線の中の電気信号も、真空の光速の約 3 分の 2 で進む。違うのは弱まり方で、光は同じだけ弱まるまでに銅線の約 1000 倍の距離を進める。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">遅延（ms）と帯域（bps）は別の量。再生ボタンから最初の画が出るまでの待ち時間は、主に往復の回数 × 遅延で決まり（第19・20章）、再生中に選べる画質の上限は帯域で決まる（第24章）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="100メートルを進む時間の比較、距離と信号の弱まり方、波長とガラスの損失、片道の遅延の内訳の4つの図"></svg></div>
+    <figcaption>図6　左上は 100 m を進む時間、右上は距離と弱まり方（距離は対数目盛）、左下は波長とガラスの損失（模式図）、右下は片道の遅延の内訳の例（対数目盛）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 光の点滅で局舎へ、そこから ISP へ</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>光ファイバーはコアの屈折率をクラッドより約 0.35% 高くした石英ガラスの糸。浅い角度の光は全反射で閉じ込められ、1 km 進んでも数 % しか弱まらない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>送り手は LD の電流を切り替えて光を強弱させ、受け手は InGaAs の PD で光子を電流に戻す。GE-PON は 8B/10B で 1 秒に 12.5 億回点滅する（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>ONU は 1 本のファイバーで 1490 nm を受けて 1310 nm を出し、自分の LLID のフレームだけを取り込み、上りは OLT の許可の間だけ送る。IP アドレスでは転送しない（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>PON は局舎の 4 分岐と電柱の 8 分岐で 32 軒が 1 本を共有する。下りは全員に届き、上りは往復時間を差し引いた時分割で順番に送る（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>OLT の先は NTT 東西の網。PPPoE は網終端装置までトンネルを張り、IPoE は IPv6 のまま VNE の出口を通る。IPv4 は IPv6 に包んで運ぶ（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>光も電気も速さは光速の約 3 分の 2 で、遅延は距離と待ち時間で決まる。違いは減衰で、同じだけ弱まる距離が銅線の約 1000 倍（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>コア／クラッド</th><td>光ファイバーの芯と外層。シングルモードで直径 約 9 µm／125 µm。屈折率の差は約 0.35%。</td></tr>
+        <tr><th>全反射・臨界角</th><td>屈折率の高い側から、臨界角より大きい入射角で境目に当たった光がすべて反射すること。光ファイバーでは臨界角 約 85°。</td></tr>
+        <tr><th>dB（デシベル）</th><td>強さの比を 10 log₁₀ で表す。3 dB ≈ 1/2、10 dB = 1/10、20 dB = 1/100。0.2 dB/km は 1 km で約 5% 減。</td></tr>
+        <tr><th><i class="sw p"></i>LD／PD</th><td>電流でレーザー光を出す素子と、光子を電流に変える素子。光回線は 1310 nm（上り）と 1490 nm（下り）、受光は InGaAs。</td></tr>
+        <tr><th>8B/10B・64B/66B</th><td>ビット列を符号に置き換え、同じ値が長く続かないようにする。GE-PON は 1.25 G ボー、10G-EPON は 10.3125 G ボー。</td></tr>
+        <tr><th>ONU／OLT・OSU</th><td>家側と局舎側の光回線の終端装置。OLT の中の OSU 1 枚が PON 1 本（最大 32 台の ONU）を受け持つ。</td></tr>
+        <tr><th>PON（GE-PON／<span class="nw">10G-EPON）</span></th><td>電源の無い光スプリッタで 1 本を分け合う方式。IEEE 802.3ah（2004 年）／802.3av（2009 年）。上限 1／10 Gbps を共有。</td></tr>
+        <tr><th>LLID・MPCP・DBA</th><td>ONU の識別番号（プリアンブルの 2 バイト）、GATE と REPORT による制御の手順、待ち量に応じた上りの時間枠の割り当て。</td></tr>
+        <tr><th>PPPoE／網終端装置</th><td>家のルーターから網の出口までトンネル（ヘッダ 8 バイト）を張って ISP につなぐ方式と、その出口の装置。フレッツの推奨 MTU は 1,454 以下。</td></tr>
+        <tr><th>IPoE／VNE</th><td>IPv6 のまま網を通す方式と、その出口を受け持つ事業者。IPv4 は MAP-E や DS-Lite で IPv6 に包んで運ぶ。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const rad = (d) => d * Math.PI / 180;
+
+  /* ---------- この章で使う部品 ---------- */
+  /* 題と副題の付いた箱。g.rect に枠を持つ */
+  function box(p, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, p);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    if (title) S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (tcls || 't-md') }, g);
+    if (sub) S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim' }, g);
+    return g;
+  }
+  /* 段階ごとに出し入れする補足の枠。最初は隠しておく */
+  function panel(p, x, y, w, h, title) {
+    const g = S.g({ cls: 'fade hide' }, p);
+    S.rect(x, y, w, h, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+    if (title) S.text(x + 16, y + 24, title, { cls: 't-md t-b' }, g);
+    return g;
+  }
+  /* 見えない道（粒や札を動かすための path） */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 線の両端を置き直す */
+  const setLine = (el, x1, y1, x2, y2) => {
+    el.setAttribute('x1', x1.toFixed(1)); el.setAttribute('y1', y1.toFixed(1));
+    el.setAttribute('x2', x2.toFixed(1)); el.setAttribute('y2', y2.toFixed(1));
+  };
+  /* 光ファイバーを太い線で描く（被覆の縁・クラッド・コアの3重） */
+  function fiberStroke(p, d, w) {
+    S.path(d, { cls: 'f-none s-rule round', 'stroke-width': w + 4 }, p);
+    S.path(d, { cls: 'f-none s-sf round', 'stroke-width': w }, p);
+    S.path(d, { cls: 'f-none s-soft', 'stroke-width': Math.max(4, w * 0.3) }, p);
+  }
+
+  /* ================================================================
+     場面1 光ファイバー
+     ================================================================ */
+  /* 境目での屈折（図の値は誇張: コア側 1.5、クラッド側 1.2） */
+  const SN = { n1: 1.5, n2: 1.2, ox: 655, oy: 430, L: 110 };
+  function setSnell(st, th) {
+    const a = rad(th);
+    const s2 = SN.n1 / SN.n2 * Math.sin(a);
+    setLine(st.inc, SN.ox - SN.L * Math.sin(a), SN.oy - SN.L * Math.cos(a), SN.ox - 2 * Math.sin(a), SN.oy - 2 * Math.cos(a));
+    setLine(st.refl, SN.ox, SN.oy, SN.ox + SN.L * Math.sin(a), SN.oy - SN.L * Math.cos(a));
+    st.thTxt.textContent = '入射角 ' + Math.round(th) + '°';
+    if (s2 <= 1) {
+      const b = Math.asin(s2);
+      setLine(st.refr, SN.ox, SN.oy, SN.ox + SN.L * Math.sin(b), SN.oy + SN.L * Math.cos(b));
+      st.refr.style.opacity = 1;
+      st.refl.style.opacity = 0.3;
+      st.th2Txt.textContent = '屈折角 ' + Math.round(b * 180 / Math.PI) + '°';
+      st.stTxt.textContent = '一部はクラッドへ出る';
+    } else {
+      st.refr.style.opacity = 0;
+      st.refl.style.opacity = 1;
+      st.th2Txt.textContent = '外へ出る光なし';
+      st.stTxt.textContent = '全反射';
+    }
+  }
+
+  const s1 = {
+    steps: [
+      { title: '髪の毛ほどの太さのガラス', text: '直径 125 µm のクラッドの中心に、直径約 9 µm のコアが通っている。どちらも石英ガラス（SiO₂）で、樹脂で被覆して直径 0.25 mm にする。屋外では何十〜何百本を束ねたケーブルで電柱を渡り、家には 1 本のファイバーが入った細いドロップケーブルで引き込む。' },
+      { title: '屈折率の差は約 0.35%', text: 'コアにはゲルマニウムを少し混ぜ、屈折率をクラッド（約 1.444）より 0.35% ほど高くしてある。光はガラスの中を秒速約 20 万 km（真空の約 3 分の 2）で進み、屈折率の違う境目を斜めに横切ると向きが変わる（スネルの法則）。' },
+      { title: '浅い角度なら、すべて跳ね返る', text: '屈折率の高い側から境目に当たった光は、入射角が臨界角を超えると外へ出られず、すべて反射する（{p|全反射}）。この屈折率の差では臨界角は約 85°で、コアの軸から約 5° 以内に進む光だけが閉じ込められる。図の角度は見やすく誇張している。' },
+      { title: 'きつく曲げると漏れる', text: 'ファイバーをきつく曲げると、境目に当たる角度が臨界角を下回り、光がクラッドの外へ{x|漏れる}（曲げ損失）。家の中の光コードには曲げに強い種類（ITU-T G.657）が多く使われるが、強く折ったり家具で挟んだりすると通信が途切れることがある。' },
+      { title: '通り道を 1 つにする', text: 'コアが 50 µm と太いマルチモードでは、角度の違う光が長さの違う道を通り、着く時刻がずれてパルスがにじむ。コアを約 9 µm まで細くすると光は 1 つの形（モード）でしか進めず、このずれが消える。光回線と長距離の通信はこの**シングルモード**を使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* ---- 上: 縦に切った図（太さと角度は誇張） ---- */
+      const gm = st.main = S.g({ cls: 'fade' }, svg);
+      S.text(40, 40, '縦に切った図（太さと角度は誇張）', { cls: 't-md t-b' }, gm);
+      S.rect(120, 70, 680, 180, { cls: 'f-rule' }, gm);       // 被覆
+      S.rect(120, 88, 680, 144, { cls: 'f-sf' }, gm);         // クラッド
+      S.rect(120, 138, 680, 44, { cls: 'f-soft' }, gm);       // コア
+      S.line(120, 138, 800, 138, { cls: 's-mid w1' }, gm);
+      S.line(120, 182, 800, 182, { cls: 's-mid w1' }, gm);
+      S.rect(40, 136, 70, 48, { rx: 5, cls: 'f-sf s-fg w15' }, gm);
+      S.text(75, 164, 'レーザー', { cls: 't-c t-sm t-b' }, gm);
+      S.text(812, 83, '被覆（樹脂）', { cls: 't-sm t-dim' }, gm);
+      S.text(812, 112, 'クラッド', { cls: 't-sm t-b' }, gm);
+      S.text(812, 128, 'n ≈ 1.444', { cls: 't-xs t-mono t-dim' }, gm);
+      S.text(812, 156, 'コア', { cls: 't-sm t-b' }, gm);
+      S.text(812, 172, 'n ≈ 1.449', { cls: 't-xs t-mono t-dim' }, gm);
+      // 閉じ込められて進む光
+      st.ray = S.path('M110,156 L175,182 L285,138 L395,182 L505,138 L615,182 L725,138 L800,168', { cls: 'f-none s-p w2 round' }, gm);
+      st.flow = A.flow(st.ray, { count: 7, speed: 150, r: 5, cls: 'f-p', parent: gm });
+      // 急な角度で入って逃げる光（段階2・3）
+      st.leak = S.g({ cls: 'fade hide' }, gm);
+      st.leakPath = S.path('M110,160 L125.4,182 L160.4,232 L173,250', { cls: 'f-none s-p w2 dash' }, st.leak);
+      st.leakDot = S.circle(0, 0, 4.5, { cls: 'f-p' }, st.leak);
+      S.text(178, 272, '急な角度の光はクラッドを抜け、被覆に吸われて消える', { cls: 't-sm t-x' }, st.leak);
+      // 入射角の印（段階3）
+      st.angle = S.g({ cls: 'fade hide' }, gm);
+      S.line(395, 182, 395, 112, { cls: 's-x w15 dash' }, st.angle);
+      S.path('M395,152 A30,30 0 0 0 367.2,170.9', { cls: 'f-none s-x w2' }, st.angle);
+      S.text(366, 148, 'θ', { cls: 't-md t-x t-b' }, st.angle);
+      S.text(404, 212, 'θ ＞ 臨界角 → 全反射', { cls: 't-sm t-x t-b' }, st.angle);
+
+      /* ---- 左下: 断面（実際の比率） ---- */
+      const gx = S.g({}, svg);
+      S.text(130, 310, '断面（実際の比率）', { cls: 't-c t-md t-b' }, gx);
+      S.circle(130, 427, 100, { cls: 'f-rule' }, gx);
+      S.circle(130, 427, 50, { cls: 'f-sf s-mid w1' }, gx);
+      S.circle(130, 427, 3.6, { cls: 'f-fg' }, gx);
+      S.line(201, 356, 241, 344, { cls: 's-dim w1' }, gx);
+      S.text(245, 348, '被覆 250 µm', { cls: 't-sm' }, gx);
+      S.line(166, 392, 241, 394, { cls: 's-dim w1' }, gx);
+      S.text(245, 398, 'クラッド 125 µm', { cls: 't-sm' }, gx);
+      S.line(134, 428, 241, 444, { cls: 's-dim w1' }, gx);
+      st.coreLbl = S.text(245, 448, 'コア 約 9 µm', { cls: 't-sm t-b' }, gx);
+
+      /* ---- 右下: 段階ごとの補足 ---- */
+      // 段階1: 家への引き込み
+      const p0 = st.p0 = panel(svg, 370, 292, 570, 253, '家への引き込み');
+      S.path('M372,359 H440', { cls: 'f-none s-p w4' }, p0);
+      S.text(380, 384, '← 局舎へ', { cls: 't-xs t-dim' }, p0);
+      S.line(470, 376, 470, 535, { cls: 's-dim w6 round' }, p0);
+      S.rect(440, 344, 60, 30, { rx: 4, cls: 'f-in s-fg w15' }, p0);
+      S.text(470, 363, 'クロージャ', { cls: 't-c t-xs t-b' }, p0);
+      S.text(484, 470, '電柱', { cls: 't-xs t-dim' }, p0);
+      st.drop = S.path('M500,359 C590,359 640,436 714,436', { cls: 'f-none s-p w2' }, p0);
+      S.text(596, 370, 'ドロップケーブル', { cls: 't-sm t-p t-b' }, p0);
+      S.polygon([[700, 410], [815, 352], [930, 410]], { cls: 'f-none s-fg w15 round' }, p0);
+      S.rect(712, 410, 206, 126, { cls: 'f-none s-fg w15' }, p0);
+      S.rect(714, 423, 20, 26, { rx: 2, cls: 'f-in s-fg w1' }, p0);
+      S.text(726, 470, '光コンセント', { cls: 't-xs t-dim' }, p0);
+      S.path('M734,436 H790', { cls: 'f-none s-p w2' }, p0);
+      S.rect(790, 416, 80, 40, { rx: 4, cls: 'f-sf s-fg w15' }, p0);
+      S.text(830, 441, 'ONU', { cls: 't-c t-sm t-b' }, p0);
+      S.path('M830,456 V500', { cls: 'f-none s-e w3' }, p0);
+      S.text(830, 520, 'LAN ケーブルでルーターへ', { cls: 't-c t-xs t-e t-b' }, p0);
+      st.dropFlow = A.flow(st.drop, { count: 4, speed: 80, r: 3.5, cls: 'f-p', parent: p0 });
+
+      // 段階2・3: 境目での屈折と全反射
+      const p1 = st.p1 = panel(svg, 370, 292, 570, 253, '');
+      st.snTitle = S.text(386, 316, '', { cls: 't-md t-b' }, p1);
+      S.rect(386, 330, 538, 100, { cls: 'f-soft' }, p1);
+      S.line(386, 430, 924, 430, { cls: 's-mid w15' }, p1);
+      S.text(396, 422, 'コア側（図では屈折率 1.5）', { cls: 't-xs t-dim' }, p1);
+      S.text(396, 448, 'クラッド側（図では 1.2）', { cls: 't-xs t-dim' }, p1);
+      S.line(SN.ox, 336, SN.ox, 528, { cls: 's-dim w1 dash' }, p1);
+      S.text(SN.ox + 5, 346, '法線', { cls: 't-xs t-dim' }, p1);
+      st.crit = S.g({ cls: 'fade hide' }, p1);
+      const tc = Math.asin(SN.n2 / SN.n1);
+      const cx = SN.ox - 120 * Math.sin(tc), cy = SN.oy - 120 * Math.cos(tc);
+      S.line(SN.ox, SN.oy, cx, cy, { cls: 's-x w15 dash' }, st.crit);
+      S.text(cx - 4, cy - 6, '臨界角 53°', { cls: 't-sm t-x t-b', 'text-anchor': 'end' }, st.crit);
+      st.inc = S.line(0, 0, 0, 0, { cls: 's-p w3', 'marker-end': mk('p') }, p1);
+      st.refl = S.line(0, 0, 0, 0, { cls: 's-p w2', 'marker-end': mk('p') }, p1);
+      st.refr = S.line(0, 0, 0, 0, { cls: 's-p w2', 'marker-end': mk('p') }, p1);
+      st.thTxt = S.text(918, 352, '', { cls: 't-sm t-mono', 'text-anchor': 'end' }, p1);
+      st.stTxt = S.text(918, 372, '', { cls: 't-sm t-b t-x', 'text-anchor': 'end' }, p1);
+      st.th2Txt = S.text(918, 456, '', { cls: 't-sm t-mono', 'text-anchor': 'end' }, p1);
+
+      // 段階4: 曲げ損失
+      const p2 = st.p2 = panel(svg, 370, 292, 570, 253, '曲げると漏れる（曲げ損失）');
+      const dG = 'M392,500 H520 A60,60 0 0 0 520,380 H392';
+      fiberStroke(p2, dG, 24);
+      st.bendG = A.flow(road(p2, dG), { count: 8, speed: 90, r: 3.5, cls: 'f-p', parent: p2 });
+      S.text(486, 532, 'ゆるい曲げ：光は残る', { cls: 't-c t-sm' }, p2);
+      fiberStroke(p2, 'M640,480 H820 A20,20 0 0 0 820,440 H640', 24);
+      st.bendT1 = A.flow(road(p2, 'M640,480 H820 A20,20 0 0 0 820,440'), { count: 6, speed: 90, r: 3.5, cls: 'f-p', parent: p2 });
+      st.bendT2 = A.flow(road(p2, 'M820,440 H640'), { count: 2, speed: 90, r: 3.5, cls: 'f-p', parent: p2 });
+      st.leaks = [[842, 460, 915, 460], [836, 446, 900, 398], [836, 474, 900, 522]].map(([x1, y1, x2, y2]) => {
+        S.line(x1, y1, x2, y2, { cls: 's-p w15 dash' }, p2);
+        return { x1, y1, x2, y2, dot: S.circle(x1, y1, 3.5, { cls: 'f-p' }, p2) };
+      });
+      S.text(740, 532, 'きつい曲げ：外へ漏れる', { cls: 't-c t-sm t-x t-b' }, p2);
+      S.text(700, 418, '残る光が減る', { cls: 't-c t-xs t-dim' }, p2);
+
+      // 段階5: マルチモードとシングルモード
+      const p3 = st.p3 = panel(svg, 370, 292, 570, 253, '同時に入れた光が着く時刻');
+      S.text(440, 344, 'マルチモード（コア 50 µm）', { cls: 't-sm t-b' }, p3);
+      S.rect(440, 352, 400, 64, { cls: 'f-sf s-rule w1' }, p3);
+      S.rect(440, 360, 400, 48, { cls: 'f-soft' }, p3);
+      st.mm = [
+        'M440,384 H840',
+        'M440,384 L505.9,408 L637.8,360 L769.7,408 L840,382.4',
+        'M440,384 L474.3,408 L542.9,360 L611.5,408 L680.1,360 L748.7,408 L817.3,360 L840,375.9'
+      ].map((d) => {
+        const p = S.path(d, { cls: 'f-none s-p w1', style: { opacity: 0.45 } }, p3);
+        return { p, dot: S.circle(440, 384, 4, { cls: 'f-p' }, p3) };
+      });
+      S.text(440, 446, 'シングルモード（コア 約 9 µm）', { cls: 't-sm t-b' }, p3);
+      S.rect(440, 456, 400, 30, { cls: 'f-sf s-rule w1' }, p3);
+      S.rect(440, 468, 400, 6, { cls: 'f-soft' }, p3);
+      st.sm = { p: S.path('M440,471 H840', { cls: 'f-none s-p w1', style: { opacity: 0.45 } }, p3) };
+      st.sm.dot = S.circle(440, 471, 4, { cls: 'f-p' }, p3);
+      // 入れたパルスと着いたパルスの形
+      S.path('M388,398 H402 V370 H416 V398 H430', { cls: 'f-none s-p w2' }, p3);
+      S.path('M388,488 H402 V460 H416 V488 H430', { cls: 'f-none s-p w2' }, p3);
+      const bump = (x0, base, cs, h, w) => {
+        let d = '';
+        for (let x = 0; x <= 78; x += 2) {
+          let y = 0;
+          cs.forEach((c) => { y += Math.exp(-Math.pow((x - c) / w, 2)); });
+          d += (x ? 'L' : 'M') + (x0 + x) + ',' + (base - h * y / cs.length * (cs.length > 1 ? 1.6 : 1)).toFixed(1);
+        }
+        return d;
+      };
+      S.path(bump(852, 398, [14, 28, 46], 26, 12), { cls: 'f-none s-p w2' }, p3);
+      S.path(bump(852, 488, [16], 28, 5), { cls: 'f-none s-p w2' }, p3);
+      S.text(891, 420, 'にじむ', { cls: 't-c t-xs t-x t-b' }, p3);
+      S.text(891, 508, 'そろう', { cls: 't-c t-xs t-b' }, p3);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.main.style.opacity = i >= 3 ? 0.35 : '';
+      S.fade(st.leak, i === 1 || i === 2);
+      S.fade(st.angle, i === 2);
+      S.fade(st.p0, i === 0);
+      S.fade(st.p1, i === 1 || i === 2);
+      S.fade(st.crit, i === 2);
+      S.fade(st.p2, i === 3);
+      S.fade(st.p3, i === 4);
+      st.snTitle.textContent = i === 2 ? '入射角を変えてみる（実際の臨界角は約 85°）' : '境目で向きが変わる（屈折率の差を誇張）';
+      st.coreLbl.setAttribute('class', i === 0 ? 't-sm t-b t-x' : 't-sm t-b');
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.flow.update(dt);
+      if (i === 0) st.dropFlow.update(dt);
+      if (i === 1 || i === 2) {
+        const f = U.cycle(ctx.ts, 1.6);
+        S.place(st.leakDot, st.leakPath, f);
+        st.leakDot.style.opacity = (1 - f).toFixed(2);
+        // 段階2 は 35°（屈折角 46°。臨界角 53° と同じ数にならない角度）。段階3 は全反射の角度（70°）から始めて 30° まで下げ、また戻す
+        setSnell(st, i === 1 ? 35 : 70 - 40 * U.pulse(ctx.ts, 6));
+      }
+      if (i === 3) {
+        st.bendG.update(dt); st.bendT1.update(dt); st.bendT2.update(dt);
+        st.leaks.forEach((l, k) => {
+          const f = U.cycle(t + k * 0.37, 1.1);
+          l.dot.setAttribute('cx', U.lerp(l.x1, l.x2, f).toFixed(1));
+          l.dot.setAttribute('cy', U.lerp(l.y1, l.y2, f).toFixed(1));
+          l.dot.style.opacity = (1 - f).toFixed(2);
+        });
+      }
+      if (i === 4) {
+        const dist = U.mod(ctx.ts, 3.4) * 200;
+        const put = (o) => {
+          const L = S.len(o.p);
+          const f = L ? dist / L : 0;
+          if (f > 1) { o.dot.style.opacity = 0; return; }
+          const q = S.along(o.p, f);
+          o.dot.setAttribute('cx', q.x.toFixed(1)); o.dot.setAttribute('cy', q.y.toFixed(1));
+          o.dot.style.opacity = 1;
+        };
+        st.mm.forEach(put);
+        put(st.sm);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 光を出す・受ける
+     ================================================================ */
+  /* 0..1 の疑似乱数（毎回同じ並び） */
+  const hash = (k) => { const x = Math.sin(k * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); };
+  /* 8B/10B で 0000 0000（D0.0）を置き換えた 10 ビット */
+  const CODE = [1, 0, 0, 1, 1, 1, 0, 1, 0, 0];
+  const s2 = {
+    steps: [
+      { title: '電流で光の強さを変える', text: 'LD は流す電流がしきい値を超えるとレーザー発振を始め、その先は電流にほぼ比例して強く光る。ドライバ回路は 1 のときに電流を増やし、0 のときに減らす（直接変調）。GE-PON では ONU が上りを 1310 nm で、OLT が下りを 1490 nm で送る。' },
+      { title: '0 でも消し切らない', text: '0 のときも電流をしきい値より少し上に保ち、弱く光らせておく。一度消すと、次の 1 で発振が始まるまでに遅れが出て、点滅の形が崩れるため。受け手が区別するのは「光っているか」ではなく「{p|強いか弱いか}」になる。' },
+      { title: '8 ビットを 10 ビットにして送る', text: '同じ値が長く続くと、受け手は拍（クロック）を見失う。GE-PON は 8 ビットごとに 10 ビットの符号へ置き換え（**8B/10B**）、同じ値が 6 個以上続かないようにする。第13章の 4B5B と同じ考えで、1 Gbps のデータは 1 秒に 12.5 億回の点滅になる。' },
+      { title: '光子が電子正孔対になる', text: '受け手に届く光は数〜数十 µW で、1 ビットの間に届く光子は数万個。InGaAs の層に吸収された光子 1 個が{e|電子}と{h|正孔}の対を 1 組作り、数〜数十 µA の電流になる（第2章）。シリコンは約 1,100 nm より長い波長を吸収しないので、ここでは使えない。' },
+      { title: '電圧に変え、しきい値で読む', text: '小さな電流を TIA（トランスインピーダンス増幅器）が電圧に変えて増幅する。拍を取り出す回路（CDR）が各ビットの真ん中の時刻を決め、その瞬間の電圧が{x|しきい値}より上なら 1、下なら 0 と読む。アイパターンの開きが大きいほど読み違えにくい。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* ---- 上: 部品の並び ---- */
+      S.text(20, 58, '送り手', { cls: 't-sm t-b t-dim' }, svg);
+      S.text(556, 58, '受け手', { cls: 't-sm t-b t-dim' }, svg);
+      st.cb = {
+        bits: box(svg, 20, 72, 92, 66, 'ビット列', '1 と 0'),
+        drv: box(svg, 132, 72, 100, 66, 'ドライバ', '電流を切り替え'),
+        ld: box(svg, 252, 72, 92, 66, 'LD', 'レーザー'),
+        pd: box(svg, 556, 72, 92, 66, 'PD', 'InGaAs'),
+        tia: box(svg, 668, 72, 100, 66, 'TIA', '電流 → 電圧'),
+        dec: box(svg, 788, 72, 152, 66, '判定・拍の再生', 'しきい値で 1 ／ 0')
+      };
+      S.arrow(svg, 112, 105, 130, 105, 'd', { cls: 's-d w2' });
+      S.arrow(svg, 232, 105, 250, 105, 'e', { cls: 's-e w2' });
+      S.arrow(svg, 648, 105, 666, 105, 'e', { cls: 's-e w2' });
+      S.arrow(svg, 768, 105, 786, 105, 'e', { cls: 's-e w2' });
+      S.line(344, 105, 556, 105, { cls: 's-p w4', style: { opacity: 0.35 } }, svg);
+      S.text(450, 92, '光ファイバー', { cls: 't-c t-sm t-p t-b' }, svg);
+      S.text(450, 132, '強い光 = 1　弱い光 = 0', { cls: 't-c t-xs t-dim' }, svg);
+      st.pulses = CODE.map(() => S.circle(0, 105, 5, { cls: 'f-p' }, svg));
+
+      /* ---- 左下: 段階ごとの拡大 ---- */
+      // LD の電流と光（段階1・2）
+      const pl = st.pLI = panel(svg, 20, 196, 390, 350, 'LD に流す電流と光の強さ');
+      S.line(80, 500, 392, 500, { cls: 's-fg w15', 'marker-end': mk('fg') }, pl);
+      S.line(80, 500, 80, 246, { cls: 's-fg w15', 'marker-end': mk('fg') }, pl);
+      S.text(392, 536, '電流', { cls: 't-xs t-dim', 'text-anchor': 'end' }, pl);
+      S.text(88, 256, '光の強さ', { cls: 't-xs t-dim' }, pl);
+      S.path('M80,499 L190,494 L380,268', { cls: 'f-none s-p w3 round' }, pl);
+      S.line(190, 500, 190, 470, { cls: 's-dim w1 dash' }, pl);
+      S.text(190, 518, 'しきい値', { cls: 't-c t-xs t-dim' }, pl);
+      st.liLvl = S.g({}, pl);
+      S.line(80, 464, 215, 464, { cls: 's-dim w1 dash2' }, st.liLvl);
+      S.line(215, 464, 215, 500, { cls: 's-dim w1 dash2' }, st.liLvl);
+      S.line(80, 310, 345, 310, { cls: 's-dim w1 dash2' }, st.liLvl);
+      S.line(345, 310, 345, 500, { cls: 's-dim w1 dash2' }, st.liLvl);
+      S.text(345, 518, '1 の電流', { cls: 't-c t-xs' }, st.liLvl);
+      S.text(88, 304, '1 の光', { cls: 't-xs' }, st.liLvl);
+      st.li0a = S.text(232, 536, '0 の電流', { cls: 't-c t-xs' }, st.liLvl);
+      st.li0b = S.text(88, 458, '0 の光', { cls: 't-xs' }, st.liLvl);
+      st.liNote = S.lines(92, 404, ['0 でも消さず、', '少し光らせる'], { cls: 't-sm t-x t-b fade hide' }, pl, 17);
+      st.iBar = S.line(80, 500, 80, 500, { cls: 's-e w6' }, pl);
+      st.pBar = S.line(80, 500, 80, 500, { cls: 's-p w6' }, pl);
+      st.liDot = S.circle(215, 464, 6, { cls: 'f-p' }, pl);
+
+      // 8B/10B（段階3）
+      const pc = st.pCode = panel(svg, 20, 196, 390, 350, '8B/10B：8 ビットを 10 ビットに');
+      S.text(36, 252, '元の 8 ビット（0 が 8 個続く）', { cls: 't-xs t-dim' }, pc);
+      for (let k = 0; k < 8; k++) {
+        S.rect(56 + k * 40, 260, 36, 30, { rx: 3, cls: 'f-d-soft s-d w1' }, pc);
+        S.text(74 + k * 40, 281, '0', { cls: 't-c t-md t-mono t-b' }, pc);
+      }
+      S.arrow(pc, 215, 296, 215, 326, 'dim', { cls: 's-dim w2' });
+      S.text(226, 316, '表で置き換える', { cls: 't-xs t-dim' }, pc);
+      S.text(36, 344, '送る 10 ビット', { cls: 't-xs t-dim' }, pc);
+      CODE.forEach((b, k) => {
+        S.rect(56 + k * 32, 352, 29, 30, { rx: 3, cls: 'f-d-soft s-d w1' }, pc);
+        S.text(70.5 + k * 32, 373, String(b), { cls: 't-c t-md t-mono t-b' }, pc);
+      });
+      let dw = '';
+      CODE.forEach((b, k) => { const y = b ? 410 : 446; dw += (k ? 'L' : 'M') + (56 + k * 32) + ',' + y + ' H' + (56 + (k + 1) * 32); });
+      S.path(dw, { cls: 'f-none s-p w2' }, pc);
+      S.text(36, 476, '光の強弱。変化が必ず入り、受け手は拍を取り出せる', { cls: 't-xs' }, pc);
+      S.text(36, 498, '同じ値は最長 5 個。1 と 0 の数はほぼ半々', { cls: 't-xs' }, pc);
+      S.text(36, 526, '1 Gbps × 10 / 8 ＝ 1.25 G ボー（1 秒に 12.5 億回）', { cls: 't-xs t-mono t-b' }, pc);
+
+      // フォトダイオードの中（段階4）
+      const pp = st.pPD = panel(svg, 20, 196, 390, 350, 'フォトダイオードの中（模式図）');
+      S.rect(56, 256, 190, 26, { cls: 'f-h-soft s-h w1' }, pp);
+      S.rect(56, 282, 190, 140, { cls: 'f-in s-rule w1' }, pp);
+      S.rect(56, 422, 190, 26, { cls: 'f-e-soft s-e w1' }, pp);
+      S.text(252, 273, 'p 型 InP', { cls: 't-xs t-h t-b' }, pp);
+      S.text(252, 356, 'InGaAs', { cls: 't-xs t-b' }, pp);
+      S.text(252, 372, '（光を吸う層）', { cls: 't-xs t-dim' }, pp);
+      S.text(252, 439, 'n 型 InP', { cls: 't-xs t-e t-b' }, pp);
+      S.text(151, 248, '光が入る ↓', { cls: 't-c t-xs t-p t-b' }, pp);
+      S.text(151, 472, '電子は n 側へ、正孔は p 側へ → 電流', { cls: 't-c t-xs' }, pp);
+      S.text(36, 500, '10 µW 届くとき（1490 nm）', { cls: 't-xs t-b' }, pp);
+      S.text(36, 518, '光子 毎秒 約 7.5×10¹³ 個 ＝ 1 ビット（0.8 ns）に約 6 万個', { cls: 't-xs t-mono' }, pp);
+      S.text(36, 536, '→ 電流 約 10 µA', { cls: 't-xs t-mono' }, pp);
+      st.pairs = [0, 1, 2, 3, 4, 5].map((k) => ({
+        x: 76 + hash(k + 4) * 150, y: 300 + hash(k + 11) * 100,
+        ph: S.circle(0, 0, 4.5, { cls: 'f-p' }, pp),
+        e: S.circle(0, 0, 4.5, { cls: 'f-e' }, pp),
+        h: S.circle(0, 0, 5.5, { cls: 'f-h-soft s-h w2' }, pp)
+      }));
+
+      // アイパターン（段階5）
+      const pe = st.pEye = panel(svg, 20, 196, 390, 350, 'アイパターン（多数のビットを重ねた波形）');
+      for (let n = 0; n < 28; n++) {
+        const b = [hash(n * 3 + 1) > 0.5 ? 1 : 0, hash(n * 3 + 2) > 0.5 ? 1 : 0, hash(n * 3 + 3) > 0.5 ? 1 : 0];
+        const j1 = (hash(n + 50) - 0.5) * 14, j2 = (hash(n + 80) - 0.5) * 14, nz = (hash(n + 20) - 0.5) * 16;
+        let d = '';
+        for (let x = 60; x <= 390; x += 5) {
+          const a1 = 1 / (1 + Math.exp(-(x - 150 - j1) / 9)), a2 = 1 / (1 + Math.exp(-(x - 300 - j2) / 9));
+          const v = b[0] + (b[1] - b[0]) * a1 + (b[2] - b[1]) * a2;
+          const y = 440 - v * 150 + nz * 0.5 + Math.sin(x * 0.11 + n * 1.7) * 3;
+          d += (x > 60 ? 'L' : 'M') + x + ',' + y.toFixed(1);
+        }
+        S.path(d, { cls: 'f-none s-e w1', style: { opacity: 0.4 } }, pe);
+      }
+      S.line(60, 365, 390, 365, { cls: 's-x w15 dash' }, pe);
+      S.text(64, 358, 'しきい値', { cls: 't-xs t-x t-b' }, pe);
+      S.line(225, 262, 225, 468, { cls: 's-x w1 dash2' }, pe);
+      S.circle(225, 365, 5, { cls: 'f-x' }, pe);
+      S.text(233, 262, 'ここで測る', { cls: 't-xs t-x t-b' }, pe);
+      S.text(384, 284, '1', { cls: 't-sm t-mono t-b', 'text-anchor': 'end' }, pe);
+      S.text(384, 456, '0', { cls: 't-sm t-mono t-b', 'text-anchor': 'end' }, pe);
+      S.text(215, 500, '真ん中の「目」が大きく開いているほど', { cls: 't-c t-xs' }, pe);
+      S.text(215, 518, '雑音や時刻のずれがあっても読み違えない', { cls: 't-c t-xs' }, pe);
+
+      /* ---- 右下: 同じ 10 ビットの波形 ---- */
+      const gw = S.g({}, svg);
+      S.rect(430, 196, 510, 350, { rx: 8, cls: 'f-sf s-rule w1' }, gw);
+      S.text(446, 220, '同じ 10 ビットが形を変える', { cls: 't-md t-b' }, gw);
+      const X0 = 552, UW = 34;
+      st.rows = {};
+      // A 送るビット
+      const ra = st.rows.a = S.g({}, gw);
+      S.text(446, 270, '送るビット', { cls: 't-sm t-b t-d' }, ra);
+      CODE.forEach((b, k) => {
+        S.rect(X0 + k * UW + 1, 252, UW - 2, 28, { rx: 3, cls: 'f-d-soft' }, ra);
+        S.text(X0 + k * UW + UW / 2, 271, String(b), { cls: 't-c t-md t-mono t-b' }, ra);
+      });
+      st.codeLbl = S.text(X0, 244, '0000 0000 を 8B/10B で置き換えた 10 ビット', { cls: 't-xs t-d t-b fade hide' }, ra);
+      // B LD の光
+      const rb = st.rows.b = S.g({}, gw);
+      S.text(446, 340, 'LD の光', { cls: 't-sm t-b t-p' }, rb);
+      S.line(X0, 362, X0 + UW * 10, 362, { cls: 's-rule w1 dash2' }, rb);
+      S.text(X0 + UW * 10 + 4, 366, '消灯', { cls: 't-xs t-dim' }, rb);
+      let dl = '';
+      CODE.forEach((b, k) => { const y = b ? 314 : 352; dl += (k ? 'L' : 'M') + (X0 + k * UW) + ',' + y + ' H' + (X0 + (k + 1) * UW); });
+      S.path(dl, { cls: 'f-none s-p w2' }, rb);
+      st.zeroNote = S.text(X0 + UW * 1.5, 380, '0 でも少し光る', { cls: 't-c t-xs t-x t-b fade hide' }, rb);
+      // C PD の電流
+      const rc = st.rows.c = S.g({}, gw);
+      S.text(446, 420, 'PD の電流', { cls: 't-sm t-b t-e' }, rc);
+      let de = '';
+      for (let x = 0; x <= UW * 10; x += 3) {
+        const k = Math.min(9, Math.floor(x / UW)), kp = Math.max(0, k - 1);
+        const a = 1 / (1 + Math.exp(-((x - k * UW) - 6) / 3));
+        const v = CODE[kp] + (CODE[k] - CODE[kp]) * (k === 0 ? 1 : a);
+        de += (x ? 'L' : 'M') + (X0 + x) + ',' + (440 - v * 40 + Math.sin(x * 0.7) * 2 + (hash(x) - 0.5) * 3).toFixed(1);
+      }
+      S.path(de, { cls: 'f-none s-e w2' }, rc);
+      S.line(X0, 420, X0 + UW * 10, 420, { cls: 's-x w1 dash' }, rc);
+      S.text(X0 + UW * 10 + 4, 424, 'しきい値', { cls: 't-xs t-x' }, rc);
+      st.samples = CODE.map((b, k) => S.circle(X0 + k * UW + UW / 2, b ? 400 : 440, 3.5, { cls: 'f-x', style: { opacity: 0 } }, rc));
+      // D 読んだビット
+      const rd = st.rows.d = S.g({}, gw);
+      S.text(446, 500, '読んだビット', { cls: 't-sm t-b t-d' }, rd);
+      st.readBits = CODE.map((b, k) => S.text(X0 + k * UW + UW / 2, 501, String(b), { cls: 't-c t-md t-mono t-b t-d', style: { opacity: 0 } }, rd));
+      st.cursor = S.line(X0, 236, X0, 512, { cls: 's-x w15 dash', style: { opacity: 0 } }, gw);
+      st.X0 = X0; st.UW = UW;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.pLI, i <= 1);
+      S.fade(st.pCode, i === 2);
+      S.fade(st.pPD, i === 3);
+      S.fade(st.pEye, i === 4);
+      S.fade(st.liNote, i === 1);
+      st.li0a.setAttribute('class', i === 1 ? 't-c t-xs t-x t-b' : 't-c t-xs');
+      st.li0b.setAttribute('class', i === 1 ? 't-xs t-x t-b' : 't-xs');
+      S.fade(st.zeroNote, i === 1);
+      S.fade(st.codeLbl, i === 2);
+      const on = { 0: ['drv', 'ld'], 1: ['drv', 'ld'], 2: ['bits'], 3: ['pd'], 4: ['tia', 'dec'] }[i];
+      Object.keys(st.cb).forEach((k) => { st.cb[k].rect.setAttribute('class', on.indexOf(k) >= 0 ? 'f-x-soft s-x w2' : 'f-sf s-rule w1'); });
+      const rowsOn = { 0: ['a', 'b'], 1: ['b'], 2: ['a', 'b'], 3: ['b', 'c'], 4: ['c', 'd'] }[i];
+      Object.keys(st.rows).forEach((k) => { st.rows[k].style.opacity = rowsOn.indexOf(k) >= 0 ? '' : 0.3; });
+      st.cursor.style.opacity = i === 4 ? 1 : 0;
+      st.samples.forEach((s) => { s.style.opacity = 0; });
+      st.readBits.forEach((s) => { s.style.opacity = 0; });
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // 光ファイバーの中の点滅（右へ進む。1 は強く、0 は弱く光る）
+      const sp = 21.2, v = 42;
+      st.pulses.forEach((c, j) => {
+        const pos = U.mod(t * v + j * sp, sp * 10);
+        const b = CODE[9 - j];
+        c.setAttribute('cx', (346 + pos).toFixed(1));
+        c.setAttribute('r', b ? 5 : 3);
+        c.style.opacity = b ? 1 : 0.35;
+      });
+      if (i <= 1) {
+        // LD の動作点: いま送り出しているビットに合わせて 0 と 1 の点を行き来する
+        const b = CODE[U.mod(Math.floor(t * v / sp) - 1, 10)];
+        const x = b ? 345 : 215, y = b ? 310 : 464;
+        st.liDot.setAttribute('cx', x); st.liDot.setAttribute('cy', y);
+        setLine(st.iBar, 80, 500, x, 500);
+        setLine(st.pBar, 80, 500, 80, y);
+      }
+      if (i === 3) {
+        st.pairs.forEach((p, k) => {
+          const age = U.mod(t - k * 0.42, 2.5);
+          const f1 = U.clamp(age / 0.6, 0, 1), f2 = U.clamp((age - 0.6) / 1.1, 0, 1);
+          p.ph.setAttribute('cx', p.x.toFixed(1)); p.ph.setAttribute('cy', U.lerp(254, p.y, f1).toFixed(1));
+          p.ph.style.opacity = age < 0.6 ? 1 : 0;
+          p.e.setAttribute('cx', p.x.toFixed(1)); p.e.setAttribute('cy', U.lerp(p.y, 434, f2).toFixed(1));
+          p.h.setAttribute('cx', (p.x + 7).toFixed(1)); p.h.setAttribute('cy', U.lerp(p.y, 270, f2).toFixed(1));
+          const vis = age >= 0.6 && age < 1.8 ? 1 : 0;
+          p.e.style.opacity = vis; p.h.style.opacity = vis;
+        });
+      }
+      if (i === 4) {
+        // 止めた状態でも 10 ビットを読み終えた所が見えるよう、走査の終わりから始める
+        const f = U.cycle(ctx.ts + 6.0, 6.5);
+        const x = st.X0 + Math.min(1, f * 1.1) * st.UW * 10;
+        setLine(st.cursor, x, 236, x, 512);
+        st.samples.forEach((s, k) => { s.style.opacity = x >= st.X0 + (k + 0.5) * st.UW ? 1 : 0; });
+        st.readBits.forEach((s, k) => { s.style.opacity = x >= st.X0 + (k + 0.5) * st.UW ? 1 : 0; });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 ONU の仕事
+     ================================================================ */
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) > 0x2e80 ? fs : fs * 0.62;
+    return w;
+  }
+  /* 文字の入った札（フレームや制御メッセージ）。原点が中心。S.place で道の上に置く */
+  function tok(p, text, cls) {
+    const g = S.g({ cls: 'tok' }, p);
+    const w = tw(text, 10) + 14;
+    g.rect = S.rect(-w / 2, -10, w, 20, { rx: 4, cls: cls || 'f-d' }, g);
+    g.txt = S.text(0, 4, text, { cls: 't-c t-xs t-b t-sf t-mono' }, g);
+    g.no = S.text(0, -15, '✕', { cls: 't-c t-md t-b t-x', style: { opacity: 0 } }, g);
+    g.style.opacity = 0;
+    return g;
+  }
+  const s3 = {
+    steps: [
+      { title: '1 本のファイバーで上りと下り', text: '光コンセントから来る 1 本のファイバーに、下りは 1490 nm、上りは 1310 nm の{p|光}が逆向きに通る。入口の WDM フィルタが波長で光を振り分け、LD と PD を 1 つにまとめた部品（BOSA）が送受信する。10G-EPON では下り 1577 nm、上り 1270 nm を使う。' },
+      { title: '電源を入れると、まず登録する', text: 'ONU は最初、下りを聞くだけで送らない。OLT が定期的に設ける「新しい ONU はここで名乗れ」という時間枠（ディスカバリ）に REGISTER_REQ を送ると、OLT が往復時間を測り、識別番号 {x|LLID} を割り当てる。以後の下りフレームにはこの LLID が付く。' },
+      { title: '下りは自分の LLID だけ取り込む', text: '下りには同じ PON の全 ONU 宛ての{d|フレーム}が流れてくる。ONU はプリアンブル（第13章）の 2 バイトに書かれた LLID を見て、自分宛てでないものを捨てる。残ったものを復号し、普通の Ethernet フレームに戻してルーターへ渡す。' },
+      { title: '上りは許可が出るまで待つ', text: 'ルーターから来たフレームは待ち行列に入る。ONU は REPORT で「どれだけ送るものが待っているか」を OLT に知らせ、OLT からの GATE で指定された開始時刻と長さの間だけレーザーを点ける。点けた直後は同期用の信号を送り、受け手が合わせてからフレームを送る。それ以外の時間、レーザーは消えている。' },
+      { title: 'ONU はルーターではない', text: 'ONU が扱うのは光と電気の変換と、PON の上でフレームを運ぶ約束（リンク層）まで。IP アドレスを見て転送することも、NAT をすることもない。家側の口は 1000BASE-T（10G の回線では 10GBASE-T）で、ここにルーターの WAN ポートをつなぐ（第14章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      /* ---- 外: ファイバーとルーター ---- */
+      S.rect(0, 236, 150, 28, { cls: 'f-p-soft' }, svg);
+      S.text(8, 228, '下り 1490 nm →', { cls: 't-xs t-p t-b' }, svg);
+      S.text(8, 282, '← 上り 1310 nm', { cls: 't-xs t-p t-b' }, svg);
+      S.text(8, 306, '← 局舎（OLT）へ数 km', { cls: 't-xs t-dim' }, svg);
+      st.router = box(svg, 830, 222, 115, 70, 'ルーター', 'WAN ポート', 'f-sf s-fg w15', 't-sm');
+      S.line(770, 256, 830, 256, { cls: 's-e w3' }, svg);
+      S.text(810, 246, 'LAN', { cls: 't-c t-xs t-e t-b' }, svg);
+      /* ---- ONU の箱 ---- */
+      S.text(470, 44, 'ONU（光回線終端装置）', { cls: 't-c t-lg t-b' }, svg);
+      S.rect(150, 56, 640, 414, { rx: 12, cls: 'f-in s-fg w15' }, svg);
+      // BOSA
+      st.bosa = S.g({}, svg);
+      st.bosaR = S.rect(166, 100, 180, 320, { rx: 8, cls: 'f-sf s-rule w1' }, st.bosa);
+      S.text(256, 122, 'BOSA', { cls: 't-c t-sm t-b' }, st.bosa);
+      S.text(256, 138, '光の送受信部品', { cls: 't-c t-xs t-dim' }, st.bosa);
+      S.rect(240, 150, 90, 50, { rx: 5, cls: 'f-sf s-fg w15' }, st.bosa);
+      S.text(285, 172, 'PD', { cls: 't-c t-sm t-b' }, st.bosa);
+      S.text(285, 188, '1490 nm を受ける', { cls: 't-c t-xs t-dim' }, st.bosa);
+      st.ldBox = S.rect(240, 340, 90, 50, { rx: 5, cls: 'f-sf s-fg w15' }, st.bosa);
+      S.text(285, 362, 'LD', { cls: 't-c t-sm t-b' }, st.bosa);
+      S.text(285, 378, '1310 nm を出す', { cls: 't-c t-xs t-dim' }, st.bosa);
+      S.path('M150,244 H200 V175 H240', { cls: 'f-none s-p w2' }, st.bosa);
+      S.path('M240,365 H206 V256 H150', { cls: 'f-none s-p w2' }, st.bosa);
+      S.line(186, 232, 214, 268, { cls: 's-fg w3 round' }, st.bosa);
+      S.text(272, 268, 'WDM フィルタ', { cls: 't-c t-xs t-b' }, st.bosa);
+      S.text(272, 282, '波長で振り分け', { cls: 't-c t-xs t-dim' }, st.bosa);
+      st.ldGlow = S.circle(232, 365, 9, { cls: 'f-p-soft s-p w2', style: { opacity: 0 } }, st.bosa);
+      st.lightDown = A.flow(road(svg, 'M0,244 H200 V175 H240'), { count: 6, speed: 90, r: 3.5, cls: 'f-p', parent: svg });
+      st.lightUp = A.flow(road(svg, 'M240,365 H206 V256 H0'), { count: 6, speed: 90, r: 3.5, cls: 'f-p', parent: svg });
+      // 電気の配線
+      S.path('M330,175 H400', { cls: 'f-none s-e w2' }, svg);
+      S.path('M400,365 H330', { cls: 'f-none s-e w2' }, svg);
+      S.path('M610,175 H640 V250 H660', { cls: 'f-none s-e w2' }, svg);
+      S.path('M660,262 H640 V365 H610', { cls: 'f-none s-e w2' }, svg);
+      // MAC チップ
+      S.rect(385, 66, 240, 378, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.text(505, 90, 'PON の制御チップ（MAC）', { cls: 't-c t-sm t-b' }, svg);
+      st.downBox = box(svg, 400, 118, 210, 88, '', '');
+      S.text(410, 138, '① 下り：LLID で選び、復号する', { cls: 't-xs t-b' }, st.downBox);
+      S.line(470, 152, 470, 198, { cls: 's-x w1 dash' }, st.downBox);
+      S.text(484, 160, 'LLID が 5 か', { cls: 't-xs t-x t-b' }, st.downBox);
+      st.mpcpBox = box(svg, 400, 214, 210, 88, '', '');
+      S.text(410, 232, 'MPCP（制御）', { cls: 't-xs t-b' }, st.mpcpBox);
+      // LLID は題の行に置き、2 行目（y 254）は制御メッセージの札が止まる場所として空けておく
+      S.text(500, 232, 'LLID：', { cls: 't-sm' }, st.mpcpBox);
+      st.llidTxt = S.text(542, 232, '', { cls: 't-sm t-mono t-b t-x' }, st.mpcpBox);
+      S.text(410, 276, '時計：OLT の時刻印に合わせる', { cls: 't-xs' }, st.mpcpBox);
+      S.text(410, 293, 'REPORT を出し、GATE を受ける', { cls: 't-xs t-dim' }, st.mpcpBox);
+      st.upBox = box(svg, 400, 312, 210, 118, '', '');
+      S.text(410, 330, '② 上り：待ち行列', { cls: 't-xs t-b' }, st.upBox);
+      [440, 490, 540].forEach((x) => S.rect(x - 22, 354, 44, 22, { rx: 3, cls: 'f-none s-rule w1 dash2' }, st.upBox));
+      S.text(410, 420, 'GATE で決まった時間だけ送る', { cls: 't-xs t-dim' }, st.upBox);
+      // PHY
+      st.phy = box(svg, 660, 200, 110, 90, '', '');
+      S.text(715, 220, 'Ethernet PHY', { cls: 't-c t-sm t-b' }, st.phy);
+      S.text(715, 236, '1000BASE-T', { cls: 't-c t-xs t-dim' }, st.phy);
+      /* ---- 動く札 ---- */
+      st.rDown = road(svg, 'M40,244 H200 V175 H640 V250 H830');
+      st.rRegD = road(svg, 'M60,244 H200 V175 H372 V254 H505');
+      st.rRegU = road(svg, 'M505,254 H372 V365 H206 V256 H60');
+      st.qx = [440, 490, 540];
+      st.rIn = st.qx.map((x) => road(svg, 'M800,262 H640 V365 H' + x));
+      st.rOut = st.qx.map((x) => road(svg, 'M' + x + ',365 H206 V256 H40'));
+      st.downToks = ['LLID 3', 'LLID 5', 'LLID 12', 'LLID 5', 'LLID 27'].map((s) => tok(svg, s, 'f-d'));
+      st.upToks = st.qx.map(() => tok(svg, 'フレーム', 'f-d'));
+      // 制御のメッセージも Ethernet のフレームなので d で描き、注目の枠（x）を付ける
+      const CTL = 'f-d s-x w2';
+      st.reg = [tok(svg, 'ディスカバリ GATE', CTL), tok(svg, 'REGISTER_REQ', CTL), tok(svg, 'REGISTER：LLID 5', CTL), tok(svg, 'REGISTER_ACK', CTL)];
+      st.report = tok(svg, 'REPORT：3 件待ち', CTL);
+      st.gate = tok(svg, 'GATE：時刻 T から 3 件分', CTL);
+      /* ---- 下: 注記と、読む層の範囲 ---- */
+      st.note = S.text(470, 500, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.note2 = S.text(470, 522, '', { cls: 't-c t-sm t-dim' }, svg);
+      st.layers = S.g({ cls: 'fade hide' }, svg);
+      const names = ['物理', 'リンク', 'IP', 'トランスポート', 'アプリ'];
+      [['ONU', 2, 480], ['ルーター', 3, 508]].forEach(([who, n, y]) => {
+        S.text(206, y + 15, who, { cls: 't-sm t-b', 'text-anchor': 'end' }, st.layers);
+        names.forEach((nm, k) => {
+          S.rect(216 + k * 112, y, 106, 22, { rx: 3, cls: k < n ? 'f-x-soft s-x w1' : 'f-none s-rule w1' }, st.layers);
+          S.text(269 + k * 112, y + 15, nm, { cls: 't-c t-xs' + (k < n ? ' t-b' : ' t-dim') }, st.layers);
+        });
+      });
+      S.text(776, 551, '色の付いた層まで読む（第11章の 5 層。ルーターの NAT はポート番号も書き換える）', { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.layers);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const hl = (g, on) => { g.rect.setAttribute('class', on ? 'f-x-soft s-x w2' : 'f-sf s-rule w1'); };
+      st.bosaR.setAttribute('class', i === 0 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      hl(st.downBox, i === 2);
+      hl(st.mpcpBox, i === 1 || i === 3);
+      hl(st.upBox, i === 3);
+      hl(st.phy, i === 4);
+      st.router.rect.setAttribute('class', i === 4 ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+      st.lightDown.show(i === 0);
+      st.lightUp.show(i === 0);
+      st.downToks.forEach((g) => { g.style.opacity = 0; });
+      st.upToks.forEach((g) => { g.style.opacity = 0; });
+      st.reg.forEach((g) => { g.style.opacity = 0; });
+      st.report.style.opacity = 0; st.gate.style.opacity = 0;
+      st.ldGlow.style.opacity = 0;
+      st.llidTxt.textContent = i === 1 ? '未登録' : '5';
+      S.fade(st.layers, i === 4);
+      st.note.textContent = ['下り 1490 nm と上り 1310 nm は、同じファイバーの中を逆向きにすれ違う', 'ディスカバリ GATE → REGISTER_REQ → REGISTER（LLID を割り当て）→ REGISTER_ACK', '自分の LLID（5）と全員宛ての番号のフレームだけを取り込む', 'REPORT：待っている量を知らせる　GATE：送ってよい時刻と長さ', ''][i];
+      st.note2.textContent = ['フィルタは 1490 nm を PD へ、LD が出した 1310 nm をファイバーへ導く', 'OLT は REGISTER_REQ が届くまでの時間から、この ONU までの往復時間を知る', '他の家宛てのフレームも光としては届いている。捨てるのは ONU の仕事', '許可の時間以外はレーザーを消し、他の ONU の光と重ならないようにする', ''][i];
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0) { st.lightDown.update(dt); st.lightUp.update(dt); }
+      const run = (g, road, f, show) => {
+        if (!show) { g.style.opacity = 0; return; }
+        S.place(g, road, U.ease.inOut(U.clamp(f, 0, 1)));
+        g.style.opacity = 1;
+      };
+      if (i === 1) {
+        // 登録の4往復（8 秒で一巡）
+        const q = U.seq(ctx.ts, [1.6, 1.4, 1.6, 1.4, 2.0], true);
+        st.reg.forEach((g, k) => run(g, k % 2 ? st.rRegU : st.rRegD, q.f, q.i === k));
+        st.llidTxt.textContent = q.i >= 3 ? '5' : '未登録';
+      }
+      if (i === 2) {
+        // 下りのフレームが 1.3 秒ごとに届き、LLID が 5 でなければ判定の所で捨てられる
+        const fJudge = 499 / S.len(st.rDown);
+        st.downToks.forEach((g, k) => {
+          const age = U.mod(ctx.ts + 0.4 - k * 1.3, 6.5);
+          const mine = g.txt.textContent === 'LLID 5';
+          const f = age / 3.6;
+          if (f > 1) { g.style.opacity = 0; return; }
+          if (!mine && f >= fJudge) {
+            S.place(g, st.rDown, fJudge);
+            const k2 = U.clamp((f - fJudge) / 0.12, 0, 1);
+            g.style.opacity = (1 - k2).toFixed(2);
+            g.no.style.opacity = 1;
+            return;
+          }
+          g.no.style.opacity = 0;
+          S.place(g, st.rDown, f);
+          g.style.opacity = f > 0.97 ? 0 : 1;
+        });
+      }
+      if (i === 3) {
+        // フレームが行列に入る → REPORT → GATE → 許された時間だけ送る → 消灯
+        const q = U.seq(ctx.ts, [2.4, 1.2, 1.2, 2.4, 1.8], true);
+        st.upToks.forEach((g, k) => {
+          if (q.i === 0) {
+            const f = (q.t - k * 0.6) / 1.0;
+            if (f < 0) { g.style.opacity = 0; return; }
+            run(g, st.rIn[k], f, true);
+          } else if (q.i <= 2) {
+            run(g, st.rIn[k], 1, true);
+          } else if (q.i === 3) {
+            const f = (q.t - k * 0.55) / 1.2;
+            if (f < 0) { run(g, st.rIn[k], 1, true); return; }
+            run(g, st.rOut[k], f, f < 1);
+          } else g.style.opacity = 0;
+        });
+        run(st.report, st.rRegU, q.f, q.i === 1);
+        run(st.gate, st.rRegD, q.f, q.i === 2);
+        st.ldGlow.style.opacity = q.i === 3 ? 0.9 : 0;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 PON
+     ================================================================ */
+  /* クロージャ（8 分岐）の位置。1 つめはこの家のある区画で、8 台の ONU を描く。残りは 8 台をまとめた箱 */
+  const PC = [
+    { y: 137, km: 2 },
+    { y: 266, km: 4, name: 'LLID 9〜16', rep: 'LLID 12' },
+    { y: 302, km: 7, name: 'LLID 17〜24', rep: 'LLID 20' },
+    { y: 338, km: 10, name: 'LLID 25〜32', rep: 'LLID 27' }
+  ];
+  const feeder = (y) => 'C260,195 270,' + y + ' 330,' + y;
+  /* 上りの送信の予定（遠い順に、OLT に着く時刻がすき間なく並ぶように送り始める）。dur は片道の時間（km に比例、誇張） */
+  const UP = [
+    { c: 3, label: 'LLID 27', dur: 2.5 },
+    { c: 2, label: 'LLID 20', dur: 1.75 },
+    { c: 1, label: 'LLID 12', dur: 1.0 },
+    { c: 0, label: 'LLID 5', dur: 0.5 }
+  ].map((u, k) => Object.assign(u, { arrive: 2.6 + k * 0.75, start: 2.6 + k * 0.75 - u.dur }));
+  const UP_CYCLE = 7, UP_SLOT = 0.6;
+  const s4 = {
+    steps: [
+      { title: '分岐は 2 段：局舎で 4、電柱で 8', text: 'NTT 東西の FTTH は、局舎の中に 4 分岐、電柱のクロージャに 8 分岐の光スプリッタを置き、OLT の 1 ポート（OSU）から最大 32 軒につなぐ。スプリッタは石英の導波路を Y 字に枝分かれさせた部品で、電源も設定も要らない。PON の P（passive）はこの意味。' },
+      { title: '分けるたびに光は弱くなる', text: '光を 2 本に分けると、それぞれの強さは半分（3 dB 減）になる。32 分岐は半分を 5 回くり返すのと同じで 1/32（15 dB）、部品の損失を含めると約 17 dB（約 1/50）。送信の強さと受信の感度は、この損失と 20 km 程度の距離を見込んで決めてある。' },
+      { title: '下りは全員に同じ光が届く', text: 'OLT が送った光は、分岐で 32 軒すべての ONU に同じものが届く。各 ONU は LLID で自分の分だけを取り出し、残りは捨てる（[[3|ONU の仕事]]）。下りの中身は LLID ごとに別の鍵で暗号化されていて、他の家の ONU では読めない（暗号の方式は装置による）。' },
+      { title: '上りは時間を分けて順番に', text: '上りの光はスプリッタを逆向きに通って 1 本に合流するので、2 軒が同時に送ると重なって読めなくなる。OLT は各 ONU の REPORT を見て送信の時間枠を割り当て（DBA）、ONU は枠の間だけレーザーを点ける。これが時分割多元接続（**TDMA**）。' },
+      { title: '距離の違いを測って差し引く', text: '局舎から 2 km の家と 10 km の家では、光が片道で届く時間が約 40 µs 違う。OLT は登録のときに各 ONU との往復時間を測っておき（レンジング）、OLT に届く時刻がすき間なく並ぶように、遠い ONU ほど早く送り始めさせる。' },
+      { title: '波長で同居させる', text: '下り 1490 nm と上り 1310 nm は波長が違うので、1 本を同時に使っても両端のフィルタで分けられる。10G-EPON の下り 1577 nm は GE-PON の下りと重ならないよう選ばれ、同じ PON に同居できる（上りは時間で分ける）。1550 nm 帯はテレビ放送を光のまま送るのに使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* ---- 上: つながり方（線 → 動く光 → 箱 の順に重ねる） ---- */
+      S.rect(20, 40, 200, 300, { rx: 10, cls: 'f-in s-rule w15' }, svg);
+      S.text(120, 64, '局舎（収容局）', { cls: 't-c t-sm t-b' }, svg);
+      S.line(124, 195, 148, 195, { cls: 's-p w3' }, svg);
+      PC.forEach((c) => S.path('M204,195 ' + feeder(c.y), { cls: 'f-none s-p w2' }, svg));
+      for (let k = 0; k < 8; k++) S.line(390, PC[0].y, 600, 50 + k * 25, { cls: 's-p w1' }, svg);
+      PC.slice(1).forEach((c) => [-6, 0, 6].forEach((d) => S.line(390, c.y, 600, c.y + d, { cls: 's-p w1' }, svg)));
+      const dots = S.g({}, svg);
+      box(svg, 32, 165, 92, 60, 'OLT', 'PON 1 本分', 'f-sf s-fg w15', 't-sm');
+      st.spA = box(svg, 148, 172, 56, 46, '1:4', '', 'f-sf s-fg w15', 't-sm t-mono');
+      S.text(176, 236, '局舎の中の', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(176, 250, 'スプリッタ', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(120, 318, 'OLT の 1 ポートで最大 32 軒', { cls: 't-c t-xs t-b' }, svg);
+      st.downTrunkLbl = S.text(136, 152, '↓1490 nm　↑1310 nm', { cls: 't-c t-xs t-p t-b fade hide' }, svg);
+      S.text(360, 30, '電柱のクロージャ', { cls: 't-c t-xs t-b' }, svg);
+      st.closures = PC.map((c) => box(svg, 330, c.y - 13, 60, 26, '1:8', '', 'f-sf s-fg w15', 't-sm t-mono'));
+      // この家の区画: 8 台の ONU
+      st.onus = [];
+      for (let k = 0; k < 8; k++) {
+        const y = 50 + k * 25;
+        const g = box(svg, 600, y - 10, 70, 20, '', '', 'f-sf s-fg w1');
+        S.text(635, y + 4, 'LLID ' + (k + 1), { cls: 't-c t-xs t-mono' }, g);
+        st.onus.push(g);
+      }
+      st.onus[4].rect.setAttribute('class', 'f-x-soft s-x w2');
+      S.text(680, 154, '← この家（局舎から 2 km）', { cls: 't-sm t-x t-b' }, svg);
+      // 残りの 3 区画は 8 台をまとめて描く
+      st.groups = PC.slice(1).map((c) => {
+        const g = box(svg, 600, c.y - 11, 92, 22, '', '', 'f-sf s-fg w1');
+        S.text(646, c.y + 4, c.name, { cls: 't-c t-xs t-mono' }, g);
+        S.text(700, c.y + 4, '8 軒（' + c.km + ' km 先）', { cls: 't-xs t-dim' }, svg);
+        return g;
+      });
+      // 下りの道（OLT → 各 ONU）と上りの道（代表の ONU → OLT）
+      st.downRoads = [];
+      for (let k = 0; k < 8; k++) st.downRoads.push(road(svg, 'M124,195 L204,195 ' + feeder(PC[0].y) + ' L390,' + PC[0].y + ' L600,' + (50 + k * 25)));
+      PC.slice(1).forEach((c) => st.downRoads.push(road(svg, 'M124,195 L204,195 ' + feeder(c.y) + ' L600,' + c.y)));
+      st.downDots = [];
+      for (let n = 0; n < 5; n++) st.downDots.push(st.downRoads.map(() => S.circle(0, 0, 4, { cls: 'f-p', style: { opacity: 0 } }, dots)));
+      st.upRoads = UP.map((u) => {
+        const c = PC[u.c];
+        const y0 = u.c === 0 ? 150 : c.y;
+        return road(svg, 'M600,' + y0 + ' L390,' + c.y + ' L330,' + c.y + ' C270,' + c.y + ' 260,195 204,195 L124,195');
+      });
+      st.upDots = UP.map(() => [0, 1, 2].map(() => S.circle(0, 0, 4.5, { cls: 'f-p', style: { opacity: 0 } }, dots)));
+      st.upSrc = UP.map((u) => (u.c === 0 ? st.onus[4] : st.groups[u.c - 1]));
+      st.upBase = UP.map((u) => (u.c === 0 ? 'f-x-soft s-x w2' : 'f-sf s-fg w1'));
+
+      /* ---- 下: 段階ごとの補足 ---- */
+      const P = (title) => panel(svg, 20, 364, 920, 184, title);
+      // 1: スプリッタの中
+      const pa = st.pa = P('スプリッタの中：Y 字の分岐を重ねる（模式図）');
+      const tree = (x0, y0, levels, dy, dx) => {
+        let ends = [y0];
+        S.line(x0 - 30, y0, x0, y0, { cls: 's-p w2' }, pa);
+        for (let l = 0; l < levels; l++) {
+          const nx = [];
+          const h = dy / Math.pow(2, l);
+          ends.forEach((y) => {
+            [y - h, y + h].forEach((ny) => {
+              S.path(`M${x0 + l * dx},${y} C${x0 + l * dx + dx * 0.5},${y} ${x0 + l * dx + dx * 0.5},${ny} ${x0 + (l + 1) * dx},${ny}`, { cls: 'f-none s-p w2' }, pa);
+              nx.push(ny);
+            });
+          });
+          ends = nx;
+        }
+        return ends;
+      };
+      tree(110, 466, 2, 30, 60);
+      S.text(140, 534, '局舎の 1:4（2 段）', { cls: 't-c t-sm t-b' }, pa);
+      tree(360, 466, 3, 36, 60);
+      S.text(420, 534, '電柱の 1:8（3 段）', { cls: 't-c t-sm t-b' }, pa);
+      S.text(600, 430, '1 段ごとに光は 2 本に分かれ、強さは半分', { cls: 't-sm' }, pa);
+      S.text(600, 456, '2 段 ＋ 3 段 ＝ 5 段 → 2⁵ ＝ 32 本', { cls: 't-sm t-mono t-b' }, pa);
+      S.text(600, 482, '石英の板に光の通り道（導波路）を作った部品', { cls: 't-sm' }, pa);
+      S.text(600, 508, '電源も設定も無い（受動 ＝ passive）', { cls: 't-sm t-b t-x' }, pa);
+      // 2: 光の強さ
+      const pb = st.pb = P('光の強さ（OLT の出口を 100% とした例）');
+      [['OLT の出口', 100, '100%（0 dB）'], ['1:4 の後', 25, '25%（−6 dB）'], ['1:8 の後（理想）', 3.1, '3.1%（−15 dB）'], ['部品の損失を含める', 2, '約 2%（約 −17 dB）'], ['ファイバー 10 km も通る', 1.1, '約 1%（約 −20 dB）']].forEach(([n, v, s], k) => {
+        const y = 404 + k * 28;
+        S.text(36, y + 14, n, { cls: 't-sm' }, pb);
+        S.rect(220, y, Math.max(2, v * 5.6), 18, { rx: 2, cls: 'f-p' }, pb);
+        S.text(232 + Math.max(2, v * 5.6), y + 14, s, { cls: 't-sm t-mono' }, pb);
+      });
+      // 3: 下りの選別
+      const pc = st.pc = P('この家の ONU（LLID 5）に届く下りのフレーム');
+      S.line(40, 466, 760, 466, { cls: 's-p w4', style: { opacity: 0.35 } }, pc);
+      st.pcOnu = box(pc, 760, 436, 90, 60, 'ONU', 'LLID 5', 'f-x-soft s-x w2', 't-sm');
+      S.line(850, 466, 920, 466, { cls: 's-e w3' }, pc);
+      S.text(885, 456, 'ルーターへ', { cls: 't-c t-xs t-e t-b' }, pc);
+      S.text(36, 520, '同じ PON の 32 軒分のフレームが、光としては全部届く', { cls: 't-xs' }, pc);
+      S.text(36, 538, '取り込むのは LLID 5 と全員宛ての番号だけ。他は捨てる', { cls: 't-xs t-b' }, pc);
+      st.fil = ['LLID 12', 'LLID 5', 'LLID 30', '全員宛て', 'LLID 5', 'LLID 7'].map((s) => tok(pc, s, 'f-d'));
+      // 4・5: 上りの時間割
+      const T = (tt) => 140 + tt / UP_CYCLE * 760;
+      const pd = st.pd = P('OLT に届く上りの光（時間 →）');
+      S.line(130, 500, 910, 500, { cls: 's-fg w1', 'marker-end': mk('fg') }, pd);
+      st.bars = UP.map((u) => {
+        const g = S.g({}, pd);
+        S.rect(T(u.arrive), 466, UP_SLOT / UP_CYCLE * 760, 30, { rx: 3, cls: 'f-p-soft s-p w15' }, g);
+        S.text(T(u.arrive + UP_SLOT / 2), 486, u.label, { cls: 't-c t-xs t-mono t-b' }, g);
+        return g;
+      });
+      const gx = T((UP[0].arrive + UP_SLOT + UP[1].arrive) / 2);
+      S.line(gx, 446, gx, 470, { cls: 's-dim w1' }, pd);
+      S.text(gx, 440, 'すき間（ガードタイム）', { cls: 't-c t-xs t-dim' }, pd);
+      S.text(36, 486, 'OLT の受信', { cls: 't-sm t-b' }, pd);
+      S.text(36, 534, 'GATE が決めた順番と長さで、重ならずに並ぶ。どの ONU も許可の外では光を出さない', { cls: 't-xs' }, pd);
+      const pe = st.pe = P('送り始める時刻と、OLT に着く時刻（時間 →、距離による遅れを誇張）');
+      S.text(36, 420, 'ONU が送り始める', { cls: 't-sm t-b' }, pe);
+      S.text(36, 512, 'OLT に着く', { cls: 't-sm t-b' }, pe);
+      S.line(170, 428, 768, 428, { cls: 's-rule w1' }, pe);
+      S.line(170, 520, 768, 520, { cls: 's-rule w1' }, pe);
+      UP.forEach((u) => {
+        const w = UP_SLOT / UP_CYCLE * 760;
+        S.rect(T(u.start), 404, w, 22, { rx: 3, cls: 'f-p-soft s-p w1' }, pe);
+        S.text(T(u.start) + w / 2, 419, u.label, { cls: 't-c t-xs t-mono' }, pe);
+        S.rect(T(u.arrive), 496, w, 22, { rx: 3, cls: 'f-p-soft s-p w1' }, pe);
+        S.text(T(u.arrive) + w / 2, 511, u.label.replace('LLID ', ''), { cls: 't-c t-xs t-mono' }, pe);
+        S.path(`M${T(u.start) + w / 2},428 L${T(u.arrive) + w / 2},494`, { cls: 'f-none s-p w15 dash', 'marker-end': mk('p') }, pe);
+      });
+      S.text(780, 412, '片道の時間', { cls: 't-xs t-b' }, pe);
+      UP.forEach((u, k) => {
+        const km = PC[u.c].km;
+        S.text(780, 434 + k * 20, u.label + '：' + km + ' km → 約 ' + Math.round(km * 4.9) + ' µs', { cls: 't-xs t-mono' }, pe);
+      });
+      // 6: 波長
+      const pf = st.pf = P('使う波長（nm）');
+      const X = (nm) => 140 + (nm - 1250) / 350 * 760;
+      S.line(130, 496, 910, 496, { cls: 's-fg w1' }, pf);
+      for (let nm = 1250; nm <= 1600; nm += 50) {
+        S.line(X(nm), 496, X(nm), 502, { cls: 's-fg w1' }, pf);
+        S.text(X(nm), 516, String(nm), { cls: 't-c t-xs t-mono t-dim' }, pf);
+      }
+      const band = (a, b, cls) => S.rect(X(a), 466, Math.max(3, X(b) - X(a)), 30, { cls }, pf);
+      band(1260, 1360, 'f-p-soft s-p w1');
+      band(1260, 1280, 'f-p');
+      band(1480, 1500, 'f-p');
+      band(1550, 1560, 'f-p-soft s-p w1');
+      band(1575, 1580, 'f-p');
+      const lab = (nm, y, s, anchor) => {
+        S.line(X(nm), 464, X(nm), y + 4, { cls: 's-dim w1' }, pf);
+        S.text(X(nm) + (anchor === 'end' ? -4 : 4), y, s, { cls: 't-xs t-b', 'text-anchor': anchor || 'start' }, pf);
+      };
+      lab(1320, 404, '上り GE-PON（1260〜1360）');
+      lab(1270, 428, '上り 10G-EPON（1270）', 'end');
+      lab(1490, 404, '下り GE-PON（1490）');
+      lab(1578, 428, '下り 10G-EPON（1577）', 'end');
+      lab(1555, 452, '映像（1550 帯）', 'end');
+      S.text(36, 538, '上りの 2 つは波長が重なるので、時間で分ける（下りは波長で分ける）', { cls: 't-xs t-dim' }, pf);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.pa, i === 0);
+      S.fade(st.pb, i === 1);
+      S.fade(st.pc, i === 2);
+      S.fade(st.pd, i === 3);
+      S.fade(st.pe, i === 4);
+      S.fade(st.pf, i === 5);
+      S.fade(st.downTrunkLbl, i === 5);
+      const hl = (g, on, base) => g.rect.setAttribute('class', on ? 'f-x-soft s-x w2' : base);
+      hl(st.spA, i === 0, 'f-sf s-fg w15');
+      st.closures.forEach((c) => hl(c, i === 0, 'f-sf s-fg w15'));
+      st.bars.forEach((b) => { b.style.opacity = i === 3 ? 0.25 : 1; });
+      st.downDots.forEach((row) => row.forEach((c) => { c.style.opacity = 0; }));
+      st.upDots.forEach((row) => row.forEach((c) => { c.style.opacity = 0; }));
+      st.fil.forEach((g) => { g.style.opacity = 0; });
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // 下り: 0.8 秒ごとに出た光が、分岐ごとに全部の枝へ同じように進む（段階 2 では分岐のたびに小さくする）
+      if (i === 1 || i === 2 || i === 5) {
+        const v = 170;
+        st.downDots.forEach((row, n) => {
+          const age = U.mod(t - n * 0.8, 4.0);
+          row.forEach((c, j) => {
+            const L = S.len(st.downRoads[j]);
+            const d = age * v;
+            if (!L || d > L) { c.style.opacity = 0; return; }
+            const q = st.downRoads[j].getPointAtLength(d);
+            c.setAttribute('cx', q.x.toFixed(1)); c.setAttribute('cy', q.y.toFixed(1));
+            const r = i === 1 ? (q.x < 204 ? 6 : q.x < 390 ? 4 : 2.5) : 3.5;
+            c.setAttribute('r', r);
+            c.style.opacity = 1;
+          });
+        });
+      }
+      // 上り: 予定の時刻に送り始め、片道の時間をかけて OLT に着く
+      if (i === 3 || i === 4 || i === 5) {
+        const tc = U.mod(ctx.ts + 3.0, UP_CYCLE);
+        UP.forEach((u, k) => {
+          let lit = false;
+          st.upDots[k].forEach((c, m) => {
+            const f = (tc - u.start - m * 0.2) / u.dur;
+            if (f < 0 || f > 1) { c.style.opacity = 0; return; }
+            const q = S.along(st.upRoads[k], f);
+            c.setAttribute('cx', q.x.toFixed(1)); c.setAttribute('cy', q.y.toFixed(1));
+            c.style.opacity = 1;
+            lit = lit || f < 0.15;
+          });
+          st.upSrc[k].rect.setAttribute('class', lit ? 'f-p-soft s-p w2' : st.upBase[k]);
+          if (i === 3) st.bars[k].style.opacity = tc >= u.arrive ? 1 : 0.25;
+        });
+      } else {
+        st.upSrc.forEach((g, k) => { g.rect.setAttribute('class', st.upBase[k]); });
+      }
+      // 下りの選別（段階 3）: 1.1 秒ごとに届き、LLID 5 と全員宛て以外は ONU の入口（箱の手前）で捨てる。
+      // 取り込むものは ONU の箱に入ったところで消す（箱の先の「ルーターへ」の札に重ねない）
+      if (i === 2) {
+        st.fil.forEach((g, k) => {
+          const age = U.mod(ctx.ts - k * 1.1, 6.6);
+          const mine = g.txt.textContent === 'LLID 5' || g.txt.textContent === '全員宛て';
+          const x = 60 + age * 230;
+          if (!mine && x >= 726) {
+            g.setAttribute('transform', 'translate(726,466)');
+            g.no.style.opacity = 1;
+            g.style.opacity = Math.max(0, 1 - (x - 726) / 120).toFixed(2);
+            return;
+          }
+          g.no.style.opacity = 0;
+          g.setAttribute('transform', `translate(${x.toFixed(1)},466)`);
+          g.style.opacity = x > 760 ? 0 : 1;
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 局舎から ISP へ
+     ================================================================ */
+  /* 家のルーター → ONU → OLT → 収容ルーター → 中継ルーター までの共通の道 */
+  const BASE5 = 'M110,280 V322 H184 C215,322 215,224 246,224 H566';
+  const s5 = {
+    steps: [
+      { title: 'OLT から先は NTT 東西の網', text: 'OLT は PON の受け口（OSU）を何枚も収め、光を Ethernet のフレームに戻して NTT 東西の網（NGN）へ渡す。フレームは収容ルーターと中継ルーターを経て、ISP とつなぐ出口へ向かう。ここまでは NTT 東西の設備で、ISP の網はその先にある。' },
+      { title: 'PPPoE：網の出口までトンネルを張る', text: 'ルーターは ISP の ID とパスワードで PPPoE のセッションを開き、ISP から IPv4 アドレス 203.0.113.5 と DNS サーバーを受け取る。以後の IPv4 パケットはすべて PPPoE と PPP のヘッダ（計 8 バイト）に包まれて網を通り、網終端装置で外される。' },
+      { title: 'PPPoE が混みやすい理由', text: '網終端装置は 1 台を数千〜1 万の利用者で共有する関所になる。増設は NTT 東西が自社の基準（収容するセッションの数）で決めてきたため、1 契約あたりの通信量の伸びに追いつかず、夜に処理能力を超えて遅くなる所が出た（2017〜2018 年に総務省の研究会で議論された）。' },
+      { title: 'IPoE：IPv6 のまま網を通り抜ける', text: 'IPoE にはトンネルもログインも無い。ルーターは DHCPv6-PD で IPv6 のプレフィックス 2001:db8:1234:5600::/56 を受け取り、その中の /64 を家の LAN に配る。PC は 2001:db8:1234:5600::10 などのアドレスを持ち、NAT なしで通信する（第14章）。' },
+      { title: 'VNE と大容量のゲートウェイ', text: 'IPoE の出口は VNE（仮想通信事業者）と呼ばれる少数の事業者が受け持ち、多くの ISP は VNE を通して IPoE を提供する。出口のゲートウェイルーターは大容量で、VNE が自分の判断で増設できるので、通信量に合わせて増やしやすい。' },
+      { title: 'IPv4 は IPv6 に包んで運ぶ', text: 'IPoE の網は IPv6 しか通さないので、IPv4 のパケットは IPv6 に包んで VNE の出口まで運び、そこで外す（IPv4 over IPv6）。MAP-E（v6プラスなど）は家のルーターが NAT とポートの範囲分けを、DS-Lite（transix など）は VNE 側の装置が NAT をする。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      /* ---- 線とトンネル（箱より下に描く） ---- */
+      S.rect(226, 50, 420, 300, { rx: 12, cls: 'f-in s-rule w15' }, svg);
+      S.text(436, 72, 'NTT 東西の網（NGN）', { cls: 't-c t-sm t-b' }, svg);
+      S.line(110, 172, 110, 200, { cls: 's-e w3' }, svg);
+      S.line(110, 256, 110, 300, { cls: 's-e w3' }, svg);
+      S.path('M184,322 C215,322 215,224 246,224', { cls: 'f-none s-p w3' }, svg);
+      S.path('M332,224 H356 M452,224 H470', { cls: 'f-none s-mid w2' }, svg);
+      S.path('M566,224 H576 V124 H586 M576,224 V324 H586', { cls: 'f-none s-mid w2' }, svg);
+      S.path('M716,124 H746 M716,324 H746', { cls: 'f-none s-mid w2' }, svg);
+      S.path('M856,124 C880,124 900,150 905,178 M856,324 C880,324 900,300 905,272', { cls: 'f-none s-mid w2' }, svg);
+      st.tunnel = S.g({ cls: 'fade hide' }, svg);
+      S.path('M110,256 V322 H184 C215,322 215,224 246,224 H576 V124 H586', { cls: 'f-none s-x w10 round', style: { opacity: 0.22 } }, st.tunnel);
+      S.text(400, 186, 'PPPoE のトンネル（セッション）', { cls: 't-c t-xs t-x t-b' }, st.tunnel);
+      st.crowd = S.g({ cls: 'fade hide' }, svg);
+      for (let k = 0; k < 6; k++) S.line(236, 92 + k * 15, 586, 108 + k * 6, { cls: 's-x w1 dash' }, st.crowd);
+      S.text(240, 88, '他の家々のセッション', { cls: 't-xs t-x' }, st.crowd);
+      /* ---- 箱 ---- */
+      S.rect(20, 90, 180, 290, { rx: 10, cls: 'f-in s-rule w15' }, svg);
+      S.text(32, 110, '家', { cls: 't-sm t-b' }, svg);
+      st.pc = box(svg, 36, 120, 148, 52, 'PC', ' ', 'f-sf s-fg w15', 't-sm');
+      st.pcSub = S.text(110, 160, '', { cls: 't-c t-xs t-mono' }, st.pc);
+      st.rt = box(svg, 36, 200, 148, 56, 'ルーター', ' ', 'f-sf s-fg w15', 't-sm');
+      st.rtSub = S.text(110, 242, '', { cls: 't-c t-xs t-mono' }, st.rt);
+      box(svg, 36, 300, 148, 44, 'ONU', '', 'f-sf s-fg w15', 't-sm');
+      st.olt = box(svg, 246, 196, 86, 56, 'OLT', '局舎', 'f-sf s-fg w15', 't-sm');
+      S.text(240, 272, '← PON（場面4）', { cls: 't-xs t-p t-b' }, svg);
+      st.agg = box(svg, 356, 196, 96, 56, '収容ルーター', '', 'f-sf s-fg w15', 't-sm');
+      st.core = box(svg, 470, 196, 96, 56, '中継ルーター', '', 'f-sf s-fg w15', 't-sm');
+      st.nte = box(svg, 586, 96, 130, 56, '網終端装置', 'PPPoE の出口', 'f-sf s-fg w15', 't-sm');
+      st.gwr = box(svg, 586, 296, 130, 56, 'ゲートウェイルーター', 'IPoE の出口', 'f-sf s-fg w15', 't-sm');
+      st.isp = box(svg, 746, 96, 110, 56, 'ISP', 'PPPoE で接続', 'f-sf s-fg w15', 't-sm');
+      st.vne = box(svg, 746, 296, 110, 56, 'VNE', 'IPoE を受け持つ', 'f-sf s-fg w15', 't-sm');
+      S.rect(870, 178, 80, 94, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      S.lines(910, 216, ['インター', 'ネット'], { cls: 't-c t-sm t-b' }, svg, 17);
+      S.text(910, 256, '第16章', { cls: 't-c t-xs t-dim' }, svg);
+      st.fork = S.g({ cls: 'fade hide' }, svg);
+      S.text(600, 186, 'PPPoE なら ↑', { cls: 't-xs t-b' }, st.fork);
+      S.text(600, 274, 'IPoE なら ↓', { cls: 't-xs t-b' }, st.fork);
+      st.wait = S.text(636, 176, '行列で待たされる', { cls: 't-xs t-x t-b fade hide' }, svg);
+      /* ---- 動く札（止まる位置は箱の隙間。箱の中で中身が変わる所は、着く側を加速・出る側を減速にして箱の上に留めない） ---- */
+      st.rBase = road(svg, BASE5 + ' H580');                                  // 分かれ道で止まる
+      st.rPPP1 = road(svg, BASE5 + ' H576 V124 H651');                        // 網終端装置へ
+      st.rPPPw = road(svg, BASE5 + ' H576 V172');                             // 網終端装置の手前で待つ
+      st.rPPPin = road(svg, 'M576,172 V124 H651');                            // 待ったあと網終端装置へ
+      st.rPPP2 = road(svg, 'M651,124 H856 C880,124 900,150 905,178');
+      st.rIPall = road(svg, BASE5 + ' H576 V324 H856 C880,324 900,300 905,272'); // IPoE の出口を通って外へ
+      st.rIPv = road(svg, BASE5 + ' H576 V324 H801');                         // IPv6 に包まれたまま VNE へ
+      st.rIP2b = road(svg, 'M801,324 H856 C880,324 900,300 905,272');
+      st.rPD = road(svg, 'M404,184 H300 C215,184 215,322 184,322 H110 V280');
+      st.tFrame = tok(svg, 'フレーム', 'f-d');
+      st.tPPP = tok(svg, 'PPPoE｜PPP｜IPv4', 'f-d');
+      st.tV4 = tok(svg, 'IPv4', 'f-d');
+      st.tV6 = [0, 1, 2].map(() => tok(svg, 'IPv6', 'f-d'));
+      st.tPD = tok(svg, 'DHCPv6-PD：/56', 'f-d s-x w2');
+      st.t4in6 = tok(svg, 'IPv6｜IPv4', 'f-d');
+      st.toks = [st.tFrame, st.tPPP, st.tV4, st.tPD, st.t4in6].concat(st.tV6);
+
+      /* ---- 下: 段階ごとの補足 ---- */
+      const P = (title) => panel(svg, 20, 392, 920, 156, title);
+      // 1: OLT の中
+      const q0 = st.q0 = P('OLT の中（模式図）');
+      S.rect(40, 430, 330, 92, { rx: 6, cls: 'f-in s-fg w15' }, q0);
+      S.text(52, 446, 'OLT', { cls: 't-xs t-b' }, q0);
+      for (let k = 0; k < 16; k++) {
+        S.rect(52 + k * 19.5, 454, 15, 58, { rx: 2, cls: k === 0 ? 'f-x-soft s-x w1' : 'f-sf s-rule w1' }, q0);
+      }
+      S.text(400, 450, 'OSU 1 枚 ＝ PON 1 本 ＝ 最大 32 軒', { cls: 't-sm' }, q0);
+      S.text(400, 474, 'OLT 1 台に OSU を何枚も挿す（図は 16 枚。枚数は装置による）', { cls: 't-sm t-b' }, q0);
+      S.text(400, 498, '光を Ethernet のフレームに戻し、上流のルーターへ束ねて渡す', { cls: 't-sm' }, q0);
+      S.text(400, 522, '左端の色付きの OSU が、場面4 の 32 軒につながる 1 枚', { cls: 't-xs t-dim' }, q0);
+      // 2: PPPoE の手順
+      const q1 = st.q1 = P('PPPoE の始まり方（値は例）');
+      [['① PADI', '誰か接続を受けてくれますか（全員宛て）'], ['② PADO', '網終端装置：受けられます'], ['③ PADR', 'ではお願いします'], ['④ PADS', 'セッション番号 0x1234 で開始'], ['⑤ 認証', 'ID user@isp.example とパスワード（CHAP など）'], ['⑥ IPCP', 'IPv4 203.0.113.5、DNS 198.51.100.53 を受け取る']].forEach(([a, b], k) => {
+        const x = k < 3 ? 40 : 480, y = 438 + (k % 3) * 26;
+        S.text(x, y, a, { cls: 't-sm t-b t-mono' }, q1);
+        S.text(x + 76, y, b, { cls: 't-sm' }, q1);
+      });
+      S.text(40, 534, 'パケットの入れ子： Ethernet ｜ PPPoE 6 B ｜ PPP 2 B ｜ IPv4 ｜ …　（IP で運べる大きさは 8 バイト減って 1,492。フレッツの推奨は 1,454 以下）', { cls: 't-xs t-mono' }, q1);
+      // 3: 1 日の通信量（模式図）
+      const q2 = st.q2 = P('1 日の通信量と網終端装置の処理能力（模式図）');
+      const gx = (h) => 80 + h / 24 * 520, gy = (v) => 528 - v * 100;
+      const load = (h) => 0.25 + 0.15 * Math.sin((h - 9) / 24 * 2 * Math.PI) + 0.5 * Math.exp(-Math.pow((h - 21.5) / 2.2, 2));
+      const CAP = 0.62;
+      S.line(80, 528, 610, 528, { cls: 's-fg w1' }, q2);
+      [0, 6, 12, 18, 24].forEach((h) => S.text(gx(h), 542, h + ' 時', { cls: 't-c t-xs t-dim' }, q2));
+      // 処理能力を超えた部分に色を付ける
+      let over = '', first = true;
+      const hs = [];
+      for (let h = 0; h <= 24; h += 0.1) if (load(h) > CAP) hs.push(h);
+      if (hs.length) {
+        hs.forEach((h) => { over += (first ? 'M' : 'L') + gx(h).toFixed(1) + ',' + gy(load(h)).toFixed(1); first = false; });
+        over += 'L' + gx(hs[hs.length - 1]).toFixed(1) + ',' + gy(CAP).toFixed(1) + 'L' + gx(hs[0]).toFixed(1) + ',' + gy(CAP).toFixed(1) + 'Z';
+        S.path(over, { cls: 'f-x-soft' }, q2);
+      }
+      let dq = '';
+      for (let h = 0; h <= 24; h += 0.5) dq += (h ? 'L' : 'M') + gx(h).toFixed(1) + ',' + gy(load(h)).toFixed(1);
+      S.path(dq, { cls: 'f-none s-d w2' }, q2);
+      S.line(80, gy(CAP), 610, gy(CAP), { cls: 's-x w15 dash' }, q2);
+      S.text(84, gy(CAP) - 6, '網終端装置の処理能力', { cls: 't-xs t-x t-b' }, q2);
+      S.text(gx(21.5), gy(load(21.5)) - 8, 'あふれる', { cls: 't-c t-xs t-x t-b' }, q2);
+      S.text(640, 446, '夜に通信量が処理能力を超えると、', { cls: 't-sm' }, q2);
+      S.text(640, 468, 'あふれた分は行列で待たされ、遅くなる', { cls: 't-sm' }, q2);
+      S.text(640, 498, '国内の通信量は年に 3〜4 割ずつ増えていた', { cls: 't-xs t-dim' }, q2);
+      S.text(640, 516, '（2018 年 2 月の総務省の研究会の資料）', { cls: 't-xs t-dim' }, q2);
+      // 4: IPv6 アドレスの内訳
+      const q3 = st.q3 = P('IPv6 アドレス 128 ビットの内訳（例: PC の 2001:db8:1234:5600::10）');
+      const bx = (b) => 40 + b / 128 * 880;
+      [[0, 56, '2001:0db8:1234:56', 'f-d-soft s-d w1', '/56：家に配られる（DHCPv6-PD）'], [56, 64, '00', 'f-x-soft s-x w1', '家の中の /64 の番号'], [64, 128, '0000:0000:0000:0010', 'f-in s-rule w1', '機器ごとの部分（::10 は短く書いた例。SLAAC なら乱数）']].forEach(([a, b, s, c, l]) => {
+        S.rect(bx(a), 430, bx(b) - bx(a), 36, { cls: c }, q3);
+        S.text((bx(a) + bx(b)) / 2, 453, s, { cls: 't-c t-sm t-mono t-b' }, q3);
+        S.text((bx(a) + bx(b)) / 2, 488, l, { cls: 't-c t-xs' }, q3);
+      });
+      S.text(40, 520, '/56 の中で、家の中に /64 のネットワークを最大 256 個作れる。LAN の 1 つめは 2001:db8:1234:5600::/64', { cls: 't-xs' }, q3);
+      S.text(40, 538, 'フレッツ 光ネクストでは、ひかり電話の契約が無いと /56 ではなく /64 を 1 つだけ受け取る（RA で配られる）', { cls: 't-xs t-dim' }, q3);
+      // 5: 比べる
+      const q4 = st.q4 = P('PPPoE と IPoE（2017 年 11 月の総務省の研究会の資料をもとに）');
+      const cols = [40, 210, 560];
+      ['', 'PPPoE', 'IPoE'].forEach((h, k) => S.text(cols[k], 438, h, { cls: 't-sm t-b' }, q4));
+      [['網の出口', '網終端装置（都道府県ごとに置く）', 'ゲートウェイルーター（大容量のみ）'], ['出口の増設', '主に NTT 東西が判断', 'VNE が自分で判断'], ['つなぐ手続き', 'ISP の ID とパスワード', '不要（回線で識別）'], ['運ぶ IP', 'IPv4（IPv6 用の PPPoE もある）', 'IPv6（IPv4 は包んで運ぶ）']].forEach((r, k) => {
+        const y = 462 + k * 22;
+        S.line(40, y - 16, 920, y - 16, { cls: 's-soft w1' }, q4);
+        r.forEach((c, j) => S.text(cols[j], y, c, { cls: j ? 't-sm' : 't-sm t-dim' }, q4));
+      });
+      // 6: IPv4 over IPv6
+      const q5 = st.q5 = P('IPv4 を IPv6 に包む 2 つの方式');
+      const pack = (y, name, inner, nat) => {
+        S.text(40, y + 18, name, { cls: 't-sm t-b' }, q5);
+        S.rect(250, y, 120, 26, { rx: 3, cls: 'f-d-soft s-d w1' }, q5);
+        S.text(310, y + 17, 'IPv6 ヘッダ 40 B', { cls: 't-c t-xs t-b' }, q5);
+        S.rect(372, y, 260, 26, { rx: 3, cls: 'f-in s-rule w1' }, q5);
+        S.text(502, y + 17, inner, { cls: 't-c t-xs t-mono' }, q5);
+        S.rect(634, y, 60, 26, { rx: 3, cls: 'f-in s-rule w1' }, q5);
+        S.text(664, y + 17, 'データ', { cls: 't-c t-xs' }, q5);
+        S.text(710, y + 18, nat, { cls: 't-xs t-x t-b' }, q5);
+      };
+      pack(422, 'MAP-E（v6プラスなど）', 'IPv4 送信元 203.0.113.5:40001', 'NAT は家のルーター');
+      pack(462, 'DS-Lite（transix など）', 'IPv4 送信元 192.168.1.10:51234', 'NAT は VNE の装置');
+      S.text(40, 526, 'MAP-E は 1 つの IPv4 アドレスを複数の家でポートの範囲に分けて共有する。どちらも IPv6 の中身は VNE の出口で取り出される', { cls: 't-xs' }, q5);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      [st.q0, st.q1, st.q2, st.q3, st.q4, st.q5].forEach((q, k) => S.fade(q, k === i));
+      S.fade(st.tunnel, i === 1 || i === 2);
+      S.fade(st.crowd, i === 2);
+      S.fade(st.fork, i === 0);
+      S.fade(st.wait, i === 2);
+      const hl = (g, on) => g.rect.setAttribute('class', on ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+      hl(st.olt, i === 0);
+      hl(st.nte, i === 1 || i === 2);
+      hl(st.isp, i === 1);
+      hl(st.gwr, i >= 3);
+      hl(st.vne, i === 4 || i === 5);
+      hl(st.rt, i === 1 || i === 3 || i === 5);
+      st.pcSub.textContent = i >= 3 ? '2001:db8:1234:5600::10' : '192.168.1.10';
+      st.rtSub.textContent = ['WAN ポート → ONU', 'PPPoE：203.0.113.5', 'PPPoE：203.0.113.5', '2001:db8:1234:5600::/56', '2001:db8:1234:5600::/56', 'IPv6 ＋ IPv4 を包む'][i];
+      st.toks.forEach((g) => { g.style.opacity = 0; g.no.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      const run = (g, road, f, show) => {
+        if (!show || f < 0 || f > 1) { g.style.opacity = 0; return; }
+        S.place(g, road, f);
+        g.style.opacity = 1;
+      };
+      const E = U.ease;
+      if (i === 0) {
+        const f = U.cycle(ctx.ts, 3.2);
+        run(st.tFrame, st.rBase, E.inOut(Math.min(1, f * 1.25)), f < 0.95);
+      }
+      if (i === 1) {
+        // 網終端装置で PPPoE と PPP のヘッダが外れ、IPv4 のまま ISP へ
+        const q = U.seq(ctx.ts, [2.6, 1.6, 0.6], true);
+        run(st.tPPP, st.rPPP1, E.in(q.f), q.i === 0);
+        run(st.tV4, st.rPPP2, E.out(q.f), q.i === 1);
+      }
+      if (i === 2) {
+        // 混雑：網終端装置の手前で待たされてから入る
+        const q = U.seq(ctx.ts, [2.4, 2.2, 1.6, 0.6], true);
+        if (q.i === 0) run(st.tPPP, st.rPPPw, E.inOut(q.f), true);
+        else if (q.i === 1) {
+          if (q.f < 0.85) run(st.tPPP, st.rPPPw, 1, true);
+          else run(st.tPPP, st.rPPPin, E.in(U.prog(q.f, 0.85, 0.15)), true);
+        } else st.tPPP.style.opacity = 0;
+        run(st.tV4, st.rPPP2, E.out(q.f), q.i === 2);
+      }
+      if (i === 3) {
+        // DHCPv6-PD でプレフィックスを受け取ってから、IPv6 のまま出口を通って外へ
+        const q = U.seq(ctx.ts, [1.8, 3.6, 0.6], true);
+        run(st.tPD, st.rPD, E.inOut(q.f), q.i === 0);
+        run(st.tV6[0], st.rIPall, E.inOut(q.f), q.i === 1);
+      }
+      if (i === 4) {
+        // 何本流れても出口で詰まらない
+        st.tV6.forEach((g, k) => {
+          const f = U.cycle(ctx.ts - k * 1.1, 3.3);
+          run(g, st.rIPall, f, ctx.ts - k * 1.1 >= 0);
+        });
+      }
+      if (i === 5) {
+        // IPv6 に包まれたまま VNE まで行き、そこで IPv4 を取り出す
+        const q = U.seq(ctx.ts, [3.4, 1.2, 0.6], true);
+        run(st.t4in6, st.rIPv, E.in(q.f), q.i === 0);
+        run(st.tV4, st.rIP2b, E.out(q.f), q.i === 1);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 光と電気の違い
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '速さはどちらも光速の約 3 分の 2', text: 'ガラスの中の光は屈折率の分だけ遅く、秒速約 20 万 km（1 km を約 5 µs）で進む。LAN ケーブルの電気信号も真空の光速の 6〜7 割で、1 m あたり約 5 ns（第1章）。同じ距離なら、光にしても届くまでの時間はほとんど変わらない。' },
+      { title: '違うのは弱まり方', text: '1000BASE-T の信号は、主な周波数の数十 MHz で銅線 100 m を通ると 10〜20 dB（1/10〜1/100）弱まる。光ファイバーは 1550 nm で 1 km あたり約 0.2 dB なので、20 dB 弱まるのは 100 km 先。同じだけ弱まる距離が約 1000 倍違う。' },
+      { title: 'なぜ光は弱まりにくいか', text: 'ガラスの中の損失は、密度の細かい揺らぎによる散乱（短い波長ほど大きい）と、長い波長での赤外吸収でほぼ決まり、その谷が 1550 nm 付近にある。銅線は周波数が高いほど大きく弱まるが、光の損失は点滅の速さではなく波長で決まる。' },
+      { title: '距離の遅延は縮められない', text: '家から局舎まで 2 km なら片道約 10 µs、東京〜大阪をファイバーで約 500 km（直線では約 400 km）とすれば約 2.5 ms。距離による遅延は光の速さで決まり、回線の bps を上げても縮まない。近くのサーバーほど早く応答が返るのはこのため（第16章）。' },
+      { title: '残りは送り出しと待ち時間', text: '1,500 バイトを 1 Gbps で送り出すと 12 µs、10 Gbps なら 1.2 µs。PON の上りでは許可を待つ分（約 1 ms）が加わり、混んだ装置では行列の待ちが数 ms を超えることもある。国内の YouTube のキャッシュまでの往復が数 ms〜十数 ms なのは、主に距離と待ち時間のため。' },
+      { title: '光にする理由', text: '光は電磁ノイズや雷の影響を受けず、隣の線への漏れも無い。細く軽いので何百本も束ねられ、1 本に複数の波長を重ねて容量を増やせる。家の中の数 m〜数十 m は銅線や電波で足りるので、ONU で電気に戻す。この先の ISP の網や海底ケーブルも光で結ばれている（第16章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const frameBox = (x, y, w, h, title) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        g.rect = S.rect(x, y, w, h, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 14, y + 22, title, { cls: 't-md t-b' }, g);
+        return g;
+      };
+      /* ---- 左上: 100 m を進む時間 ---- */
+      const a = st.pA = frameBox(20, 20, 450, 255, '100 m を進むのにかかる時間');
+      st.lanes = [
+        { y: 84, name: '真空中の光（比べるため）', ns: 334, cls: 'f-dim', tcls: 't-dim' },
+        { y: 146, name: '光ファイバーの中の光', ns: 490, cls: 'f-p', tcls: 't-p' },
+        { y: 208, name: 'LAN ケーブル（Cat6）の電気信号', ns: 500, cls: 'f-e', tcls: 't-e' }
+      ].map((l) => {
+        S.text(40, l.y - 12, l.name, { cls: 't-sm t-b ' + l.tcls }, a);
+        S.line(40, l.y, 430, l.y, { cls: 's-rule w4 round' }, a);
+        S.line(430, l.y - 10, 430, l.y + 10, { cls: 's-fg w2' }, a);
+        l.dot = S.circle(40, l.y, 6, { cls: l.cls }, a);
+        l.lbl = S.text(430, l.y + 26, (l.ns === 334 ? '' : '約 ') + l.ns + ' ns', { cls: 't-sm t-mono t-b', 'text-anchor': 'end' }, a);
+        return l;
+      });
+      S.text(40, 262, '時間は 1 µs を約 4 秒に引き延ばしてある', { cls: 't-xs t-dim' }, a);
+
+      /* ---- 右上: 距離と弱まり方 ---- */
+      const b = st.pB = frameBox(490, 20, 450, 255, '距離と弱まり方（距離は対数目盛）');
+      const LX = (m) => 566 + (Math.log10(m) - 1) * 84, LY = (db) => 62 + (-db) * 5.6;
+      [0, -10, -20, -30].forEach((db) => {
+        S.line(566, LY(db), 904, LY(db), { cls: db ? 's-soft w1' : 's-rule w1' }, b);
+        S.text(560, LY(db) + 4, db + ' dB', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, b);
+      });
+      [[10, '10 m'], [100, '100 m'], [1000, '1 km'], [10000, '10 km'], [100000, '100 km']].forEach(([m, s]) => {
+        S.line(LX(m), LY(-30), LX(m), LY(-30) + 5, { cls: 's-fg w1' }, b);
+        S.text(LX(m), LY(-30) + 18, s, { cls: 't-c t-xs t-mono' }, b);
+      });
+      const curve = (perM, maxM, cls) => {
+        let d = '';
+        for (let k = 0; k <= 80; k++) {
+          const m = Math.pow(10, 1 + 4 * k / 80);
+          if (m > maxM) break;
+          d += (k ? 'L' : 'M') + LX(m).toFixed(1) + ',' + LY(-perM * m).toFixed(1);
+        }
+        return S.path(d, { cls: 'f-none round ' + cls }, b);
+      };
+      S.line(LX(100), LY(0), LX(100), LY(-30), { cls: 's-dim w1 dash2' }, b);
+      S.text(LX(100) + 4, LY(-8), '1000BASE-T の上限 100 m', { cls: 't-xs t-dim' }, b);
+      S.line(LX(20000), LY(0), LX(20000), LY(-30), { cls: 's-dim w1 dash2' }, b);
+      S.text(LX(20000) - 4, LY(-14), 'PON 20 km', { cls: 't-xs t-dim', 'text-anchor': 'end' }, b);
+      curve(0.17, 176, 's-e w3');
+      curve(0.00035, 85700, 's-p w2 dash');
+      curve(0.0002, 100000, 's-p w3');
+      // 凡例（曲線の無い場所に置く）
+      [['s-p w3', '光 1550 nm'], ['s-p w2 dash', '光 1310 nm'], ['s-e w3', '銅線（数十 MHz）']].forEach(([c2, t2], k) => {
+        const y = LY(-21) + k * 16;
+        S.line(690, y, 716, y, { cls: c2 }, b);
+        S.text(722, y + 4, t2, { cls: 't-xs' }, b);
+      });
+
+      /* ---- 左下: 波長とガラスの損失（模式図） ---- */
+      const c = st.pC = frameBox(20, 290, 450, 255, '波長とガラスの損失（模式図）');
+      const WX = (nm) => 70 + (nm - 1200) / 450 * 370, WY = (a1) => 512 - a1 * 300;
+      const ray = (nm) => 0.8 / Math.pow(nm / 1000, 4);
+      const irA = (nm) => 7.81e11 * Math.exp(-48.48 / (nm / 1000));
+      const tot = (nm) => ray(nm) + irA(nm) + 0.06 + 0.05 * Math.exp(-Math.pow((nm - 1383) / 14, 2));
+      S.line(70, WY(0), 440, WY(0), { cls: 's-fg w1' }, c);
+      S.line(70, WY(0), 70, WY(0.6), { cls: 's-fg w1' }, c);
+      [0.2, 0.4].forEach((v) => {
+        S.line(70, WY(v), 440, WY(v), { cls: 's-soft w1' }, c);
+        S.text(64, WY(v) + 4, String(v), { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, c);
+      });
+      S.text(76, WY(0.6) + 4, 'dB/km', { cls: 't-xs t-dim' }, c);
+      [1200, 1300, 1400, 1500, 1600].forEach((nm) => S.text(WX(nm), WY(0) + 16, String(nm), { cls: 't-c t-xs t-mono t-dim' }, c));
+      S.text(440, WY(0) + 30, '波長（nm）', { cls: 't-xs t-dim', 'text-anchor': 'end' }, c);
+      [[1310, '1310'], [1550, '1550']].forEach(([nm]) => S.rect(WX(nm) - 8, WY(0.58), 16, WY(0) - WY(0.58), { cls: 'f-p-soft' }, c));
+      const plot = (fn, cls, from, to) => {
+        let d = '';
+        for (let nm = from; nm <= to; nm += 5) d += (nm === from ? 'M' : 'L') + WX(nm).toFixed(1) + ',' + Math.max(WY(0.6), WY(fn(nm))).toFixed(1);
+        return S.path(d, { cls: 'f-none ' + cls }, c);
+      };
+      plot(ray, 's-dim w15 dash', 1200, 1650);
+      plot(irA, 's-dim w15 dash', 1520, 1650);
+      plot(tot, 's-fg w2', 1200, 1650);
+      S.text(WX(1215), WY(0.47), 'レイリー散乱（λ⁴ に反比例）', { cls: 't-xs t-dim' }, c);
+      S.text(WX(1645), WY(0.33), '赤外吸収', { cls: 't-xs t-dim', 'text-anchor': 'end' }, c);
+      S.text(WX(1395), WY(0.42), '水（OH）の吸収', { cls: 't-xs t-dim' }, c);
+      S.text(WX(1310), WY(0.55), '約 0.35', { cls: 't-c t-xs t-mono t-b' }, c);
+      S.text(WX(1550), WY(0.55), '約 0.2', { cls: 't-c t-xs t-mono t-b' }, c);
+
+      /* ---- 右下: 片道の遅延の内訳（例） ---- */
+      const d = st.pD = frameBox(490, 290, 450, 255, '片道にかかる時間の例（対数目盛）');
+      const TX = (us) => 720 + Math.log10(us) * 42;
+      [[1, '1 µs'], [10, '10 µs'], [100, '100 µs'], [1000, '1 ms'], [10000, '10 ms']].forEach(([us, s]) => {
+        S.line(TX(us), 324, TX(us), 506, { cls: 's-soft w1' }, d);
+        S.text(TX(us), 524, s, { cls: 't-c t-xs t-mono t-dim' }, d);
+      });
+      st.rowsD = [
+        ['家 → 局舎 2 km（光）', 10, '約 10 µs', 'f-p', 'dist'],
+        ['東京 → 大阪 500 km（光）', 2500, '約 2.5 ms', 'f-p', 'dist'],
+        ['1,500 B を 1 Gbps で送り出す', 12, '12 µs', 'f-d', 'wait'],
+        ['同じく 10 Gbps で', 1.2, '1.2 µs', 'f-d', 'wait'],
+        ['PON の上りの許可待ち', 1000, '約 1 ms', 'f-x', 'wait'],
+        ['混んだ装置の行列', 5000, '数 ms〜', 'f-x', 'wait']
+      ].map(([n, us, s, cls, kind], k) => {
+        const y = 340 + k * 28;
+        const g = S.g({}, d);
+        S.text(506, y + 11, n, { cls: 't-xs' }, g);
+        S.rect(TX(1), y, Math.max(3, TX(us) - TX(1)), 14, { rx: 2, cls }, g);
+        S.text(TX(us) + 6, y + 11, s, { cls: 't-xs t-mono t-b' }, g);
+        g.kind = kind;
+        return g;
+      });
+      [['f-p', '光が伝わる時間', 506], ['f-d', '送り出し', 620], ['f-x', '待ち時間', 706]].forEach(([c3, t3, x3]) => {
+        S.rect(x3, 531, 10, 10, { rx: 2, cls: c3 }, d);
+        S.text(x3 + 14, 540, t3, { cls: 't-xs t-dim' }, d);
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const on = [[st.pA], [st.pB], [st.pC], [st.pD], [st.pD], [st.pA, st.pB, st.pC, st.pD]][i];
+      [st.pA, st.pB, st.pC, st.pD].forEach((p) => {
+        p.style.opacity = on.indexOf(p) >= 0 ? '' : 0.3;
+        p.rect.setAttribute('class', on.indexOf(p) >= 0 && i < 5 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      });
+      st.rowsD.forEach((g) => {
+        g.style.opacity = (i === 3 && g.kind !== 'dist') || (i === 4 && g.kind === 'dist') ? 0.3 : '';
+      });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 1 µs を約 4 秒に延ばして走らせる（3 本とも同時に出発）
+      const tt = U.mod(ctx.ts + 2.4, 3.2);
+      st.lanes.forEach((l) => {
+        const f = U.clamp(tt / (l.ns / 1000 * 4), 0, 1);
+        l.dot.setAttribute('cx', (40 + 390 * f).toFixed(1));
+        l.lbl.style.opacity = f >= 1 ? 1 : 0;
+      });
+      if (i !== 0 && i !== 5) st.lanes.forEach((l) => { l.dot.setAttribute('cx', 430); l.lbl.style.opacity = 1; });
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第IV部 つながる ／ 第15章',
+      title: '光回線',
+      home: '../index.html',
+      prev: { href: '14-router.html', title: 'ホームルーター' },
+      next: { href: '16-internet.html', title: 'インターネットの骨格' },
+      legend: [{ c: 'p', label: '光' }, { c: 'e', label: '電子・電気信号' }, { c: 'h', label: '正孔' }, { c: 'd', label: 'データ・フレーム' }, { c: 'x', label: '注目・変わった所' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

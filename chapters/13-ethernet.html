@@ -1,0 +1,1187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Ethernet とスイッチ — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .mac { font-family: var(--mono); font-size: 0.86em; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第IV部 つながる ／ 第13章 ／ 全25章</p>
+    <h1 id="h-s0">Ethernet とスイッチ</h1>
+    <p class="standfirst">Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。この章では、より対線 1 本で 1 Gbps を運ぶ電気的な工夫（差動信号と符号化）、フレームの構造と誤り検出、スイッチが宛先を覚えて配る仕組み、IP アドレスから MAC アドレスを調べる ARP、そして無線と有線を 1 つの LAN にまとめるブリッジまでを見る。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の電圧・時間・フレームの大きさは見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>より対線と差動信号</a><p>8 芯 4 対のケーブル。2 本の差で送ると、外から乗るノイズが打ち消される。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>符号化 — ビットを電圧にする</a><p>マンチェスター、MLT-3、PAM-5。4 対を同時双方向に使って 1 Gbps。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>Ethernet フレーム</a><p>プリアンブル、宛先・送信元 MAC、タイプ、ペイロード、FCS（CRC-32）。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>スイッチの学習</a><p>送信元を覚えて MAC アドレス表を作り、知らない宛先は全ポートへ、知っていれば 1 ポートへ。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>ARP — IP から MAC を知る</a><p>ブロードキャストで尋ね、本人だけが答える。外宛てはゲートウェイの MAC。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>無線と有線の橋渡し</a><p>AP が 802.11 フレームと Ethernet フレームを変換し、同じブリッジで配る。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（ホームルーター）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>アドレスは例。PC は 192.168.1.10（MAC <span class="mac">3C:4D:5E:6F:70:81</span>）、ルーターは 192.168.1.1、YouTube 側は 142.250.196.110 で、第14章以降と共通。ほかの MAC は <span class="mac">02:</span> で始まるローカル管理アドレス。規格の数値は IEEE 802.3 の規定値、速度は理論値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 より対線と差動信号 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="より対線" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>より対線と差動信号</h2>
+    <p class="sh-meta"><span class="chip">UTP Cat5e / Cat6</span><span class="chip">RJ45</span><span class="chip">100 m</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">LAN ケーブルの中の銅線は、1 本ずつではなく 2 本ひと組で使う。2 本の電圧の<b>差</b>で信号を送り、2 本をより合わせることで、外から乗る<span class="tag x">ノイズ</span>を受け手で打ち消す。シールドの無い安い線で 100 m 届くのはこの工夫による。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">芯線は AWG 24 前後（直径約 0.5 mm）の銅。100BASE-TX は 1-2 と 3-6 の 2 対を片方向ずつ使い（PC 側は 1-2 で送る）、1000BASE-T は 4 対すべてを両方向に使う（<a class="xref" href="#s2" data-go="2">場面 2</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="LANケーブルの断面とコネクタのピン、より合わせた2本の線、差動信号の波形とノイズが打ち消される様子"></svg></div>
+    <figcaption>図1　上はケーブルの断面と RJ45 の 8 ピン、中央はより合わせた 1 対、下は A 線・B 線の電圧と、受け手が見る差（A − B）。段階 3・4 でノイズが加わり、段階 5 は下の段がカテゴリの表になる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 符号化 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="符号化" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>符号化 — ビットを電圧の列にする</h2>
+    <p class="sh-meta"><span class="chip">10BASE-T</span><span class="chip">100BASE-TX</span><span class="chip">1000BASE-T</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ビットをそのまま電圧の高低にすると、同じ値が続いたとき受け手が拍を見失う。Ethernet は、拍を取り出せて線の帯域に収まる<b>符号</b>を規格ごとに選んできた。10 Mbps から 1 Gbps へ速さは 100 倍になったが、<span class="tag e">シンボル</span>の速さは 12.5 倍で済んでいる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">符号化は PHY（物理層チップ）の仕事で、<a class="xref" href="07-shuuhen.html#s6">第7章</a>の NIC の PHY がこれにあたる。1 Gbps なら MAC 層から 8 ビットずつ受け取って対ごとの電圧の列に変え、受け側ではその逆をする。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="同じビット列をマンチェスター符号、MLT-3、PAM-5 で電圧にしたときの波形と、速度の計算"></svg></div>
+    <figcaption>図2　上は送りたいビット列。中央は規格ごとの電圧の波形（右から左へ流れる）。右上はシンボル速度から通信速度を出す計算。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 フレーム ================= -->
+<section class="scene sc-anim" id="s3" data-tab="フレーム" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>Ethernet フレーム</h2>
+    <p class="sh-meta"><span class="chip">64〜1518 B</span><span class="chip">MAC 48 bit</span><span class="chip">CRC-32</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">線の上を流れるのは、ただのビットの列ではなく、区切りと宛名と検算の付いた<span class="tag d">フレーム</span>。受け手の NIC は拍を合わせ、宛先が自分かを見て、壊れていないかを確かめてから中身を OS に渡す。IP パケット（第18章）はこの「中身」の欄に入って運ばれる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">FCS は CRC-32（生成多項式 0x04C11DB7）。でたらめに化けたフレームを見逃す確率は約 2<sup>32</sup> 分の 1（約 43 億分の 1）。1000BASE-T の規格はビット誤り率 10<sup>−10</sup> 未満を求めているので、化けること自体がまれ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="Ethernetフレームの欄の並びと、各欄の中身の拡大、線の上を流れるビット、FCSの検算"></svg></div>
+    <figcaption>図3　上はフレームの欄（幅は実際の比ではない）。中央は注目している欄の中身。下は線の上を流れるビットと、送信カーソルの位置。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 スイッチ ================= -->
+<section class="scene sc-anim" id="s4" data-tab="スイッチ" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>スイッチの学習と転送</h2>
+    <p class="sh-meta"><span class="chip">MAC アドレス表</span><span class="chip">フラッディング</span><span class="chip">全二重</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">スイッチは、届いた<span class="tag d">フレーム</span>の宛先 MAC を見て、必要なポートにだけ送り出す装置。宛先の居場所は誰にも教えられない。届いたフレームの<b>送信元</b>を手がかりに、自分で表を作る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">表の引き方は宛先 MAC の完全一致で、スイッチチップの専用回路（CAM やハッシュ表）がフレームごとに引く。家庭用の 1 Gbps × 4〜5 ポートのスイッチは 1 個のチップで、ルーターの SoC に内蔵されていることも多い。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="4ポートのスイッチに4台の機器がつながり、フレームの送信元を学習してMACアドレス表を作り、宛先に応じて転送する様子"></svg></div>
+    <figcaption>図4　中央がスイッチ、四隅が機器。右上の表がスイッチの MAC アドレス表。フレームの札には「宛先 ← 送信元」を書いてある。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 ARP ================= -->
+<section class="scene sc-anim" id="s5" data-tab="ARP" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>ARP — IP アドレスから MAC アドレスを知る</h2>
+    <p class="sh-meta"><span class="chip">EtherType 0x0806</span><span class="chip">ブロードキャスト</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ソフトウェアは相手を IP アドレスで指定するが、同じネットワークの中でフレームを届けるには宛先 <b>MAC</b> アドレスが要る。それを調べるのが ARP（Address Resolution Protocol）で、YouTube 宛てのフレームにも、こうして調べたルーターの MAC が入る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ARP には認証が無く、偽の応答で宛先 MAC をすり替えられる（ARP スプーフィング）。家の LAN が信頼できる前提の仕組みで、外との通信の中身は TLS（第20章）で守る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="PCがARP要求をブロードキャストし、ルーターだけがARP応答を返し、ARPキャッシュに記録される様子"></svg></div>
+    <figcaption>図5　左が PC A とその ARP キャッシュ、中央がスイッチ、右がルーターとテレビ。右上は飛んでいるフレームの中身。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 ブリッジ ================= -->
+<section class="scene sc-anim" id="s6" data-tab="ブリッジ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>無線と有線の橋渡し — ブリッジ</h2>
+    <p class="sh-meta"><span class="chip">802.11 ⇄ Ethernet</span><span class="chip">br0</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ホームルーターの中では、無線部（アクセスポイント、AP）と有線の LAN ポートが 1 つの<b>ブリッジ</b>にまとまっている。<span class="tag r">電波</span>で届いた 802.11 フレームは AP で Ethernet フレームに組み替えられ、<a class="xref" href="#s4" data-go="4">場面 4</a> のスイッチと同じ規則で配られる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Linux ベースのルーターでは <code>br0</code> というブリッジに <code>eth0</code>〜<code>eth3</code>（LAN）と <code>wlan0</code>（無線）が束ねられ、<code>br0</code> 自身がルーター部の LAN 側 IP（192.168.1.1）を持つ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ホームルーターの中の無線部・ブリッジ・ルーター部と、スマートフォンからPCへ向かうフレームの変換"></svg></div>
+    <figcaption>図6　中央の大きな箱がホームルーター。下の 2 段は、いま飛んでいるフレームを 802.11 と Ethernet のそれぞれの形で示す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 銅線 1 本の LAN で起きていること</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>信号は 2 本の線の差で送り、より合わせることで外来ノイズを受け手で打ち消す。だから UTP で 100 m 届く（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>符号化は拍を取り出せて帯域に収まるものを選ぶ。1000BASE-T は 4 対すべてで PAM-5 を同時双方向に使い、125 M シンボル/秒のまま 1 Gbps を出す（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>フレームはプリアンブル・宛先 MAC・送信元 MAC・タイプ・ペイロード・FCS。壊れたフレームは黙って捨てられ、再送は上の層がする（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>スイッチは送信元 MAC とポートを学習して表を作り、知らない宛先は全ポートへ、知っていれば 1 ポートへ送る。中身は見ない（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>ARP はブロードキャストで尋ね、本人だけが答える。外のサーバー宛てはゲートウェイの MAC を使う（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>AP は 802.11 フレーム（アドレス 3 つ）と Ethernet フレーム（2 つ）を変換し、無線も有線も 1 つのブリッジで配る（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>より対線（UTP）</th><td>2 本ずつより合わせた 4 対 8 芯の銅線。Cat5e は 1 Gbps、Cat6A は 10 Gbps を 100 m。</td></tr>
+        <tr><th><i class="sw e"></i>差動信号</th><td>2 本の電圧の差で 1 つの信号を送る方式。同相ノイズは差を取ると消える。</td></tr>
+        <tr><th>符号化</th><td>ビット列を電圧の列に変える規則。マンチェスター（10M）、4B5B + MLT-3（100M）、PAM-5（1G）、PAM-16（2.5G〜10G）。</td></tr>
+        <tr><th><i class="sw d"></i>Ethernet フレーム</th><td>宛先 6、送信元 6、タイプ 2、ペイロード 46〜1500、FCS 4 バイトで、全体 64〜1518 バイト。前にプリアンブル 8 バイトが付く。</td></tr>
+        <tr><th>MAC アドレス</th><td>NIC ごとの 48 ビットの番号。上位 24 ビットは製造者（OUI）。<span class="mac">FF:FF:FF:FF:FF:FF</span> はブロードキャスト。</td></tr>
+        <tr><th>FCS（CRC-32）</th><td>フレーム末尾の 32 ビットの検算。受け手が計算し直して違えば破棄する。</td></tr>
+        <tr><th>スイッチ（L2）</th><td>宛先 MAC で転送先のポートを決める装置。各ポートは全二重で、衝突は起きない。</td></tr>
+        <tr><th>MAC アドレス表</th><td>送信元 MAC とポートの対応を学習した表。その MAC が既定で約 300 秒現れないと消える。無い宛先はフラッディング。</td></tr>
+        <tr><th>ARP</th><td>IP アドレスから MAC アドレスを調べる手順。要求はブロードキャスト、応答はユニキャスト。結果は ARP キャッシュに残る。</td></tr>
+        <tr><th><i class="sw r"></i>ブリッジ</th><td>無線部と有線ポートを 1 つの L2 セグメントにまとめる機能。AP がフレームの形式を変換する。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 題と副題の付いた箱。左上 (x,y) */
+  function box(p, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({ transform: `translate(${x},${y})` }, p);
+    S.rect(0, 0, w, h, { rx: 6, cls: cls || 'f-sf s-rule w15' }, g);
+    if (title) S.text(w / 2, sub ? h / 2 - 3 : h / 2 + 4.5, title, { cls: 't-c t-b ' + (tcls || '') }, g);
+    if (sub) S.text(w / 2, h / 2 + 14, sub, { cls: 't-c t-xs t-dim t-mono' }, g);
+    return g;
+  }
+  /* フレームの札（中央原点）。最初は隠れている */
+  function pkt(p, label, w, cls, tcls) {
+    const g = S.g({ cls: 'fade hide' }, p);
+    S.rect(-w / 2, -12, w, 24, { rx: 4, cls: 'f-sf' }, g);   // 下地（配線や電波の弧を透かさない）
+    S.rect(-w / 2, -12, w, 24, { rx: 4, cls: cls || 'f-d-soft s-d w15' }, g);
+    const t = S.text(0, 4, label, { cls: 't-c t-xs t-b ' + (tcls || 't-d') }, g);
+    g.setLabel = (s) => { t.textContent = s; };
+    return g;
+  }
+  /* 札の出し入れ。frame の頭で hide（印だけ）、put で置いて印を外し、frame の最後に apply で .hide を付け外しする。
+     毎フレーム .hide を付けてから外すと、その間の S.place（道の長さを測る）で fade の遷移がやり直しになり、
+     動かしている間は札が見えなくなる */
+  const put = (g, path, f) => { S.place(g, path, f); g.__on = true; };
+  const hide = (...gs) => gs.forEach((g) => { g.__on = false; });
+  const apply = (...gs) => gs.forEach((g) => g.classList.toggle('hide', !g.__on));
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 見える配線 */
+  const link = (p, d, cls) => S.path(d, { cls: 'f-none ' + (cls || 's-dim w3 round') }, p);
+
+  /* 階段状の波形を path に描く。levels(k) は記号 k の段階、cellW は記号の幅（px）、scroll は左へ流した量（px） */
+  function stepPath(pathEl, levels, cellW, scroll, x0, x1, yc, amp) {
+    let d = '';
+    const k0 = Math.floor(scroll / cellW);
+    const off = scroll - k0 * cellW;
+    let started = false;
+    for (let k = k0, x = x0 - off; x < x1; k++, x += cellW) {
+      const y = (yc - levels(k) * amp).toFixed(1);
+      const xa = Math.max(x0, x), xb = Math.min(x1, x + cellW);
+      if (xb <= xa) continue;
+      d += started ? `V${y}H${xb.toFixed(1)}` : `M${xa.toFixed(1)},${y}H${xb.toFixed(1)}`;
+      started = true;
+    }
+    pathEl.setAttribute('d', d);
+  }
+  /* 表（簡易）。rows は文字列の配列の配列。colX は列の x、y0 は 1 行めの y */
+  function table(p, x, y, w, colX, head, rows, rowH, cls) {
+    const g = S.g({ transform: `translate(${x},${y})` }, p);
+    const h = (rows.length + 1) * rowH + 12;
+    S.rect(0, 0, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    head.forEach((s, k) => S.text(colX[k], 20, s, { cls: 't-xs t-b t-dim' }, g));
+    S.line(10, 28, w - 10, 28, { cls: 's-rule w1' }, g);
+    const cells = rows.map((r, i) => r.map((s, k) => S.text(colX[k], 28 + rowH * (i + 1) - 6, s, { cls: 't-sm' + (k === 0 ? ' t-mono' : '') }, g)));
+    return { g, cells, h };
+  }
+  /* PC A は第14章以降の PC と同じ値（plan.md の共通の例の値）。ほかはローカル管理アドレス（02:） */
+  const MAC = { A: '3C:4D:5E:6F:70:81', B: '02:11:22:33:44:0B', T: '02:11:22:33:44:7C', R: '02:11:22:33:44:01', P: '02:11:22:33:44:5F', AP: '02:11:22:33:44:F0', BC: 'FF:FF:FF:FF:FF:FF' };
+  const short = (m) => '…' + m.slice(-2);
+  const bits32 = [0,1,1,0,1,0,0,1, 1,0,1,1,0,0,1,0, 0,1,0,0,1,1,1,0, 1,1,0,1,0,0,0,1];
+
+  /* ================================================================
+     場面1 より対線と差動信号
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'ケーブルの中は 8 本の線、4 対のより対線', text: 'LAN ケーブル（Cat5e・Cat6 の UTP）の中には銅の芯線が 8 本あり、2 本ずつより合わせた 4 対になっている。対ごとに被覆の色（橙・緑・青・茶）が決まっていて、コネクタ RJ45 の 8 ピンには決まった並び（T568B）で配線される。' },
+      { title: '1 対の 2 本に、逆向きの電圧をかける', text: '信号は 1 本の電圧ではなく、2 本の**差**で送る（差動信号）。図の例では 1 のとき A 線を＋、B 線を−に、0 のときは逆にし、受け手は A − B だけを見る。差の振幅は 100BASE-TX・1000BASE-T で ±1 V 前後。送り手と受け手の接地の電位がずれていても、差は変わらない。' },
+      { title: '外から来るノイズは 2 本に同じだけ乗る', text: 'モーターや蛍光灯、電源線などからの電磁的なノイズは、2 本が近くに並んでいるのでほぼ同じ量が同じ向きに乗る（同相ノイズ）。受け手が差を取ると、この成分は打ち消されて信号だけが残る。ただし 2 本に乗る量がずれると差に残るので、次の段階の「より」でそろえる。' },
+      { title: 'より合わせる理由', text: '2 本をよると、ノイズ源に近い側と遠い側が短い間隔で入れ替わり、長さ全体で見ると 2 本が受ける量がそろう。外の磁界が 2 本の間に起こす電圧も、より目ごとに向きが逆になって打ち消し合う。隣の対への漏れ（クロストーク）は、対ごとによりのピッチを変えて抑える。' },
+      { title: '長さの限界とカテゴリ', text: '銅線は長いほど高い周波数が弱まり（減衰）、漏れや雑音に埋もれやすくなる。そこで規格は配線を 100 m（壁の中の配線 90 m ＋ 両端のコード 10 m）までとし、速い規格ほど高い周波数まで性能を保証したカテゴリを求める。表の帯域は、カテゴリが性能を保証する周波数の上限。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 断面
+      const gx = S.g({ transform: 'translate(110,105)' }, svg);
+      S.circle(0, 0, 70, { cls: 'f-in s-dim w3' }, gx);
+      [[-27, -27], [27, -27], [-27, 27], [27, 27]].forEach(([px, py], k) => {
+        const a = Math.atan2(py, px) + Math.PI / 2;
+        const dx = Math.cos(a) * 11, dy = Math.sin(a) * 11;
+        S.circle(px - dx, py - dy, 10, { cls: 'f-sf s-mid w15' }, gx);
+        S.circle(px + dx, py + dy, 10, { cls: 'f-sf s-mid w15' }, gx);
+        const lx = Math.cos(Math.atan2(py, px)) * 92, ly = Math.sin(Math.atan2(py, px)) * 92;
+        S.text(lx, ly + 4, '対' + (k + 1), { cls: 't-c t-xs t-dim' }, gx);
+      });
+      S.text(0, 100, '断面：8 芯 4 対の UTP', { cls: 't-c t-sm t-b' }, gx);
+      // RJ45 のピン
+      const gr = S.g({ transform: 'translate(300,40)' }, svg);
+      S.text(90, 0, 'RJ45 の 8 ピン（T568B）', { cls: 't-c t-sm t-b' }, gr);
+      S.rect(0, 12, 180, 70, { rx: 6, cls: 'f-sf s-dim w15' }, gr);
+      const pairOf = [2, 2, 3, 1, 1, 3, 4, 4];
+      for (let k = 0; k < 8; k++) {
+        const x = 16 + k * 21;
+        S.rect(x, 40, 10, 36, { rx: 2, cls: 'f-in s-mid w1' }, gr);
+        S.text(x + 5, 32, String(k + 1), { cls: 't-c t-xs t-mono' }, gr);
+        S.text(x + 5, 96, '対' + pairOf[k], { cls: 't-c t-xs t-dim' }, gr);
+      }
+      S.text(90, 116, '1-2 対2 ／ 3-6 対3 ／ 4-5 対1 ／ 7-8 対4', { cls: 't-c t-xs t-dim' }, gr);
+      // より対線の側面図
+      const gt = S.g({}, svg);
+      S.text(230, 228, 'より合わせた 1 対（側面）', { cls: 't-sm t-b' }, gt);
+      const ptsA = [], ptsB = [];
+      for (let x = 60; x <= 900; x += 4) {
+        ptsA.push([x, 248 + 9 * Math.sin(TAU * x / 64)]);
+        ptsB.push([x, 248 - 9 * Math.sin(TAU * x / 64)]);
+      }
+      S.poly(ptsB, { cls: 'f-none s-e w3 round', style: { opacity: 0.45 } }, gt);
+      S.poly(ptsA, { cls: 'f-none s-e w3 round' }, gt);
+      S.text(912, 244, 'A', { cls: 't-sm t-b t-e' }, gt);
+      S.text(912, 260, 'B', { cls: 't-sm t-b t-e', style: { opacity: 0.6 } }, gt);
+      // ノイズ源（段階3〜4）
+      st.gn = S.g({ cls: 'fade hide' }, svg);
+      S.polygon([[700, 196], [690, 216], [699, 216], [692, 236], [712, 212], [702, 212], [710, 196]], { cls: 'f-x' }, st.gn);
+      S.text(722, 214, 'ノイズ源（モーター・蛍光灯など）', { cls: 't-xs t-x t-b' }, st.gn);
+      st.gn2 = S.g({ cls: 'fade hide' }, svg);
+      [660, 692, 724, 756].forEach((x, k) => {
+        S.path(`M${x},222 V${k % 2 ? 236 : 240}`, { cls: 'f-none s-x w15', 'marker-end': mk('x') }, st.gn2);
+      });
+      S.text(620, 282, 'より目ごとに、近い線と遠い線が入れ替わる', { cls: 't-xs t-x' }, st.gn2);
+      // オシロスコープ
+      const go = st.go = S.g({}, svg);
+      st.scope = { x0: 150, x1: 900 };
+      const lanes = st.lanes = [
+        { name: 'A 線', y: 342, amp: 16, cls: 's-e w2' },
+        { name: 'B 線', y: 404, amp: 16, cls: 's-e w2', op: 0.5 },
+        { name: 'A − B', sub: '受け手が見る差', y: 486, amp: 32, cls: 's-d w3' }
+      ];
+      lanes.forEach((l) => {
+        S.line(150, l.y, 900, l.y, { cls: 's-soft w1' }, go);
+        S.text(140, l.y + 4, l.name, { cls: 't-sm t-b', 'text-anchor': 'end' }, go);
+        if (l.sub) S.text(140, l.y + 18, l.sub, { cls: 't-xs t-dim', 'text-anchor': 'end' }, go);
+        l.path = S.path('', { cls: 'f-none round ' + l.cls, style: l.op ? { opacity: l.op } : {} }, go);
+      });
+      st.vlab = S.g({ cls: 'fade hide' }, go);
+      // 目盛りは波形の右端の外に置く（波形と重ねない）
+      [[0, '+0.5 V', '−0.5 V'], [1, '+0.5 V', '−0.5 V'], [2, '+1 V', '−1 V']].forEach(([k, hi, lo]) => {
+        const l = lanes[k];
+        S.text(906, l.y - l.amp + 4, hi, { cls: 't-xs t-mono t-dim' }, st.vlab);
+        S.text(906, l.y + l.amp + 4, lo, { cls: 't-xs t-mono t-dim' }, st.vlab);
+      });
+      st.bitlab = S.text(525, 300, 'ビット列（1 = A が＋、0 = A が−）', { cls: 't-c t-xs t-dim' }, go);
+      st.noiseTag = S.text(525, 538, 'ノイズは A と B に同じ向きで乗り、A − B では消える', { cls: 't-c t-xs t-x t-b fade hide' }, go);
+      // カテゴリ表（段階5）
+      const tb = table(svg, 60, 300, 840, [16, 110, 250, 370, 490, 610], ['カテゴリ', '規格の例', '速度', '保証距離', '帯域', 'より・シールド'],
+        [['Cat5', '100BASE-TX', '100 Mbps', '100 m', '100 MHz', 'UTP'],
+         ['Cat5e', '1000BASE-T', '1 Gbps', '100 m', '100 MHz', 'UTP'],
+         ['Cat6', '10GBASE-T', '10 Gbps', '55 m', '250 MHz', 'UTP（多くは対の間に十字の仕切り）'],
+         ['Cat6A', '10GBASE-T', '10 Gbps', '100 m', '500 MHz', 'UTP または F/UTP']], 34, 'f-sf s-rule w1');
+      st.tbl = tb.g;
+      tb.g.classList.add('fade', 'hide');
+      st.bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gn, i === 2 || i === 3);
+      S.fade(st.gn2, i === 3);
+      S.fade(st.go, i !== 4);
+      S.fade(st.tbl, i === 4);
+      S.fade(st.vlab, i >= 1 && i !== 4);
+      S.fade(st.noiseTag, i === 2);
+      st.noise = i >= 2 && i !== 4;
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      const { x0, x1 } = st.scope;
+      const cell = 42, N = st.bits.length;
+      const scroll = t * 60;
+      const d = ['', '', ''];
+      for (let x = x0; x <= x1; x += 3) {
+        const p = x + scroll;
+        const b = st.bits[U.mod(Math.floor(p / cell), N)];
+        const sig = b ? 1 : -1;
+        let n = 0;
+        if (st.noise) {
+          const q = U.mod(p, 460);
+          if (q > 250 && q < 340) n = Math.sin(Math.PI * (q - 250) / 90) * (1 + 0.5 * Math.sin(q * 0.45));
+        }
+        const yA = st.lanes[0].y - (sig * st.lanes[0].amp + n * 14);
+        const yB = st.lanes[1].y - (-sig * st.lanes[1].amp + n * 14);
+        const yD = st.lanes[2].y - sig * st.lanes[2].amp;
+        const c = x === x0 ? 'M' : 'L';
+        d[0] += `${c}${x},${yA.toFixed(1)}`;
+        d[1] += `${c}${x},${yB.toFixed(1)}`;
+        d[2] += `${c}${x},${yD.toFixed(1)}`;
+      }
+      st.lanes.forEach((l, k) => l.path.setAttribute('d', d[k]));
+    }
+  };
+
+  /* ================================================================
+     場面2 符号化
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '10BASE-T：マンチェスター符号（10 Mbps）', text: '10BASE-T（1990 年）は、1 ビットの真ん中で必ず電圧を変え、1 なら上がる、0 なら下がる向きで表す。変化が必ずあるので、受け手はそこから拍（クロック）を取り出せる。代わりに同じ値が続くとビットの境目でも変化が要り、変化の回数がビット数の最大 2 倍になって、高い周波数を使う。' },
+      { title: '100BASE-TX：4B5B と MLT-3（100 Mbps）', text: '4B5B は 4 ビットを、0 が 4 つ以上続かない 5 ビットの符号に置き換える（25% 増し）。MLT-3 は 1 のたびに段階を 1 つ進め、4 回の変化で 1 周するので、波の周波数はシンボル速度の 4 分の 1 以下に下がる。こうして 100 Mbps を Cat5 の帯域（100 MHz）に収めた。' },
+      { title: '1000BASE-T：4 対すべてで PAM-5（1 Gbps）', text: '8 ビットを 4 つの対に振り分け、各対は 5 段階の電圧（−1, −0.5, 0, +0.5, +1 V）の 1 つを送る。4 対の段階の組は 625 通り（5 の 4 乗）あり、1 バイトの 256 通りより多い分を誤り訂正（トレリス符号）に使う。シンボル速度は 100BASE-TX と同じ。' },
+      { title: '同じ対で同時に送り受けする', text: '1000BASE-T は 4 対すべてを両方向に同時に使う。線上の電圧は「自分が送った分＋相手が送った分」の合計になるが、自分の送った波形は分かっているので、受信回路（ハイブリッド回路とエコーキャンセラ）がそれを差し引いて相手の分だけを取り出す。' },
+      { title: '受け手：拍を合わせ、しきい値で読む', text: '受け手は届いた波形の変化からシンボルの拍を再生し、各拍の中央で電圧を測って、4 本のしきい値でどの段階かを決める。1000BASE-T は 4 対の組をまとめて判定して（トレリス符号の復号）、読み違えの多くを直す。直しきれずにビットが化けると、[[3|フレーム]]の FCS で見つかる。' },
+      { title: 'もっと速い規格', text: '2.5G・5G・10GBASE-T は 16 段階（PAM-16）と、より高いシンボル速度を使い、強い誤り訂正（LDPC 符号）と組み合わせる。家庭のルーターや PC は 1000BASE-T か 2.5GBASE-T が多く、ONU とルーターの間もこの線でつながる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // ビット列
+      S.text(60, 46, '送りたいビット列', { cls: 't-sm t-b' }, svg);
+      st.bitBoxes = [];
+      bits32.slice(0, 16).forEach((b, k) => {
+        const x = 60 + k * 26 + (k >= 8 ? 10 : 0);
+        S.rect(x, 56, 24, 28, { rx: 3, cls: b ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, svg);
+        st.bitBoxes.push(S.text(x + 12, 75, String(b), { cls: 't-c t-mono t-md' }, svg));
+      });
+      S.text(60, 104, '0110 1001  1011 0010 …（先頭の 2 バイト）', { cls: 't-xs t-dim t-mono' }, svg);
+      // 速度の計算
+      const gf = st.gf = S.g({ transform: 'translate(560,36)', cls: 'fade' }, svg);
+      S.rect(0, 0, 360, 80, { rx: 6, cls: 'f-sf s-rule w1' }, gf);
+      st.f1 = S.text(16, 30, '', { cls: 't-mono t-md t-b' }, gf);
+      st.f2 = S.text(16, 54, '', { cls: 't-mono t-sm t-dim' }, gf);
+      st.f3 = S.text(16, 72, '', { cls: 't-xs t-dim' }, gf);
+      // 波形エリア
+      st.area = { x0: 60, x1: 900 };
+      st.gw = S.g({}, svg);
+      st.title = S.text(60, 146, '', { cls: 't-sm t-b' }, st.gw);
+      st.traces = [];
+      for (let k = 0; k < 4; k++) {
+        const g = S.g({ cls: 'fade' }, st.gw);
+        st.traces.push({ g, base: S.line(60, 0, 900, 0, { cls: 's-soft w1' }, g), lab: S.text(52, 0, '', { cls: 't-xs t-dim', 'text-anchor': 'end' }, g), path: S.path('', { cls: 'f-none s-e w2' }, g), path2: S.path('', { cls: 'f-none s-dim w2 dash' }, g), path3: S.path('', { cls: 'f-none s-fg w2' }, g), lv: S.g({}, g) });
+      }
+      st.note = S.text(480, 548, '', { cls: 't-c t-xs t-dim' }, st.gw);
+      st.samples = S.g({}, st.gw);
+      // 符号列を前もって作る（長い疑似乱数ビット列から）
+      const longBits = [];
+      let x = 2463534242;
+      for (let k = 0; k < 2400; k++) { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; longBits.push(x & 1); }
+      for (let k = 0; k < 32; k++) longBits[k] = bits32[k];
+      st.longBits = longBits;
+      // マンチェスター（半区間ごと）
+      st.man = (k) => { const b = longBits[U.mod(Math.floor(k / 2), longBits.length)]; const first = U.mod(k, 2) === 0; return b ? (first ? -1 : 1) : (first ? 1 : -1); };
+      // 4B5B → MLT-3
+      const T4B5B = ['11110', '01001', '10100', '10101', '01010', '01011', '01110', '01111', '10010', '10011', '10110', '10111', '11010', '11011', '11100', '11101'];
+      const code = [];
+      for (let k = 0; k + 4 <= longBits.length; k += 4) {
+        const n = longBits[k] * 8 + longBits[k + 1] * 4 + longBits[k + 2] * 2 + longBits[k + 3];
+        T4B5B[n].split('').forEach((c) => code.push(Number(c)));
+      }
+      const mlt = []; let state = 0, dir = 1;
+      code.forEach((c) => { if (c) { if (state === 0) { state = dir; } else { dir = -state; state = 0; } } mlt.push(state); });
+      st.code = code; st.mlt = (k) => mlt[U.mod(k, mlt.length)];
+      // PAM-5: 各対の段階 −2〜+2（5 段階すべてがデータに使われる）。実際の対応はスクランブルとトレリス符号を経て
+      // 4 対の組で決まるので、図では疑似乱数のビットから段階を選ぶだけにする
+      const lvOf = (i) => (longBits[i] * 4 + longBits[i + 1] * 2 + longBits[i + 2]) % 5 - 2;
+      st.pam = (k, pair) => lvOf(U.mod(k * 8 + pair * 2, longBits.length - 2));
+      st.pamFar = (k, pair) => lvOf(U.mod(k * 8 + pair * 2 + 1200, longBits.length - 2));
+      // 規格の表（段階6）
+      const tb = table(svg, 60, 160, 840, [16, 150, 330, 500, 640], ['規格', '符号', 'シンボル速度', '使う対', 'ケーブルと距離'],
+        [['10BASE-T', 'マンチェスター', '10 M/秒（変化は 20 M/秒）', '2 対（送 1・受 1）', 'Cat3、100 m'],
+         ['100BASE-TX', '4B5B + MLT-3', '125 M/秒', '2 対（送 1・受 1）', 'Cat5、100 m'],
+         ['1000BASE-T', 'PAM-5 × 4', '125 M/秒', '4 対、同時双方向', 'Cat5e、100 m'],
+         ['2.5GBASE-T', 'PAM-16', '200 M/秒', '4 対、同時双方向', 'Cat5e、100 m'],
+         ['5GBASE-T', 'PAM-16', '400 M/秒', '4 対、同時双方向', 'Cat6、100 m'],
+         ['10GBASE-T', 'PAM-16', '800 M/秒', '4 対、同時双方向', 'Cat6A 100 m（Cat6 55 m）']], 36);
+      st.tbl = tb.g; tb.g.classList.add('fade', 'hide');
+      S.text(420, 290, '速さ 1,000 倍のあいだに、シンボル速度は 80 倍、1 シンボルで運ぶ情報は 1 ビットから 4 対で計 12.5 ビットへ', { cls: 't-c t-xs t-dim' }, tb.g);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gw, i !== 5);
+      S.fade(st.gf, i !== 5);
+      S.fade(st.tbl, i === 5);
+      const F = [
+        ['10 Mbps = 1 秒に 1,000 万ビット', '1 ビット = 1 シンボル（2 つの半区間）', '変化の回数は最大 2,000 万回/秒'],
+        ['125 M シンボル/秒 × 4/5 = 100 Mbps', '4 ビットを 5 ビットの符号で送る', 'MLT-3 で基本波は約 31 MHz'],
+        ['125 M シンボル/秒 × 2 ビット × 4 対 = 1 Gbps', '1 シンボル = 4 対の段階の組で 8 ビット', '帯域は 100BASE-TX とほぼ同じ'],
+        ['上り 1 Gbps と下り 1 Gbps を同時に', '線上の電圧 = 自分の送信 + 相手の送信', '自分の分を差し引いて相手の分を得る'],
+        ['しきい値 4 本で 5 段階を判定', '各拍の中央で電圧を測る', '読み違えの多くはトレリス符号で直る'],
+        ['', '', '']
+      ][i];
+      st.f1.textContent = F[0]; st.f2.textContent = F[1]; st.f3.textContent = F[2];
+      const titles = ['10BASE-T：マンチェスター符号（1 ビット = 2 半区間、中央で必ず変化）', '100BASE-TX：4B5B のあと MLT-3（1 のたびに 0 → ＋ → 0 → − と巡る）', '1000BASE-T：4 対それぞれが PAM-5（5 段階）を同時に送る', '1 対の上で、自分の送信（点線）と相手の送信（青）が重なる', '受け手：拍の中央（●）で測り、しきい値（点線）で段階を決める', ''];
+      st.title.textContent = titles[i] || '';
+      const notes = ['右から左へ流れる。1 = 低→高、0 = 高→低', '5 ビットの符号には 1 が必ず含まれるので、変化が途切れない', '5 段階すべて（0 も）がデータに使われる。どの組を使えるかを決めるのがトレリス符号', '受信回路は「線上の電圧 − 自分の送信」を計算して相手の波形を取り出す', '4 対の段階の組から 8 ビット（1 バイト）に戻す', ''];
+      st.note.textContent = notes[i] || '';
+      st.traces.forEach((tr, k) => {
+        const show = i === 0 ? k === 0 : i === 1 ? k === 0 : i === 2 ? true : i === 3 ? k < 3 : i === 4 ? k === 0 : false;
+        S.fade(tr.g, show);
+        tr.path2.setAttribute('d', ''); tr.path3.setAttribute('d', '');
+        S.clear(tr.lv);
+      });
+      S.clear(st.samples);
+      const layout = {
+        0: [{ y: 290, amp: 60, lab: '' }],
+        1: [{ y: 290, amp: 60, lab: '' }],
+        2: [{ y: 200, amp: 18, lab: '対1' }, { y: 280, amp: 18, lab: '対2' }, { y: 360, amp: 18, lab: '対3' }, { y: 440, amp: 18, lab: '対4' }],
+        3: [{ y: 205, amp: 18, lab: '自分の送信' }, { y: 285, amp: 18, lab: '相手の送信' }, { y: 395, amp: 12, lab: '線上（和）' }],
+        4: [{ y: 300, amp: 44, lab: '対1' }]
+      }[i] || [];
+      layout.forEach((l, k) => {
+        const tr = st.traces[k];
+        tr.base.setAttribute('y1', l.y); tr.base.setAttribute('y2', l.y);
+        tr.lab.setAttribute('y', l.y + 4); tr.lab.textContent = l.lab;
+        tr.y = l.y; tr.amp = l.amp;
+        if ((i === 2 && k === 0) || i === 4) {
+          [[-2, '−1 V'], [-1, '−0.5'], [0, '0'], [1, '+0.5'], [2, '+1 V']].forEach(([v, s]) => {
+            S.text(905, l.y - v * l.amp + 3, s, { cls: 't-xs t-mono t-dim' }, tr.lv);
+            if (i === 4) S.line(60, l.y - v * l.amp, 900, l.y - v * l.amp, { cls: 's-soft w1 dash2' }, tr.lv);
+          });
+          if (i === 4) [-1.5, -0.5, 0.5, 1.5].forEach((v) => S.line(60, l.y - v * l.amp, 900, l.y - v * l.amp, { cls: 's-x w1 dash' }, tr.lv));
+        } else if (i === 0) {
+          S.text(905, l.y - l.amp + 3, '高', { cls: 't-xs t-dim' }, tr.lv); S.text(905, l.y + l.amp + 3, '低', { cls: 't-xs t-dim' }, tr.lv);
+        } else if (i === 1) {
+          S.text(905, l.y - l.amp + 3, '＋', { cls: 't-xs t-mono t-dim' }, tr.lv); S.text(905, l.y + 3, '0', { cls: 't-xs t-mono t-dim' }, tr.lv); S.text(905, l.y + l.amp + 3, '−', { cls: 't-xs t-mono t-dim' }, tr.lv);
+        }
+      });
+      if (i === 3) {
+        // 4 本めは「差し引いた結果」
+        const tr = st.traces[3];
+        S.fade(tr.g, true);
+        tr.base.setAttribute('y1', 490); tr.base.setAttribute('y2', 490);
+        tr.lab.setAttribute('y', 494); tr.lab.textContent = '差し引き';
+        tr.y = 490; tr.amp = 18;
+      }
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const { x0, x1 } = st.area;
+      if (i === 5) return;
+      if (i === 0) {
+        const cell = 30;   // 半区間
+        stepPath(st.traces[0].path, st.man, cell, t * 70, x0, x1, st.traces[0].y, st.traces[0].amp);
+        // ビットの境界と値
+        S.clear(st.samples);
+        const scroll = t * 70, k0 = Math.floor(scroll / (cell * 2)), off = scroll - k0 * cell * 2;
+        for (let k = k0, x = x0 - off; x < x1; k++, x += cell * 2) {
+          if (x >= x0) S.line(x, st.traces[0].y - 70, x, st.traces[0].y + 70, { cls: 's-dim w1 dash2', style: { opacity: 0.5 } }, st.samples);
+          const cx = x + cell;
+          if (cx > x0 + 8 && cx < x1 - 8) S.text(cx, st.traces[0].y + 92, String(st.longBits[U.mod(k, st.longBits.length)]), { cls: 't-c t-mono t-md' }, st.samples);
+        }
+        S.text(480, st.traces[0].y + 112, '↑ 送ったビット', { cls: 't-c t-xs t-dim' }, st.samples);
+      } else if (i === 1) {
+        const cell = 34;
+        stepPath(st.traces[0].path, st.mlt, cell, t * 70, x0, x1, st.traces[0].y, st.traces[0].amp);
+        S.clear(st.samples);
+        const scroll = t * 70, k0 = Math.floor(scroll / cell), off = scroll - k0 * cell;
+        for (let k = k0, x = x0 - off; x < x1; k++, x += cell) {
+          const cx = x + cell / 2;
+          if (cx > x0 + 8 && cx < x1 - 8) {
+            const c = st.code[U.mod(k, st.code.length)];
+            S.text(cx, st.traces[0].y + 92, String(c), { cls: 't-c t-mono t-md' + (c ? ' t-d t-b' : ' t-dim') }, st.samples);
+          }
+          if (x >= x0 && U.mod(k, 5) === 0) S.line(x, st.traces[0].y - 70, x, st.traces[0].y + 70, { cls: 's-dim w1 dash2', style: { opacity: 0.5 } }, st.samples);
+        }
+        S.text(480, st.traces[0].y + 112, '↑ 4B5B の符号ビット（点線は 5 ビットの区切り）。1 のたびに段階が変わる', { cls: 't-c t-xs t-dim' }, st.samples);
+      } else if (i === 2) {
+        const cell = 40;
+        st.traces.forEach((tr, k) => stepPath(tr.path, (s) => st.pam(s, k), cell, t * 60, x0, x1, tr.y, tr.amp));
+        S.clear(st.samples);
+        const scroll = t * 60, k0 = Math.floor(scroll / cell), off = scroll - k0 * cell;
+        for (let k = k0, x = x0 - off; x < x1; k++, x += cell) if (x >= x0) S.line(x, 178, x, 462, { cls: 's-dim w1 dash2', style: { opacity: 0.5 } }, st.samples);
+        S.text(480, 500, '縦の点線の間が 1 シンボル（8 ナノ秒）。段階の目盛りは対1 に示した', { cls: 't-c t-xs t-dim' }, st.samples);
+      } else if (i === 3) {
+        const cell = 40;
+        const own = (s) => st.pam(s, 0), far = (s) => st.pamFar(s, 0);
+        stepPath(st.traces[0].path2, own, cell, t * 60, x0, x1, st.traces[0].y, st.traces[0].amp);
+        st.traces[0].path.setAttribute('d', '');
+        stepPath(st.traces[1].path, far, cell, t * 60, x0, x1, st.traces[1].y, st.traces[1].amp);
+        stepPath(st.traces[2].path3, (s) => own(s) + far(s), cell, t * 60, x0, x1, st.traces[2].y, st.traces[2].amp);
+        st.traces[2].path.setAttribute('d', '');
+        stepPath(st.traces[3].path, far, cell, t * 60, x0, x1, st.traces[3].y, st.traces[3].amp);
+      } else if (i === 4) {
+        const cell = 60;
+        const tr = st.traces[0];
+        stepPath(tr.path, (s) => st.pam(s, 0), cell, t * 60, x0, x1, tr.y, tr.amp);
+        S.clear(st.samples);
+        const scroll = t * 60, k0 = Math.floor(scroll / cell), off = scroll - k0 * cell;
+        for (let k = k0, x = x0 - off; x < x1; k++, x += cell) {
+          const cx = x + cell / 2;
+          if (cx > x0 + 10 && cx < x1 - 10) {
+            const v = st.pam(k, 0);
+            S.circle(cx, tr.y - v * tr.amp, 5, { cls: 'f-x' }, st.samples);
+            S.text(cx, tr.y + 2 * tr.amp + 30, ['−1', '−0.5', '0', '+0.5', '+1'][v + 2], { cls: 't-c t-mono t-md t-b' }, st.samples);
+          }
+        }
+        S.text(480, tr.y + 2 * tr.amp + 52, '↑ 読み取った段階（対1 の分、単位 V）', { cls: 't-c t-xs t-dim' }, st.samples);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 フレーム
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'フレームの全体像', text: 'Ethernet で送る単位がフレーム。欄は送る順に、拍合わせ、宛先、送信元、中身の種類、中身、検算。長さは宛先から FCS までで数え、前に付くプリアンブルと、フレームの間に空ける 12 バイト分の無音（IFG）は含めない。宛先が本体の先頭にあるので、受け手は最初の 6 バイトで自分宛てかを判断できる。' },
+      { title: 'プリアンブルと SFD：受け手の拍を合わせる', text: '最初の 7 バイトは 10101010 の繰り返し、8 バイトめは 10101011（SFD）。受け手はこの規則的な変化で自分の拍を送り手に合わせ、最後の 11 を見てから本体を読み始める。NIC が捨てるので、OS が受け取るフレームには含まれない。' },
+      { title: 'MAC アドレス：NIC ごとの 48 ビット', text: '宛先と送信元は 6 バイト（48 ビット）の MAC アドレス。先頭バイトの下から 2 ビットめが 1 の値は、製造者ではなく使う側が決めるローカル管理アドレスで、スマートフォンが Wi-Fi で使うランダムな MAC や、この章の `02:` で始まる値がこれにあたる。' },
+      { title: 'タイプ：中身をどの層に渡すか', text: 'タイプ（EtherType）2 バイトは中身の種類を表す番号で、IEEE が登録を管理している。受け取った OS はこの値を見て、中身を IP の処理に渡すか ARP の処理に渡すかを決める（第9章のネットワークスタック）。Wi-Fi のフレームでも、同じ番号が LLC/SNAP の欄に入っている（[[6|ブリッジ]]）。' },
+      { title: 'ペイロード：IP パケットが入る', text: 'IP パケット 1 個がそのまま中身に入る。最小 64 バイトは、10 Mbps の半二重の時代に、送り終える前に衝突を検出できるよう決めた長さ（512 ビット ＝ 51.2 マイクロ秒）。全二重のいまは衝突が起きないが、互換のためにこの最小長が残っている。' },
+      { title: 'FCS：CRC-32 で壊れたフレームを捨てる', text: '送り手は宛先から中身までの全ビットから CRC-32（32 ビットの割り算の余り）を計算して末尾に付ける。受け手は同じ計算をして比べ、1 ビットでも違えば黙って捨てる。再送は Ethernet ではせず、TCP など上の層（第19章）が気づいてやり直す。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // フレームの欄
+      const fields = st.fields = [
+        { name: 'プリアンブル + SFD', bytes: '7 + 1 B', w: 126, cls: 'f-in s-dim w1', n: 8 },
+        { name: '宛先 MAC', bytes: '6 B', w: 118, cls: 'f-d-soft s-d w1', n: 6 },
+        { name: '送信元 MAC', bytes: '6 B', w: 118, cls: 'f-d-soft s-d w1', n: 6 },
+        { name: 'タイプ', bytes: '2 B', w: 72, cls: 'f-d-soft s-d w1', n: 2 },
+        { name: 'ペイロード', bytes: '46〜1,500 B', w: 300, cls: 'f-sf s-d w1', n: 100 },
+        { name: 'FCS', bytes: '4 B', w: 86, cls: 'f-x-soft s-x w1', n: 4 }
+      ];
+      let x = 40;
+      fields.forEach((f) => {
+        f.x = x;
+        f.g = S.g({}, svg);
+        f.rect = S.rect(x, 110, f.w, 46, { rx: 4, cls: f.cls }, f.g);
+        S.text(x + f.w / 2, 129, f.name, { cls: 't-c t-xs t-b' }, f.g);
+        S.text(x + f.w / 2, 146, f.bytes, { cls: 't-c t-xs t-dim t-mono' }, f.g);
+        x += f.w + 4;
+      });
+      S.rect(x + 2, 110, 60, 46, { rx: 4, cls: 'f-none s-dim w1 dash' }, svg);
+      S.text(x + 32, 129, 'IFG', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(x + 32, 146, '12 B 無音', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(40, 96, 'フレーム（欄の幅は実際の比ではない）', { cls: 't-sm t-b' }, svg);
+      S.text(920, 96, '→ 送る順', { cls: 't-xs t-dim', 'text-anchor': 'end' }, svg);
+      st.cursor = S.line(40, 104, 40, 162, { cls: 's-x w2' }, svg);
+      st.curTxt = S.text(40, 178, '', { cls: 't-c t-xs t-x t-b' }, svg);
+      // 中身の拡大
+      st.gd = S.g({ transform: 'translate(40,196)' }, svg);
+      S.rect(0, 0, 880, 232, { rx: 6, cls: 'f-sf s-rule w1' }, st.gd);
+      st.detail = S.g({}, st.gd);
+      // 線の上のビット
+      S.text(40, 468, '線の上', { cls: 't-sm t-b' }, svg);
+      const wirePath = road(svg, 'M110,470 H920');
+      S.rect(110, 462, 810, 16, { rx: 8, cls: 'f-in s-rule w1' }, svg);
+      st.flow = A.flow(wirePath, { count: 36, speed: 90, r: 3.5, cls: 'f-e', parent: svg, jitter: 2 });
+      st.wireTxt = S.text(515, 500, '', { cls: 't-c t-xs t-dim t-mono' }, svg);
+      st.bolt = S.g({ cls: 'fade hide' }, svg);
+      S.polygon([[600, 436], [591, 456], [599, 456], [592, 476], [612, 452], [602, 452], [610, 436]], { cls: 'f-x' }, st.bolt);
+      S.text(620, 450, 'ノイズで 1 ビット反転', { cls: 't-xs t-x t-b' }, st.bolt);
+      st.total = 8 + 6 + 6 + 2 + 100 + 4;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.clear(st.detail);
+      const D = st.detail;
+      st.fields.forEach((f, k) => { f.rect.setAttribute('class', f.cls + (i >= 1 && i <= 5 && [[0], [1, 2], [3], [4], [5]][i - 1].includes(k) ? ' glow' : '')); f.g.style.opacity = i === 0 || [[0], [1, 2], [3], [4], [5]][i - 1].includes(k) ? 1 : 0.45; });
+      const mono = 't-mono t-md';
+      if (i === 0) {
+        S.text(16, 30, '長さ', { cls: 't-sm t-b' }, D);
+        [['最小', '64 バイト（中身 46）', '昔の衝突検出に必要だった長さ。足りなければ 0 を詰める'], ['最大', '1,518 バイト（中身 1,500）', '中身の上限 1,500 = MTU'], ['前後の付け足し', '18 バイト', '宛先 6 + 送信元 6 + タイプ 2 + FCS 4'], ['線の上での 1 枚', '8 + 1,518 + 12 = 1,538 バイト相当', 'プリアンブルと IFG は OS からは見えない']].forEach(([a, b, c], r) => {
+          const y = 60 + r * 40;
+          S.text(16, y, a, { cls: 't-sm t-dim' }, D); S.text(190, y, b, { cls: mono + ' t-b' }, D); S.text(470, y, c, { cls: 't-xs t-dim' }, D);
+        });
+        S.text(16, 220, '1 Gbps では 1,538 バイト = 約 12.3 マイクロ秒。1 秒に最大 81,274 枚、最小フレームなら 1,488,095 枚', { cls: 't-xs t-dim' }, D);
+      } else if (i === 1) {
+        S.text(16, 30, 'プリアンブル 7 バイト + SFD 1 バイト', { cls: 't-sm t-b' }, D);
+        // 下の 8 ビットは送る順。1 バイトは下位ビットから送るので、10101010 は 0x55、10101011 は 0xD5
+        const bytes = ['55', '55', '55', '55', '55', '55', '55', 'D5'];
+        bytes.forEach((b, k) => {
+          S.rect(16 + k * 72, 46, 64, 30, { rx: 3, cls: k === 7 ? 'f-x-soft s-x w1' : 'f-in s-rule w1' }, D);
+          S.text(48 + k * 72, 66, '0x' + b, { cls: 't-c ' + mono }, D);
+          S.text(48 + k * 72, 98, k === 7 ? '10101011' : '10101010', { cls: 't-c t-xs t-mono' + (k === 7 ? ' t-x t-b' : ' t-dim') }, D);
+        });
+        // 波形
+        const yb = 150;
+        let d = '';
+        // 送る順に 1,0,1,0,…,1,0,1,1（最後の 2 ビットだけ 1 が続く）
+        for (let k = 0; k < 64; k++) { const bit = k < 62 ? 1 - k % 2 : 1; const x = 16 + k * 13; d += (k ? 'V' : 'M' + x + ',') + `${yb - bit * 24}H${x + 13}`; }
+        S.path(d, { cls: 'f-none s-e w2' }, D);
+        S.text(16, 200, 'ビットは送る順（1 バイトは下位ビットから送るので、16 進では 0x55 と 0xD5）。SFD = Start Frame Delimiter', { cls: 't-xs t-dim' }, D);
+        S.text(848, 200, '→ 本体', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, D);
+      } else if (i === 2) {
+        S.text(16, 30, 'MAC アドレス 6 バイト = 48 ビット', { cls: 't-sm t-b' }, D);
+        const parts = MAC.A.split(':');
+        parts.forEach((b, k) => {
+          S.rect(16 + k * 80, 46, 70, 34, { rx: 3, cls: k < 3 ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, D);
+          S.text(51 + k * 80, 68, b, { cls: 't-c t-mono t-lg' }, D);
+        });
+        S.path('M16,92 H254', { cls: 'f-none s-d w2' }, D); S.text(135, 108, 'OUI：製造者（IEEE が割り当て）', { cls: 't-c t-xs t-d t-b' }, D);
+        S.path('M256,92 H494', { cls: 'f-none s-dim w2' }, D); S.text(375, 108, '機器ごとの番号（製造者が付ける）', { cls: 't-c t-xs t-dim' }, D);
+        S.text(540, 68, '例: 送信元 = PC A', { cls: 't-sm' }, D);
+        S.text(540, 90, '（第14章の PC と同じ値）', { cls: 't-xs t-dim' }, D);
+        [['宛先の種類', '', ''], ['ユニキャスト', MAC.T, '1 台宛て'], ['ブロードキャスト', 'FF:FF:FF:FF:FF:FF', '同じネットワークの全員宛て（ARP、DHCP）'], ['マルチキャスト', '33:33:xx:xx:xx:xx', '先頭バイトの最下位ビットが 1。グループ宛て（IPv6 の NDP など）']].forEach(([a, b, c], r) => {
+          const y = 140 + r * 24;
+          S.text(16, y, a, { cls: r ? 't-sm' : 't-sm t-b' }, D); S.text(190, y, b, { cls: 't-mono t-sm' }, D); S.text(400, y, c, { cls: 't-xs t-dim' }, D);
+        });
+      } else if (i === 3) {
+        S.text(16, 30, 'タイプ（EtherType）2 バイト', { cls: 't-sm t-b' }, D);
+        [['0x0800', 'IPv4', 'IP の処理へ（第18章）', 'f-d-soft s-d'], ['0x86DD', 'IPv6', 'IP の処理へ', 'f-d-soft s-d'], ['0x0806', 'ARP', 'ARP の処理へ（場面 5）', 'f-x-soft s-x'], ['0x8100', 'VLAN タグ', '4 バイトのタグが挟まり、その後に本当のタイプ', 'f-in s-rule'], ['0x88CC', 'LLDP', '隣の機器の情報交換', 'f-in s-rule']].forEach(([a, b, c, cls], r) => {
+          const y = 44 + r * 32;
+          S.rect(16, y, 90, 26, { rx: 3, cls: cls + ' w1' }, D);
+          S.text(61, y + 18, a, { cls: 't-c t-mono t-md' }, D);
+          S.text(124, y + 18, b, { cls: 't-sm t-b' }, D);
+          S.text(230, y + 18, c, { cls: 't-xs t-dim' }, D);
+        });
+        S.text(560, 68, 'OS の振り分け（Linux の例、第9章）', { cls: 't-sm t-b' }, D);
+        [['IPv4 / IPv6 →', 'ip_rcv() → TCP / UDP → ソケット'], ['ARP →', 'arp_rcv() → 近隣表を更新・応答'], ['知らない値 →', '捨てる（数を数えるだけ）']].forEach(([a, b], r) => {
+          S.text(560, 96 + r * 26, a, { cls: 't-sm' }, D); S.text(660, 96 + r * 26, b, { cls: 't-xs t-mono t-dim' }, D);
+        });
+        S.text(16, 222, '1,500 以下なら長さ、1,536（0x0600）以上ならタイプと読む決まり（古い IEEE 802.3 形式との両立）', { cls: 't-xs t-dim' }, D);
+      } else if (i === 4) {
+        S.text(16, 30, 'ペイロード 46〜1,500 バイト：IP パケットがそのまま入る', { cls: 't-sm t-b' }, D);
+        S.rect(16, 50, 848, 60, { rx: 4, cls: 'f-sf s-d w15' }, D);
+        S.rect(20, 54, 120, 52, { rx: 3, cls: 'f-d-soft s-d w1' }, D); S.text(80, 76, 'IP ヘッダ', { cls: 't-c t-sm t-b' }, D); S.text(80, 94, '20 B〜', { cls: 't-c t-xs t-mono t-dim' }, D);
+        S.rect(144, 54, 140, 52, { rx: 3, cls: 'f-d-soft s-d w1' }, D); S.text(214, 76, 'TCP / UDP ヘッダ', { cls: 't-c t-sm t-b' }, D); S.text(214, 94, '20 B / 8 B', { cls: 't-c t-xs t-mono t-dim' }, D);
+        S.rect(288, 54, 572, 52, { rx: 3, cls: 'f-in s-rule w1' }, D); S.text(574, 76, 'アプリケーションのデータ（TLS レコード、HTTP、動画の断片…）', { cls: 't-c t-sm' }, D); S.text(574, 94, '残り ≦ 1,460 B（TCP のとき）', { cls: 't-c t-xs t-mono t-dim' }, D);
+        [['MTU 1,500', '中身の上限。IP パケットはこれに収まる大きさに切られる（第18章）'], ['46 未満', '0 を詰めて 46 にする（パディング）。IP 側は自分の長さ欄を見るので混ざらない'], ['ジャンボフレーム', '中身を 9,000 バイト程度まで増やす拡張（IEEE の規格外）。経路の全機器が対応する必要がある'], ['Wi-Fi', '802.11 の中身の上限は 2,304 バイトだが、Ethernet と橋渡しするので実質 1,500 に合わせる']].forEach(([a, b], r) => {
+          const y = 140 + r * 24;
+          S.text(16, y, a, { cls: 't-sm t-b' }, D); S.text(170, y, b, { cls: 't-xs t-dim' }, D);
+        });
+      } else if (i === 5) {
+        S.text(16, 30, 'FCS（Frame Check Sequence）= CRC-32', { cls: 't-sm t-b' }, D);
+        S.text(16, 56, '送り手', { cls: 't-sm t-b' }, D);
+        S.rect(80, 42, 300, 24, { rx: 3, cls: 'f-d-soft s-d w1' }, D); S.text(230, 59, '宛先 … 中身（全ビット）', { cls: 't-c t-xs' }, D);
+        S.path('M384,54 H420', { cls: 'f-none s-dim w2', 'marker-end': S.markers(ctx.svg)('dim') }, D);
+        S.rect(424, 42, 110, 24, { rx: 3, cls: 'f-in s-rule w1' }, D); S.text(479, 59, 'CRC-32 を計算', { cls: 't-c t-xs' }, D);
+        S.path('M538,54 H574', { cls: 'f-none s-dim w2', 'marker-end': S.markers(ctx.svg)('dim') }, D);
+        st.crcS = S.text(580, 59, 'FCS = 0x1A2B3C4D', { cls: 't-mono t-md t-b' }, D);
+        S.text(16, 100, '受け手', { cls: 't-sm t-b' }, D);
+        st.rxBar = S.rect(80, 86, 300, 24, { rx: 3, cls: 'f-d-soft s-d w1' }, D); st.rxTxt = S.text(230, 103, '届いた 宛先 … 中身', { cls: 't-c t-xs' }, D);
+        S.path('M384,98 H420', { cls: 'f-none s-dim w2', 'marker-end': S.markers(ctx.svg)('dim') }, D);
+        S.rect(424, 86, 110, 24, { rx: 3, cls: 'f-in s-rule w1' }, D); S.text(479, 103, '同じ計算', { cls: 't-c t-xs' }, D);
+        S.path('M538,98 H574', { cls: 'f-none s-dim w2', 'marker-end': S.markers(ctx.svg)('dim') }, D);
+        st.crcR = S.text(580, 103, '', { cls: 't-mono t-md t-b' }, D);
+        st.verdict = S.text(16, 150, '', { cls: 't-lg t-b' }, D);
+        st.verdict2 = S.text(16, 174, '', { cls: 't-xs t-dim' }, D);
+        S.text(16, 212, '1 ビットの誤りと、32 ビットの幅に収まるまとまった誤り（バースト誤り）は必ず検出できる', { cls: 't-xs t-dim' }, D);
+      }
+      S.fade(st.bolt, false);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.flow.update(dt);
+      // 送信カーソル（8 秒で 1 枚）
+      const f = U.cycle(t, 8);
+      let acc = 0, cur = null, fin = 0;
+      for (const fl of st.fields) { const a = acc / st.total, b = (acc + fl.n) / st.total; if (f >= a && f < b) { cur = fl; fin = (f - a) / (b - a); break; } acc += fl.n; }
+      if (cur) {
+        const x = cur.x + fin * cur.w;
+        st.cursor.setAttribute('x1', x); st.cursor.setAttribute('x2', x);
+        st.curTxt.textContent = `いま送っている欄: ${cur.name}（${Math.floor(fin * cur.n) + 1} バイトめ）`;
+        // 札は中央揃え。両端で図の外へ出ないように位置を制限する（狭い画面では図の外は切れる）
+        const tw = st.curTxt.getComputedTextLength() || 0;
+        st.curTxt.setAttribute('x', U.clamp(x, tw / 2 + 4, 956 - tw / 2).toFixed(1));
+        const by = ['55', '55', '55', '55', '55', '55', '55', 'D5', ...MAC.T.split(':'), ...MAC.A.split(':'), '08', '00'];
+        const idx = Math.floor(f * st.total);
+        st.wireTxt.textContent = idx < by.length ? `… ${by.slice(Math.max(0, idx - 4), idx + 1).join(' ')} … → 1 バイト = 8 ビット、1000BASE-T では 8 ナノ秒` : '中身（IP パケット）を 1 バイトずつ … → 1,000 バイトで 8 マイクロ秒';
+      }
+      if (i === 5) {
+        const q = U.seq(t, [3, 1.5, 3, 1.5], true);
+        const bad = q.i >= 2;
+        S.fade(st.bolt, bad && q.i === 2 && q.f > 0.3);
+        st.rxTxt.textContent = bad && q.f > 0.3 ? '届いた 宛先 … 中身（1 ビット違う）' : '届いた 宛先 … 中身';
+        st.rxBar.setAttribute('class', bad && q.f > 0.3 ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1');
+        if (q.i === 0 || q.i === 2) { st.crcR.textContent = '計算中…'; st.crcR.setAttribute('class', 't-mono t-md t-b t-dim'); st.verdict.textContent = ''; st.verdict2.textContent = ''; }
+        else if (q.i === 1) { st.crcR.textContent = '0x1A2B3C4D'; st.crcR.setAttribute('class', 't-mono t-md t-b t-d'); st.verdict.textContent = '一致 → 受け取り、タイプを見て OS へ渡す'; st.verdict.setAttribute('class', 't-lg t-b t-d'); st.verdict2.textContent = ''; }
+        else { st.crcR.textContent = '0x9F01E6B2'; st.crcR.setAttribute('class', 't-mono t-md t-b t-x'); st.verdict.textContent = '不一致 → 黙って捨てる'; st.verdict.setAttribute('class', 't-lg t-b t-x'); st.verdict2.textContent = '送り手には知らせない。TCP なら ACK が返らないので再送される。UDP（QUIC）なら QUIC 自身が再送する'; }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 スイッチ
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '最初は何も知らない：学習とフラッディング', text: 'スイッチは、届いたフレームの**送信元** MAC と届いたポート番号を MAC アドレス表に書き留める（学習）。宛先 MAC が表に無ければ、届いたポート以外の全ポートへ複製して送る（フラッディング）。PC A からテレビ宛の最初の 1 枚がこれ。' },
+      { title: '返事が来ると、相手の居場所も分かる', text: 'テレビが返事を送ると、その送信元 MAC とポート 3 が表に入る。以後、A 宛はポート 1 だけ、テレビ宛はポート 3 だけに送られ、ほかのポートには流れない。家中の機器は、それぞれが何か 1 枚送った時点で表に入る。' },
+      { title: '知っている宛先は 1 ポートだけに転送', text: '宛先が表にあれば、そのポートにだけ送る。だから A とテレビ、B とルーターのように、別の組の通信が同時に進んでも互いに邪魔しない。各ポートは送信と受信を同時にできる（全二重）ので、衝突も起きない。' },
+      { title: 'ブロードキャストは常に全員へ', text: '宛先 `FF:FF:FF:FF:FF:FF` のフレーム（ARP 要求や DHCP の最初の問い合わせ）は、表に関係なく全ポートへ複製される。ブロードキャストが届く範囲が「同じネットワーク（L2 セグメント）」で、家の中の有線と無線は 1 つのセグメントになっている。' },
+      { title: '表の寿命：現れなくなった機器は消える', text: '各項目には、その MAC を送信元として最後に見た時刻が記録され、既定で約 300 秒見なければ消える（エージング）。機器を別のポートに差し替えても、次に送信した時点で新しいポートに上書きされる。表の大きさは家庭用で数千件、データセンター用で数十万件。' },
+      { title: 'スイッチは中身を見ない', text: 'スイッチが読むのは宛先と送信元の MAC だけで、中の IP アドレスやデータは見ない（L2 スイッチ）。これに対し、昔のハブは届いた信号を全ポートにそのまま流し、同時に 2 台が送ると衝突した。家庭用ルーターの LAN ポートの中身は、この L2 スイッチである。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 配線は機器の箱からスイッチまで描く。札（幅 120）の通り道は、止めたときの位置（段階の始め）で
+      // 機器の箱の文字を隠さないように、箱の縁から札の半分だけ離す
+      ['M210,265 H380', 'M210,355 H380', 'M580,355 H750', 'M580,265 H750'].forEach((d) => link(svg, d, 's-rule w6 round'));
+      // 入ってくる札はポートを越えてスイッチの中で止まる（ポート番号の丸が札の文字を隠さない）。出ていく札はポートから出る
+      st.paths = {
+        Ain: road(svg, 'M270,265 H446'), Bin: road(svg, 'M270,355 H446'), Tin: road(svg, 'M690,355 H514'),
+        Aout: road(svg, 'M380,265 H270'), Bout: road(svg, 'M380,355 H270'),
+        Tout: road(svg, 'M580,355 H690'), Rout: road(svg, 'M580,265 H690')
+      };
+      // スイッチ
+      box(svg, 380, 235, 200, 150, '', '', 'f-sf s-fg w2');
+      S.text(480, 300, 'スイッチ（L2）', { cls: 't-c t-b t-lg' }, svg);
+      S.text(480, 322, '宛先 MAC → ポート', { cls: 't-c t-xs t-dim' }, svg);
+      st.ports = S.g({}, svg);   // ポート番号は札より手前に出す（札を作ったあとで最前面へ移す）
+      [[380, 265, '1'], [380, 355, '2'], [580, 355, '3'], [580, 265, '4']].forEach(([x, y, n]) => {
+        S.circle(x, y, 11, { cls: 'f-fg' }, st.ports);
+        S.text(x, y + 4, n, { cls: 't-c t-xs t-b t-sf' }, st.ports);
+      });
+      // 機器
+      box(svg, 60, 235, 150, 60, 'PC A', MAC.A);
+      box(svg, 60, 325, 150, 60, 'PC B', MAC.B);
+      box(svg, 750, 325, 150, 60, 'テレビ', MAC.T);
+      box(svg, 750, 235, 150, 60, 'ルーター部', MAC.R);
+      // MAC アドレス表
+      S.text(560, 56, 'MAC アドレス表', { cls: 't-sm t-b' }, svg);
+      st.tblG = S.g({ transform: 'translate(560,64)' }, svg);
+      S.rect(0, 0, 360, 150, { rx: 6, cls: 'f-sf s-rule w1' }, st.tblG);
+      ['MAC アドレス', 'ポート', '経過'].forEach((h, k) => S.text([14, 200, 280][k], 20, h, { cls: 't-xs t-b t-dim' }, st.tblG));
+      S.line(10, 28, 350, 28, { cls: 's-rule w1' }, st.tblG);
+      st.rows = [];
+      for (let r = 0; r < 4; r++) {
+        const g = S.g({ cls: 'fade hide' }, st.tblG);
+        const y = 52 + r * 28;
+        const bg = S.rect(8, y - 18, 344, 26, { rx: 3, cls: 'f-in', style: { opacity: 0 } }, g);
+        st.rows.push({ g, bg, mac: S.text(14, y, '', { cls: 't-mono t-sm' }, g), port: S.text(200, y, '', { cls: 't-mono t-sm t-b' }, g), age: S.text(280, y, '', { cls: 't-mono t-sm t-dim' }, g) });
+      }
+      st.empty = S.text(180, 95, '（空）', { cls: 't-c t-sm t-dim' }, st.tblG);
+      // いまのフレーム
+      S.text(40, 56, 'いま届いているフレーム', { cls: 't-sm t-b' }, svg);
+      st.hdr = S.g({ transform: 'translate(40,64)' }, svg);
+      S.rect(0, 0, 480, 68, { rx: 6, cls: 'f-sf s-rule w1' }, st.hdr);
+      // 各欄は 2 行（上: 値、下: 機器名など）。MAC と機器名を 1 行に並べると隣の欄に重なる
+      [['宛先', 14], ['送信元', 180], ['タイプ', 346], ['中身', 410]].forEach(([s, x]) => S.text(x, 18, s, { cls: 't-xs t-dim' }, st.hdr));
+      st.hDst = S.text(14, 40, '', { cls: 't-mono t-sm t-b' }, st.hdr);
+      st.hDstN = S.text(14, 57, '', { cls: 't-xs t-dim' }, st.hdr);
+      st.hSrc = S.text(180, 40, '', { cls: 't-mono t-sm' }, st.hdr);
+      st.hSrcN = S.text(180, 57, '', { cls: 't-xs t-dim' }, st.hdr);
+      st.hTyp = S.text(346, 40, '', { cls: 't-mono t-sm' }, st.hdr);
+      st.hPay = S.text(410, 40, '', { cls: 't-xs t-dim' }, st.hdr);
+      st.hPay2 = S.text(410, 57, '', { cls: 't-xs t-dim' }, st.hdr);
+      st.action = S.text(40, 160, '', { cls: 't-sm t-b' }, svg);
+      st.action2 = S.text(40, 180, '', { cls: 't-xs t-dim' }, svg);
+      // 札
+      st.pk = [0, 1, 2, 3].map(() => pkt(svg, '', 120));
+      svg.appendChild(st.ports);
+      // ハブの比較（段階6）
+      st.hub = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 418, '昔のハブ（リピータ）なら：届いた信号をそのまま全ポートへ', { cls: 't-c t-sm t-b' }, st.hub);
+      box(st.hub, 400, 440, 160, 60, 'ハブ', '半二重・衝突あり', 'f-in s-dim w15');
+      st.hubLinks = [['M400,470 H300', '2 台が同時に送ると衝突'], ['M560,470 H660', ''], ['M400,486 H330', ''], ['M560,486 H630', '']].map(([d]) => link(st.hub, d, 's-rule w6 round'));
+      st.hubFlows = st.hubLinks.map((l) => A.flow(l, { count: 5, speed: 60, r: 3, cls: 'f-d', parent: st.hub }));
+      S.text(290, 474, '全員が全部を聞く', { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.hub);
+      S.text(670, 474, '同時送信 → 衝突 → やり直し', { cls: 't-xs t-x', }, st.hub);
+    },
+    renderTable(st, entries, hl) {
+      st.rows.forEach((r, k) => {
+        const e = entries[k];
+        S.fade(r.g, !!e);
+        if (e) { r.mac.textContent = e.mac; r.port.textContent = 'ポート ' + e.port; r.age.textContent = e.age; r.bg.style.opacity = hl === k ? 1 : 0; }
+      });
+      S.fade(st.empty, entries.length === 0);
+    },
+    setHdr(st, dst, dstN, src, srcN, typ, pay, pay2) {
+      st.hDst.textContent = dst; st.hDstN.textContent = dstN; st.hSrc.textContent = src; st.hSrcN.textContent = srcN;
+      st.hTyp.textContent = typ; st.hPay.textContent = pay; st.hPay2.textContent = pay2 || '';
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.hub, i === 5);
+      hide(...st.pk); apply(...st.pk);
+    },
+    frame(ctx, t, dt) {
+      hide(...ctx.state.pk);
+      this.move(ctx, t, dt);
+      apply(...ctx.state.pk);
+    },
+    move(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const P = st.paths, pk = st.pk;
+      const eA = { mac: MAC.A, port: 1, age: '0 s' }, eT = { mac: MAC.T, port: 3, age: '0 s' }, eB = { mac: MAC.B, port: 2, age: '0 s' }, eR = { mac: MAC.R, port: 4, age: '0 s' };
+      const ease = U.ease.inOut;
+      if (i === 0) {
+        const q = U.seq(ts, [1.6, 0.8, 1.6, 1.2], true);
+        s4.setHdr(st, MAC.T, 'テレビ', MAC.A, 'PC A', '0x0800', 'IP パケット');
+        pk[0].setLabel('宛先 …7C ← …81');
+        if (q.i === 0) { put(pk[0], P.Ain, ease(q.f)); s4.renderTable(st, [], -1); st.action.textContent = 'ポート 1 にフレームが届く'; st.action2.textContent = ''; }
+        else if (q.i === 1) { put(pk[0], P.Ain, 1); s4.renderTable(st, [eA], 0); st.action.textContent = '学習：送信元 …81 はポート 1'; st.action2.textContent = '宛先 …7C は表に無い → フラッディング'; }
+        else if (q.i === 2) { s4.renderTable(st, [eA], -1); [1, 2, 3].forEach((k) => { pk[k].setLabel('宛先 …7C ← …81'); put(pk[k], [P.Bout, P.Tout, P.Rout][k - 1], U.ease.out(q.f)); }); st.action.textContent = 'ポート 2・3・4 へ複製して送る'; st.action2.textContent = 'テレビ以外は宛先が自分でないので捨てる'; }
+        else { s4.renderTable(st, [eA], -1); st.action.textContent = 'テレビだけが受け取る'; st.action2.textContent = ''; }
+      } else if (i === 1) {
+        const q = U.seq(ts, [1.6, 0.8, 1.6, 1.2], true);
+        s4.setHdr(st, MAC.A, 'PC A', MAC.T, 'テレビ', '0x0800', 'IP パケット', '（返事）');
+        pk[0].setLabel('宛先 …81 ← …7C');
+        if (q.i === 0) { put(pk[0], P.Tin, ease(q.f)); s4.renderTable(st, [eA], -1); st.action.textContent = 'ポート 3 に返事が届く'; st.action2.textContent = ''; }
+        else if (q.i === 1) { put(pk[0], P.Tin, 1); s4.renderTable(st, [eA, eT], 1); st.action.textContent = '学習：送信元 …7C はポート 3'; st.action2.textContent = '宛先 …81 は表にある → ポート 1 だけ'; }
+        else if (q.i === 2) { s4.renderTable(st, [eA, eT], 0); put(pk[0], P.Aout, U.ease.out(q.f)); st.action.textContent = 'ポート 1 にだけ送る'; st.action2.textContent = 'ポート 2・4 には何も流れない'; }
+        else { s4.renderTable(st, [eA, eT], -1); st.action.textContent = '以後、A とテレビの間は 2 つのポートだけで済む'; st.action2.textContent = ''; }
+      } else if (i === 2 || i === 5) {
+        const q = U.seq(ts, [1.6, 0.4, 1.6, 1.0], true);
+        s4.setHdr(st, '…7C ／ …01', 'テレビ ／ ルーター部', '…81 ／ …0B', 'PC A ／ PC B', '0x0800', '2 枚同時');
+        const tab = [eA, eT, eB, eR];
+        pk[0].setLabel('宛先 …7C ← …81'); pk[1].setLabel('宛先 …01 ← …0B');
+        if (q.i === 0) { put(pk[0], P.Ain, ease(q.f)); put(pk[1], P.Bin, ease(q.f)); s4.renderTable(st, tab, -1); st.action.textContent = 'A → テレビ と B → ルーター が同時に届く'; st.action2.textContent = ''; }
+        else if (q.i === 1) { put(pk[0], P.Ain, 1); put(pk[1], P.Bin, 1); s4.renderTable(st, tab, 1); st.action.textContent = '表を引く：…7C はポート 3、…01 はポート 4'; st.action2.textContent = ''; }
+        else if (q.i === 2) { put(pk[0], P.Tout, U.ease.out(q.f)); put(pk[1], P.Rout, U.ease.out(q.f)); s4.renderTable(st, tab, -1); st.action.textContent = 'それぞれ 1 ポートだけに転送（同時に）'; st.action2.textContent = '各ポートは全二重なので、返事も同時に通れる'; }
+        else { s4.renderTable(st, tab, -1); st.action.textContent = i === 5 ? '中身の IP パケットは読まれずに通過した' : '2 組の通信が互いに邪魔しない'; st.action2.textContent = ''; }
+        if (i === 5) st.hubFlows.forEach((f) => f.update(dt));
+      } else if (i === 3) {
+        const q = U.seq(ts, [1.6, 0.5, 1.6, 1.2], true);
+        s4.setHdr(st, MAC.BC, '全員（ブロードキャスト）', MAC.B, 'PC B', '0x0806', 'ARP 要求');
+        const tab = [eA, eT, eB, eR];
+        pk.forEach((p) => p.setLabel('宛先 FF:…:FF ← …0B'));
+        if (q.i === 0) { put(pk[0], P.Bin, ease(q.f)); s4.renderTable(st, tab, -1); st.action.textContent = 'ポート 2 にブロードキャストが届く'; st.action2.textContent = ''; }
+        else if (q.i === 1) { put(pk[0], P.Bin, 1); s4.renderTable(st, tab, 2); st.action.textContent = '宛先が FF:FF:FF:FF:FF:FF → 表は引かない'; st.action2.textContent = ''; }
+        else if (q.i === 2) { put(pk[1], P.Aout, U.ease.out(q.f)); put(pk[2], P.Tout, U.ease.out(q.f)); put(pk[3], P.Rout, U.ease.out(q.f)); s4.renderTable(st, tab, -1); st.action.textContent = '届いたポート以外の全部へ複製'; st.action2.textContent = 'これが届く範囲 = 1 つの L2 セグメント'; }
+        else { s4.renderTable(st, tab, -1); st.action.textContent = '全員が受け取り、該当する 1 台だけが答える（場面 5）'; st.action2.textContent = ''; }
+      } else if (i === 4) {
+        const q = U.seq(ts, [3.0, 0.8, 1.6, 0.6, 1.6, 1.0], true);
+        s4.setHdr(st, MAC.T, 'テレビ', MAC.A, 'PC A', '0x0800', 'IP パケット');
+        const age =q.i === 0 ? Math.floor(240 + q.f * 60) : 300;
+        const tabFull = [{ mac: MAC.A, port: 1, age: age + ' s' }, { mac: MAC.T, port: 3, age: '12 s' }, { mac: MAC.B, port: 2, age: '3 s' }, { mac: MAC.R, port: 4, age: '0 s' }];
+        const tabNoA = [{ mac: MAC.T, port: 3, age: '12 s' }, { mac: MAC.B, port: 2, age: '3 s' }, { mac: MAC.R, port: 4, age: '0 s' }];
+        pk[0].setLabel('宛先 …7C ← …81');
+        if (q.i === 0) { s4.renderTable(st, tabFull, 0); st.action.textContent = 'A の項目：最後に見てから ' + age + ' 秒'; st.action2.textContent = 'A からのフレームが 300 秒届かなければ消える'; }
+        else if (q.i === 1) { s4.renderTable(st, tabNoA, -1); st.action.textContent = 'A の項目が消えた'; st.action2.textContent = ''; }
+        else if (q.i === 2) { s4.renderTable(st, tabNoA, -1); put(pk[0], P.Ain, ease(q.f)); st.action.textContent = 'A がまた送る'; st.action2.textContent = ''; }
+        else if (q.i === 3) { s4.renderTable(st, [{ mac: MAC.A, port: 1, age: '0 s' }, ...tabNoA], 0); put(pk[0], P.Ain, 1); st.action.textContent = '学習し直す（ポートが変わっていれば上書き）'; st.action2.textContent = '宛先 …7C は表にある'; }
+        else if (q.i === 4) { s4.renderTable(st, [{ mac: MAC.A, port: 1, age: '0 s' }, ...tabNoA], -1); put(pk[0], P.Tout, U.ease.out(q.f)); st.action.textContent = 'ポート 3 へ'; st.action2.textContent = ''; }
+        else { s4.renderTable(st, [{ mac: MAC.A, port: 1, age: '0 s' }, ...tabNoA], -1); st.action.textContent = '表は使われ続ける限り保たれる'; st.action2.textContent = ''; }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 ARP
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'IP は分かるが、MAC が分からない', text: 'PC A がルーター 192.168.1.1 宛てにパケットを出そうとしても、IP と MAC の対応表（ARP キャッシュ）が空では、フレームの宛先 MAC が決まらない。PC の起動直後や、しばらく通信していなかった相手では、まずこの状態から始まる。' },
+      { title: 'ARP 要求：全員に「この IP は誰？」', text: 'PC は宛先 `FF:FF:FF:FF:FF:FF`、タイプ 0x0806 のフレームに「192.168.1.1 の MAC を教えて。私は 192.168.1.10、MAC は …81」と入れて送る。スイッチはブロードキャストなので全ポートへ流し、家中の機器が受け取る。' },
+      { title: 'ARP 応答：本人だけがユニキャストで返す', text: '自分の IP と一致する機器（ルーター）だけが、「192.168.1.1 は …01」と PC の MAC 宛てに返す。ほかの機器は無視して捨てる。要求に送信元の IP と MAC が入っていたので、ルーター側も PC の対応を同時に覚える。' },
+      { title: 'ARP キャッシュ：以後は聞かない', text: '結果は OS の ARP キャッシュ（近隣表）に入り、以後のフレームはすぐに宛先 MAC を埋められる。Linux では `ip neigh`、Windows では `arp -a` で中身が見える。項目の無い宛先への最初の 1 枚だけが、この往復の分だけ遅れる。' },
+      { title: '外のサーバー宛て：ゲートウェイの MAC を使う', text: 'YouTube のサーバー（例: 142.250.196.110）は家の外。PC はサブネットマスクで「同じネットワークではない」と判断し、宛先 IP はそのままで、宛先 MAC にはデフォルトゲートウェイ（ルーター）の MAC を入れる。ルーターが次の区間へ送り直す（第14章）。' },
+      { title: 'IPv6 では NDP が同じ役目', text: 'IPv6 には ARP が無く、ICMPv6 の近隣要請・近隣広告（NDP）で同じことをする。ブロードキャストの代わりに、相手のアドレスから作ったマルチキャスト宛てに送るので、無関係な機器を起こさない。ルーターの発見もルーター広告で行う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 配線は箱から箱まで描き、札（幅 130）の通り道は機器の箱にかからない範囲にする（止めたときに文字を隠さない）
+      ['M200,300 H390', 'M570,265 H740', 'M570,345 H740', 'M880,265 H936'].forEach((d) => link(svg, d, 's-rule w6 round'));
+      st.paths = { A: road(svg, 'M265,300 H380'), R: road(svg, 'M570,265 H675'), T: road(svg, 'M570,345 H675'), W: road(svg, 'M880,265 H936') };
+      box(svg, 390, 240, 180, 120, '', '', 'f-sf s-fg w2');
+      S.text(480, 296, 'スイッチ', { cls: 't-c t-b t-lg' }, svg);
+      S.text(480, 318, '（ルーターの LAN ポート）', { cls: 't-c t-xs t-dim' }, svg);
+      box(svg, 60, 265, 140, 70, 'PC A', '192.168.1.10', 'f-sf s-rule w15');
+      S.text(130, 328, MAC.A, { cls: 't-c t-xs t-mono t-dim' }, svg);
+      box(svg, 740, 232, 140, 66, 'ルーター部', '192.168.1.1', 'f-sf s-rule w15');
+      S.text(810, 291, MAC.R, { cls: 't-c t-xs t-mono t-dim' }, svg);
+      box(svg, 740, 312, 140, 66, 'テレビ', '192.168.1.5', 'f-sf s-rule w15');
+      S.text(810, 371, MAC.T, { cls: 't-c t-xs t-mono t-dim' }, svg);
+      st.cloud = S.g({ cls: 'fade hide' }, svg);
+      S.text(956, 246, '→ 外へ', { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.cloud);
+      S.text(810, 222, 'ONU → インターネット（第15・16章）', { cls: 't-c t-xs t-dim' }, st.cloud);
+      // ARP キャッシュ
+      S.text(40, 56, 'PC A の ARP キャッシュ（近隣表）', { cls: 't-sm t-b' }, svg);
+      const gc = st.gc = S.g({ transform: 'translate(40,64)' }, svg);
+      S.rect(0, 0, 400, 110, { rx: 6, cls: 'f-sf s-rule w1' }, gc);
+      ['IP アドレス', 'MAC アドレス', '状態'].forEach((h, k) => S.text([14, 140, 320][k], 20, h, { cls: 't-xs t-b t-dim' }, gc));
+      S.line(10, 28, 390, 28, { cls: 's-rule w1' }, gc);
+      st.crow = [0, 1].map((r) => { const g = S.g({ cls: 'fade hide' }, gc); const y = 54 + r * 28; return { g, ip: S.text(14, y, '', { cls: 't-mono t-sm' }, g), mac: S.text(140, y, '', { cls: 't-mono t-sm t-b' }, g), stt: S.text(320, y, '', { cls: 't-sm t-dim' }, g) }; });
+      st.cempty = S.text(200, 72, '（空）', { cls: 't-c t-sm t-dim' }, gc);
+      // フレームの中身
+      S.text(560, 56, '飛んでいるフレーム', { cls: 't-sm t-b' }, svg);
+      const gh = st.gh = S.g({ transform: 'translate(560,64)' }, svg);
+      S.rect(0, 0, 360, 110, { rx: 6, cls: 'f-sf s-rule w1' }, gh);
+      st.hl = [['宛先 MAC', 20], ['送信元 MAC', 40], ['タイプ', 60], ['中身', 80], ['', 98]].map(([n, y]) => { S.text(14, y + 4, n, { cls: 't-xs t-dim' }, gh); return S.text(110, y + 4, '', { cls: 't-mono t-xs' }, gh); });
+      st.want = S.text(130, 395, '', { cls: 't-c t-sm t-b t-x' }, svg);
+      st.want2 = S.text(130, 414, '', { cls: 't-c t-xs t-dim' }, svg);
+      st.note = S.text(480, 470, '', { cls: 't-c t-sm t-b' }, svg);
+      st.note2 = S.text(480, 492, '', { cls: 't-c t-xs t-dim' }, svg);
+      st.note3 = S.text(480, 512, '', { cls: 't-c t-xs t-dim' }, svg);
+      st.pk = [0, 1, 2].map(() => pkt(svg, '', 130));
+      st.pkOut = pkt(svg, 'IP', 40);   // ルーターから外へ出る区間は小さな札（図の端からはみ出さない）
+      st.q = S.text(130, 250, '?', { cls: 't-c t-xxl t-b t-x fade hide' }, svg);
+    },
+    cache(st, rows) {
+      st.crow.forEach((r, k) => { const e = rows[k]; S.fade(r.g, !!e); if (e) { r.ip.textContent = e[0]; r.mac.textContent = e[1]; r.stt.textContent = e[2]; } });
+      S.fade(st.cempty, rows.length === 0);
+    },
+    hdr(st, vals) { st.hl.forEach((t, k) => { t.textContent = vals[k] || ''; }); },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      hide(...st.pk, st.pkOut); apply(...st.pk, st.pkOut);
+      S.fade(st.cloud, i === 4);
+      st.q.style.opacity = '';   // 段階1の点滅（frame が付ける）を消してから .hide を効かせる
+      S.fade(st.q, i === 0);
+      st.want.textContent = i === 0 ? '宛先 IP 192.168.1.1 → MAC は？' : i === 4 ? '宛先 IP 142.250.196.110（外）' : '';
+      st.want2.textContent = i === 0 ? 'フレームの宛先欄が埋められない' : i === 4 ? '192.168.1.0/24 の外 → ゲートウェイへ' : '';
+      const rows = [[], [], [['192.168.1.1', MAC.R, '到達可']], [['192.168.1.1', MAC.R, '到達可']], [['192.168.1.1', MAC.R, '到達可']], [['fe80::1（ルーター）', MAC.R, '到達可（NDP）']]][i];
+      s5.cache(st, rows);
+      const N = [['', '', ''], ['要求はブロードキャスト。スイッチが全ポートへ流し、全員が中身を読む', 'ARP の中身：操作 = 要求、送信元 IP/MAC = 192.168.1.10 / …81、目標 IP = 192.168.1.1', '返事をするのは目標 IP を持つ 1 台だけ'], ['応答はユニキャスト。スイッチの表で PC A のポートにだけ届く', 'ARP の中身：操作 = 応答、送信元 = 192.168.1.1 / …01、宛先 = 192.168.1.10 / …81', 'テレビのポートには流れない（スイッチは PC A の居場所を学習済み）'], ['以後の IP パケットはキャッシュの MAC を宛先に書いてすぐ出せる', 'Linux: ip neigh → 192.168.1.1 dev eth0 lladdr 02:11:22:33:44:01 REACHABLE', '一定時間（Linux では数十秒）たつと STALE になり、次に使うとき確かめ直す'], ['宛先 IP は 142.250.196.110 のまま、宛先 MAC はルーターの …01', 'ルーターは宛先 IP を見て次の区間へ（第14章）。MAC は区間ごとに付け替わり、IP は変わらない', '外のサーバーの MAC を知る必要はない（知りようもない）'], ['近隣要請（ICMPv6 type 135）を ff02::1:ffXX:XXXX（要請ノードマルチキャスト）宛てに送る', 'MAC は 33:33:FF:XX:XX:XX。該当アドレスを持つ機器だけが NIC で受け取る', '近隣広告（type 136）で MAC を返す。ルーター広告（type 134）でゲートウェイも分かる']][i];
+      st.note.textContent = N[0]; st.note2.textContent = N[1]; st.note3.textContent = N[2];
+      if (i === 0) s5.hdr(st, ['？？:？？:？？:？？:？？:？？', MAC.A, '0x0800', 'IP パケット（宛先 192.168.1.1）', '']);
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      hide(...st.pk, st.pkOut);
+      this.move(ctx, t);
+      apply(...st.pk, st.pkOut);
+    },
+    move(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts, P = st.paths, pk = st.pk;
+      const ease = U.ease.inOut;
+      if (i === 0) { st.q.style.opacity = 0.5 + 0.5 * U.pulse(t, 1.2); return; }
+      if (i === 1 || i === 5) {
+        const q = U.seq(ts, [1.5, 0.3, 1.5, 1.5], true);
+        const v6 = i === 5;
+        s5.hdr(st, v6 ? ['33:33:FF:00:00:01（マルチキャスト）', MAC.A, '0x86DD', 'ICMPv6 近隣要請：fe80::1 は誰？', ''] : [MAC.BC + '（全員）', MAC.A, '0x0806', 'ARP 要求：192.168.1.1 は誰？', '私は 192.168.1.10 / …81']);
+        pk.forEach((p) => p.setLabel(v6 ? '近隣要請' : 'ARP 要求 →'));
+        if (q.i === 0) put(pk[0], P.A, ease(q.f));
+        else if (q.i === 1) put(pk[0], P.A, 1);
+        else if (q.i === 2) { put(pk[1], P.R, ease(q.f)); put(pk[2], P.T, ease(q.f)); }   // MLD スヌーピングの無いスイッチはマルチキャストも全ポートへ流す。捨てるのは受け手の NIC
+      } else if (i === 2) {
+        const q = U.seq(ts, [1.5, 0.3, 1.5, 1.5], true);
+        s5.hdr(st, [MAC.A + '（PC A）', MAC.R, '0x0806', 'ARP 応答：192.168.1.1 は …01', '']);
+        pk[0].setLabel('← ARP 応答');
+        if (q.i === 0) put(pk[0], P.R, 1 - ease(q.f));
+        else if (q.i === 1) put(pk[0], P.R, 0);
+        else if (q.i === 2) put(pk[0], P.A, 1 - ease(q.f));
+      } else if (i === 3) {
+        const q = U.seq(ts, [1.4, 1.4, 0.6], true);
+        s5.hdr(st, [MAC.R + '（ルーター）', MAC.A, '0x0800', 'IP パケット（宛先 192.168.1.1）', 'キャッシュから即座に']);
+        pk[0].setLabel('IP パケット →');
+        if (q.i === 0) put(pk[0], P.A, ease(q.f)); else if (q.i === 1) put(pk[0], P.R, ease(q.f));
+      } else if (i === 4) {
+        const q = U.seq(ts, [1.4, 1.4, 0.8, 1.0], true);
+        s5.hdr(st, [MAC.R + '（ゲートウェイ）', MAC.A, '0x0800', 'IP: 宛先 142.250.196.110', '送信元 192.168.1.10']);
+        pk[0].setLabel('宛先 IP 142.250.…');
+        if (q.i === 0) put(pk[0], P.A, ease(q.f)); else if (q.i === 1) put(pk[0], P.R, ease(q.f)); else if (q.i === 2) put(st.pkOut, P.W, ease(q.f));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 ブリッジ
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '無線も有線も同じ 1 つの LAN', text: 'スマートフォンも PC も同じ 192.168.1.0/24 の仲間で、互いのブロードキャストが届き、ARP で直接 MAC を調べられる。スマートフォンから PC へのパケットはルーター部を通らず、ブリッジの中だけで届く。無線と有線の違いは、AP が出入りのフレームの形式を変えることだけ。' },
+      { title: '無線フレームにはアドレスが 3 つ', text: 'スマートフォンから PC への 1 枚は、まず 802.11 フレームとして AP に届く。アドレス欄は 3 つあり、受信者（AP の BSSID）、送信者（スマートフォン）、最終宛先（PC）を別々に持つ。中身は WPA で暗号化されていて、AP が復号する。' },
+      { title: 'AP が Ethernet フレームに組み替える', text: 'AP は復号したあと、802.11 のヘッダを外し、宛先＝PC、送信元＝スマートフォンの MAC を持つ Ethernet フレームに作り直す。種類を示す LLC/SNAP ヘッダはタイプ欄に戻し、FCS は計算し直す。中身（IP パケット）は 1 バイトも変わらない。' },
+      { title: 'ブリッジが MAC 表で有線ポートへ', text: '組み替えたフレームはブリッジ（スイッチ）に入り、MAC 表で PC のポートが引かれて、そのポートだけに送られる。スマートフォンの MAC は wlan0 側で学習済みなので、PC からの返事も表どおりに無線側へ渡る。学習・転送の規則は有線だけのときと同じ。' },
+      { title: '逆向き：Ethernet から無線へ', text: 'PC からスマートフォン宛のフレームはブリッジが無線側へ渡し、AP が 802.11 フレームに包み直す。受信者＝スマートフォン、送信者＝AP、送信元＝PC の 3 つを入れ、暗号化し、電波の順番待ち（第12章の CSMA/CA）を経て送る。届けば受け側の ACK が返る。' },
+      { title: '外へ出るのは、宛先がルーターの MAC のフレームだけ', text: '宛先 MAC がルーターの LAN 側アドレス（…01）のフレームが、ルーター部の IP の処理（ルーティング、NAT）に回る。ブロードキャスト（ARP 要求、DHCP）もルーター部に届くが、外へは送られない。ここが家の中（L2）と外（L3）の境目で、YouTube 宛ては全部この経路で第14章のルーターの仕事に渡る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ルーターの箱
+      S.rect(300, 60, 400, 380, { rx: 10, cls: 'f-in s-fg w2', style: { opacity: 0.9 } }, svg);
+      S.text(500, 84, 'ホームルーターの中', { cls: 't-c t-b t-lg' }, svg);
+      st.ap = box(svg, 320, 104, 150, 70, '無線部（AP）', 'wlan0 ／ BSSID …F0', 'f-sf s-r w15');
+      st.rt = box(svg, 520, 104, 160, 70, 'ルーター部', 'IP・NAT（第14章）', 'f-sf s-rule w15');
+      st.br = box(svg, 320, 230, 360, 70, 'ブリッジ br0（スイッチ）', 'MAC 表で配る', 'f-sf s-d w15');
+      // ポート名はポートの中に書く（eth0 から下へ出る配線と重ねない）
+      ['eth0', 'eth1', 'eth2', 'eth3'].forEach((n, k) => { const x = 340 + k * 70; S.rect(x, 300, 40, 16, { rx: 2, cls: 'f-fg' }, svg); S.text(x + 20, 312, n, { cls: 't-c t-xs t-sf t-mono' }, svg); });
+      S.rect(680, 130, 12, 16, { rx: 2, cls: 'f-fg' }, svg); S.text(708, 158, 'WAN', { cls: 't-xs t-dim t-mono' }, svg);
+      // 配線
+      link(svg, 'M395,174 V230', 's-rule w6 round');       // AP → ブリッジ
+      link(svg, 'M600,174 V230', 's-rule w6 round');       // ルーター部 → ブリッジ
+      link(svg, 'M360,316 V380 H190', 's-rule w6 round');  // eth0 → PC
+      link(svg, 'M692,138 H780', 's-rule w6 round');       // WAN → ONU
+      // 電波
+      for (let k = 1; k <= 3; k++) S.path(`M${200 + k * 14},${139 - k * 10} a${k * 12},${k * 12} 0 0 1 0,${k * 20}`, { cls: 'f-none s-r w2' }, svg);
+      // 機器
+      box(svg, 60, 104, 140, 70, 'スマートフォン', 'MAC …5F', 'f-sf s-rule w15');
+      box(svg, 60, 345, 130, 70, 'PC', 'MAC …81', 'f-sf s-rule w15');
+      box(svg, 780, 104, 130, 70, 'ONU', '光回線（第15章）', 'f-sf s-rule w15');
+      // ブリッジの MAC 表
+      const gt = S.g({ transform: 'translate(730,230)' }, svg);
+      S.rect(0, 0, 200, 110, { rx: 6, cls: 'f-sf s-rule w1' }, gt);
+      S.text(14, 20, 'br0 の MAC 表', { cls: 't-xs t-b t-dim' }, gt);
+      S.line(10, 28, 190, 28, { cls: 's-rule w1' }, gt);
+      st.trow = [['…5F', 'wlan0'], ['…81', 'eth0'], ['…01', '自分（ルーター部）']].map(([m, p], k) => { const y = 50 + k * 24; const bg = S.rect(8, y - 16, 184, 22, { rx: 3, cls: 'f-in', style: { opacity: 0 } }, gt); S.text(14, y, m, { cls: 't-mono t-sm' }, gt); S.text(70, y, p, { cls: 't-sm' + (k === 2 ? ' t-dim' : '') }, gt); return bg; });
+      // 道
+      st.P = {
+        radio: road(svg, 'M230,139 H290'),
+        ap2br: road(svg, 'M395,174 V230'),
+        br2pc: road(svg, 'M360,330 V380 H250'),
+        br2rt: road(svg, 'M600,230 V174'),
+        rt2wan: road(svg, 'M700,138 H756')
+      };
+      st.pk = pkt(svg, '', 120, 'f-d-soft s-d w15');
+      st.pkR = pkt(svg, '', 56, 'f-r-soft s-r w15', 'f-r');   // 電波の札は短く（スマートフォンと AP の間に収める）
+      st.pkW = pkt(svg, 'IP', 40);   // WAN へ出る区間。MAC は付け替わるので IP の札にする（第14章）
+      st.lock = S.text(0, 0, '', { cls: 't-xs' }, svg);
+      // 下の 2 段: フレームの形
+      const g11 = st.g11 = S.g({ transform: 'translate(40,456)' }, svg);
+      S.text(0, 0, '802.11 フレーム（電波の上）', { cls: 't-xs t-b f-r' }, g11);
+      const F11 = [['FC', 40], ['Dur', 40], ['Addr1 受信者', 130], ['Addr2 送信者', 130], ['Addr3 宛先', 130], ['Seq', 44], ['QoS', 40], ['LLC/SNAP', 90], ['暗号化された中身', 170], ['FCS', 56]];
+      let x = 0; st.f11 = [];
+      F11.forEach(([n, w]) => { S.rect(x, 8, w, 34, { rx: 3, cls: 'f-r-soft s-r w1' }, g11); S.text(x + w / 2, 21, n, { cls: 't-c t-xs' }, g11); st.f11.push(S.text(x + w / 2, 36, '', { cls: 't-c t-xs t-mono t-b' }, g11)); x += w + 4; });
+      const gEt = st.gEt = S.g({ transform: 'translate(40,510)' }, svg);
+      S.text(0, 0, 'Ethernet フレーム（ブリッジと銅線の上）', { cls: 't-xs t-b t-d' }, gEt);
+      const FE = [['宛先', 130], ['送信元', 130], ['タイプ', 70], ['中身（IP パケット、同じもの）', 440], ['FCS', 56]];
+      x = 0; st.fEt = [];
+      FE.forEach(([n, w]) => { S.rect(x, 8, w, 34, { rx: 3, cls: 'f-d-soft s-d w1' }, gEt); S.text(x + w / 2, 21, n, { cls: 't-c t-xs' }, gEt); st.fEt.push(S.text(x + w / 2, 36, '', { cls: 't-c t-xs t-mono t-b' }, gEt)); x += w + 4; });
+      st.msg = S.text(500, 404, '', { cls: 't-c t-sm t-b' }, svg);
+      st.msg2 = S.text(500, 424, '', { cls: 't-c t-xs t-dim' }, svg);
+    },
+    set11(st, vals, on) { st.f11.forEach((t, k) => { t.textContent = vals ? (vals[k] || '') : ''; }); st.g11.style.opacity = on ? 1 : 0.35; },
+    setEt(st, vals, on) { st.fEt.forEach((t, k) => { t.textContent = vals ? (vals[k] || '') : ''; }); st.gEt.style.opacity = on ? 1 : 0.35; },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      hide(st.pk, st.pkR, st.pkW); apply(st.pk, st.pkR, st.pkW);
+      st.trow.forEach((bg, k) => { bg.style.opacity = (i === 3 && k === 1) || (i === 4 && k === 0) || (i === 5 && k === 2) ? 1 : 0; });
+      if (i === 0) { s6.set11(st, null, false); s6.setEt(st, null, false); }
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      hide(st.pk, st.pkR, st.pkW);
+      this.move(ctx, t);
+      apply(st.pk, st.pkR, st.pkW);
+    },
+    move(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts, P = st.P;
+      const ease = U.ease.inOut;
+      const V11 = ['', '', '…F0 (AP)', '…5F (スマホ)', '…81 (PC)', '', '', 'IPv4', '🔒 暗号化', ''];
+      const VEt = ['…81 (PC)', '…5F (スマホ)', '0x0800', '復号済み・同じ IP パケット', '計算し直し'];
+      if (i === 0) {
+        st.msg.textContent = '同じ 192.168.1.0/24、同じブロードキャストドメイン';
+        st.msg2.textContent = 'スマートフォン、PC、テレビ、ルーター部の LAN 側は全部ここにつながる';
+        const q = U.seq(ts, [1.4, 1.4, 1.4, 1.2], true);
+        st.pk.setLabel('ARP / フレーム');
+        if (q.i === 0) put(st.pkR, P.radio, ease(q.f)), st.pkR.setLabel('802.11');
+        else if (q.i === 1) put(st.pk, P.ap2br, ease(q.f));
+        else if (q.i === 2) put(st.pk, P.br2pc, ease(q.f));
+        return;
+      }
+      if (i === 1) {
+        s6.set11(st, V11, true); s6.setEt(st, null, false);
+        const q = U.seq(ts, [2.0, 1.0], true);
+        st.pkR.setLabel('802.11');
+        if (q.i === 0) put(st.pkR, P.radio, ease(q.f)); else put(st.pkR, P.radio, 1);
+        st.msg.textContent = '受信者 = AP、送信者 = スマートフォン、最終宛先 = PC';
+        st.msg2.textContent = 'AP は Addr1 が自分宛てのものだけ受け取り、WPA の鍵で復号する';
+      } else if (i === 2) {
+        const q = U.seq(ts, [1.2, 1.2, 1.2], true);
+        s6.set11(st, V11, q.i === 0); s6.setEt(st, q.i >= 1 ? VEt : null, q.i >= 1);
+        if (q.i === 0) { put(st.pkR, P.radio, 1); st.pkR.setLabel('復号'); }
+        else if (q.i === 1) { put(st.pk, P.ap2br, 0); st.pk.setLabel('組み替え'); }
+        else { put(st.pk, P.ap2br, ease(q.f)); st.pk.setLabel('Ethernet フレーム'); }
+        st.msg.textContent = 'Addr3 → 宛先、Addr2 → 送信元、LLC/SNAP → タイプ';
+        st.msg2.textContent = '中身の IP パケットはそのまま。FCS は Ethernet 用に計算し直す';
+      } else if (i === 3) {
+        const q = U.seq(ts, [1.2, 0.8, 1.6, 1.0], true);
+        s6.set11(st, null, false); s6.setEt(st, VEt, true);
+        st.pk.setLabel('宛先 …81 ← …5F');
+        if (q.i === 0) put(st.pk, P.ap2br, ease(q.f)); else if (q.i === 1) put(st.pk, P.ap2br, 1); else if (q.i === 2) put(st.pk, P.br2pc, ease(q.f));
+        st.msg.textContent = q.i === 1 ? '表を引く：…81 は eth0' : 'eth0 だけに送る（eth1〜3、wlan0 には流れない）';
+        st.msg2.textContent = '…5F は wlan0 で学習済み。返事は表どおり無線側へ';
+      } else if (i === 4) {
+        const q = U.seq(ts, [1.6, 0.6, 1.2, 0.8, 2.0], true);
+        const V11b = ['', '', '…5F (スマホ)', '…F0 (AP)', '…81 (PC)', '', '', 'IPv4', '🔒 暗号化', ''];
+        const VEtb = ['…5F (スマホ)', '…81 (PC)', '0x0800', 'IP パケット（返事）', ''];
+        s6.setEt(st, VEtb, q.i <= 2); s6.set11(st, q.i >= 3 ? V11b : null, q.i >= 3);
+        st.pk.setLabel('宛先 …5F ← …81'); st.pkR.setLabel('802.11');
+        if (q.i === 0) put(st.pk, P.br2pc, 1 - ease(q.f)); else if (q.i === 1) put(st.pk, P.br2pc, 0); else if (q.i === 2) put(st.pk, P.ap2br, 1 - ease(q.f)); else if (q.i === 3) put(st.pk, P.ap2br, 0); else put(st.pkR, P.radio, 1 - ease(q.f));
+        st.msg.textContent = q.i <= 1 ? 'PC からの返事が eth0 に届く → 表で …5F は wlan0' : q.i <= 3 ? 'AP が 802.11 フレームに包み直し、暗号化' : '電波の空きを待って送信（CSMA/CA）。届けばスマートフォンが ACK';
+        st.msg2.textContent = '受信者 = スマートフォン、送信者 = AP、送信元 = PC の 3 アドレス';
+      } else if (i === 5) {
+        const q = U.seq(ts, [1.2, 1.2, 0.8, 1.2, 1.2, 1.0], true);
+        s6.set11(st, null, false);
+        s6.setEt(st, ['…01 (ルーター)', '…5F (スマホ)', '0x0800', 'IP: 宛先 142.250.196.110（YouTube）', ''], true);
+        st.pkR.setLabel('802.11'); st.pk.setLabel('宛先 …01（ルーター）');
+        if (q.i === 0) put(st.pkR, P.radio, ease(q.f)); else if (q.i === 1) put(st.pk, P.ap2br, ease(q.f)); else if (q.i === 2) put(st.pk, P.ap2br, 1); else if (q.i === 3) put(st.pk, P.br2rt, ease(q.f)); else if (q.i === 4) put(st.pkW, P.rt2wan, ease(q.f));
+        st.msg.textContent = q.i <= 2 ? '宛先 MAC がルーター自身（…01）→ ブリッジは上の IP 層へ渡す' : q.i === 3 ? 'ここが L2（家の中）と L3（外）の境目' : 'ルーター部が宛先 IP を見て WAN へ（NAT・第14章）';
+        st.msg2.textContent = 'MAC はこの区間限り。宛先 IP 142.250.196.110 はそのまま運ばれる';
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第IV部 つながる ／ 第13章',
+      title: 'Ethernet とスイッチ',
+      home: '../index.html',
+      prev: { href: '12-wifi.html', title: 'Wi-Fi' },
+      next: { href: '14-router.html', title: 'ホームルーター' },
+      legend: [{ c: 'e', label: '電気信号' }, { c: 'd', label: 'フレーム・ビット列' }, { c: 'r', label: '電波' }, { c: 'x', label: 'ノイズ・注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

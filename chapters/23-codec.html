@@ -1,0 +1,1622 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>動画の圧縮 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  /* 画素の中身（画像そのもの）は画面の配色に従わせず、ダークモードでも同じ色で見せる。
+     色は黒の下地に R・G・B の原色を不透明度で重ね、G と B の層はスクリーン合成で足す（各色の値がそのまま出る） */
+  .px { shape-rendering: crispEdges; }
+  .pimg { isolation: isolate; }
+  .pimg .scr { mix-blend-mode: screen; }
+  .px-k { fill: #000; }
+  .px-w { fill: #fff; }
+  .px-r { fill: #f00; }
+  .px-g { fill: #0f0; }
+  .px-b { fill: #00f; }
+  .px-tk { fill: #000; }
+  .px-tw { fill: #fff; }
+  .px-halo { stroke: #fff; fill: none; }
+  /* 線の上に重なる文字に、下地の色の縁を付けて読めるようにする */
+  .halo { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VI部 YouTube ／ 第23章 ／ 全25章</p>
+    <h1 id="h-s0">動画の圧縮</h1>
+    <p class="standfirst">フル HD・30 fps の映像を圧縮せずに送ると毎秒 750 Mbit〜1.5 Gbit になるが、YouTube が届けるのは 1080p でも数 Mbps 以下で、数百分の 1 にしてある。この章では、色を明るさと色差に分けて色を間引き、8×8 のブロックを周波数の係数に変えて細かい成分を粗くし、よく出る値を短い符号にし、前のフレームとの差だけを送る、という手順を、図の中で実際に計算しながら追う。最後に方式の世代とビットレート、音声の圧縮、映像と音声を入れる箱（コンテナ）を見る。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の画像は計算のために作った小さな合成画像で、画素を大きく拡大して描いてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>画素と色</a><p>R・G・B を明るさ Y' と色差 Cb・Cr に分け、目の鈍い色差を 4 分の 1 に間引く（4:2:0）。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>空間の冗長</a><p>8×8 のブロックを DCT で周波数の係数に変え、量子化で細かい成分を粗く丸める。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>符号化</a><p>係数をジグザグに並べ、0 の連続をまとめ、よく出る値を短い符号にする。情報は捨てない。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>時間の冗長</a><p>前のフレームから似たブロックを探し、動きベクトルと差分だけを送る。I・P・B と GOP。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>ビットレートと画質</a><p>粗さとビット数と画質の関係、H.264 → VP9 → AV1、YouTube の解像度ごとの値。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>音声とコンテナ</a><p>聞こえにくい成分を粗くする音声の圧縮と、映像と音声を時刻付きで入れる箱（MP4・WebM）。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（ストリーミングと再生）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図の画像・フレーム・音は説明のために作った合成のもので、色の変換・DCT・量子化・符号・動き探索・画質・音のしきい値の数値はページの中で計算している。YouTube の形式・ビットレート・標本化周波数は、2026 年 10 月 12 日に例の動画（dQw4w9WgXcQ）の配信形式の一覧で確かめた値。ファイルの中の box・要素・時刻は、10 月 17 日に例の動画のファイルの先頭を読んだ値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 画素と色 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="YUV" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>画素と色 — 明るさと色差に分けて、色を間引く</h2>
+    <p class="sh-meta"><span class="chip">Y'CbCr（BT.709）</span><span class="chip">4:2:0</span><span class="chip">約 750 Mbps</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">動画の圧縮は、画素の色の表し方を変えることから始まる。R・G・B の 3 つの数値を、明るさ Y' と 2 つの色差 Cb・Cr（まとめて YUV と呼ぶことが多い）に分けると、人の目が鈍い色差の側を間引ける。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">係数は HD の規格 BT.709 のもの（SD の BT.601 は 0.299・0.587・0.114）。8 ビットの動画では Y' を 16〜235、Cb・Cr を 16〜240 に収めて記録するのが普通で、図は簡単のため 0〜255 のまま計算した。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="64×36画素の合成画像と、それをR・G・Bの面、Y'・Cb・Crの面に分けた図。枠の画素の変換の計算と、4:2:0で減るデータの量"></svg></div>
+    <figcaption>図1　左は合成画像と、枠の画素の値の計算。右は同じ画像を 3 つの面に分けたもの（段階1は R・G・B、段階2から Y'・Cb・Cr。Cb・Cr の面は Y' を中間に固定して色だけを見せている）。段階3では左の画像を 3 通りに切り替えて比べる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 空間の冗長 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="DCT" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>空間の冗長 — ブロックを周波数に分けて、細かい成分を粗くする</h2>
+    <p class="sh-meta"><span class="chip">8×8 ブロック</span><span class="chip">DCT</span><span class="chip">量子化（QP）</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">画像の中の近い画素は似た値を持つ。この重なり（空間の冗長）を取り除くため、ブロックを<b>周波数の係数</b>に変え、目に付きにくい細かい成分を粗く丸める。色を間引いた後で情報を捨てるのは、この丸め（<b>量子化</b>）だけ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">動画の符号化方式は、隣のブロックの端の画素から中身を予測し、その差を変換する（イントラ予測）。変換は DCT の整数の近似で、大きさは H.264 で 4×4・8×8、VP9 で 32×32、AV1 で 64×64 まで選べる。図は JPEG と同じく画素をそのまま変換した。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="8×8画素のブロックの値、DCTの係数、量子化した係数の3つの表と、元の画像、DCTの64個の模様、係数から戻したブロック"></svg></div>
+    <figcaption>図2　上は元のブロック → DCT の係数 → 量子化した係数。下は Y' の画像と取り出したブロック、DCT の 64 個の模様（段階4から量子化の幅の表）、係数から戻したブロックと元との差。段階6は幅を 1/2・1・2・4 倍に切り替える。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 符号化 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="符号化" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>符号化 — 0 の連続をまとめ、よく出る値を短く</h2>
+    <p class="sh-meta"><span class="chip">ジグザグ走査</span><span class="chip">可変長符号</span><span class="chip">CABAC ／ 算術符号</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">量子化した係数は 0 がほとんどで、0 以外も小さい値に偏る。この偏りを使い、よく出る値ほど短いビット列に置き換えるのが<b>エントロピー符号化</b>。ここでは何も捨てず、復号すると同じ数に戻る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">実際の方式は、係数のほかにブロックの分け方・予測の向き・動きベクトルも同じ符号器で符号にする。JPEG の DC のように、隣のブロックとの差にして値を小さくしてから符号にする工夫も多い。図の符号は説明用に組んだもので、H.264 の CAVLC は専用の表を使う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="量子化した係数をジグザグの順に1列に並べ、0の連続をまとめた組にし、指数ゴロム符号でビット列にする図と、算術符号で区間が狭まる様子"></svg></div>
+    <figcaption>図3　左上は場面2の量子化した係数とジグザグの順路。右上はその順に並べた 64 個と、（前の 0 の個数, 値）の組とその符号。下段は符号の表（段階5は方式の一覧）と、算術符号の区間の狭まり方（説明用の 0/1 の列）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 時間の冗長 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="動き補償" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>時間の冗長 — 前のフレームから探して、差だけを送る</h2>
+    <p class="sh-meta"><span class="chip">動き補償</span><span class="chip">I・P・B</span><span class="chip">GOP</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">動画の 1 秒には 24〜60 枚のフレームがあり、続くフレームはほとんど同じ。前に送ったフレームから似た部分を探して<b>動きベクトル</b>で指し、残りの差だけを送れば、2 枚目からのビットは大きく減る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">実際は、ブロックの大きさを場所ごとに変え（H.264 は 16×16〜4×4、AV1 は 128×128〜4×4）、ベクトルを 1/4 や 1/8 画素の細かさで指す（間の値は補間）。ベクトルも隣のブロックとの差で送る。AV1 の表示しない参照用のフレームの実例は<a class="xref" href="24-streaming.html#s4">第24章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="参照フレームといまのフレーム、2枚の差、注目したブロックと参照の候補の拡大、225か所のSADの表、ビット数の比べと、I・P・Bフレームの並びと参照の向き"></svg></div>
+    <figcaption>図4　上は 2 枚の合成フレーム（64×36 画素、明るさ Y' だけ）と 2 枚の差。下は段階1〜3 で注目したブロックの拡大・SAD の表・ビット数、段階4・5 でフレームの並びと参照の向き。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 ビットレートと画質 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="ビットレート" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>ビットレートと画質 — 粗さ・方式・解像度</h2>
+    <p class="sh-meta"><span class="chip">Mbps</span><span class="chip">PSNR・SSIM・VMAF</span><span class="chip">H.264 → VP9 → AV1</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead"><b>ビットレート</b>は 1 秒の映像に使うビット数。量子化を粗くすればビットは減り、画質は落ちる。同じビット数でよりよい画質を出すために、新しい符号化方式は予測と変換の道具を増やしてきた。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の PSNR は合成画像と例の量子化の表から出した説明用の値で、「何 dB なら十分」という目安にはならない。端末と回線に合わせてどの形式を送るかは<a class="xref" href="24-streaming.html#s3">第24章</a>、配信用の変換をサーバーのどこで行うかは<a class="xref" href="22-server.html#s1">第22章</a>で扱う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="画像全体を量子化の幅を変えて符号化したときのビット数とPSNRのグラフ、戻した画像。方式の世代、YouTubeの例の動画の解像度ごとのビットレート、符号化と復号の仕事の違い"></svg></div>
+    <figcaption>図5　左は場面2の画像全体を、量子化の幅を変えて符号化した結果（戻した画像、ビット数と PSNR）。右は段階ごとに、元の画像と画質の尺度、方式の世代、YouTube の例の動画のビットレート、符号化と復号の仕事の違い。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 音声とコンテナ ================= -->
+<section class="scene sc-anim" id="s6" data-tab="音声と箱" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>音声とコンテナ — 聞こえにくい成分を粗くし、時刻を付けて箱に入れる</h2>
+    <p class="sh-meta"><span class="chip">AAC・Opus</span><span class="chip">MP4・WebM</span><span class="chip">タイムスタンプ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">音声も周波数の成分に分け、聞こえにくい所を粗くする。48 kHz・16 ビット・2 チャンネルの PCM の 1,536 kbps が、例の動画の Opus では 129 kbps。映像と音声は時刻を付けて箱に入れる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">図の音は合成音で、しきい値とビット数は教科書の簡単な模型（最小可聴値の式とマスキングの広がりの式）による見積もり。ファイルの値は 2026 年 10 月 17 日に例の動画のファイルの先頭を読んだもの。索引から断片を取る話は<a class="xref" href="24-streaming.html#s1">第24章 場面1</a>、音声の時計に映像を合わせる話は<a class="xref" href="24-streaming.html#s5">場面5</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="例の動画の映像と2つの音声の形式の最初の200ミリ秒のフレームとパケットの並び、合成音の波形と21帯域の大きさとしきい値、AACとOpusの比べ、MP4のboxとWebMの要素の並び、時刻の計算"></svg></div>
+    <figcaption>図6　上は同じ 200 ms に入る映像のフレームと音声のパケット（例の動画の 3 つの形式。枠の中の数は段階ごとに番号・大きさ・時刻）。下は段階ごとに、合成音の帯域としきい値、AAC と Opus、ファイルの先頭の box と要素、時刻の計算。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 重なりを除き、目と耳が鈍い所を粗くする</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>R・G・B を明るさ Y' と色差 Cb・Cr に分け、目の鈍い色差を 2×2 画素に 1 個へ間引く（4:2:0）。それでもフル HD・30 fps は、符号化の前で毎秒約 750 Mbit（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>8×8 のブロックを DCT で周波数の係数に変え、細かい模様ほど粗く量子化する。色を間引いた後で情報を捨てるのは、この量子化だけ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>係数をジグザグに並べて 0 の連続をまとめ、よく出る値ほど短い符号にする。符号は復号すると同じ数に戻る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>前のフレームから似たブロックを探し、動きベクトルと差分だけを送る。I フレームから始まる GOP の単位で、途中から復号を始められる（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>粗くするほどビットは減り画質は落ちる。新しい方式ほど同じ画質のビットが少なく、例の動画の 1080p は VP9 で約 1.2 Mbps（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>音声も帯域ごとに聞こえない所を粗くする。映像と音声は時刻付きで MP4・WebM の箱に入り、時刻の単位で割った秒でそろえる（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>Y'CbCr・4:2:0</th><td>明るさ Y' と色差 Cb・Cr（HD は BT.709 の係数）。4:2:0 は色差を 2×2 画素に 1 個にし、8 ビットなら 1 画素平均 1.5 バイト。</td></tr>
+        <tr><th><i class="sw d"></i>DCT・係数</th><td>ブロックを決まった模様の重ね合わせに直す変換と、各模様の量。8×8 なら 64 個で、左上の DC が平均の明るさ。</td></tr>
+        <tr><th><i class="sw dim"></i>量子化・QP</th><td>係数を幅で割って整数に丸める。色の間引きの後で情報を捨てるのはここだけ。H.264 は QP を 6 上げると幅が 2 倍。</td></tr>
+        <tr><th><i class="sw d"></i>エントロピー符号化</th><td>よく出る値ほど短い符号にする、捨てない圧縮。指数ゴロム符号・ハフマン符号・算術符号（H.264 の CABAC）。</td></tr>
+        <tr><th>動き補償・GOP</th><td>参照フレームの似たブロックを動きベクトルで指し、差分だけを送る。GOP は I から次の I の手前まで（YouTube はライブ配信に 2 秒を勧める）。</td></tr>
+        <tr><th>ビットレート・PSNR</th><td>1 秒あたりのビット数（Mbps）と、元との差から求める画質の値（dB）。例の動画の 1080p は H.264 3.04、VP9 1.16、AV1 1.14 Mbps。</td></tr>
+        <tr><th>MDCT・マスキング</th><td>音声を少しずつ重ねた区間ごとに周波数の係数に変える変換と、大きな音が近くの周波数の小さな音を聞こえなくする性質。</td></tr>
+        <tr><th>AAC・Opus</th><td>音声の符号化方式（MPEG 1997 年、IETF 2012 年）。例の動画は Opus が 46〜129 kbps・48 kHz、AAC が 130 kbps・44.1 kHz。</td></tr>
+        <tr><th>コンテナ</th><td>符号を時刻・大きさと一緒に入れるファイルの形式。MP4 は大きさ 4 バイト＋種類 4 文字の box、WebM は ID・大きさ・中身の要素の入れ子。</td></tr>
+        <tr><th>タイムスタンプ</th><td>表示と復号の時刻（PTS・DTS）。MP4 はトラックごとの時刻の単位（例 12,800／秒）、WebM は Info の単位（例 1 ms）で書く。B フレームがあると両者が違う。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg;
+  const clamp = U.clamp;
+  const n3 = (v) => U.fmt(v);                       // 3 桁区切り
+  const rnd = (v) => Math.round(v);
+  // 動きを止めているとき（動きを減らす設定の人は最初から止まっている）は、繰り返す動きの代わりに決まった姿を描く
+  const playing = () => YT.motion.playing;
+
+  /* ================================================================
+     共通：合成画像（基準の座標は横 32 × 縦 18）
+     空・太陽・丘・家・柵。輪郭をなめらかにするため、1 画素を 4×4 の点で測って平均する
+     ================================================================ */
+  const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  function sceneRGB(X, Y) {
+    const horizon = 10.2 + 0.9 * Math.sin(X / 4.2 + 0.6) + 0.5 * Math.sin(X / 1.9);
+    let c;
+    if (Y < horizon) {
+      c = lerp3([52, 112, 200], [170, 208, 240], clamp(Y / 10, 0, 1));
+      const d = Math.hypot(X - 25.2, Y - 3.6);
+      if (d < 2.3) c = [255, 212, 84];
+      else if (d < 3.4) c = lerp3([255, 225, 140], c, (d - 2.3) / 1.1);
+    } else {
+      c = lerp3([88, 168, 70], [46, 112, 48], clamp((Y - horizon) / 7, 0, 1));
+      if (X >= 16 && X < 30 && Y >= 12.4 && Y < 15.6 && Math.floor(X * 2) % 2 === 0) c = [236, 234, 224];   // 柵の板（幅 0.5、間隔 1）
+      if (X >= 16 && X < 30 && Y >= 13.4 && Y < 13.9) c = [200, 196, 184];                            // 柵の横木
+    }
+    if (X >= 4.6 && X < 12.4 && Y >= 9 && Y < 15.4) {                                                   // 家の壁・戸・窓
+      c = [232, 220, 190];
+      if (X >= 7.4 && X < 9.4 && Y >= 12) c = [112, 72, 44];
+      if (X >= 10 && X < 11.6 && Y >= 10.2 && Y < 11.8) c = [92, 140, 196];
+    }
+    if (Y >= 5 && Y < 9.2) {                                                                            // 屋根
+      const half = (Y - 5) / 4.2 * 4.9;
+      if (X >= 8.5 - half && X < 8.5 + half) c = [186, 44, 36];
+    }
+    return c;
+  }
+  /* w×h 画素に標本化した [r,g,b] の配列（行優先）。extra(px, py) が色を返せばその点はそれを使う（場面4の玉） */
+  function renderRGB(w, h, extra) {
+    const out = [], ss = 4;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let j = 0; j < ss; j++) for (let i = 0; i < ss; i++) {
+        const px = x + (i + 0.5) / ss, py = y + (j + 0.5) / ss;
+        const c = (extra && extra(px, py)) || sceneRGB(px * 32 / w, py * 18 / h);
+        r += c[0]; g += c[1]; b += c[2];
+      }
+      out.push([rnd(r / (ss * ss)), rnd(g / (ss * ss)), rnd(b / (ss * ss))]);
+    }
+    return out;
+  }
+  /* BT.709 の Y'CbCr。図では簡単のため 0〜255 のまま（全範囲）で計算する */
+  const toYCC = ([r, g, b]) => { const y = 0.2126 * r + 0.7152 * g + 0.0722 * b; return [y, 128 + (b - y) / 1.8556, 128 + (r - y) / 1.5748]; };
+  const toRGB = ([y, cb, cr]) => {
+    const r = y + 1.5748 * (cr - 128), b = y + 1.8556 * (cb - 128);
+    const g = (y - 0.2126 * r - 0.0722 * b) / 0.7152;
+    return [clamp(rnd(r), 0, 255), clamp(rnd(g), 0, 255), clamp(rnd(b), 0, 255)];
+  };
+
+  /* ================================================================
+     共通：画素の表示。color が真なら R・G・B の 3 層、偽なら白の 1 層（灰色）
+     set(fn) の fn(i) は [r,g,b]（color）または 0〜255 の値を返す
+     ================================================================ */
+  function mkPix(parent, x0, y0, w, h, cell, color) {
+    const g = S.g({ cls: 'pimg', transform: `translate(${x0},${y0})` }, parent);
+    S.rect(0, 0, w * cell, h * cell, { cls: 'px px-k' }, g);
+    const layers = (color ? ['r', 'g', 'b'] : ['w']).map((c, k) => {
+      const lg = S.g({ cls: k ? 'scr' : '' }, g);
+      const rs = [];
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rs.push(S.rect(x * cell, y * cell, cell, cell, { cls: 'px px-' + c, 'fill-opacity': 0 }, lg));
+      return rs;
+    });
+    S.rect(0, 0, w * cell, h * cell, { cls: 'f-none s-rule w1' }, g);
+    const api = {
+      g, w, h, cell, key: null,
+      set(fn, key) {
+        if (key != null && key === api.key) return api;   // 同じ中身なら描き直さない
+        api.key = key;
+        for (let i = 0; i < w * h; i++) {
+          const c = fn(i);
+          if (color) for (let k = 0; k < 3; k++) layers[k][i].setAttribute('fill-opacity', (c[k] / 255).toFixed(3));
+          else layers[0][i].setAttribute('fill-opacity', (clamp(c, 0, 255) / 255).toFixed(3));
+        }
+        return api;
+      }
+    };
+    return api;
+  }
+
+  /* ================================================================
+     場面1 画素と色
+     ================================================================ */
+  const W1 = 64, H1 = 36, C1 = 6.5, PC = 3.5;     // 画素数、左の画像の 1 画素の大きさ、右の面の 1 画素の大きさ
+  const IMG1 = renderRGB(W1, H1);
+  // 8 ビットの整数で持つ（Y' を先に丸め、その Y' から色差を求める。図の計算式と同じ順）
+  const toYCC8 = ([r, g, b]) => { const y = rnd(0.2126 * r + 0.7152 * g + 0.0722 * b); return [y, rnd(128 + (b - y) / 1.8556), rnd(128 + (r - y) / 1.5748)]; };
+  const YCC1 = IMG1.map(toYCC8);
+  // 2×2 画素ごとの平均（i 番目の画素が属する組の平均）
+  const avg22 = (arr, k) => (i) => {
+    const x = (i % W1) & ~1, y = Math.floor(i / W1) & ~1;
+    return (arr[y * W1 + x][k] + arr[y * W1 + x + 1][k] + arr[(y + 1) * W1 + x][k] + arr[(y + 1) * W1 + x + 1][k]) / 4;
+  };
+  const avgY = avg22(YCC1, 0), avgCb = avg22(YCC1, 1), avgCr = avg22(YCC1, 2);
+  const VIEW1 = {
+    orig: (i) => IMG1[i],
+    chroma: (i) => toRGB([YCC1[i][0], rnd(avgCb(i)), rnd(avgCr(i))]),   // 色差だけ 2×2 で平均（4:2:0 から戻した画像と同じ）
+    luma: (i) => toRGB([rnd(avgY(i)), YCC1[i][1], YCC1[i][2]])          // 明るさだけ 2×2 で平均
+  };
+  const VIEW1_LABEL = { orig: '元の画像', chroma: '色差 Cb・Cr だけを 2×2 画素ごとに平均', luma: '明るさ Y\' だけを 2×2 画素ごとに平均' };
+  const PICK1 = [[16, 14], [6, 4], [50, 7], [36, 29], [4, 31]];   // 枠を当てる画素（屋根・空・太陽・柵の板・草）
+  const PAIR1 = [46, 2];                                          // 段階4で見る 2×2 の左上（太陽の縁）
+  const FENCE1 = [36, 29];                                        // 段階3で見る柵の板の画素
+
+  const s1 = {
+    steps: [
+      { title: '画素は R・G・B の 3 つの数値', text: '第8章のとおり、画面の 1 画素は赤・緑・青の明るさを各 8 ビット（0〜255）で持つ。図の画像は計算用に作った 64×36 画素の合成画像。3 つの面に分けると、どの面にも同じ輪郭が写っている。明るさの情報が 3 か所に重なって入っているということ。' },
+      { title: '明るさ Y\' と色差 Cb・Cr に変える', text: 'HD の規格 BT.709 では、明るさ Y\' = 0.2126R + 0.7152G + 0.0722B。目は緑に最も敏感なので緑の重みが大きい。色差 Cb は B − Y\'、Cr は R − Y\' を縮めた値で、灰色なら 0（8 ビットで 128）。明暗の差は Y\' の面に、色の違いは Cb・Cr の面に写る。' },
+      { title: '目は色の細かさに鈍い', text: '人の目は、明るさの細かな変化はよく見分けるが、色の細かな変化は見分けにくい。色差だけを 2×2 画素ごとに平均しても画像はほとんど変わらないが、明るさを同じように平均すると柵の板がほとんど見えなくなる。図は拡大しているので色の境目のにじみも見えるが、実際の画素の大きさでは目立ちにくい。' },
+      { title: '4:2:0：色差を 4 分の 1 に間引く', text: 'そこで Cb・Cr は 2×2 画素に 1 個だけ残す。これが 4:2:0 で、Y\' 4 個に Cb・Cr 1 個ずつ。1 画素あたり平均 1.5 バイトになり、RGB の半分で済む。YouTube の配信形式はどれも 4:2:0 で、デコーダもこの形のまま GPU に渡す（第8章）。' },
+      { title: '符号化する前の量', text: '4:2:0 にしても、1920×1080 の 1 フレームは Y\' が 2,073,600 バイト、Cb・Cr が 518,400 バイトずつで、計 3,110,400 バイト。30 fps なら毎秒 {x|約 750 Mbit}、1 時間で約 336 GB になる。残りの場面で、これを数百分の 1 にする。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 左：合成画像
+      S.text(30, 36, '合成画像（64×36 画素）', { cls: 't-b t-lg' }, svg);
+      st.main = mkPix(svg, 30, 52, W1, H1, C1, true);
+      st.cur = S.g({}, svg);
+      st.curHalo = S.rect(0, 0, 10, 10, { cls: 'px-halo w4' }, st.cur);
+      st.curLine = S.rect(0, 0, 10, 10, { cls: 'f-none s-x w2' }, st.cur);
+      st.viewLbl = S.text(238, 306, '', { cls: 't-c t-sm' }, svg);
+      // 枠の画素の値
+      const gi = st.gi = S.g({ cls: 'fade' }, svg);
+      S.rect(30, 320, 416, 146, { rx: 8, cls: 'f-sf s-rule w1' }, gi);
+      st.iHead = S.text(46, 344, '', { cls: 't-b t-md' }, gi);
+      st.iL = [0, 1, 2, 3].map((k) => S.text(46, 370 + k * 24, '', { cls: 't-mono t-sm' }, gi));
+      // 量の比べ
+      const gt = st.gt = S.g({ cls: 'fade hide' }, svg);
+      S.rect(30, 478, 416, 74, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      st.tL = [0, 1, 2].map((k) => S.text(46, 498 + k * 21, '', { cls: 't-mono t-sm' + (k === 2 ? ' t-b' : '') }, gt));
+      // 右：3 つの面
+      st.planes = [0, 1, 2].map((k) => {
+        const y = 52 + k * 164;
+        const p = mkPix(svg, 480, y, W1, H1, PC, true);
+        const title = S.text(722, y + 24, '', { cls: 't-b t-md' }, svg);
+        const sub = S.text(722, y + 48, '', { cls: 't-sm t-dim' }, svg);
+        const cnt = S.text(722, y + 74, '', { cls: 't-mono t-sm' }, svg);
+        return { p, title, sub, cnt, y };
+      });
+      st.planeNote = S.text(480, 534, 'Cb・Cr の面は Y\' を 128 に固定して、色の向きだけを表示', { cls: 't-xs t-dim fade hide' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const ycc = i >= 1;
+      const sub420 = i >= 3;
+      // 面の中身
+      const planeFns = ycc
+        ? [(k) => { const v = YCC1[k][0]; return [v, v, v]; },
+           (k) => toRGB([128, sub420 ? avgCb(k) : YCC1[k][1], 128]),
+           (k) => toRGB([128, 128, sub420 ? avgCr(k) : YCC1[k][2]])]
+        : [(k) => [IMG1[k][0], 0, 0], (k) => [0, IMG1[k][1], 0], (k) => [0, 0, IMG1[k][2]]];
+      st.planes.forEach((pl, k) => { pl.p.set(planeFns[k], (ycc ? 'ycc' : 'rgb') + (sub420 ? '420' : '') + k); });
+      const T = ycc
+        ? [['Y\'（輝度・ルマ）', '明るさ。明暗の差はここに集まる'], ['Cb（青の色差）', 'B − Y\' を縮めた値'], ['Cr（赤の色差）', 'R − Y\' を縮めた値']]
+        : [['R（赤）', '0〜255 の 8 ビット'], ['G（緑）', '0〜255 の 8 ビット'], ['B（青）', '0〜255 の 8 ビット']];
+      const C = i >= 4 ? ['2,073,600 バイト', '518,400 バイト', '518,400 バイト']
+        : sub420 ? ['2,304 個（全画素）', '576 個（2×2 に 1 個）', '576 個（2×2 に 1 個）']
+        : ['2,304 個', '2,304 個', '2,304 個'];
+      st.planes.forEach((pl, k) => {
+        pl.title.textContent = T[k][0];
+        pl.sub.textContent = T[k][1];
+        pl.cnt.textContent = (i >= 4 ? '1920×1080 で ' : '') + C[k];
+        pl.cnt.setAttribute('class', 't-mono t-sm' + (sub420 && k > 0 ? ' t-x t-b' : ''));
+      });
+      S.fade(st.planeNote, ycc);
+      // 量の比べ
+      S.fade(st.gt, i >= 3);
+      const tl = i >= 4
+        ? ['1920×1080 の 1 フレーム = 3,110,400 バイト', '× 8 ビット × 30 フレーム/秒', '= 746,496,000 ビット/秒 ≈ 750 Mbps']
+        : ['64×36 の画像：RGB なら 6,912 バイト', '4:2:0 なら 2,304 + 576 + 576 = 3,456 バイト', '1 画素あたり 3 バイト → 1.5 バイト'];
+      st.tL.forEach((t, k) => { t.textContent = tl[k]; });
+      st.view = null;
+      st.pkey = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 左の画像：段階3は 2.5 秒ごとに 3 通りを切り替える（止めているときは柵の板が消える「明るさだけ平均」）。段階4・5は 4:2:0 から戻した画像
+      const view = i === 2 ? (playing() ? ['orig', 'chroma', 'luma'][Math.floor(ctx.ts / 2.5) % 3] : 'luma') : i >= 3 ? 'chroma' : 'orig';
+      if (view !== st.view) {
+        st.view = view;
+        st.main.set(VIEW1[view], view);
+        st.viewLbl.textContent = i >= 3 ? '4:2:0 から戻した画像（Y\' はそのまま、Cb・Cr は 2×2 に 1 個）' : VIEW1_LABEL[view];
+        st.viewLbl.setAttribute('class', 't-c t-sm' + (view !== 'orig' ? ' t-x t-b' : ''));
+      }
+      // 枠：段階1・2 は 3 秒ごとに別の画素へ。段階3 は柵の板の画素、段階4 は 2×2 の組。段階5 は出さない
+      let pick = null, pair = false;
+      if (i <= 1) pick = PICK1[Math.floor(ctx.ts / 3) % PICK1.length];
+      else if (i === 2) pick = FENCE1;
+      else if (i === 3) { pick = PAIR1; pair = true; }
+      const pkey = i + ':' + pick + ':' + (i === 2 ? view : '');
+      if (pkey === st.pkey) return;   // 変わったときだけ書き直す
+      st.pkey = pkey;
+      st.cur.style.display = pick ? '' : 'none';
+      st.iL.forEach((tt) => tt.setAttribute('class', 't-mono t-sm'));
+      if (!pick) {
+        st.iHead.textContent = '1920×1080・30 fps のとき';
+        const L = ['RGB（1 画素 3 バイト）     → 1,493 Mbps', '4:2:0（1 画素 1.5 バイト） →   746 Mbps', '4:2:0 でも 1 時間で約 336 GB', ''];
+        st.iL.forEach((tt, k) => { tt.textContent = L[k]; });
+        return;
+      }
+      const [x, y] = pick, n = pair ? 2 : 1;
+      [st.curHalo, st.curLine].forEach((r) => {
+        r.setAttribute('x', 30 + x * C1 - 2); r.setAttribute('y', 52 + y * C1 - 2);
+        r.setAttribute('width', n * C1 + 4); r.setAttribute('height', n * C1 + 4);
+      });
+      if (i === 2) {
+        const k = y * W1 + x, q = YCC1[k];
+        st.iHead.textContent = `枠の画素（柵の板、x=${x}, y=${y}）`;
+        const L = [
+          `元の画像：Y' ${q[0]} / Cb ${q[1]} / Cr ${q[2]}`,
+          `色差だけ平均：Y' ${q[0]} / Cb ${rnd(avgCb(k))} / Cr ${rnd(avgCr(k))}`,
+          `明るさだけ平均：Y' ${rnd(avgY(k))} / Cb ${q[1]} / Cr ${q[2]}`,
+          '同じ 2×2 の組の半分は草の画素'
+        ];
+        st.iL.forEach((tt, m) => {
+          tt.textContent = L[m];
+          if (m < 3 && ['orig', 'chroma', 'luma'][m] === view) tt.setAttribute('class', 't-mono t-sm t-x t-b');
+        });
+        return;
+      }
+      if (pair) {
+        const ids = [y * W1 + x, y * W1 + x + 1, (y + 1) * W1 + x, (y + 1) * W1 + x + 1];
+        st.iHead.textContent = `枠の 2×2 画素（x=${x}〜${x + 1}, y=${y}〜${y + 1}）`;
+        const L = [
+          `Y'  ${ids.map((k) => YCC1[k][0]).join('  ')}（4 個とも残す）`,
+          `Cb  ${ids.map((k) => YCC1[k][1]).join('  ')} → 平均 ${rnd(avgCb(ids[0]))}（1 個）`,
+          `Cr  ${ids.map((k) => YCC1[k][2]).join('  ')} → 平均 ${rnd(avgCr(ids[0]))}（1 個）`,
+          '6 個の値で 4 画素を表す（RGB なら 12 個）'
+        ];
+        st.iL.forEach((tt, k) => { tt.textContent = L[k]; });
+        return;
+      }
+      const k = y * W1 + x, [r, g, b] = IMG1[k], [Y, Cb, Cr] = YCC1[k];
+      st.iHead.textContent = `枠の画素（x=${x}, y=${y}）`;
+      const L = i === 0
+        ? [`R ${r}  G ${g}  B ${b}`, '3 つで 24 ビット（3 バイト）', '', '']
+        : [`R ${r}  G ${g}  B ${b}`,
+           `Y' = 0.2126×${r} + 0.7152×${g} + 0.0722×${b} = ${Y}`,
+           `Cb = 128 + (${b} − ${Y}) ÷ 1.8556 = ${Cb}`,
+           `Cr = 128 + (${r} − ${Y}) ÷ 1.5748 = ${Cr}`];
+      st.iL.forEach((tt, m) => { tt.textContent = L[m]; });
+    }
+  };
+
+  /* ================================================================
+     共通：8×8 の DCT（JPEG と同じ直交変換）、量子化、ジグザグ、指数ゴロム符号
+     ================================================================ */
+  const C8 = [];
+  for (let u = 0; u < 8; u++) { C8.push([]); for (let x = 0; x < 8; x++) C8[u].push((u ? 1 : Math.SQRT1_2) * 0.5 * Math.cos((2 * x + 1) * u * Math.PI / 16)); }
+  const dct = (b) => C8.map((cv) => C8.map((cu) => { let s = 0; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) s += cv[y] * cu[x] * b[y][x]; return s; }));
+  const idct = (F) => { const o = []; for (let y = 0; y < 8; y++) { o.push([]); for (let x = 0; x < 8; x++) { let s = 0; for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) s += C8[v][y] * C8[u][x] * F[v][u]; o[y].push(s); } } return o; };
+  // JPEG の規格（ITU-T T.81 附属書 K）に例として載っている輝度の量子化の表
+  const QJ = [[16, 11, 10, 16, 24, 40, 51, 61], [12, 12, 14, 19, 26, 58, 60, 55], [14, 13, 16, 24, 40, 57, 69, 56], [14, 17, 22, 29, 51, 87, 80, 62],
+    [18, 22, 37, 56, 68, 109, 103, 77], [24, 35, 55, 64, 81, 104, 113, 92], [49, 64, 78, 87, 103, 121, 120, 101], [72, 92, 95, 98, 112, 100, 103, 99]];
+  // 幅は表を s 倍して整数に丸めた値（JPEG の画質の調整と同じく整数の表にする。場面2 の段階6 に出す幅と同じ値で割る）
+  const qw = (v, u, s) => Math.max(1, Math.round(QJ[v][u] * s));
+  const quant = (F, s) => F.map((row, v) => row.map((c, u) => Math.round(c / qw(v, u, s)) || 0));
+  const dequant = (Q, s) => Q.map((row, v) => row.map((q, u) => q * qw(v, u, s)));
+  const ZZ = (() => { const o = []; for (let d = 0; d < 15; d++) { const c = []; for (let v = 0; v < 8; v++) { const u = d - v; if (u >= 0 && u < 8) c.push([v, u]); } if (d % 2 === 0) c.reverse(); o.push(...c); } return o; })();
+  const ue = (k) => { const b = (k + 1).toString(2); return '0'.repeat(b.length - 1) + b; };   // 指数ゴロム符号（0 以上）
+  const se = (v) => ue(v > 0 ? 2 * v - 1 : -2 * v);                                           // 符号付き
+  /* 説明用の符号：ジグザグ順の列を（前の 0 の個数, 値）の組にし、組ごとに ue(個数) と se(値)、最後に終わりの印 (0, 0) */
+  function codeBlock(Q) {
+    const seq = ZZ.map(([v, u]) => Q[v][u]);
+    const pairs = []; let run = 0;
+    seq.forEach((c) => { if (c === 0) run++; else { pairs.push([run, c]); run = 0; } });
+    const codes = pairs.map(([r, c]) => [ue(r), se(c)]);
+    const bits = codes.reduce((a, [x, y]) => a + x.length + y.length, 0) + 2;
+    return { seq, pairs, codes, bits };
+  }
+  const grid8 = (img, w, bx, by) => { const b = []; for (let y = 0; y < 8; y++) { b.push([]); for (let x = 0; x < 8; x++) b[y].push(img[(by * 8 + y) * w + bx * 8 + x]); } return b; };
+  const toY8 = ([r, g, b]) => rnd(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const recon = (Q, s) => idct(dequant(Q, s)).map((row) => row.map((v) => clamp(rnd(v + 128), 0, 255)));
+  const errs = (A, B) => { let sum = 0, mx = 0, sq = 0; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const d = Math.abs(A[y][x] - B[y][x]); sum += d; sq += d * d; mx = Math.max(mx, d); } return { mean: sum / 64, max: mx, mse: sq / 64 }; };
+  const nzCount = (Q) => Q.flat().filter((q) => q).length;
+
+  /* ================================================================
+     場面2 空間の冗長
+     ================================================================ */
+  const W2 = 72, H2 = 40, BX2 = 6, BY2 = 0;          // 画像の大きさと、取り出すブロック（太陽の縁）
+  const Y2 = renderRGB(W2, H2).map(toY8);
+  const B2 = grid8(Y2, W2, BX2, BY2);
+  const F2 = dct(B2.map((r) => r.map((v) => v - 128)));
+  const Q2 = quant(F2, 1);
+  const R2 = recon(Q2, 1);
+  const E2 = errs(B2, R2);
+  const NZ2 = nzCount(Q2);
+  const SCALES2 = [0.5, 1, 2, 4];
+  const QP2 = { 0.5: 'QP −6', 1: '基準', 2: 'QP +6', 4: 'QP +12' };
+  // 段階3：ジグザグ順に k 個の係数を足したときのブロック（最初の 10 個はゆっくり）
+  const partial = (k) => { const P = F2.map((r) => r.map(() => 0)); for (let n = 0; n < k; n++) { const [v, u] = ZZ[n]; P[v][u] = F2[v][u]; } return idct(P).map((r) => r.map((v) => clamp(rnd(v + 128), 0, 255))); };
+  const kAt = (ts) => { const t = U.mod(ts, 13); return t < 6 ? 1 + Math.min(9, Math.floor(t / 0.6)) : Math.min(64, 10 + Math.floor((t - 6) / 0.08)); };
+  const PART2 = [null]; for (let k = 1; k <= 64; k++) PART2.push(partial(k));
+  // 基底（模様）を灰色で表す値
+  const basis = (u, v) => { const o = []; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) o.push(C8[v][y] * C8[u][x]); const m = Math.max(...o.map(Math.abs)); return o.map((b) => 128 + 120 * b / m); };
+
+  const s2 = {
+    steps: [
+      { title: '8×8 のブロックに分ける', text: '画像を 8×8 画素のブロックに分け、ブロックごとに同じ手順で処理する。図は場面1の画像の Y\' を 72×40 画素で作り直し、太陽の縁にかかる 1 個を取り出したもの。隣り合う画素の値は近く、64 個の数値には重なりが多い。' },
+      { title: 'DCT：64 個の模様の重ね合わせに直す', text: '離散コサイン変換（DCT）は、ブロックを 64 個の決まった模様の重ね合わせとして表し、各模様の量（係数）を求める。左上の係数（DC）は平均の明るさで、右へ行くほど横、下へ行くほど縦に細かい模様の量になる。数は 64 個のままで、まだ何も捨てていない。' },
+      { title: '大きい係数は左上に集まる', text: 'なめらかな画像では、細かい模様の係数は 0 に近い。係数を左上から斜めの順に足していくと、10 個ほどでほぼ元の形に戻り、残りは細部の小さな修正にすぎない。少ない係数に情報が集まるこの偏りを、次の量子化で使う。' },
+      { title: '量子化：細かい模様ほど粗く丸める', text: `各係数を量子化の幅で割り、整数に丸める。幅は細かい模様ほど大きく、目に付きにくい成分ほど粗く扱う。図の表は JPEG の規格に例として載っている輝度の表。このブロックでは 64 個のうち ${NZ2} 個だけが 0 でなく残る。` },
+      { title: '戻すと少しずれる — 捨てるのはここだけ', text: `復号側は整数に幅を掛けて係数に戻し、逆 DCT で画素に戻す。丸めで失った端数は戻らないので、画素は元と最大 ${E2.max} ずれる。色を間引いた後の手順で情報を捨てるのは量子化だけで、DCT もこの後の符号化も計算で元に戻せる。` },
+      { title: '粗さを決める量子化パラメータ', text: '幅を大きくするほど 0 が増えて送るビットは減り、元とのずれは大きくなる。動画の符号化方式は、この粗さを量子化パラメータ（QP）という 1 つの数で場所ごとに決める。H.264 では QP を 6 上げると幅が 2 倍になる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      const CELL = 30, XS = [24, 344, 664], Y0 = 52;
+      // 上段：3 つの表
+      S.text(XS[0], 36, '元のブロック（Y\'、8×8 画素）', { cls: 't-b t-md' }, svg);
+      st.pixA = mkPix(svg, XS[0], Y0, 8, 8, CELL, false);
+      st.pixA.set((i) => B2[i >> 3][i & 7]);
+      st.txA = [];
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) st.txA.push(S.text(XS[0] + u * CELL + CELL / 2, Y0 + v * CELL + CELL / 2 + 4, String(B2[v][u]), { cls: 't-c t-mono t-sm ' + (B2[v][u] < 150 ? 'px-tw' : 'px-tk') }, svg));
+      const mkMat = (x0, title) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const head = S.text(x0, 36, title, { cls: 't-b t-md' }, g);
+        const cells = [];
+        for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
+          const cg = S.g({}, g);
+          const bg = S.rect(x0 + u * CELL, Y0 + v * CELL, CELL, CELL, { cls: 'f-d', 'fill-opacity': 0 }, cg);
+          const tx = S.text(x0 + u * CELL + CELL / 2, Y0 + v * CELL + CELL / 2 + 4, '', { cls: 't-c t-mono t-sm' }, cg);
+          cells.push({ cg, bg, tx });
+        }
+        for (let k = 1; k < 8; k++) {
+          S.line(x0 + k * CELL, Y0, x0 + k * CELL, Y0 + 8 * CELL, { cls: 's-soft w1' }, g);
+          S.line(x0, Y0 + k * CELL, x0 + 8 * CELL, Y0 + k * CELL, { cls: 's-soft w1' }, g);
+        }
+        S.rect(x0, Y0, 8 * CELL, 8 * CELL, { cls: 'f-none s-rule w1' }, g);
+        return { g, head, cells };
+      };
+      st.matB = mkMat(XS[1], 'DCT の係数（128 を引いてから変換）');
+      st.matC = mkMat(XS[2], '量子化した係数');
+      st.dcLbl = S.text(XS[1] + 16, Y0 + 8 * CELL + 15, '↑ 左上が DC（平均の明るさ）', { cls: 't-sm t-x fade hide' }, svg);
+      st.arB = S.g({ cls: 'fade hide' }, svg);
+      S.path(`M${XS[0] + 8 * CELL + 6},${Y0 + 120} H${XS[1] - 8}`, { cls: 'f-none s-mid w2', 'marker-end': mk('mid') }, st.arB);
+      S.text((XS[0] + 8 * CELL + XS[1]) / 2, Y0 + 110, 'DCT', { cls: 't-c t-sm t-b' }, st.arB);
+      st.arC = S.g({ cls: 'fade hide' }, svg);
+      S.path(`M${XS[1] + 8 * CELL + 6},${Y0 + 120} H${XS[2] - 8}`, { cls: 'f-none s-mid w2', 'marker-end': mk('mid') }, st.arC);
+      S.text((XS[1] + 8 * CELL + XS[2]) / 2, Y0 + 96, '÷ 幅', { cls: 't-c t-sm t-b' }, st.arC);
+      S.text((XS[1] + 8 * CELL + XS[2]) / 2, Y0 + 110, '丸める', { cls: 't-c t-sm t-b' }, st.arC);
+      // 下段左：画像とブロックの格子
+      S.text(24, 330, 'Y\' の画像（72×40 画素）', { cls: 't-b t-md' }, svg);
+      mkPix(svg, 24, 342, W2, H2, 3, false).set((i) => Y2[i]);
+      for (let k = 1; k < 9; k++) S.line(24 + k * 24, 342, 24 + k * 24, 462, { cls: 'px-halo w1', 'stroke-opacity': 0.4 }, svg);
+      for (let k = 1; k < 5; k++) S.line(24, 342 + k * 24, 240, 342 + k * 24, { cls: 'px-halo w1', 'stroke-opacity': 0.4 }, svg);
+      S.rect(24 + BX2 * 24, 342 + BY2 * 24, 24, 24, { cls: 'px-halo w4' }, svg);
+      S.rect(24 + BX2 * 24, 342 + BY2 * 24, 24, 24, { cls: 'f-none s-x w2' }, svg);
+      S.text(24, 482, '8×8 の格子で 9×5 = 45 個', { cls: 't-sm t-dim' }, svg);
+      S.text(24, 500, '枠が取り出した 1 個', { cls: 't-sm t-x' }, svg);
+      // 下段中：DCT の 64 個の模様 → 段階4から量子化の幅の表
+      st.gBasis = S.g({ cls: 'fade hide' }, svg);
+      S.text(290, 330, 'DCT の 64 個の模様（基底）', { cls: 't-b t-md' }, st.gBasis);
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
+        const bb = basis(u, v);
+        mkPix(st.gBasis, 290 + u * 26, 342 + v * 26, 8, 8, 3, false).set((i) => bb[i]);
+      }
+      S.rect(288, 340, 28, 28, { cls: 'f-none s-x w2' }, st.gBasis);
+      S.text(510, 358, '← 平均（DC）', { cls: 't-sm t-x' }, st.gBasis);
+      S.text(510, 382, '右へ：横に細かく', { cls: 't-sm t-dim' }, st.gBasis);
+      S.text(510, 402, '下へ：縦に細かく', { cls: 't-sm t-dim' }, st.gBasis);
+      st.gQ = S.g({ cls: 'fade hide' }, svg);
+      st.qHead = S.text(290, 330, '', { cls: 't-b t-md' }, st.gQ);
+      st.qTx = [];
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
+        S.rect(290 + u * 26, 342 + v * 26, 24, 24, { cls: 'f-in' }, st.gQ);
+        st.qTx.push(S.text(290 + u * 26 + 12, 342 + v * 26 + 16, '', { cls: 't-c t-mono t-xs' }, st.gQ));
+      }
+      S.lines(510, 358, ['細かい模様ほど', '幅が大きい'], { cls: 't-sm t-dim' }, st.gQ, 17);
+      st.qNote2 = S.text(510, 404, '', { cls: 't-sm t-x t-b' }, st.gQ);
+      st.qNote3 = S.text(510, 421, '', { cls: 't-sm t-x' }, st.gQ);
+      // 下段右：戻したブロックと元との差
+      st.gR = S.g({ cls: 'fade hide' }, svg);
+      S.text(664, 330, '戻したブロック', { cls: 't-b t-md' }, st.gR);
+      st.pixR = mkPix(st.gR, 664, 342, 8, 8, 14, false);
+      S.text(796, 330, '元との差（4 倍）', { cls: 't-b t-md' }, st.gR);
+      st.pixD = mkPix(st.gR, 796, 342, 8, 8, 14, false);
+      st.rL = [0, 1, 2].map((k) => S.text(664, 484 + k * 20, '', { cls: 't-mono t-sm' + (k === 0 ? ' t-b' : '') }, st.gR));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.matB.g, i >= 1);
+      S.fade(st.arB, i >= 1);
+      S.fade(st.dcLbl, i === 1);
+      S.fade(st.matC.g, i >= 3);
+      S.fade(st.arC, i >= 3);
+      S.fade(st.gBasis, i === 1 || i === 2);
+      S.fade(st.gQ, i >= 3);
+      S.fade(st.gR, i === 2 || i >= 4);   // 段階4（量子化しただけ）では出さない
+      // DCT の係数（大きさを d の濃さで）
+      st.matB.cells.forEach((c, n) => {
+        const f = F2[n >> 3][n & 7];
+        c.tx.textContent = String(rnd(f));
+        c.tx.setAttribute('class', 't-c t-mono ' + (String(rnd(f)).length >= 4 ? 't-xs' : 't-sm'));
+        c.bg.setAttribute('fill-opacity', (0.05 + 0.5 * Math.sqrt(Math.min(1, Math.abs(f) / 270))).toFixed(3));
+        c.cg.style.opacity = '';
+      });
+      st.matC.cells.forEach((c) => { c.cg.style.opacity = ''; });
+      st.key = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      let key, s = 1, k = 64;
+      if (i === 2) { k = playing() ? kAt(ctx.ts) : 10; key = 'k' + k; }   // 止めているときは本文の「10 個ほど」
+      else if (i === 5) { s = SCALES2[Math.floor(ctx.ts / 2.5) % SCALES2.length]; key = 's' + s; }
+      else key = 'i' + i;
+      if (key === st.key) return;
+      st.key = key;
+      // 段階3：足した係数だけを濃く
+      if (i === 2) {
+        const inc = new Set(ZZ.slice(0, k).map(([v, u]) => v * 8 + u));
+        st.matB.cells.forEach((c, n) => { c.cg.style.opacity = inc.has(n) ? '' : 0.22; });
+        const P = PART2[k], e = errs(B2, P);
+        st.pixR.set((n) => P[n >> 3][n & 7]);
+        st.pixD.set((n) => Math.abs(P[n >> 3][n & 7] - B2[n >> 3][n & 7]) * 4);
+        st.rL[0].textContent = `係数を ${k} / 64 個だけ足して逆 DCT`;
+        st.rL[1].textContent = '（左上から斜めの順に足す）';
+        st.rL[2].textContent = `画素のずれ 平均 ${U.fmt(e.mean, 1)}、最大 ${e.max}`;
+        return;
+      }
+      if (i < 3) return;
+      // 段階4〜6：量子化
+      const Q = s === 1 ? Q2 : quant(F2, s);
+      st.matC.cells.forEach((c, n) => {
+        const q = Q[n >> 3][n & 7];
+        c.tx.textContent = String(q);
+        c.tx.setAttribute('class', 't-c t-mono t-sm' + (q ? ' t-d t-b' : ' t-dim'));
+        c.bg.setAttribute('fill-opacity', q ? 0.16 : 0);
+      });
+      st.matC.head.textContent = '量子化した係数' + (i === 5 ? `（幅 ×${s}）` : '');
+      st.qHead.textContent = i === 5 ? `量子化の幅（例の表 ×${s}）` : '量子化の幅（JPEG の例の表）';
+      st.qTx.forEach((t, n) => { t.textContent = String(qw(n >> 3, n & 7, s)); });
+      st.qNote2.textContent = i === 5 ? (s === 1 ? '基準の幅' : `幅 ×${s}`) : '';
+      st.qNote3.textContent = i === 5 && s !== 1 ? `H.264 なら ${QP2[s]}` : '';
+      if (i === 3) {
+        st.rL.forEach((t) => { t.textContent = ''; });
+        return;
+      }
+      const R = s === 1 ? R2 : recon(Q, s), e = errs(B2, R);
+      st.pixR.set((n) => R[n >> 3][n & 7]);
+      st.pixD.set((n) => Math.abs(R[n >> 3][n & 7] - B2[n >> 3][n & 7]) * 4);
+      st.rL[0].textContent = '逆量子化 → 逆 DCT';
+      st.rL[1].textContent = `0 でない係数 ${nzCount(Q)} / 64`;
+      st.rL[2].textContent = `画素のずれ 平均 ${U.fmt(e.mean, 1)}、最大 ${e.max}`;
+    }
+  };
+
+  /* ================================================================
+     場面3 符号化
+     ================================================================ */
+  const ENC3 = codeBlock(Q2);                      // 場面2の量子化した係数
+  const LAST3 = ENC3.seq.reduce((acc, c, n) => (c ? n : acc), -1);
+  // 組ごとに、列の中で占める範囲（前の 0 から値まで）。最後に「終わり」（残りの 0）
+  const SPANS3 = (() => { const o = []; let pos = 0; ENC3.pairs.forEach(([r]) => { o.push([pos, pos + r]); pos += r + 1; }); o.push([pos, 63]); return o; })();
+  const TOK3 = ENC3.pairs.map(([r, c], n) => ({ label: `(${r}, ${c})`, code: ENC3.codes[n][0] + ' ' + ENC3.codes[n][1], bits: ENC3.codes[n][0].length + ENC3.codes[n][1].length }))
+    .concat([{ label: '終わり', code: '1 1', bits: 2 }]);
+  const ARI3 = [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0], P0 = 0.9;   // 説明用の 0/1 の列と、0 の確率
+  const ARI3_IV = (() => { const o = [[0, 1]]; let lo = 0, w = 1; ARI3.forEach((b) => { if (b) { lo += P0 * w; w *= 1 - P0; } else w *= P0; o.push([lo, w]); }); return o; })();
+
+  const s3 = {
+    steps: [
+      { title: 'ジグザグに並べる', text: '8×8 の係数を、左上から斜めに往復する順（ジグザグ）で 1 列に並べる。低い周波数から高い周波数の順になるので、0 でない値が前に集まり、後ろには 0 が続く。復号側は同じ順で 8×8 に戻す。' },
+      { title: '0 の連続をまとめる', text: `列を「前にある 0 の個数」と「値」の組に置き換え、最後の 0 でない値より後ろは「終わり」の印 1 つで済ませる（ランレングス）。このブロックの 64 個の数は ${ENC3.pairs.length} 組と終わりの印になる。` },
+      { title: 'よく出る値ほど短い符号', text: `組の数を長さの違う符号に置き換える。図の符号は H.264 が見出しなどに使う指数ゴロム符号で、0 は 1 ビット、±1 は 3 ビット、±2 は 5 ビットと、絶対値の小さい値ほど短い。元の画素 64 × 8 = 512 ビットが ${ENC3.bits} ビットになった。` },
+      { title: '算術符号：1 記号 1 ビットの壁を越える', text: '表で引く符号は、1 つの記号に最低 1 ビット要る。算術符号は記号ごとに区間を出やすさの比で区切って狭め、最後に残った区間の中の数を 1 つ送る。0 が 9 割の列なら、0 は 1 個あたり約 0.15 ビットで済む。' },
+      { title: 'CAVLC と CABAC、捨てない圧縮', text: 'H.264 は、周りの状況で符号の表を切り替える CAVLC か、0 と 1 の出やすさを文脈ごとに学習する 2 値の算術符号 CABAC を選ぶ。CABAC は同じ画質で約 1 割ビットが減る。どの方式の符号も、復号すれば同じ数に戻る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      // 左上：量子化した係数とジグザグの順路
+      const CC = 26, MX = 24, MY = 52;
+      S.text(MX, 36, '量子化した係数（場面2）', { cls: 't-b t-md' }, svg);
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) S.rect(MX + u * CC, MY + v * CC, CC, CC, { cls: Q2[v][u] ? 'f-d-soft s-sf w1' : 'f-none s-soft w1' }, svg);
+      S.rect(MX, MY, 8 * CC, 8 * CC, { cls: 'f-none s-rule w1' }, svg);
+      st.zzPts = ZZ.map(([v, u]) => [MX + u * CC + CC / 2, MY + v * CC + CC / 2]);
+      st.zz = S.poly(st.zzPts, { cls: 'f-none s-x w15 round', 'stroke-opacity': 0.55 }, svg);   // 順路は数字の下に描く
+      st.zzDot = S.circle(st.zzPts[0][0], st.zzPts[0][1], 7, { cls: 'f-x', 'fill-opacity': 0.5 }, svg);
+      for (let v = 0; v < 8; v++) for (let u = 0; u < 8; u++) {
+        const q = Q2[v][u];
+        S.text(MX + u * CC + CC / 2, MY + v * CC + CC / 2 + 4, String(q), { cls: 'halo t-c t-mono t-sm' + (q ? ' t-d t-b' : ' t-dim') }, svg);
+      }
+      // 右上：1 列にした 64 個（32 個ずつ 2 段）
+      const SX = 268, SW = 20, SH = 26, SY = [60, 104];
+      S.text(SX, 36, 'ジグザグの順に 1 列にした 64 個', { cls: 't-b t-md' }, svg);
+      st.seq = ENC3.seq.map((c, n) => {
+        const x = SX + (n % 32) * SW, y = SY[n >> 5];
+        const g = S.g({}, svg);
+        S.rect(x, y, SW, SH, { cls: (c ? 'f-d-soft' : 'f-none') + ' s-soft w1' }, g);
+        S.text(x + SW / 2, y + SH / 2 + 4, String(c), { cls: 't-c t-mono ' + (String(c).length > 2 ? 't-xs' : 't-sm') + (c ? ' t-d t-b' : ' t-dim') }, g);
+        return g;
+      });
+      [0, 8, 16, 24].forEach((n) => { S.text(SX + n * SW + 2, SY[0] - 4, String(n), { cls: 't-xs t-dim t-mono' }, svg); S.text(SX + n * SW + 2, SY[1] - 4, String(n + 32), { cls: 't-xs t-dim t-mono' }, svg); });
+      // 終わりの 0 の範囲
+      st.gTail = S.g({ cls: 'fade hide' }, svg);
+      const t0 = LAST3 + 1;
+      S.path(`M${SX + (t0 % 32) * SW + 2},${SY[0] + SH + 5} H${SX + 32 * SW - 2}`, { cls: 'f-none s-dim w2' }, st.gTail);
+      S.path(`M${SX + 2},${SY[1] + SH + 5} H${SX + 32 * SW - 2}`, { cls: 'f-none s-dim w2' }, st.gTail);
+      S.text(SX + 32 * SW, SY[1] + SH + 20, `最後の 0 でない値（${LAST3} 番）より後ろの ${63 - LAST3} 個の 0 → 「終わり」の印 1 つ`, { cls: 't-xs t-dim t-end' }, st.gTail);
+      // 組（前の 0 の個数, 値）と符号
+      st.gTok = S.g({ cls: 'fade hide' }, svg);
+      S.text(SX, 176, '（前の 0 の個数, 値）の組', { cls: 't-b t-md' }, st.gTok);
+      st.tokCode = S.text(SX + 32 * SW, 176, '下の段：その符号（個数 ue ＋ 値 se）', { cls: 't-sm t-d t-end fade hide' }, st.gTok);
+      const TW = 88, TH = 44;
+      st.toks = TOK3.map((tk, n) => {
+        const x = SX + (n % 7) * (TW + 4), y = 186 + Math.floor(n / 7) * (TH + 8);
+        const g = S.g({}, st.gTok);
+        const box = S.rect(x, y, TW, TH, { rx: 5, cls: 'f-sf s-d w15' }, g);
+        S.text(x + TW / 2, y + 17, tk.label, { cls: 't-c t-mono t-sm t-b' }, g);
+        const code = S.text(x + TW / 2, y + 35, tk.code, { cls: 't-c t-mono t-xs t-d fade hide' }, g);
+        return { g, box, code };
+      });
+      // 選んだ組の範囲を列の上で囲む枠（2 段にまたがるときは 2 個）
+      st.hl = [0, 1].map(() => S.rect(0, 0, 10, 10, { cls: 'f-none s-x w2', style: { display: 'none' } }, svg));
+      // ビット数の比べ
+      st.gBits = S.g({ cls: 'fade hide' }, svg);
+      const BX = 24, BW = 540;
+      S.text(BX, 316, '元の画素 64 個 × 8 ビット', { cls: 't-sm' }, st.gBits);
+      S.rect(BX + 190, 304, BW, 16, { cls: 'f-dim', 'fill-opacity': 0.45 }, st.gBits);
+      S.text(BX + 190 + BW + 8, 316, '512 ビット', { cls: 't-sm t-mono' }, st.gBits);
+      S.text(BX, 342, '符号にしたビット列', { cls: 't-sm t-d t-b' }, st.gBits);
+      S.rect(BX + 190, 330, BW * ENC3.bits / 512, 16, { cls: 'f-d' }, st.gBits);
+      S.text(BX + 190 + BW * ENC3.bits / 512 + 8, 342, `${ENC3.bits} ビット（約 ${U.fmt(512 / ENC3.bits, 1)} 分の 1）`, { cls: 't-sm t-mono t-d t-b' }, st.gBits);
+      st.lossless = S.text(BX + 190, 366, `復号：${ENC3.bits} ビット → ${ENC3.pairs.length} 組と終わり → 64 個 → 8×8。量子化した係数と完全に同じに戻る`, { cls: 't-sm t-d fade hide' }, svg);
+      // 下段左：指数ゴロム符号の表 → 段階5は方式の一覧
+      st.gEG = S.g({ cls: 'fade hide' }, svg);
+      S.text(24, 400, '指数ゴロム符号（絶対値が小さいほど短い）', { cls: 't-b t-md' }, st.gEG);
+      const egv = [0, 1, -1, 2, -2, 3, -3];
+      S.text(24, 428, '値（se）', { cls: 't-sm t-dim' }, st.gEG);
+      S.text(24, 450, '符号', { cls: 't-sm t-dim' }, st.gEG);
+      egv.forEach((v, n) => {
+        S.text(118 + n * 52, 428, String(v), { cls: 't-c t-mono t-sm' }, st.gEG);
+        S.text(118 + n * 52, 450, se(v), { cls: 't-c t-mono t-sm t-d' }, st.gEG);
+      });
+      S.text(24, 478, '±4〜±7 は 7 ビット、±8〜±15 は 9 ビット（2 ビットずつ増える）', { cls: 't-sm t-dim' }, st.gEG);
+      S.text(24, 500, '0 の個数（ue）：0 → 1、1 → 010、2 → 011、5 → 00110', { cls: 't-sm t-dim' }, st.gEG);
+      S.text(24, 522, `例：(0, 17) は 1 ＋ ${se(17)} の 12 ビット`, { cls: 't-sm t-dim' }, st.gEG);
+      st.gTab = S.g({ cls: 'fade hide' }, svg);
+      S.text(24, 400, '方式ごとのエントロピー符号化', { cls: 't-b t-md' }, st.gTab);
+      [['JPEG（1992 年）', 'ハフマン符号'], ['H.264（2003 年）', 'CAVLC か CABAC'], ['HEVC（2013 年）', 'CABAC だけ'], ['VP9（2013 年）', '2 値の算術符号'], ['AV1（2018 年）', '多値の算術符号']].forEach(([a, b], n) => {
+        S.text(24, 428 + n * 24, a, { cls: 't-sm t-b' }, st.gTab);
+        S.text(170, 428 + n * 24, b, { cls: 't-sm' }, st.gTab);
+      });
+      // 下段右：算術符号
+      st.gAri = S.g({ cls: 'fade hide' }, svg);
+      const AX = 470, AW = 460;
+      S.text(AX, 400, '算術符号：区間を出やすさの比で狭める', { cls: 't-b t-md' }, st.gAri);
+      S.text(AX + AW, 400, '説明用の 12 個、0 の確率 0.9', { cls: 't-xs t-dim t-end' }, st.gAri);
+      st.ariSym = ARI3.map((b, n) => {
+        const r = S.rect(AX + n * 24, 410, 20, 22, { rx: 3, cls: 'f-sf s-rule w1' }, st.gAri);
+        const t = S.text(AX + n * 24 + 10, 426, String(b), { cls: 't-c t-mono t-sm' }, st.gAri);
+        return { r, t };
+      });
+      S.text(AX + 300, 426, '← 符号にする列', { cls: 't-xs t-dim' }, st.gAri);
+      // [0,1) の帯と、その中の今の区間
+      S.rect(AX, 446, AW, 14, { cls: 'f-in s-rule w1' }, st.gAri);
+      st.ariIv = S.rect(AX, 446, AW, 14, { cls: 'f-x' }, st.gAri);
+      S.text(AX, 474, '0', { cls: 't-xs t-mono t-dim' }, st.gAri);
+      S.text(AX + AW, 474, '1', { cls: 't-xs t-mono t-dim t-end' }, st.gAri);
+      // 今の区間を拡大し、次の記号で残す側
+      S.text(AX, 494, '今の区間を拡大：', { cls: 't-xs t-dim' }, st.gAri);
+      st.ariZ0 = S.rect(AX + 90, 482, (AW - 90) * P0, 18, { cls: 'f-d-soft s-sf w1' }, st.gAri);
+      st.ariZ1 = S.rect(AX + 90 + (AW - 90) * P0, 482, (AW - 90) * (1 - P0), 18, { cls: 'f-in s-sf w1' }, st.gAri);
+      S.text(AX + 90 + (AW - 90) * P0 / 2, 495, '次が 0 ならこちら（9 割）', { cls: 't-c t-xs' }, st.gAri);
+      S.text(AX + 90 + (AW - 90) * (P0 + (1 - P0) / 2), 495, '1', { cls: 't-c t-xs' }, st.gAri);
+      st.ariPick = S.rect(AX + 90, 482, 10, 18, { cls: 'f-none s-x w2' }, st.gAri);
+      st.ariW = S.text(AX, 524, '', { cls: 't-sm t-mono' }, st.gAri);
+      st.ariB = S.text(AX, 546, '', { cls: 't-sm t-mono t-b' }, st.gAri);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gTail, i >= 1);
+      S.fade(st.gTok, i >= 1);
+      S.fade(st.tokCode, i >= 2);
+      st.toks.forEach((tk) => S.fade(tk.code, i >= 2));
+      S.fade(st.gBits, i >= 2);
+      S.fade(st.gEG, i === 2 || i === 3);
+      S.fade(st.gTab, i === 4);
+      S.fade(st.gAri, i >= 3);
+      S.fade(st.lossless, i === 4);
+      st.zz.style.opacity = i === 0 ? '' : 0.35;
+      st.key = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 段階1：ジグザグの順に 1 個ずつ列へ（0.12 秒ずつ、10 秒ごとにやり直す。止めているときは 64 個とも）
+      const n = i === 0 && playing() ? Math.min(64, Math.floor(U.mod(ctx.ts, 10) / 0.12) + 1) : 64;
+      // 段階2・3：組を 1.4 秒ずつ順に囲む
+      const pick = i === 1 || i === 2 ? Math.floor(ctx.ts / 1.4) % TOK3.length : -1;
+      // 段階4・5：算術符号の記号を 0.9 秒ずつ進める（13 秒ごと。止めているときは 12 個を終えた姿）
+      const ak = i >= 3 ? (playing() ? Math.min(ARI3.length, Math.floor(U.mod(ctx.ts, 13) / 0.9)) : ARI3.length) : -1;
+      const key = [i, n, pick, ak].join(':');
+      if (key === st.key) return;
+      st.key = key;
+      st.seq.forEach((g, m) => { g.style.opacity = m < n ? '' : 0.08; });
+      st.zzDot.style.display = i === 0 && n < 64 ? '' : 'none';
+      if (i === 0) { const [x, y] = st.zzPts[n - 1]; st.zzDot.setAttribute('cx', x); st.zzDot.setAttribute('cy', y); }
+      // 組の囲み
+      st.hl.forEach((r) => { r.style.display = 'none'; });
+      st.toks.forEach((tk, m) => tk.box.setAttribute('class', 'f-sf w15 ' + (m === pick ? 's-x' : 's-d')));
+      if (pick >= 0) {
+        const [a, b] = SPANS3[pick];
+        const SX = 268, SW = 20, SY = [60, 104];
+        const rows = a >> 5 === b >> 5 ? [[a, b]] : [[a, ((a >> 5) + 1) * 32 - 1], [((a >> 5) + 1) * 32, b]];
+        rows.forEach(([p, q], k) => {
+          const r = st.hl[k];
+          r.style.display = '';
+          r.setAttribute('x', SX + (p % 32) * SW - 1); r.setAttribute('y', SY[p >> 5] - 2);
+          r.setAttribute('width', (q - p + 1) * SW + 2); r.setAttribute('height', 30);
+        });
+      }
+      // 算術符号
+      if (ak >= 0) {
+        st.ariSym.forEach((sy, m) => {
+          sy.r.setAttribute('class', m === ak ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+          sy.t.style.opacity = m < ak ? '' : m === ak ? '' : 0.35;
+          sy.t.setAttribute('class', 't-c t-mono t-sm' + (m === ak ? ' t-x t-b' : ''));
+        });
+        const [lo, w] = ARI3_IV[ak];
+        st.ariIv.setAttribute('x', (470 + lo * 460).toFixed(2));
+        st.ariIv.setAttribute('width', Math.max(1.5, w * 460).toFixed(2));
+        const next = ak < ARI3.length ? ARI3[ak] : null;
+        st.ariPick.style.display = next === null ? 'none' : '';
+        if (next !== null) {
+          st.ariPick.setAttribute('x', next ? 470 + 90 + 370 * P0 : 470 + 90);
+          st.ariPick.setAttribute('width', next ? 370 * (1 - P0) : 370 * P0);
+        }
+        const zeros = ARI3.slice(0, ak).filter((b) => !b).length, ones = ak - zeros;
+        const sup = (n) => String(n).split('').map((d) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[d]).join('');
+        st.ariW.textContent = `${ak} 個目まで：区間の幅 = 0.9${sup(zeros)} × 0.1${sup(ones)} = ${w.toPrecision(3)}`;
+        st.ariB.textContent = ak === 0 ? '要るビット ≈ −log2(幅)' : `要るビット ≈ −log2(幅) = ${U.fmt(-Math.log2(w), 2)}（1 記号 1 ビットなら ${ak}）`;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 時間の冗長
+     2 枚の合成フレーム（64×36）。玉が (+4, +1) 画素動き、どちらにも小さな雑音（±2、決まった種）が乗る
+     ================================================================ */
+  const W4 = 64, H4 = 36, BX4 = 32, BY4 = 8, R4 = 7;
+  const ball4 = (cx, cy) => (px, py) => {
+    const dx = px - cx, dy = py - cy;
+    if (Math.hypot(dx, dy) >= 5) return null;
+    const band = Math.abs(dx * 0.6 + dy * 0.8) < 1.3;
+    const shade = 1 - 0.35 * Math.max(0, (dx + dy) / 7);
+    return (band ? [245, 245, 240] : [236, 120, 40]).map((c) => c * shade);
+  };
+  const frame4 = (cx, cy, seed) => renderRGB(W4, H4, ball4(cx, cy)).map((c, i) => {
+    const h = Math.sin(i * 12.9898 + seed * 78.233) * 43758.5453;
+    return clamp(rnd(0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2] + (h - Math.floor(h) - 0.5) * 4), 0, 255);
+  });
+  const YA4 = frame4(32, 11, 1), YB4 = frame4(36, 12, 2);
+  const blk4 = (img, x0, y0) => { const b = []; for (let y = 0; y < 8; y++) { b.push([]); for (let x = 0; x < 8; x++) b[y].push(img[(y0 + y) * W4 + x0 + x]); } return b; };
+  const CUR4 = blk4(YB4, BX4, BY4);
+  const CAND4 = [];   // 225 か所の候補（左上から行ごと）
+  for (let dy = -R4; dy <= R4; dy++) for (let dx = -R4; dx <= R4; dx++) {
+    const ref = blk4(YA4, BX4 + dx, BY4 + dy);
+    let sad = 0; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) sad += Math.abs(CUR4[y][x] - ref[y][x]);
+    CAND4.push({ dx, dy, ref, sad });
+  }
+  const BEST4 = CAND4.reduce((a, c) => (c.sad < a.sad ? c : a));
+  const MAXSAD4 = Math.max(...CAND4.map((c) => c.sad));
+  const ZERO4 = CAND4[R4 * 15 + R4];
+  const CHANGED4 = YB4.filter((v, i) => Math.abs(v - YA4[i]) > 8).length;
+  const IBITS4 = codeBlock(quant(dct(CUR4.map((r) => r.map((v) => v - 128))), 1)).bits;
+  const RES4 = CUR4.map((r, y) => r.map((v, x) => v - BEST4.ref[y][x]));
+  const QR4 = quant(dct(RES4), 1);
+  const MVBITS4 = se(BEST4.dx).length + se(BEST4.dy).length;
+  const RBITS4 = codeBlock(QR4).bits;
+  const PBITS4 = MVBITS4 + RBITS4;
+  // フレームの並び（表示の順）と参照先
+  const GOP4 = ['I', 'B', 'B', 'P', 'B', 'B', 'P', 'B', 'B', 'P', 'I'];
+  const REF4 = { 1: [0, 3], 2: [0, 3], 3: [0], 4: [3, 6], 5: [3, 6], 6: [3], 7: [6, 9], 8: [6, 9], 9: [6] };
+  const DEC4 = [0, 3, 1, 2, 6, 4, 5, 9, 7, 8, 10];   // 送る順（復号する順）
+  const mv4 = (c) => `(${c.dx}, ${c.dy})`;
+
+  const s4 = {
+    steps: [
+      { title: '続くフレームはほとんど同じ', text: `1/25 秒後のフレームでは、動いた物の周り以外の画素はほぼ同じ値になる。図の 2 枚で差が 8 を超える画素は 2,304 個のうち ${CHANGED4} 個だけで、ほかは小さな雑音の差しかない。1 枚ずつ独立に送ると、同じ情報を何度も送ることになる。` },
+      { title: '似たブロックを探す（動き探索）', text: '符号化側は、いまのブロックと同じ大きさの枠を参照フレームの中でずらしながら比べ、差の絶対値の合計（SAD）が最小の位置を探す。図は上下左右 ±7 画素の 225 か所を順に試している。探索は符号化側だけの仕事で、計算の多くを占める。' },
+      { title: '動きベクトルと差分だけを送る', text: `見つけた位置へのずれ（動きベクトル ${mv4(BEST4)}）と、ブロックとの差分を送る。差分は場面2・3と同じく変換・量子化・符号化する。復号側は参照フレームからベクトルの指す所を写し、差分を足す（動き補償）。このブロックは単独なら ${IBITS4} ビット、予測すると ${PBITS4} ビット。` },
+      { title: 'I・P・B フレーム', text: 'I フレームは他のフレームを使わずに符号化する。P は前のフレームから、B は前と後ろの両方から予測する。B を作るには後ろのフレームを先に送る必要があり、送る順と表示する順が入れ替わる。VP9・AV1 は B と呼ばないが、表示しない参照用のフレームで同じことをする。' },
+      { title: 'GOP とキーフレームの間隔', text: 'I から次の I の手前までを GOP と呼ぶ。I（キーフレーム）からは前のフレームなしで復号を始められるので、再生の開始やシーク、画質の切り替えはここで行う（第24章）。間隔を広げるとビットは減るが、途中から見始めにくくなる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      const FX = [24, 300, 576], FY = 48, FC = 4;
+      // 上段：2 枚のフレームと差（段階4・5 では薄くする）
+      const gT = st.gTop = S.g({ cls: 'fade' }, svg);
+      S.text(FX[0], 36, '参照フレーム（前の 1 枚、復号済み）', { cls: 't-b t-md' }, gT);
+      mkPix(gT, FX[0], FY, W4, H4, FC, false).set((i) => YA4[i]);
+      S.text(FX[1], 36, 'いまのフレーム（1/25 秒後）', { cls: 't-b t-md' }, gT);
+      mkPix(gT, FX[1], FY, W4, H4, FC, false).set((i) => YB4[i]);
+      S.text(FX[2], 36, '2 枚の差（4 倍して表示）', { cls: 't-b t-md' }, gT);
+      mkPix(gT, FX[2], FY, W4, H4, FC, false).set((i) => Math.abs(YB4[i] - YA4[i]) * 4);
+      st.chg = S.text(FX[2], FY + 162, `差が 8 を超える画素 ${CHANGED4} / 2,304`, { cls: 't-sm t-x t-b fade' }, gT);
+      // いまのブロック（いまのフレームの上）と候補の枠（参照フレームの上）
+      [0, 1].forEach((k) => { S.rect(FX[1] + BX4 * FC, FY + BY4 * FC, 32, 32, { cls: k ? 'f-none s-x w2' : 'px-halo w4' }, gT); });
+      st.candHalo = S.rect(0, 0, 32, 32, { cls: 'px-halo w4' }, gT);
+      st.cand = S.rect(0, 0, 32, 32, { cls: 'f-none s-x w2 dash' }, gT);
+      st.home = S.rect(FX[0] + BX4 * FC, FY + BY4 * FC, 32, 32, { cls: 'f-none px-halo w1 dash' }, gT);
+      st.mvArrow = S.g({ cls: 'fade hide' }, gT);
+      const hx = FX[0] + BX4 * FC + 16, hy = FY + BY4 * FC + 16;
+      S.path(`M${hx},${hy} L${hx + BEST4.dx * FC},${hy + BEST4.dy * FC}`, { cls: 'f-none px-halo w4 round' }, st.mvArrow);
+      S.path(`M${hx},${hy} L${hx + BEST4.dx * FC},${hy + BEST4.dy * FC}`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.mvArrow);
+      S.text(FX[0], FY + 162, `点線：同じ位置　矢印：動きベクトル ${mv4(BEST4)}`, { cls: 't-sm t-x' }, st.mvArrow);
+      // 下段（段階1〜3）：拡大・SAD の表・ビット数
+      const gZ = st.gZ = S.g({ cls: 'fade' }, svg);
+      const ZX = [24, 140, 256], ZY = 252;
+      ['いまのブロック', '参照の候補', '差（4 倍）'].forEach((t, k) => S.text(ZX[k], ZY - 12, t, { cls: 't-b t-md' }, gZ));
+      mkPix(gZ, ZX[0], ZY, 8, 8, 12, false).set((n) => CUR4[n >> 3][n & 7]);
+      st.zC = mkPix(gZ, ZX[1], ZY, 8, 8, 12, false);
+      st.zD = mkPix(gZ, ZX[2], ZY, 8, 8, 12, false);
+      st.zT = [0, 1, 2].map((k) => S.text(24, ZY + 124 + k * 22, '', { cls: 't-mono t-sm' + (k === 2 ? ' t-x t-b' : '') }, gZ));
+      // SAD の表（15×15）
+      S.text(400, ZY - 12, '225 か所の SAD', { cls: 't-b t-md' }, gZ);
+      S.text(400, ZY + 168, '濃いほど差が小さい', { cls: 't-xs t-dim' }, gZ);
+      st.sadCells = CAND4.map((c, n) => S.rect(400 + (n % 15) * 9, ZY + Math.floor(n / 15) * 9, 9, 9, { cls: 'f-d s-sf w1', 'fill-opacity': 0 }, gZ));
+      S.rect(400, ZY, 135, 135, { cls: 'f-none s-rule w1' }, gZ);
+      S.text(400, ZY + 150, 'dx −7', { cls: 't-xs t-dim t-mono' }, gZ);
+      S.text(535, ZY + 150, '+7', { cls: 't-xs t-dim t-mono t-end' }, gZ);
+      S.text(395, ZY + 8, '−7', { cls: 't-xs t-dim t-mono t-end' }, gZ);
+      S.text(395, ZY + 135, '+7', { cls: 't-xs t-dim t-mono t-end' }, gZ);
+      S.text(395, ZY + 72, 'dy', { cls: 't-xs t-dim t-mono t-end' }, gZ);
+      st.sadCur = S.rect(0, 0, 9, 9, { cls: 'f-none s-x w2' }, gZ);
+      // ビット数の比べ
+      st.gBits = S.g({ cls: 'fade hide' }, svg);
+      const BXB = 590, BW = 320 / IBITS4;
+      S.text(BXB, ZY - 12, 'このブロックを送るビット数', { cls: 't-b t-md' }, st.gBits);
+      S.text(BXB, ZY + 16, 'I：単独で（場面2・3 の手順）', { cls: 't-sm' }, st.gBits);
+      S.rect(BXB, ZY + 24, IBITS4 * BW, 16, { cls: 'f-dim', 'fill-opacity': 0.45 }, st.gBits);
+      S.text(BXB + IBITS4 * BW + 6, ZY + 37, `${IBITS4}`, { cls: 't-sm t-mono' }, st.gBits);
+      S.text(BXB, ZY + 66, `P：ベクトル ${MVBITS4} ＋ 差分 ${RBITS4} ビット`, { cls: 't-sm t-d t-b' }, st.gBits);
+      S.rect(BXB, ZY + 74, PBITS4 * BW, 16, { cls: 'f-d' }, st.gBits);
+      S.text(BXB + PBITS4 * BW + 6, ZY + 87, `${PBITS4}`, { cls: 't-sm t-mono t-d t-b' }, st.gBits);
+      S.text(BXB, ZY + 116, '差分は雑音ほどの大きさで、量子化すると全部 0 になった', { cls: 't-sm t-dim' }, st.gBits);
+      S.text(BXB, ZY + 136, `ベクトル ${mv4(BEST4)} の符号は ${se(BEST4.dx)} ${se(BEST4.dy)}（se）`, { cls: 't-sm t-dim t-mono' }, st.gBits);
+      // 下段（段階4・5）：フレームの並び
+      const gG = st.gG = S.g({ cls: 'fade hide' }, svg);
+      const GX = (k) => 24 + k * 80, GW = 62, GY = 262, DY = 452;
+      S.text(24, GY - 26, '表示する順', { cls: 't-b t-md' }, gG);
+      st.gBox = GOP4.map((t, k) => {
+        const g = S.g({}, gG);
+        const box = S.rect(GX(k), GY, GW, 44, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+        S.text(GX(k) + GW / 2, GY + 26, t + k, { cls: 't-c t-mono t-md t-b' }, g);
+        return { g, box, t };
+      });
+      S.text(GX(10) + GW / 2, GY + 62, '次の GOP', { cls: 't-c t-xs t-dim' }, gG);
+      st.arcs = [];
+      Object.keys(REF4).forEach((kk) => {
+        const k = Number(kk);
+        REF4[k].forEach((r) => {
+          const x1 = GX(r) + GW / 2, x2 = GX(k) + GW / 2, yb = GY + 46;
+          const depth = 16 + Math.abs(x2 - x1) * 0.18;
+          const el = S.path(`M${x1},${yb} Q${(x1 + x2) / 2},${yb + depth * 2} ${x2 + (x2 > x1 ? -6 : 6)},${yb + 2}`, { cls: 'f-none s-dim w1', 'marker-end': mk('dim') }, gG);
+          st.arcs.push({ el, from: r, to: k });
+        });
+      });
+      S.text(24, DY - 14, '送る順（復号する順）', { cls: 't-b t-md' }, gG);
+      st.dBox = DEC4.map((k, n) => {
+        const g = S.g({}, gG);
+        const box = S.rect(GX(n), DY, GW, 36, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+        S.text(GX(n) + GW / 2, DY + 23, GOP4[k] + k, { cls: 't-c t-mono t-sm t-b' }, g);
+        return { box, k };
+      });
+      st.gopNote = S.text(24, 520, '', { cls: 't-sm t-x t-b' }, gG);
+      st.gopNote2 = S.text(24, 542, '', { cls: 't-sm t-dim' }, gG);
+      st.gopBr = S.g({ cls: 'fade hide' }, gG);
+      S.path(`M${GX(0)},${GY - 3} V${GY - 9} H${GX(9) + GW} V${GY - 3}`, { cls: 'f-none s-x w2' }, st.gopBr);
+      S.text((GX(0) + GX(9) + GW) / 2, GY - 13, 'GOP（I から次の I の手前まで）', { cls: 'halo t-c t-sm t-x t-b' }, st.gopBr);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const top = i <= 2;
+      S.fade(st.gZ, top);
+      S.fade(st.gBits, i === 2);
+      S.fade(st.mvArrow, i === 2);
+      S.fade(st.gG, !top);
+      S.fade(st.gopBr, i === 4);
+      st.gTop.style.opacity = top ? '' : 0.3;
+      st.chg.style.opacity = i === 0 ? '' : 0.5;
+      st.cand.style.display = top ? '' : 'none';
+      st.candHalo.style.display = top ? '' : 'none';
+      st.home.style.display = i === 2 ? '' : 'none';
+      st.key = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      let key;
+      // 段階2：225 か所を 0.04 秒ずつ試し、最後に 3 秒止まる（12 秒ごと。止めているときは試し終えた姿）
+      const scanN = () => (playing() ? Math.min(CAND4.length - 1, Math.floor(U.mod(ctx.ts, 12) / 0.04)) : CAND4.length - 1);
+      if (i === 1) {
+        key = 'scan' + scanN();
+      } else if (i >= 3) {
+        key = 'gop' + i + ':' + Math.floor(ctx.ts / 1.3) % 9;
+      } else key = 'i' + i;
+      if (key === st.key) return;
+      st.key = key;
+      if (i <= 2) {
+        const n = i === 1 ? scanN() : -1;
+        const c = i === 0 ? ZERO4 : i === 2 ? BEST4 : CAND4[n];
+        const done = i === 1 ? CAND4.slice(0, n + 1) : i === 2 ? CAND4 : [];
+        const best = done.length ? done.reduce((a, b) => (b.sad < a.sad ? b : a)) : null;
+        [st.cand, st.candHalo].forEach((r) => { r.setAttribute('x', 24 + (BX4 + c.dx) * 4); r.setAttribute('y', 48 + (BY4 + c.dy) * 4); });
+        st.zC.set((m) => c.ref[m >> 3][m & 7]);
+        st.zD.set((m) => Math.abs(CUR4[m >> 3][m & 7] - c.ref[m >> 3][m & 7]) * 4);
+        st.zT[0].textContent = `候補のずれ ${mv4(c)}`;
+        st.zT[1].textContent = `SAD = ${U.fmt(c.sad)}`;
+        st.zT[2].textContent = i === 0 ? '同じ位置では大きくずれる' : best ? `最小：${mv4(best)} の SAD ${U.fmt(best.sad)}` : '';
+        const doneSet = new Set(done);
+        CAND4.forEach((cc, m) => st.sadCells[m].setAttribute('fill-opacity', doneSet.has(cc) ? (0.08 + 0.85 * Math.pow(1 - cc.sad / MAXSAD4, 3)).toFixed(3) : 0));
+        const idx = CAND4.indexOf(i === 2 ? BEST4 : c);
+        st.sadCur.setAttribute('x', 400 + (idx % 15) * 9); st.sadCur.setAttribute('y', 252 + Math.floor(idx / 15) * 9);
+        st.sadCur.style.display = i === 0 ? 'none' : '';
+        return;
+      }
+      // 段階4・5：フレームの並び
+      const order = [3, 1, 2, 6, 4, 5, 9, 7, 8];
+      const k = i === 3 ? order[Math.floor(ctx.ts / 1.3) % 9] : 5;
+      const need = new Set(); const walk = (f) => (REF4[f] || []).forEach((r) => { need.add(r); walk(r); }); walk(k);
+      st.gBox.forEach((b, m) => {
+        const base = b.t === 'I' ? 'f-in s-fg w2' : 'f-sf s-rule w1';
+        b.box.setAttribute('class', m === k ? 'f-sf s-x w3' : (i === 4 && need.has(m) ? 'f-x-soft s-x w1' : base));
+      });
+      st.arcs.forEach((a) => {
+        const on = i === 3 ? a.to === k : (a.to === k || need.has(a.to));
+        a.el.setAttribute('class', on ? 'f-none s-x w2' : 'f-none s-dim w1');
+        a.el.setAttribute('marker-end', S.markers(ctx.svg)(on ? 'x' : 'dim'));
+        a.el.style.opacity = on ? '' : 0.35;
+      });
+      st.dBox.forEach((d) => d.box.setAttribute('class', d.k === k ? 'f-sf s-x w3' : (i === 4 && need.has(d.k) ? 'f-x-soft s-x w1' : (GOP4[d.k] === 'I' ? 'f-in s-fg w2' : 'f-sf s-rule w1'))));
+      if (i === 3) {
+        const refs = REF4[k].map((r) => GOP4[r] + r).join(' と ');
+        st.gopNote.textContent = `${GOP4[k]}${k} は ${refs} から予測する`;
+        st.gopNote2.textContent = GOP4[k] === 'B' ? '後ろの参照を先に復号しておくため、送る順が表示の順と入れ替わる' : '前の I・P だけを参照する';
+      } else {
+        st.gopNote.textContent = `B5 を表示するには、先に ${[...need].sort((x, y) => x - y).map((r) => GOP4[r] + r).join('・')} を復号する必要がある`;
+        st.gopNote2.textContent = 'シークや見始めはキーフレーム（I）から。YouTube はライブ配信の送り手にキーフレームの間隔 2 秒（4 秒以下）を勧めている';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 ビットレートと画質
+     場面2 の画像全体（72×40、45 ブロック）を、量子化の幅を変えて符号化する
+     ================================================================ */
+  const SC5 = [0.25, 0.35, 0.5, 0.71, 1, 1.41, 2, 2.83, 4, 5.66, 8];
+  const F5 = [];
+  for (let by = 0; by < 5; by++) for (let bx = 0; bx < 9; bx++) F5.push({ bx, by, F: dct(grid8(Y2, W2, bx, by).map((r) => r.map((v) => v - 128))) });
+  const RD5 = SC5.map((sc) => {
+    let bits = 0, sq = 0;
+    const img = new Array(W2 * H2);
+    F5.forEach(({ bx, by, F }) => {
+      const Q = quant(F, sc);
+      bits += codeBlock(Q).bits;
+      const R = recon(Q, sc);
+      for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+        const k = (by * 8 + y) * W2 + bx * 8 + x;
+        img[k] = R[y][x];
+        sq += (R[y][x] - Y2[k]) ** 2;
+      }
+    });
+    const mse = sq / (W2 * H2);
+    return { sc, bits, mse, psnr: 10 * Math.log10(255 * 255 / mse), img };
+  });
+  const RD5_1 = RD5[SC5.indexOf(1)], RD5_2 = RD5[SC5.indexOf(2)];
+  // YouTube の例の動画 dQw4w9WgXcQ（25 fps）の配信形式の平均ビットレート（Mbps）。2026-10-12 に視聴ページの形式一覧で確かめた
+  const YT5 = [['2160p', null, 13.47, 9.02], ['1440p', null, 5.67, 4.59], ['1080p', 3.04, 1.16, 1.14], ['720p', 0.99, 0.66, 0.66],
+    ['480p', 0.53, 0.35, 0.37], ['360p', 0.32, 0.23, 0.21], ['240p', 0.16, 0.10, 0.12], ['144p', 0.08, 0.06, 0.06]];
+  const RAW5 = 1920 * 1080 * 1.5 * 8 * 25 / 1e6;   // 1080p・25 fps・4:2:0・8 ビットの圧縮前（Mbps）
+
+  const s5 = {
+    steps: [
+      { title: '粗くするほどビットは減り、画質は落ちる', text: `場面2・3 の手順を画像全体（45 ブロック）にかけ、量子化の幅を 1/4 倍から 8 倍まで変えてビット数と元とのずれを測った。幅を 1 倍から 2 倍にするとビットは ${U.fmt(RD5_1.bits)} から ${U.fmt(RD5_2.bits)} に減る。粗くすると、ブロックの境目が見え始める（ブロックノイズ）。` },
+      { title: '画質を数で測る', text: 'PSNR は、元との差の 2 乗の平均（MSE）から 10·log10(255² ÷ MSE) で求める dB の値で、計算は簡単だが目の感じ方とずれることがある。SSIM は明るさ・コントラスト・構造の似かたを比べる。Netflix の VMAF は複数の指標を機械学習で組み合わせ、0〜100 の点にする。' },
+      { title: '新しい方式ほど同じ画質のビットが少ない', text: 'ブロックの分け方・予測・変換・符号の道具が世代ごとに増え、同じ画質に要るビットが減ってきた。Facebook の 2018 年の測定では、AV1 は x264（H.264）より約 46%、libvpx（VP9）より約 34% 少なかった。Google は、VP9 で既存の方式より最大 50% 減らせるとしている。' },
+      { title: 'YouTube の解像度ごとのビットレート', text: `例の動画（25 fps）の 1080p は、2026 年 10 月の時点で H.264 が 3.04、VP9 が 1.16、AV1 が 1.14 Mbps で、VP9 は圧縮前（約 ${rnd(RAW5)} Mbps）の約 ${rnd(RAW5 / 1.16 / 10) * 10} 分の 1 だった。60 fps の動画では、同じ 1080p でもふつうは高くなる。` },
+      { title: '符号化は重く、復号は軽く', text: '符号化側は、ブロックの分け方・予測の向き・ベクトル・変換の組み合わせを試し、ビットと画質の釣り合いが最もよいものを選ぶ。新しい方式ほど候補が多く、計算が増える。復号側は選ばれたとおりに組み立てるだけで軽い。符号化は 1 回、復号は視聴のたびなので、符号化に計算をかけても見合う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      // 左：戻した画像と読み値
+      S.text(24, 36, '戻した画像（72×40、45 ブロック）', { cls: 't-b t-md' }, svg);
+      st.img = mkPix(svg, 24, 48, W2, H2, 4, false);
+      st.rL = [0, 1, 2, 3].map((k) => S.text(326, 70 + k * 24, '', { cls: 't-mono t-sm' + (k === 0 ? ' t-x t-b' : '') }, svg));
+      // 左下：ビット数と PSNR のグラフ
+      const GX0 = 64, GX1 = 440, GY0 = 500, GY1 = 250, BMAX = 9000, PMIN = 22, PMAX = 42;
+      st.gxy = (b, p) => [GX0 + (GX1 - GX0) * b / BMAX, GY0 - (GY0 - GY1) * (p - PMIN) / (PMAX - PMIN)];
+      S.text(24, 236, 'ビット数と画質（幅 1/4 倍〜8 倍）', { cls: 't-b t-md' }, svg);
+      S.line(GX0, GY0, GX1, GY0, { cls: 's-rule w1' }, svg);
+      S.line(GX0, GY0, GX0, GY1 - 6, { cls: 's-rule w1' }, svg);
+      [0, 3000, 6000, 9000].forEach((b) => { const [x] = st.gxy(b, PMIN); S.text(x, GY0 + 16, U.fmt(b), { cls: 't-c t-xs t-mono t-dim' }, svg); });
+      [25, 30, 35, 40].forEach((p) => { const [, y] = st.gxy(0, p); S.line(GX0, y, GX1, y, { cls: 's-soft w1' }, svg); S.text(GX0 - 6, y + 4, String(p), { cls: 't-end t-xs t-mono t-dim' }, svg); });
+      S.text(GX1, GY0 + 34, '画像全体のビット数 →', { cls: 't-end t-xs t-dim' }, svg);
+      S.text(GX0 + 6, GY1 + 2, 'PSNR（dB）', { cls: 't-xs t-dim' }, svg);
+      S.poly(RD5.map((r) => st.gxy(r.bits, r.psnr)), { cls: 'f-none s-d w2' }, svg);
+      RD5.forEach((r) => { const [x, y] = st.gxy(r.bits, r.psnr); S.circle(x, y, 3.5, { cls: 'f-d' }, svg); });
+      st.cur = S.circle(0, 0, 7, { cls: 'f-none s-x w3' }, svg);
+      const [rx] = st.gxy(23040, PMIN);
+      S.text(GX1, GY1 - 12, `元の画素は 72×40×8 = 23,040 ビット`, { cls: 't-end t-xs t-dim' }, svg);
+      // 右：段階ごとの中身
+      const RX = 490;
+      // 段階1・2：元の画像と画質の尺度
+      st.gOrig = S.g({ cls: 'fade' }, svg);
+      S.text(RX, 36, '元の画像', { cls: 't-b t-md' }, st.gOrig);
+      mkPix(st.gOrig, RX, 48, W2, H2, 4, false).set((i) => Y2[i]);
+      st.gMet = S.g({ cls: 'fade hide' }, svg);
+      S.text(RX, 244, '画質の尺度', { cls: 't-b t-md' }, st.gMet);
+      st.mL = [0, 1].map((k) => S.text(RX, 272 + k * 22, '', { cls: 't-mono t-sm' + (k === 1 ? ' t-x t-b' : '') }, st.gMet));
+      [['PSNR', '差の 2 乗の平均から求める。dB、大きいほど元に近い'], ['SSIM', '明るさ・コントラスト・構造の似かた。1 で同じ'], ['VMAF', '複数の指標を機械学習で合成。0〜100（Netflix）']].forEach(([a, b], k) => {
+        S.text(RX, 336 + k * 26, a, { cls: 't-sm t-b t-mono' }, st.gMet);
+        S.text(RX + 56, 336 + k * 26, b, { cls: 't-sm' }, st.gMet);
+      });
+      // 段階3：方式の世代
+      st.gGen = S.g({ cls: 'fade hide' }, svg);
+      S.text(RX, 36, '方式の世代と、増えた主な道具', { cls: 't-b t-md' }, st.gGen);
+      [['H.264（2003 年）', 'ITU-T と ISO/IEC', ['16×16 のブロック、4×4・8×8 の整数変換', '1/4 画素の動き、CABAC、デブロッキング']],
+       ['VP9（2013 年）', 'Google', ['64×64 のブロック、32×32 までの変換', '1/8 画素の動き']],
+       ['AV1（2018 年）', 'AOMedia（Google・Netflix など）', ['128×128 のブロック、64×64 までの変換', '多値の算術符号、明るさから色を予測（CfL）']]].forEach(([n, o, ls], k) => {
+        const y = 52 + k * 92;
+        S.rect(RX, y, 446, 80, { rx: 6, cls: 'f-sf s-rule w1' }, st.gGen);
+        S.text(RX + 14, y + 22, n, { cls: 't-b t-md' }, st.gGen);
+        S.text(RX + 432, y + 22, o, { cls: 't-sm t-dim t-end' }, st.gGen);
+        ls.forEach((l, m) => S.text(RX + 14, y + 46 + m * 20, l, { cls: 't-sm' }, st.gGen));
+      });
+      S.text(RX, 340, '同じ画質に要るビット（Facebook, 2018 年、400 本の動画）', { cls: 't-b t-sm' }, st.gGen);
+      [['x264（H.264）', 100, 'f-dim', 0.45], ['AV1', 53.8, 'f-d', 1], ['libvpx（VP9）', 100, 'f-dim', 0.45], ['AV1', 66, 'f-d', 1]].forEach(([n, v, c, op], k) => {
+        const y = 356 + k * 24 + (k >= 2 ? 10 : 0);
+        S.text(RX, y + 12, n, { cls: 't-sm' + (c === 'f-d' ? ' t-d t-b' : '') }, st.gGen);
+        S.rect(RX + 110, y, 3 * v, 16, { cls: c, 'fill-opacity': op }, st.gGen);
+        S.text(RX + 116 + 3 * v, y + 12, v === 100 ? '100' : `約 ${rnd(v)}（${rnd(100 - v)}% 少ない）`, { cls: 't-sm t-mono' + (c === 'f-d' ? ' t-d t-b' : '') }, st.gGen);
+      });
+      S.text(RX, 470, 'VP9・AV1 は、開発した側が特許の使用料を求めない方式として作った', { cls: 't-xs t-dim' }, st.gGen);
+      // 段階4：YouTube の例の動画
+      st.gYT = S.g({ cls: 'fade hide' }, svg);
+      S.text(RX, 36, 'YouTube の例の動画（25 fps）の平均ビットレート', { cls: 't-b t-md' }, st.gYT);
+      S.text(RX, 54, 'dQw4w9WgXcQ、2026 年 10 月 12 日に確かめた値（Mbps）', { cls: 't-xs t-dim' }, st.gYT);
+      ['解像度', 'H.264', 'VP9', 'AV1'].forEach((h, k) => S.text(RX + 14 + k * 108, 82, h, { cls: 't-sm t-b' + (k ? ' t-mono' : '') }, st.gYT));
+      YT5.forEach((row, n) => {
+        const y = 92 + n * 28;
+        if (row[0] === '1080p') S.rect(RX, y, 446, 26, { rx: 4, cls: 'f-x-soft' }, st.gYT);
+        else S.line(RX, y + 26, RX + 446, y + 26, { cls: 's-soft w1' }, st.gYT);
+        row.forEach((v, k) => S.text(RX + 14 + k * 108, y + 18, k === 0 ? v : v === null ? '—' : v.toFixed(2), { cls: 't-sm t-mono' + (row[0] === '1080p' ? ' t-b' : '') + (k && v !== null ? ' t-d' : '') + (v === null ? ' t-dim' : '') }, st.gYT));
+      });
+      S.text(RX, 340, `1080p・25 fps・4:2:0 の圧縮前：1920×1080×1.5×8×25 ≈ ${rnd(RAW5)} Mbps`, { cls: 't-sm t-mono' }, st.gYT);
+      S.text(RX, 362, `VP9 の 1.16 Mbps はその約 ${rnd(RAW5 / 1.16 / 10) * 10} 分の 1`, { cls: 't-sm t-mono t-x t-b' }, st.gYT);
+      S.text(RX, 390, '音声は別のファイルで、AAC 約 130 kbps、Opus 約 50〜130 kbps（場面6）', { cls: 't-sm t-dim' }, st.gYT);
+      S.text(RX, 410, 'H.264 は 1080p まで。2160p・1440p は VP9 と AV1 だけ', { cls: 't-sm t-dim' }, st.gYT);
+      // 段階5：符号化と復号
+      st.gCost = S.g({ cls: 'fade hide' }, svg);
+      S.text(RX, 36, '符号化：候補を試して選ぶ', { cls: 't-b t-md' }, st.gCost);
+      const parts = [[], [[0.5, 0, 0.5, 1]], [[0, 0.5, 1, 0.5]], [[0.5, 0, 0.5, 1], [0, 0.5, 1, 0.5]], [[0.5, 0, 0.5, 1], [0, 0.5, 1, 0.5], [0.25, 0, 0.25, 0.5], [0, 0.25, 0.5, 0.25]],
+        [[0.5, 0, 0.5, 1], [0, 0.5, 1, 0.5], [0.75, 0.5, 0.75, 1], [0.5, 0.75, 1, 0.75]], [[0.25, 0, 0.25, 1], [0.5, 0, 0.5, 1], [0.75, 0, 0.75, 1]], [[0, 0.25, 1, 0.25], [0, 0.5, 1, 0.5], [0, 0.75, 1, 0.75]]];
+      const CH = 4;
+      parts.forEach((ls, k) => {
+        const x = RX + (k % 4) * 64, y = 52 + Math.floor(k / 4) * 64;
+        S.rect(x, y, 52, 52, { cls: k === CH ? 'f-x-soft s-x w2' : 'f-in s-rule w1' }, st.gCost);
+        ls.forEach(([a, b, c, d]) => S.line(x + a * 52, y + b * 52, x + c * 52, y + d * 52, { cls: k === CH ? 's-x w15' : 's-dim w1' }, st.gCost));
+      });
+      S.text(RX, 200, 'ブロックの分け方の候補の例（このほか予測の向き・ベクトル・変換も）', { cls: 't-xs t-dim' }, st.gCost);
+      S.text(RX, 218, '1 つずつビットと画質を見積もって、釣り合いの最もよいものを選ぶ', { cls: 't-xs t-dim' }, st.gCost);
+      S.path(`M${RX + 270},${130} H${RX + 318}`, { cls: 'f-none s-mid w2', 'marker-end': mk('mid') }, st.gCost);
+      S.text(RX + 289, 120, '選んだ結果だけ', { cls: 't-c t-xs t-dim' }, st.gCost);
+      S.text(RX + 330, 36, '復号：組み立てるだけ', { cls: 't-b t-md' }, st.gCost);
+      S.rect(RX + 330, 78, 52, 52, { cls: 'f-x-soft s-x w2' }, st.gCost);
+      parts[CH].forEach(([a, b, c, d]) => S.line(RX + 330 + a * 52, 78 + b * 52, RX + 330 + c * 52, 78 + d * 52, { cls: 's-x w15' }, st.gCost));
+      S.rect(RX, 244, 446, 76, { rx: 6, cls: 'f-sf s-rule w1' }, st.gCost);
+      S.text(RX + 14, 268, '符号化：配信する形式ごとに 1 回', { cls: 't-sm t-b' }, st.gCost);
+      S.text(RX + 14, 290, '復号：視聴のたびに、それぞれの端末で', { cls: 't-sm t-b t-d' }, st.gCost);
+      S.text(RX + 14, 310, '→ 符号化に時間をかけても、全体の計算は割に合う', { cls: 't-sm' }, st.gCost);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gOrig, i <= 1);
+      S.fade(st.gMet, i === 1);
+      S.fade(st.gGen, i === 2);
+      S.fade(st.gYT, i === 3);
+      S.fade(st.gCost, i === 4);
+      st.key = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 段階1・2 は 1.6 秒ごとに幅を変える（細かい→粗い）。ほかは基準の幅
+      const k = i <= 1 ? Math.floor(ctx.ts / 1.6) % RD5.length : SC5.indexOf(1);
+      const key = i + ':' + k;
+      if (key === st.key) return;
+      st.key = key;
+      const r = RD5[k];
+      st.img.set((n) => r.img[n], 'sc' + k);
+      const [x, y] = st.gxy(r.bits, r.psnr);
+      st.cur.setAttribute('cx', x); st.cur.setAttribute('cy', y);
+      st.rL[0].textContent = `幅 ×${r.sc}`;
+      st.rL[1].textContent = `${U.fmt(r.bits)} ビット`;
+      st.rL[2].textContent = `1 画素 ${U.fmt(r.bits / (W2 * H2), 2)} ビット`;
+      st.rL[3].textContent = `PSNR ${U.fmt(r.psnr, 1)} dB`;
+      st.mL[0].textContent = `MSE（差の 2 乗の平均）= ${U.fmt(r.mse, 1)}`;
+      st.mL[1].textContent = `PSNR = 10·log10(255² ÷ ${U.fmt(r.mse, 1)}) = ${U.fmt(r.psnr, 1)} dB`;
+    }
+  };
+
+  /* ================================================================
+     場面6 音声とコンテナ
+     上の帯：例の動画の 3 つの形式のファイルの先頭から読んだ、最初の 200 ms のフレームとパケット
+            （2026-10-17 に読んだ値。時刻は再生のときの時刻で、Opus は CodecDelay 6.5 ms を引いてある）
+     段階1・2：20 ms の合成音を MDCT にかけ、Opus（CELT）の 21 帯域ごとに、教科書の簡単な模型で
+            しきい値（最小可聴値とマスキング）を求め、ビット数を見積もる（Johnston の知覚エントロピー）
+     ================================================================ */
+  const N6 = 960, FS6 = 48000;
+  const EB6 = [0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 2000, 2400, 2800, 3200, 4000, 4800, 5600, 6800, 8000, 9600, 12000, 15600, 20000];   // CELT の 21 帯域の境（Hz、RFC 6716 の表 55）
+  const bark6 = (f) => 13 * Math.atan(0.00076 * f) + 3.5 * Math.atan((f / 7500) ** 2);
+  const ath6 = (f) => { const k = f / 1000; return 3.64 * k ** -0.8 - 6.5 * Math.exp(-0.6 * (k - 3.3) ** 2) + 1e-3 * k ** 4; };   // 最小可聴値（Terhardt の近似式、dB SPL）
+  const sf6 = (dz) => 15.81 + 7.5 * (dz + 0.474) - 17.5 * Math.sqrt(1 + (dz + 0.474) ** 2);                                      // マスキングの広がり（Schroeder の関数、dB）
+  const AUD6 = (() => {
+    const amp = (db) => 10 ** ((db - 96) / 20);   // 全振幅の正弦を 96 dB とする
+    // 合成音：A の音（110・220・440 Hz）と 440 Hz の倍音、C#（554 Hz）、小さな E（659 Hz）、6〜20 kHz のシンバルのような雑音
+    const tones = [[110, 70], [220, 72], [440, 80], [554, 66], [659, 46], [880, 70], [1320, 62], [1760, 55], [2200, 48], [2640, 42], [3080, 36]];
+    let s = 20261017;
+    const rand = () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const comps = tones.map(([f, db], k) => [f, amp(db), k * 1.3]);
+    for (let f = 6000; f < 20000; f += 25) comps.push([f + 12.5, amp(f < 12000 ? 6 : 6 - 12 * (f - 12000) / 8000), rand() * 2 * Math.PI]);
+    const x = new Float64Array(2 * N6);
+    comps.forEach(([f, a, ph]) => { const w = 2 * Math.PI * f / FS6; for (let n = 0; n < 2 * N6; n++) x[n] += a * Math.cos(w * n + ph); });
+    // MDCT（窓は正弦、40 ms を 20 ms ずつ重ねる基本の形）。cos は漸化式で進める
+    const xw = x.map((v, n) => v * Math.sin(Math.PI * (n + 0.5) / (2 * N6)));
+    const X = new Float64Array(N6);
+    for (let k = 0; k < N6; k++) {
+      const th = Math.PI / N6 * (k + 0.5), c2 = 2 * Math.cos(th);
+      let cPrev = Math.cos(th * (0.5 + N6 / 2 - 1)), c = Math.cos(th * (0.5 + N6 / 2)), sum = 0;
+      for (let n = 0; n < 2 * N6; n++) { sum += xw[n] * c; const cn = c2 * c - cPrev; cPrev = c; c = cn; }
+      X[k] = sum;
+    }
+    const EFS = N6 * N6 / 4;   // 全振幅の正弦の、係数の 2 乗の和（位相で ±3 dB ほど揺れるので平均の値）
+    const dB = (e) => 96 + 10 * Math.log10(Math.max(e, 1e-30) / EFS);
+    const bands = [];
+    for (let b = 0; b < 21; b++) {
+      const k0 = EB6[b] / 25, k1 = EB6[b + 1] / 25, fc = (EB6[b] + EB6[b + 1]) / 2;
+      let e = 0; for (let k = k0; k < k1; k++) e += X[k] * X[k];
+      bands.push({ b, k0, k1, n: k1 - k0, f0: EB6[b], f1: EB6[b + 1], z: bark6(fc), L: dB(e), A: ath6(fc) });
+    }
+    // しきい値：最小可聴値と、各帯域が周りに広げるマスキング（自分の 14.5 + z dB 下が頂点）を電力で足す
+    bands.forEach((t) => {
+      let p = 10 ** (t.A / 10);
+      bands.forEach((m) => { p += 10 ** ((m.L - (14.5 + m.z) + sf6(t.z - m.z)) / 10); });
+      t.T = 10 * Math.log10(p);
+      // 丸めの誤差の合計がしきい値になる幅で丸め、係数 1 個を log2(2|q| + 1) ビットと見積もる
+      const step = Math.sqrt(12 * EFS * 10 ** ((t.T - 96) / 10) / t.n);
+      let bits = 0, nz = 0;
+      for (let k = t.k0; k < t.k1; k++) { const q = Math.round(X[k] / step); if (q) nz++; bits += Math.log2(2 * Math.abs(q) + 1); }
+      t.bits = bits; t.nz = nz;
+    });
+    const bits = Math.round(bands.reduce((a, t) => a + t.bits, 0));
+    const pcm = Array.from(x.slice(N6 / 2, N6 / 2 + N6), (v) => Math.round(v * 32767));   // 表示する 20 ms（16 ビットの整数）
+    return { bands, bits, nz: bands.reduce((a, t) => a + t.nz, 0), drop: bands.filter((t) => !t.nz).length, pcm, kbps: bits * 50 / 1000 };
+  })();
+  // 例の動画のファイルの先頭から読んだ最初の 200 ms（大きさはバイト）。WebM の木の大きさは要素全体（ID・大きさ・中身）なので、
+  // Opus のパケットは SimpleBlock から ID 1 バイト・大きさ 2 バイト・ブロックの見出し 4 バイトを除いた残り
+  // （要素全体であることは、形式の一覧の大きさ 3,433,755 ＝ EBML 36 ＋ Segment 3,433,719 と、索引の位置 259〜629 ＝ Cues 371 で確かめた）
+  const LANE6 = [
+    { name: '映像 AV1（398）', sub: '25 fps', y: 38,
+      items: [153, 10627, 13520, 988, 5].map((sz, n) => ({ a: 40 * n, b: 40 * n + 40, sz, tick: 512 * n })) },
+    { name: '音声 AAC（140）', sub: '44.1 kHz', y: 66,
+      items: [371, 538, 563, 349, 352, 360, 388, 431, 370].map((sz, m) => ({ a: 1024 * m / 44.1, b: 1024 * (m + 1) / 44.1, sz, tick: 1024 * m })) },
+    { name: '音声 Opus（251）', sub: '48 kHz', y: 94,
+      items: [0, 21, 41, 61, 81, 101, 121, 141, 161, 181, 201].map((t, k) => ({ a: t - 6.5, b: t + 13.5, sz: [543, 627, 296, 288, 283, 287, 290, 289, 537, 289, 286][k] - 7, tick: t })) }
+  ];
+  // 720p の AV1（398）のファイルの先頭 36 バイトと、先頭から順にたどった box（位置・大きさ）
+  const HEX6 = ('0000001c 66747970 64617368 00000000 69736f36 61763031 6d703431 000002a0 6d6f6f76').replace(/ /g, '').match(/../g).map((h) => parseInt(h, 16));
+  const u32 = (b, p) => ((b[p] << 24) >>> 0) + (b[p + 1] << 16) + (b[p + 2] << 8) + b[p + 3];   // 大きさ：先頭から 4 バイトの整数
+  const fourcc = (b, p) => String.fromCharCode(...b.slice(p, p + 4));                       // 種類：続く 4 バイトの文字
+  const BOX6 = [   // [深さ, 種類, 大きさ, 中身]
+    [0, 'ftyp', 28, '種類 dash（iso6・av01・mp41）'], [0, 'moov', 672, '全体の情報（ここまで初期化部分）'],
+    [1, 'mvhd', 108, '時刻の単位 12,800／秒、長さ 2,726,912'], [1, 'mvex', 40, 'この後に断片が続く印'], [1, 'trak', 516, 'トラック 1 本分'],
+    [2, 'tkhd', 92, 'トラック 1、1280×720'], [2, 'mdia', 416, ''], [3, 'mdhd', 32, '時刻の単位 12,800／秒'], [3, 'hdlr', 71, 'vide（映像）'],
+    [3, 'minf', 305, '… stbl → stsd：av01（AV1 の設定）'], [0, 'sidx', 488, '索引：断片 38 個の時刻と大きさ'],
+    [0, 'moof', 1140, '断片 1 の見出し'], [0, 'mdat', 302466, '断片 1 の中身（AV1 の 131 フレーム）']
+  ];
+  const TOP6 = [0, 1, 10, 11, 12];   // 最上位の box（BOX6 の行）
+  const TX6 = (ms) => 214 + (U.clamp(ms, -10, 200) + 10) * 720 / 210;   // 帯の時刻（−10〜200 ms）→ x
+  const BX6 = (b) => 414 + b * 512 / 21;                                // 帯域 b の左端
+  const BY6 = (db) => 446 - 2.4 * U.clamp(db, 0, 100);                 // dB → y
+  const hz6 = (f) => U.fmt(f);
+
+  // 断片 1 の moof の中（398）と、WebM の要素の並び（251）。[深さ, 名前, 大きさ（バイト）, 中身]
+  const FRAG6 = [[0, 'moof', '1,140', '断片の見出し'], [1, 'mfhd', '16', '通し番号 1'], [1, 'traf', '1,116', 'トラック 1 本分'],
+    [2, 'tfhd', '24', 'トラック 1、1 フレームの長さ 512'], [2, 'tfdt', '16', '始まりの時刻 0'], [2, 'trun', '1,068', '131 フレームの大きさと印'],
+    [0, 'mdat', '302,466', 'AV1 のフレーム 131 個']];
+  const WEBM6 = [[0, 'EBML', '36', '文書の種類 webm'], [0, 'Segment', '3,433,719', 'ここからファイルの終わりまで'], [1, 'SeekHead', '68', '各要素の位置'],
+    [1, 'Info', '59', '時刻の単位 1 ms、長さ 213,061 ms'], [1, 'Tracks', '84', 'A_OPUS、48 kHz、CodecDelay 6.5 ms'],
+    [1, 'Cues', '371', '索引：0・10,001 ms … の位置（22 個）'], [1, 'Cluster', '164,496', '時刻 0'],
+    [2, 'SimpleBlock', '543', '+0 ms（Opus のパケット 536）'], [2, 'SimpleBlock', '627', '+21 ms'], [2, 'SimpleBlock', '296', '+41 ms …'],
+    [1, 'Cluster', '', '時刻 10,001 …']];
+  const TRUN6 = [153, 10627, 13520, 988, 5, 2976, 5, 1107];   // 398 の断片 1 の trun の大きさ（先頭 8 個）
+  // H.264 の 1080p（137）の断片 1 の先頭 5 フレーム：種類（スライスの見出し）、trun の表示までのずれ。編集リストで 512 前へずらす
+  const H264_6 = [['I', 512], ['I', 512], ['P', 1536], ['B', 0], ['B', 0]].map(([ty, cto], n) => ({ ty, cto, dts: 512 * n, pts: (512 * n + cto - 512) / 12800 }));
+  const h2 = (v) => v.toString(16).padStart(2, '0').toUpperCase();
+  const sec6 = (v) => (v < 0 ? '−' : '') + U.fmt(Math.abs(v), 4) + ' 秒';
+  const tAt6 = (ts) => Math.min(199, U.mod(ts, 11) * 20);   // 段階6 の縦線：0〜199 ms を 10 秒で進め、1 秒止まる
+
+  const s6 = {
+    steps: [
+      { title: '音声も周波数に分けてから粗くする', dur: 15, text: `音声の符号化も、MDCT で周波数の係数に変えてから量子化する（[[2|空間の冗長]]の DCT と同じ考え）。区間を少しずつ重ねて変換するので、区間の境目に段差が出にくい。Opus は 0〜20 kHz の係数を 21 の帯域に分ける。帯域の幅は耳が周波数を聞き分ける細かさ（臨界帯域）に近く、高い所ほど広い。` },
+      { title: '聞こえない成分を捨て、誤差を隠す', dur: 19, text: `耳には周波数ごとに聞こえる最小の大きさ（最小可聴値）があり、大きな音の近くではそれが上がる（マスキング）。符号器はこれを模型で見積もり、しきい値より下の帯域は 0 にし、残りも誤差がしきい値に収まる粗さで丸める。図の模型の見積もりでは {x|${U.fmt(AUD6.bits)} ビット}で、PCM の約 ${Math.round(15360 / AUD6.bits)} 分の 1。` },
+      { title: 'AAC と Opus', text: 'AAC も Opus の CELT も、MDCT の係数を聞こえ方に合わせて粗くする。YouTube は両方の形を用意し、計測した再生では Opus の 129 kbps（251）が選ばれた。AAC の 44.1 kHz は CD と同じで、出力の装置と周波数が違えば、再生のときにブラウザか OS が変換する。' },
+      { title: 'MP4：大きさと種類で始まる box の入れ子', text: '符号にした映像や音声は、コンテナと呼ぶ形式のファイルに入れる。MP4 は「大きさ 4 バイト＋種類 4 文字」で始まる box の入れ子で、大きさを足せば次の box の位置が分かる。moov に方式・画面の大きさ・時刻の単位を、mdat に符号そのものを入れる。図は例の動画の 720p の AV1 のファイル。' },
+      { title: '断片に分けた MP4 と WebM', text: '配信用の MP4（fMP4）は、数秒ごとの moof と mdat の組に分け、moof に断片の始まりの時刻とフレームごとの大きさを書く。WebM は Matroska を元にした形式で、要素は「ID・大きさ・中身」の入れ子。Cluster が時刻を持ち、パケットを 1 個ずつ SimpleBlock に入れる。' },
+      { title: '時刻で映像と音声を合わせる', dur: 12, text: 'フレームとパケットは、それぞれの単位で時刻を持つ。MP4 は断片の始まりの時刻に長さを足し、単位で割って秒にする。B フレームのある H.264 は表示までのずれも足す。WebM は Cluster とブロックの時刻（ms）を足して CodecDelay を引く。出す画はプレーヤーが音声の時計で選ぶ（第24章）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      const panel = (g, x, y, w, h, title) => { S.rect(x, y, w, h, { rx: 6, cls: 'f-sf s-rule w1' }, g); if (title) S.text(x + 12, y + 22, title, { cls: 't-b t-sm' }, g); };
+      /* ---- 上の帯：最初の 200 ms のフレームとパケット ---- */
+      S.text(24, 24, '最初の 200 ms に入る映像のフレームと音声のパケット（例の動画のファイルから）', { cls: 't-b t-md' }, svg);
+      st.laneKey = S.text(936, 24, '', { cls: 't-xs t-dim t-end' }, svg);
+      st.lanes = LANE6.map((ln) => {
+        const g = S.g({}, svg);
+        const lb = S.text(24, ln.y + 16, '', { cls: 't-sm' }, g);
+        S.el('tspan', { text: ln.name + ' ', cls: 't-b' }, lb);
+        S.el('tspan', { text: ln.sub, cls: 't-xs t-dim' }, lb);
+        const items = ln.items.map((it) => {
+          const x0 = TX6(it.a), x1 = TX6(it.b);
+          const r = S.rect(x0, ln.y, Math.max(0, x1 - x0), 24, { cls: 'f-d-soft s-d w1' }, g);
+          const tx = x1 - x0 >= 30 ? S.text((x0 + x1) / 2, ln.y + 16, '', { cls: 't-c t-xs t-mono' }, g) : null;
+          return { ...it, r, tx };
+        });
+        return { g, items };
+      });
+      // Opus の先頭の 6.5 ms（312 標本）は再生のときに捨てる
+      st.preskip = S.rect(TX6(-6.5), 94, TX6(0) - TX6(-6.5), 24, { cls: 'f-dim fade hide', 'fill-opacity': 0.55 }, svg);
+      S.line(TX6(-10), 124, TX6(200), 124, { cls: 's-rule w1' }, svg);
+      [0, 40, 80, 120, 160, 200].forEach((ms) => {
+        S.line(TX6(ms), 124, TX6(ms), 128, { cls: 's-dim w1' }, svg);
+        S.text(TX6(ms), 139, ms === 200 ? '200 ms' : String(ms), { cls: 't-c t-xs t-mono t-dim' }, svg);
+      });
+      st.head = S.line(TX6(0), 34, TX6(0), 122, { cls: 's-x w2', style: { display: 'none' } }, svg);
+
+      /* ---- 段階1・2：合成音の波形と帯域 ---- */
+      const gA = st.gAud = S.g({ cls: 'fade' }, svg);
+      const ob = st.lanes[2].items[1];   // 段階1・2 で指す Opus のパケット
+      S.path(`M${(TX6(ob.a) + TX6(ob.b)) / 2},118 V152`, { cls: 'f-none s-x w15' }, gA);
+      S.rect(24, 152, 306, 186, { rx: 6, cls: 'f-sf s-x w15' }, gA);
+      S.text(36, 172, '1 パケット分の 20 ms（合成音）', { cls: 't-b t-sm' }, gA);
+      S.text(36, 188, '48 kHz・16 ビット、960 標本（1 チャンネル）', { cls: 't-xs t-dim' }, gA);
+      const WX0 = 80, WX1 = 320, WY = 256, WA = 48 / 16384;
+      S.line(WX0, WY, WX1, WY, { cls: 's-soft w1' }, gA);
+      [16384, 0, -16384].forEach((v) => S.text(WX0 - 6, WY - v * WA + 4, v ? (v > 0 ? '' : '−') + U.fmt(Math.abs(v)) : '0', { cls: 't-xs t-mono t-dim t-end' }, gA));
+      S.poly(AUD6.pcm.map((v, n) => [(WX0 + (WX1 - WX0) * n / (N6 - 1)).toFixed(1), (WY - v * WA).toFixed(1)]), { cls: 'f-none s-mid w1' }, gA);
+      S.text(36, 326, '標本：' + AUD6.pcm.slice(0, 4).map((v) => U.fmt(v)).join('、') + ' …', { cls: 't-xs t-mono' }, gA);
+      S.path('M336,245 H362', { cls: 'f-none s-mid w2', 'marker-end': mk('mid') }, gA);
+      S.text(349, 236, 'MDCT', { cls: 't-c t-xs t-b' }, gA);
+      // 帯域ごとの大きさ
+      panel(gA, 370, 152, 566, 330, '帯域ごとの大きさ（MDCT の係数の 2 乗の和）');
+      S.text(382, 188, 'dB、全振幅の正弦を 96 dB とした', { cls: 't-xs t-dim' }, gA);
+      [0, 20, 40, 60, 80, 100].forEach((db) => {
+        if (db) S.line(BX6(0), BY6(db), BX6(21), BY6(db), { cls: 's-soft w1' }, gA);
+        S.text(BX6(0) - 6, BY6(db) + 4, String(db), { cls: 't-xs t-mono t-dim t-end' }, gA);
+      });
+      S.line(BX6(0), BY6(0), BX6(21), BY6(0), { cls: 's-rule w1' }, gA);
+      st.bars = AUD6.bands.map((t) => S.rect(BX6(t.b) + 2, BY6(t.L), 512 / 21 - 4, Math.max(0, BY6(0) - BY6(t.L)), { cls: 'f-d' }, gA));
+      [[1, '0.2'], [5, '1'], [9, '2'], [13, '4'], [17, '8'], [19, '12'], [21, '20 kHz']].forEach(([b, s]) => {
+        S.line(BX6(b), BY6(0), BX6(b), BY6(0) + 4, { cls: 's-dim w1' }, gA);
+        S.text(BX6(b), 460, s, { cls: 't-c t-xs t-mono t-dim' }, gA);
+      });
+      st.rowLbl = S.text(BX6(0) - 6, 476, '', { cls: 't-xs t-dim t-end' }, gA);
+      st.row = AUD6.bands.map((t) => S.text(BX6(t.b + 0.5), 476, '', { cls: 't-c t-xs t-mono' }, gA));
+      // 段階2：しきい値と最小可聴値
+      const gT = st.gThr = S.g({ cls: 'fade hide' }, gA);
+      let dA = '';
+      AUD6.bands.forEach((t) => { for (let j = 0; j <= 8; j++) { const f = t.f0 + (t.f1 - t.f0) * j / 8; dA += (dA ? 'L' : 'M') + (BX6(t.b) + 512 / 21 * j / 8).toFixed(1) + ',' + BY6(ath6(Math.max(f, 20))).toFixed(1); } });
+      S.path(dA, { cls: 'f-none s-dim w15 dash' }, gT);
+      S.path(AUD6.bands.map((t) => (t.b ? 'L' : 'M') + BX6(t.b).toFixed(1) + ',' + BY6(t.T).toFixed(1) + ' H' + BX6(t.b + 1).toFixed(1)).join(' '), { cls: 'f-none s-x w2' }, gT);
+      S.label(gT, 545, 226, 'E 659 Hz は A 440 Hz に隠れる', { cls: 't-xs t-x', box: 'f-sf s-x w1' });
+      S.path(`M${BX6(3.5)},237 V${BY6(AUD6.bands[3].T) - 3}`, { cls: 'f-none s-x w1' }, gT);
+      S.label(gT, 790, 284, '12 kHz より上の弱い音は聞こえない', { cls: 't-xs t-x', box: 'f-sf s-x w1' });
+      S.path(`M${BX6(19.5)},295 V${BY6(AUD6.bands[19].L) - 3}`, { cls: 'f-none s-x w1' }, gT);
+      S.line(382, 500, 404, 500, { cls: 's-x w2' }, gT);
+      S.text(410, 504, 'しきい値（最小可聴値とマスキング）', { cls: 't-xs' }, gT);
+      S.line(612, 500, 634, 500, { cls: 's-dim w15 dash' }, gT);
+      S.text(640, 504, '最小可聴値', { cls: 't-xs' }, gT);
+      S.rect(712, 494, 12, 12, { cls: 'f-dim', 'fill-opacity': 0.45 }, gT);
+      S.text(730, 504, '係数がすべて 0 になる帯域', { cls: 't-xs' }, gT);
+      st.cur = S.rect(0, 0, 512 / 21, 10, { cls: 'f-none s-x w2' }, gA);
+      // 計算の欄
+      panel(gA, 24, 350, 306, 202);
+      st.cL = [0, 1, 2, 3, 4, 5].map((k) => S.text(36, 374 + k * 30, '', { cls: 't-sm' }, gA));
+
+      /* ---- 段階3：AAC と Opus ---- */
+      const gC = st.gCodec = S.g({ cls: 'fade hide' }, svg);
+      panel(gC, 24, 152, 912, 400, 'AAC と Opus（例の動画の音声の形式）');
+      const CX = [36, 214, 584];
+      S.text(CX[1], 200, 'Opus', { cls: 't-b t-md' }, gC);
+      S.text(CX[2], 200, 'AAC', { cls: 't-b t-md' }, gC);
+      const avg = (bps, s) => Math.round(bps * s / 8);
+      [['規格', 'IETF の RFC 6716（2012 年）', 'MPEG の規格（1997 年）'],
+       ['仕組み', '音楽向けの CELT（MDCT）と声向けの SILK（線形予測）', 'MDCT（区間を半分ずつ重ねて変換する）'],
+       ['1 フレームの長さ', '2.5〜60 ms（例の動画の先頭は 20 ms）', '1,024 標本（44.1 kHz で 23.2 ms）'],
+       ['粗くするやり方', '帯域の大きさを必ず送り、帯域の中の形を少ないビットで', '帯域ごとに量子化の幅（スケールファクタ）を変える'],
+       ['形式の番号（itag）', '249・250・251（平均 46・61・129 kbps）', '140（平均 130 kbps）'],
+       ['標本化周波数', '48 kHz・2 チャンネル', '44.1 kHz・2 チャンネル（CD と同じ）'],
+       ['MSE に渡す型', 'audio/webm; codecs="opus"', 'audio/mp4; codecs="mp4a.40.2"'],
+       ['先頭のパケット', `${LANE6[2].items.slice(0, 5).map((it) => it.sz).join('・')} バイト …`, `${LANE6[1].items.slice(0, 5).map((it) => it.sz).join('・')} バイト …`],
+       ['1 個あたり（箱も含む）', `128,930 bps × 0.02 秒 ÷ 8 ≈ ${avg(128930, 0.02)} バイト`, `129,502 bps × 1,024 / 44,100 秒 ÷ 8 ≈ ${avg(129502, 1024 / 44100)} バイト`]
+      ].forEach(([a, b, c], r) => {
+        const y = 214 + r * 34, cls = 't-sm' + (r >= 6 ? ' t-mono' : '') + (r === 7 ? ' t-d' : '');
+        S.line(36, y, 924, y, { cls: 's-soft w1' }, gC);
+        S.text(CX[0], y + 22, a, { cls: 't-sm t-b' }, gC);
+        S.text(CX[1], y + 22, b, { cls }, gC);
+        S.text(CX[2], y + 22, c, { cls }, gC);
+      });
+      S.text(36, 536, 'パケットの先頭の 1 バイト（TOC）を読むと、251 の先頭の約 70 個は CELT だけ、249 の先頭の数個は SILK と CELT を合わせた形（どれも 20 ms）。', { cls: 't-xs t-dim' }, gC);
+
+      /* ---- 段階4：MP4 の box ---- */
+      const gB = st.gBox = S.g({ cls: 'fade hide' }, svg);
+      panel(gB, 24, 152, 412, 178, '720p の AV1（398）のファイルの先頭 36 バイト');
+      st.hexBg = [];
+      HEX6.forEach((v, p) => {
+        const x = 76 + (p % 12) * 29, y = 206 + Math.floor(p / 12) * 26, hdr = p < 8 || p >= 28;
+        const bg = S.rect(x - 2, y - 14, 25, 19, { rx: 3, cls: hdr ? 'f-in s-none w2' : 'f-none' }, gB);
+        S.text(x + 10.5, y, h2(v), { cls: 't-c t-sm t-mono' + (hdr ? ' t-b' : ' t-dim') }, gB);
+        if (hdr) st.hexBg.push({ bg, box: p < 8 ? 0 : 1 });
+      });
+      [0, 12, 24].forEach((o, r) => S.text(66, 206 + r * 26, String(o), { cls: 't-xs t-mono t-dim t-end' }, gB));
+      [0, 28].forEach((p, k) => S.text(36, 292 + k * 22, `${HEX6.slice(p, p + 4).map(h2).join(' ')} → ${U.fmt(u32(HEX6, p))} バイト、${HEX6.slice(p + 4, p + 8).map(h2).join(' ')} → ${fourcc(HEX6, p + 4)}`, { cls: 't-xs t-mono' }, gB));
+      panel(gB, 24, 342, 412, 210, '大きさを足して、次の box の位置へ');
+      let pos = 0;
+      st.walk = TOP6.map((r, k) => {
+        const [, typ, size] = BOX6[r];
+        const t = S.text(36, 394 + k * 28, `${U.fmt(pos)} バイト目：${typ}、${U.fmt(size)} → ${U.fmt(pos)} + ${U.fmt(size)} = ${U.fmt(pos + size)}`, { cls: 't-sm t-mono' }, gB);
+        pos += size;
+        return t;
+      });
+      S.text(36, 540, `${U.fmt(pos)} バイト目からは断片 2 の moof（断片は 38 個）`, { cls: 't-xs t-dim' }, gB);
+      panel(gB, 452, 152, 484, 400, 'box の入れ子（大きさはバイト）');
+      st.tree = BOX6.map(([d, typ, size, what], r) => {
+        const y = 186 + r * 25, x = 464 + d * 18;
+        const box = S.rect(x, y, 44, 20, { rx: 3, cls: typ === 'mdat' ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, gB);
+        S.text(x + 22, y + 14, typ, { cls: 't-c t-xs t-mono t-b' }, gB);
+        S.text(640, y + 14, U.fmt(size), { cls: 't-xs t-mono t-dim t-end' }, gB);
+        S.text(652, y + 14, what, { cls: 't-xs' }, gB);
+        return { box, base: typ === 'mdat' ? 'f-d-soft' : 'f-in' };
+      });
+      S.text(464, 186 + 13 * 25 + 14, '… 断片 2〜38（moof と mdat の組が続く）', { cls: 't-xs t-dim' }, gB);
+
+      /* ---- 段階5：断片に分けた MP4 と WebM ---- */
+      const gF = st.gFrag = S.g({ cls: 'fade hide' }, svg);
+      const tree = (rows, x0, sx, wx) => rows.map(([d, name, size, what], r) => {
+        const y = 186 + r * 26, x = x0 + d * 16, w = name.length * 6.4 + 12;
+        S.rect(x, y, w, 20, { rx: 3, cls: name === 'mdat' || name === 'SimpleBlock' ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, gF);
+        const nm = S.text(x + w / 2, y + 14, name, { cls: 't-c t-xs t-mono t-b' }, gF);
+        if (size) S.text(sx, y + 14, size, { cls: 't-xs t-mono t-dim t-end' }, gF);
+        const tx = S.text(wx, y + 14, what, { cls: 't-xs' }, gF);
+        return { nm, tx };
+      });
+      panel(gF, 24, 152, 436, 400, 'MP4 の断片 1（398）：moof ＋ mdat');
+      tree(FRAG6, 36, 236, 248);
+      S.text(36, 392, 'trun に並ぶフレームの大きさ（バイト）', { cls: 't-xs t-dim' }, gF);
+      const tr = S.text(36, 412, '', { cls: 't-sm t-mono' }, gF);
+      st.trun = TRUN6.map((v, k) => { if (k) S.el('tspan', { text: '、' }, tr); return S.el('tspan', { text: U.fmt(v) }, tr); });
+      S.el('tspan', { text: ' …' }, tr);
+      S.text(36, 440, '5 バイトのもの（131 個のうち 52 個）は、', { cls: 't-xs' }, gF);
+      S.text(36, 456, '先に復号しておいたフレームを出す指示だけ（場面4 の B の代わり）', { cls: 't-xs' }, gF);
+      S.text(36, 492, '断片 2 の tfdt = 0 + 131 × 512 = 67,072', { cls: 't-sm t-mono t-b' }, gF);
+      S.text(36, 514, '67,072 ÷ 12,800 = 5.24 秒（断片 2 の始まり）', { cls: 't-sm t-mono' }, gF);
+      S.text(36, 538, '断片 1 の大きさ = moof 1,140 ＋ mdat 302,466 = 303,606', { cls: 't-xs t-dim' }, gF);
+      panel(gF, 476, 152, 460, 400, 'WebM（251）：要素 ＝ ID ＋ 大きさ ＋ 中身');
+      st.webm = tree(WEBM6, 488, 680, 690);
+      S.text(488, 486, '1A 45 DF A3 9F … → ID 1A45DFA3（EBML）、大きさ 9F', { cls: 't-xs t-mono' }, gF);
+      S.text(488, 504, '9F = 1001 1111：先頭の 1 で「1 バイト」、残りの 7 ビット = 31', { cls: 't-xs t-mono' }, gF);
+      S.text(488, 522, 'ID 4 ＋ 大きさ 1 ＋ 中身 31 = 36（木の大きさは要素全体）', { cls: 't-xs t-mono' }, gF);
+      S.text(488, 542, 'Cluster と SimpleBlock の時刻の単位は Info の 1 ms', { cls: 't-xs t-dim' }, gF);
+
+      /* ---- 段階6：時刻の計算 ---- */
+      const gS = st.gSync = S.g({ cls: 'fade hide' }, svg);
+      panel(gS, 24, 152, 436, 400, '帯の縦線の時刻に出ているもの');
+      st.tNow = S.text(36, 204, '', { cls: 't-md t-b t-mono t-x' }, gS);
+      st.sync = ['映像（398、MP4）', '音声 AAC（140、MP4）', '音声 Opus（251、WebM）'].map((nm, k) => ({
+        a: S.text(36, 240 + k * 62, '', { cls: 't-sm t-b' }, gS),
+        b: S.text(36, 262 + k * 62, '', { cls: 't-sm t-mono' }, gS), nm
+      }));
+      S.text(36, 438, 'MP4：(tfdt ＋ 長さ × 番号) ÷ 時刻の単位。tfdt はどちらも 0', { cls: 't-xs' }, gS);
+      S.text(36, 458, 'WebM：Cluster の時刻 ＋ ブロックの時刻 − CodecDelay', { cls: 't-xs' }, gS);
+      S.text(36, 478, 'Opus の先頭の 312 標本（6.5 ms）は捨てる（帯の灰色の所）', { cls: 't-xs' }, gS);
+      S.text(36, 498, 'Opus は 2 個目から 20 ms ごとより 1 ms 遅い（ファイルの値のまま）', { cls: 't-xs' }, gS);
+      S.text(36, 522, '3 つの時刻は互いにそろっていない。同じ秒の値どうしを', { cls: 't-xs t-dim' }, gS);
+      S.text(36, 540, '同時に出すのはプレーヤーの仕事（第24章）', { cls: 't-xs t-dim' }, gS);
+      panel(gS, 476, 152, 460, 400, 'H.264 の 1080p（137）は表示の順を入れ替える');
+      const HX = [500, 556, 660, 740, 860];
+      ['復号の順', '種類', '復号の時刻', 'ずれ', '表示の時刻'].forEach((h, k) => S.text(HX[k], 204, h, { cls: 't-xs t-dim' + (k >= 2 ? ' t-end' : '') }, gS));
+      st.hRows = H264_6.map((h, n) => {
+        const y = 216 + n * 30;
+        const bg = S.rect(488, y, 436, 26, { rx: 4, cls: 'f-none' }, gS);
+        [String(n), h.ty, U.fmt(h.dts), U.fmt(h.cto), U.fmt(h.pts * 1000) + ' ms'].forEach((s, k) => S.text(HX[k], y + 18, s, { cls: 't-sm t-mono' + (k >= 2 ? ' t-end' : '') + (k === 4 ? ' t-b' : '') }, gS));
+        return bg;
+      });
+      S.text(488, 396, '復号の時刻 = tfdt ＋ 512 × 番号（単位は 1/12,800 秒）', { cls: 't-xs t-mono' }, gS);
+      S.text(488, 418, '表示の時刻 = (復号の時刻 ＋ ずれ − 512) ÷ 12,800', { cls: 't-xs t-mono' }, gS);
+      S.text(488, 440, 'ずれは trun に 1 枚ずつ、− 512 は編集リスト（elst）', { cls: 't-xs' }, gS);
+      S.text(488, 474, 'P（160 ms）を B（80・120 ms）より先に復号する', { cls: 't-sm t-b t-x' }, gS);
+      S.text(488, 498, '種類は各フレームのスライスの見出しから読んだ', { cls: 't-xs t-dim' }, gS);
+      S.text(488, 516, 'AV1（398）は表示の順に並び、ずれを持たない', { cls: 't-xs t-dim' }, gS);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const grp = i <= 2 ? 0 : i <= 4 ? 1 : 2;   // 帯の数字：番号・大きさ・時刻
+      st.laneKey.textContent = ['枠の中の数：番号', '枠の中の数：大きさ（バイト）', '枠の中の数：それぞれの単位の時刻'][grp];
+      const focus = [[2], [2], [1, 2], [0], [0, 2], [0, 1, 2]][i];
+      st.lanes.forEach((ln, k) => {
+        ln.g.style.opacity = focus.includes(k) ? '' : 0.35;
+        ln.items.forEach((it, n) => {
+          it.r.setAttribute('class', 'f-d-soft ' + (i <= 1 && k === 2 && n === 1 ? 's-x w2' : 's-d w1'));
+          if (it.tx) it.tx.textContent = grp === 0 ? String(n) : U.fmt(grp === 1 ? it.sz : it.tick);
+        });
+      });
+      S.fade(st.preskip, i >= 4);
+      st.head.style.display = i === 5 ? '' : 'none';
+      S.fade(st.gAud, i <= 1);
+      S.fade(st.gThr, i === 1);
+      S.fade(st.gCodec, i === 2);
+      S.fade(st.gBox, i === 3);
+      S.fade(st.gFrag, i === 4);
+      S.fade(st.gSync, i === 5);
+      st.rowLbl.textContent = i === 0 ? '係数' : 'ビット';
+      AUD6.bands.forEach((t, b) => {
+        st.row[b].textContent = i === 0 ? String(t.n) : String(Math.round(t.bits));
+        st.row[b].setAttribute('class', 't-c t-xs t-mono ' + (i === 0 ? 't-dim' : t.nz ? 't-d t-b' : 't-dim'));
+        st.bars[b].setAttribute('class', i >= 1 && !t.nz ? 'f-dim' : 'f-d');
+        st.bars[b].setAttribute('fill-opacity', i >= 1 && !t.nz ? 0.45 : 1);
+      });
+      st.key = null;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      const c = Math.floor(ctx.ts / [0.7, 0.9, 1, 1.6, 1.2, 1][i]);
+      const key = i + ':' + (i === 5 ? Math.round(tAt6(ctx.ts) * 2) : i === 2 ? 0 : c);
+      if (key === st.key) return;
+      st.key = key;
+      if (i <= 1) {
+        // 段階1・2：帯域を 1 つずつ指して、その帯域の値を出す
+        const b = c % 21, t = AUD6.bands[b];
+        const top = (i ? Math.min(BY6(t.L), BY6(t.T)) : BY6(t.L)) - 6;
+        st.cur.setAttribute('x', BX6(b)); st.cur.setAttribute('y', top); st.cur.setAttribute('height', BY6(0) - top + 2);
+        const L = i === 0
+          ? ['PCM のまま：960 × 16 = 15,360 ビット', 'MDCT：係数 960 個（25 Hz ごと）', 'うち 0〜20 kHz の 800 個を 21 帯域に',
+             `帯域 ${b}：${hz6(t.f0)}〜${hz6(t.f1)} Hz`, `係数 ${t.n} 個、大きさ ${U.fmt(t.L, 1)} dB`, '']
+          : [`帯域 ${b}：${hz6(t.f0)}〜${hz6(t.f1)} Hz、係数 ${t.n} 個`, `大きさ ${U.fmt(t.L, 1)} dB、しきい値 ${U.fmt(t.T, 1)} dB`,
+             t.nz ? `→ 0 でない係数 ${t.nz} 個、約 ${Math.round(t.bits)} ビット` : '→ 係数はすべて 0（送らない）',
+             `合計 ${U.fmt(AUD6.bits)} ビット（PCM の約 ${Math.round(15360 / AUD6.bits)} 分の 1）`, `0 でない係数 ${AUD6.nz} / 800 個、0 の帯域 ${AUD6.drop} 個`,
+             `1 秒 50 フレームで約 ${Math.round(AUD6.kbps)} kbps（1 チャンネル）`];
+        st.cL.forEach((tx, k) => {
+          tx.textContent = L[k];
+          tx.setAttribute('class', 't-sm' + ((i === 0 ? k === 0 : k === 3) ? ' t-b' : '') + ((i === 0 ? k === 3 || k === 4 : k <= 2) ? ' t-x' : ''));
+        });
+      } else if (i === 3) {
+        // 段階4：最上位の box を先頭から順にたどる
+        const w = c % TOP6.length;
+        st.walk.forEach((t, k) => t.setAttribute('class', 't-sm t-mono' + (k === w ? ' t-x t-b' : '')));
+        st.tree.forEach((tr, r) => tr.box.setAttribute('class', tr.base + (r === TOP6[w] ? ' s-x w2' : ' s-rule w1')));
+        st.hexBg.forEach((h) => h.bg.setAttribute('class', 'f-in ' + (h.box === w ? 's-x w2' : 's-none w2')));
+      } else if (i === 4) {
+        // 段階5：映像のフレームと trun の大きさ、Opus のパケットと SimpleBlock を順に指す
+        const n = c % 5, k = c % 3;
+        st.lanes[0].items.forEach((it, m) => it.r.setAttribute('class', 'f-d-soft ' + (m === n ? 's-x w2' : 's-d w1')));
+        st.lanes[2].items.forEach((it, m) => it.r.setAttribute('class', 'f-d-soft ' + (m === k ? 's-x w2' : 's-d w1')));
+        st.trun.forEach((sp, m) => sp.setAttribute('class', m === n ? 't-x t-b' : ''));
+        st.webm.forEach((w, r) => { const on = r === 7 + k; w.nm.setAttribute('class', 't-c t-xs t-mono t-b' + (on ? ' t-x' : '')); w.tx.setAttribute('class', 't-xs' + (on ? ' t-x t-b' : '')); });
+      } else if (i === 5) {
+        // 段階6：縦線の時刻 t に出ているフレームとパケットの時刻を、それぞれの単位から秒に直す
+        const tm = tAt6(ctx.ts), x = TX6(tm);
+        st.head.setAttribute('x1', x); st.head.setAttribute('x2', x);
+        const cur = st.lanes.map((ln) => { let j = 0; ln.items.forEach((it, m) => { if (it.a <= tm) j = m; }); return j; });
+        st.lanes.forEach((ln, k) => ln.items.forEach((it, m) => it.r.setAttribute('class', 'f-d-soft ' + (m === cur[k] ? 's-x w2' : 's-d w1'))));
+        st.tNow.textContent = `t = ${U.fmt(tm, 1)} ms`;
+        const [n, m, k] = cur, ok = LANE6[2].items[k].tick;
+        const L = [
+          [`映像（398、MP4）：番号 ${n} のフレーム`, `(0 + 512 × ${n}) ÷ 12,800 = ${sec6(512 * n / 12800)}`],
+          [`音声 AAC（140、MP4）：番号 ${m} のパケット`, `(0 + 1,024 × ${m}) ÷ 44,100 = ${sec6(1024 * m / 44100)}`],
+          [`音声 Opus（251、WebM）：番号 ${k} のパケット`, `(0 + ${ok}) ms − 6.5 ms = ${sec6((ok - 6.5) / 1000)}`]
+        ];
+        st.sync.forEach((s, j) => { s.a.textContent = L[j][0]; s.b.textContent = L[j][1]; });
+        st.hRows.forEach((bg, r) => { const p = H264_6[r].pts * 1000; bg.setAttribute('class', tm >= p && tm < p + 40 ? 'f-x-soft' : 'f-none'); });
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VI部 YouTube ／ 第23章',
+      title: '動画の圧縮',
+      home: '../index.html',
+      prev: { href: '22-server.html', title: 'YouTube のサーバー側' },
+      next: { href: '24-streaming.html', title: 'ストリーミングと再生' },
+      legend: [{ c: 'd', label: 'ビット列・係数・符号' }, { c: 'x', label: '注目・変化' }, { c: 'dim', label: '0・捨てる成分' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

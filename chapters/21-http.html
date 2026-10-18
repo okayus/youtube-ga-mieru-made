@@ -1,0 +1,1463 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>HTTP — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+  svg text.pre { white-space: pre; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第V部 約束ごと ／ 第21章 ／ 全25章</p>
+    <h1 id="h-s0">HTTP</h1>
+    <p class="standfirst">DNS で番号を引き、QUIC か TCP で接続し、TLS で暗号化した通り道ができると、ブラウザはその中で HTTP の要求を送り、サーバーは応答を返す。この章では、要求と応答の形、メソッドと状態コード、1 本の接続に多くの要求を通す HTTP/2 と HTTP/3、キャッシュと Cookie を順に見る。最後に、YouTube の視聴ページを開いたときに実際に流れる約 200 個の要求を、順番と大きさで追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中の要求と応答の動きは、見やすいように実際よりずっと遅くしてある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>リクエストとレスポンス</a><p>要求行・ヘッダ・空行・本文。HTTP/2・3 では擬似ヘッダになる。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>メソッドとステータス</a><p>GET と POST、2xx〜5xx の状態コード、範囲の指定。動画の断片の取り方。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>HTTP/1.1 → HTTP/2</a><p>1 本に 1 つずつと 6 本の並列、フレームとストリーム、HPACK、TCP の詰まり。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>HTTP/3</a><p>QUIC のストリームに要求を 1 本ずつ。QPACK、Alt-Svc と HTTPS レコード、HTTP/2 への後戻り。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>キャッシュと Cookie</a><p>Cache-Control と ETag・304、途中のキャッシュ、Set-Cookie の属性。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>YouTube を開くときの要求</a><p>HTML・JS・画像・動画の断片・統計の順番と大きさ（2026 年 10 月の計測）。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（YouTube のサーバー側）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。要求・応答の例と場面6の数値は、2026 年 10 月 12 日に、ログインしない状態のヘッドレス Chrome 155（Linux、窓 1920×1080、日本の固定回線）で https://www.youtube.com/watch?v=dQw4w9WgXcQ を開いて測った値。YouTube の作りは頻繁に変わり、要求の名前・数・大きさは時期・端末・回線で違う。ヘッダは一部を省き、Cookie と識別子の値は伏せた。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 リクエストとレスポンス ================= -->
+<section class="scene sc-anim" id="s1" data-tab="要求と応答" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>リクエストとレスポンス — 要求 1 つに応答 1 つ</h2>
+    <p class="sh-meta"><span class="chip">HTTP/1.1</span><span class="chip">CR LF</span><span class="chip">擬似ヘッダ</span><span class="chip">RFC 9110</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">HTTP は、ブラウザが<span class="tag d">要求</span>（リクエスト）を送り、サーバーが<span class="tag d">応答</span>（レスポンス）を 1 つ返す約束。HTTP/1.1 では、どちらも改行で区切った文字の列で、最初の行・ヘッダ・空行・本文の 4 つの部分からなる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note"><a class="xref" href="11-sou.html#s3">第11章</a>では要求文を 300 バイトの文字列として包んだ。実際の YouTube との通信は HTTP/2 か HTTP/3 で、要求も応答も場面3・4 のフレームに分けて送る。文字の要求行がそのまま流れるのは HTTP/1.1 だけ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザとサーバーの間を往復する要求と応答、HTTP/1.1 の要求と応答の文字の形、段階ごとの詳細"></svg></div>
+    <figcaption>図1　上の帯はブラウザとサーバーの 1 往復、左右の枠は HTTP/1.1 の文字で書いた要求と応答（ヘッダは一部を省き、Cookie の値は伏せた）。下の枠は段階ごとの詳細で、段階5は HTTP/2・3 の擬似ヘッダ。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 メソッドとステータス ================= -->
+<section class="scene sc-anim" id="s2" data-tab="メソッド" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>メソッドとステータス — 何をしたいか、どうなったか</h2>
+    <p class="sh-meta"><span class="chip">GET ／ POST</span><span class="chip">2xx〜5xx</span><span class="chip">Range ／ 206</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">要求の最初の語（<b>メソッド</b>）は「何をしたいか」を、応答の最初の行の 3 桁の<b>状態コード</b>は「どうなったか」を表す。コードの百の位で、成功・転送・要求の側の誤り・サーバーの側の誤りが分かる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">知らない状態コードを受け取ったら、同じ百の位の x00（たとえば 2xx なら 200）として扱う決まり（RFC 9110）。だから新しいコードを足しても、古いブラウザや途中の機器は壊れない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="上の帯で段階ごとの要求と応答が往復し、左にメソッドの表、右に状態コードの表がある図"></svg></div>
+    <figcaption>図2　上の帯は段階ごとの要求と応答の例。左はメソッドの性質、右は状態コードの種類で、● は 2026 年 10 月の計測で YouTube まわりの応答に見たコード。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 HTTP/1.1 → HTTP/2 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="HTTP/2" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>HTTP/1.1 → HTTP/2 — 1 本の接続に要求を混ぜる</h2>
+    <p class="sh-meta"><span class="chip">6 本まで</span><span class="chip">フレーム 9 B</span><span class="chip">HPACK</span><span class="chip">RFC 9113</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">HTTP/1.1 の接続は、応答を受け取り終えるまで次の要求に進めない。HTTP/2 は要求と応答を<span class="tag d">フレーム</span>に切り、1 本の TCP 接続の上で何本もの流れ（ストリーム）を混ぜて送る。ヘッダは HPACK で縮める。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">どの版で話すかは TLS の握手の中で決める（ALPN、<a class="xref" href="20-tls.html#s6">第20章</a>）。HTTP/2 は 2015 年の RFC 7540 で、2022 年に RFC 9113 に改められた。HPACK の数値は、17 個のヘッダを nghttp2 で 2 回送って数えた例。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="同じ 8 個の資源を、HTTP/1.1 の接続 1 本・6 本と HTTP/2 の接続 1 本で取る時間の図と、フレームの見出し、HPACK、TCP の順番待ちの説明"></svg></div>
+    <figcaption>図3　横軸は時間で、上は HTTP/1.1（段階1は接続 1 本、段階2から 6 本）、中は HTTP/2 の 1 本の接続の中のストリーム、縦の点線は「いま」。往復の待ちを大きく描いた模式図で、帯域は同時に流れる応答で分け合う。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 HTTP/3 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="HTTP/3" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>HTTP/3 — QUIC のストリームに要求を 1 本ずつ</h2>
+    <p class="sh-meta"><span class="chip">QUIC</span><span class="chip">QPACK</span><span class="chip">Alt-Svc</span><span class="chip">UDP 443</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">HTTP/3 は TCP の代わりに QUIC の上で動く。要求と応答の 1 組を QUIC のストリーム 1 本に載せ、パケットが失われても止まるのは、そのデータを含むストリームだけ。ヘッダは QPACK で縮める。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">HTTP/3 は 2022 年の RFC 9114、QUIC は 2021 年の RFC 9000。Alt-Svc の <code>h3-29</code> は、規格になる前の草案 29 版の名前。QUIC の接続と TLS の握手が 1 往復にまとまることは<a class="xref" href="19-tcp.html#s6">第19章</a>と<a class="xref" href="20-tls.html#s5">第20章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="TCP の上の HTTP/2 と QUIC の上の HTTP/3 でパケットが 1 個失われたときの比較、HTTP/3 のストリームの中身、h3 を知る道の図"></svg></div>
+    <figcaption>図4　上は応答の途中でパケットが 1 個失われたときの HTTP/2 と HTTP/3 の比較、中は HTTP/3 の接続の中のストリーム。下は、ブラウザが HTTP/3 を使えると知る道（2026 年 10 月の計測）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 キャッシュと Cookie ================= -->
+<section class="scene sc-anim" id="s5" data-tab="キャッシュ" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>キャッシュと Cookie — 覚えておく応答と、送り返す札</h2>
+    <p class="sh-meta"><span class="chip">Cache-Control</span><span class="chip">ETag ／ 304</span><span class="chip">Set-Cookie</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">同じものを何度も取らないように、ブラウザは応答を期限付きで覚える（<b>キャッシュ</b>）。期限と条件はサーバーが応答のヘッダで指示する。逆に、サーバーが渡した小さな札（<b>Cookie</b>）は、ブラウザが次の要求に付けて送り返す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">キャッシュの規則は RFC 9111、Cookie は RFC 6265（改訂の作業中）。<code>no-cache</code> は「保存してよいが、使う前に必ず確かめよ」で、保存を禁じる <code>no-store</code> とは違う。Cookie の値は訪問者を見分ける識別子なので、この章では伏せた。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ブラウザの中のキャッシュと Cookie の入れ物、途中の共有キャッシュ、サーバーの間を要求と応答が行き来する図と、実際のヘッダ"></svg></div>
+    <figcaption>図5　左はブラウザの中のキャッシュと Cookie の入れ物、右上は途中の共有キャッシュとサーバー、右の枠は段階ごとの図。下の枠は、その段階で行き来する実際のヘッダ（2026 年 10 月、値は一部を省いた）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 YouTube を開くときの要求 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="実際の要求" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>YouTube を開くときの実際の要求 — 約 200 個の順番と大きさ</h2>
+    <p class="sh-meta"><span class="chip">2026-10-12 計測</span><span class="chip">Chrome 155</span><span class="chip">ログインなし</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">視聴ページを開くと、HTML 1 個から始まり、JS と CSS、画像、動画と音声の断片、統計の送信へと、最初の 30 秒で約 200 個の要求が流れた。最初の画が出たのは約 2.4 秒後。転送量の 6 割は映像と音声。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">数値は、表紙の条件で数回測ったうちの 1 回（ほかの回もほぼ同じ）。最初の 30 秒に出した要求は 208 個（失敗・中断を含む）、転送は約 11 MB で、うち映像と音声が 6.9 MB。名前・数・大きさは時期・端末・広告の有無で変わる。断片をいつ・どの画質で取るかは<a class="xref" href="24-streaming.html">第24章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="視聴ページを開いてから 30 秒の要求を種類ごとの行に並べた時間の図と、種類ごとの転送量、段階ごとの要求の詳細"></svg></div>
+    <figcaption>図6　横軸は要求を出してからの時間（4 秒から先は縮めた）で、1 本の棒が 1 個の要求（塗りは HTTP/3、枠だけは HTTP/2、失敗した要求は除いた）、右端は種類ごとの転送量。段階6は、関連動画をクリックしたあとの 13 秒。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 要求を送り、応答を受け取る</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>要求は要求行・ヘッダ・空行・本文、応答は状態行・ヘッダ・本文。HTTP/2・3 は同じ中身を擬似ヘッダ（<code>:method</code>・<code>:path</code>・<code>:status</code> など）で書く（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>GET は取り、POST は本文を送る。状態コードの百の位が結果の種類。YouTube の動画の断片は、範囲を指定した GET ではなく、再生の状態を本文に入れた POST で取っていた（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>HTTP/1.1 は 1 本の接続に 1 つずつで、ブラウザは 6 本まで並べる。HTTP/2 はフレームとストリームで 1 本に混ぜ、HPACK でヘッダを縮めるが、TCP の順番待ちは残る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>HTTP/3 は要求を QUIC のストリームに 1 本ずつ載せ、失われても止まるのはそのストリームだけ。h3 は Alt-Svc か DNS の HTTPS レコードで知り、UDP が通らなければ HTTP/2 に戻る（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>期限の間はキャッシュから出し、切れたら ETag で確かめて 304。Cookie は Set-Cookie で渡され、属性で送る先と期限が決まる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>視聴ページは HTML 1 個から始まり、30 秒で約 200 個・約 11 MB。最初の画まで約 2.4 秒で、転送の 6 割は映像と音声（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>要求・応答</th><td>HTTP のメッセージ。要求はメソッド・対象・ヘッダ・本文、応答は状態コード・ヘッダ・本文。意味は RFC 9110 で、版によらず同じ。</td></tr>
+        <tr><th>メソッド</th><td>GET（取る）、POST（送って処理を頼む）、HEAD、PUT、DELETE、OPTIONS など。GET・HEAD は安全、PUT・DELETE も冪等、POST はどちらでもない。</td></tr>
+        <tr><th>状態コード</th><td>3 桁の数。1xx 途中経過、2xx 成功（200・204・206）、3xx 転送（301・303・304）、4xx 要求の誤り（403・404・429）、5xx サーバーの誤り（503）。</td></tr>
+        <tr><th>ヘッダ・擬似ヘッダ</th><td>名前と値の組。HTTP/2・3 は要求行・状態行の中身を <code>:method</code>・<code>:scheme</code>・<code>:authority</code>・<code>:path</code>・<code>:status</code> で書き、名前は小文字。</td></tr>
+        <tr><th>フレーム・ストリーム</th><td>HTTP/2 は 9 バイトの見出しの付いたフレームで送り、要求と応答の 1 組をストリームと呼ぶ（ブラウザ側は奇数番）。HTTP/3 は 1 組が QUIC のストリーム 1 本（0, 4, 8…）。</td></tr>
+        <tr><th>HPACK・QPACK</th><td>ヘッダの圧縮。静的表（HPACK 61 組、QPACK 99 組）と、両端が覚える動的表、ハフマン符号。QPACK は表の更新を別のストリームで送る。</td></tr>
+        <tr><th>Alt-Svc・HTTPS レコード</th><td>別の方法でも話せることを知らせる応答のヘッダ（RFC 7838）と DNS のレコード（RFC 9460）。<code>h3=":443"; ma=2592000</code> は 443 番で HTTP/3、30 日有効。</td></tr>
+        <tr><th>Cache-Control・ETag</th><td>保存の可否と期限（<code>max-age</code> 秒、<code>no-store</code>、<code>public</code>・<code>private</code>）と、中身の版の札。期限切れのあと札が合えば 304 で本文を省く。</td></tr>
+        <tr><th>Cookie の属性</th><td><code>Domain</code>・<code>Path</code>（送る先）、<code>Expires</code>（期限。無ければ閉じるまで）、<code>Secure</code>・<code>HttpOnly</code>・<code>SameSite</code>・<code>Partitioned</code>（送る条件と保存の分け方）。</td></tr>
+        <tr><th>Range・206</th><td><code>Range: bytes=0-1023</code> で一部だけを頼み、<code>206 Partial Content</code> と <code>Content-Range</code> で受け取る。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) >= 0x2000 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱。g.rect が枠、g.title / g.sub が文字 */
+  function box(p, x, y, w, h, title, sub, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: o.cls || 'f-sf s-rule w15' }, g);
+    if (title) g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (o.tcls || 't-md') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim ' + (o.scls == null ? 't-mono' : o.scls) }, g);
+    return g;
+  }
+  /* 荷札（要求・応答・フレーム）。中央が原点で、S.place で道の上に置く */
+  function pkt(p, text, cls, tcls) {
+    const g = S.g({ cls: 'pkt' }, p);
+    const w = tw(text, 11) + 16;
+    const r = S.rect(-w / 2, -11, w, 22, { rx: 4, cls: cls || 'f-d' }, g);
+    const t = S.text(0, 4, text, { cls: 't-c t-sm t-b ' + (tcls || 't-sf') }, g);
+    g.set = (s, c) => {
+      t.textContent = s;
+      const nw = tw(s, 11) + 16;
+      r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+      if (c) r.setAttribute('class', c);
+    };
+    return g;
+  }
+  /* 見えない道 */
+  const road = (p, d) => S.path(d, { cls: 'f-none s-none' }, p);
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 動きを止めているときは、段階の動きの終わりの姿を見せる */
+  const playing = () => YT.motion.playing;
+  /* 枠と題だけの板 */
+  function board(p, x, y, w, h, title, o) {
+    o = o || {};
+    const g = S.g({ cls: 'fade' }, p);
+    g.rect = S.rect(x, y, w, h, { rx: 8, cls: o.cls || 'f-sf s-rule w1' }, g);
+    if (title) g.title = S.text(x + 14, y + 20, title, { cls: 't-xs t-b ' + (o.tcls || 't-dim') }, g);
+    return g;
+  }
+  /* 等幅の行の並び。rows は [文字, 追加のクラス] の配列。行の text 要素の配列を返す */
+  function codeRows(p, x, y, rows, lh, base) {
+    return rows.map((r, k) => {
+      const [s, c] = Array.isArray(r) ? r : [r, ''];
+      return S.text(x, y + k * lh, s, { cls: (base || 't-sm t-mono pre') + (c ? ' ' + c : '') }, p);
+    });
+  }
+  /* 往復の荷札の動き。phases は [行き, 待ち, 帰り, 休み] の秒。{ which: 0 行き / 1 帰り / -1 なし, f } */
+  function trip(ts, phases) {
+    const q = U.seq(ts, phases, true);
+    if (q.i === 0) return { which: 0, f: U.ease.inOut(q.f) };
+    if (q.i === 2) return { which: 1, f: U.ease.inOut(q.f) };
+    return { which: q.i === 1 ? 0 : 1, f: 1, rest: true };
+  }
+
+  /* ================================================================
+     場面1 リクエストとレスポンス
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '要求行：何を、どの版で', text: '1 行目は要求行で、メソッド `GET`、対象 `/watch?v=dQw4w9WgXcQ`、版 `HTTP/1.1` を空白で区切る。対象は URL のパスとクエリ（第10章）で、スキームとホストは入らない。行の終わりは CR LF の 2 バイト（0x0D 0x0A）。' },
+      { title: 'ヘッダ：名前と値の行', text: '2 行目からは「名前: 値」のヘッダが 1 行に 1 つ並ぶ。名前の大文字・小文字は区別しない。ホスト名は `Host` に入れ、HTTP/1.1 では必須。同じ名前の行が 2 つあれば、値をカンマでつないだ 1 行と同じ意味になる（`Set-Cookie` は例外）。' },
+      { title: '空行で区切り、本文が続く', text: 'CR LF だけの空行がヘッダの終わりの印。そのあとが本文で、`GET` は本文を持たない。本文がどこで終わるかは、`Content-Length` のバイト数か、`Transfer-Encoding: chunked`（長さを書いた塊の列で、長さ 0 で終わる）で示す。' },
+      { title: '応答：状態行・ヘッダ・本文', text: '応答の 1 行目は状態行で、版・3 桁の状態コード・理由の句（`200 OK`）。ヘッダで本文の種類（`Content-Type`）と圧縮（`Content-Encoding: br`）を伝える。視聴ページの応答は、要求を送り出してから約 0.1 秒でヘッダが、約 1.5 秒で本文の終わりが届いた。' },
+      { title: 'HTTP/2・3 では擬似ヘッダになる', text: 'HTTP/2 と HTTP/3 には要求行も状態行もない。同じ中身を `:method` `:scheme` `:authority` `:path`、応答は `:status` という**擬似ヘッダ**で書き、ヘッダの名前は小文字に限る。意味（RFC 9110）は版によらず同じで、違うのはバイト列への書き方だけ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+
+      /* 上の帯: ブラウザとサーバーの 1 往復 */
+      box(svg, 30, 8, 180, 46, 'ブラウザ（PC）', '192.168.1.10');
+      box(svg, 750, 8, 180, 46, 'www.youtube.com', '142.250.196.110:443');
+      S.line(216, 31, 744, 31, { cls: 's-rule w15', 'marker-end': mk('dim'), 'marker-start': mk('dim') }, svg);
+      S.text(480, 64, 'TLS で暗号化した接続の中を通る（第20章）', { cls: 't-c t-xs t-dim' }, svg);
+      st.reqRoad = road(svg, 'M290,31 H670');
+      st.resRoad = road(svg, 'M670,31 H290');
+
+      /* URL（どの部分が要求のどこへ入るか） */
+      S.rect(30, 74, 318, 26, { rx: 13, cls: 'f-sf s-rule w1' }, svg);
+      const ut = S.text(44, 91, '', { cls: 't-sm t-mono' }, svg);
+      st.uScheme = S.el('tspan', { cls: 't-dim', text: 'https://' }, ut);
+      st.uHost = S.el('tspan', { text: 'www.youtube.com' }, ut);
+      st.uPath = S.el('tspan', { text: '/watch?v=dQw4w9WgXcQ' }, ut);
+      st.uNote = S.text(360, 91, '', { cls: 't-xs' }, svg);
+
+      /* 要求と応答の枠 */
+      const panel = (x, title, gut, rows) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        S.rect(x, 108, 438, 252, { rx: 8, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 14, 128, title, { cls: 't-xs t-b t-dim' }, g);
+        const lines = codeRows(g, x + 82, 152, rows, 23);
+        /* 左の縦の帯に、部分の名前 */
+        const parts = gut.map(([name, a, b]) => {
+          const y1 = 152 + a * 23 - 13, y2 = 152 + b * 23 + 6;
+          const pg = S.g({}, g);
+          const bar = S.rect(x + 12, y1, 4, y2 - y1, { rx: 2, cls: 'f-rule' }, pg);
+          const t = S.text(x + 22, (y1 + y2) / 2 + 4, name, { cls: 't-xs t-b t-dim' }, pg);
+          return { bar, t };
+        });
+        return { g, lines, parts };
+      };
+      st.req = panel(30, '要求（ブラウザ → サーバー）', [['要求行', 0, 0], ['ヘッダ', 1, 6], ['空行', 7, 7], ['本文', 8, 8]], [
+        'GET /watch?v=dQw4w9WgXcQ HTTP/1.1',
+        'Host: www.youtube.com',
+        'User-Agent: Mozilla/5.0 (X11; Linux x86_64) …',
+        'Accept: text/html,application/xhtml+xml,…',
+        'Accept-Language: ja',
+        'Accept-Encoding: gzip, deflate, br, zstd',
+        'Cookie: YSC=＊＊＊; VISITOR_INFO1_LIVE=＊＊＊',
+        ['（CR LF だけの空行）', 't-dim'],
+        ['（本文なし）', 't-dim']
+      ]);
+      st.res = panel(492, '応答（サーバー → ブラウザ）', [['状態行', 0, 0], ['ヘッダ', 1, 6], ['空行', 7, 7], ['本文', 8, 8]], [
+        'HTTP/1.1 200 OK',
+        'Content-Type: text/html; charset=utf-8',
+        'Content-Encoding: br',
+        'Transfer-Encoding: chunked',
+        'Cache-Control: no-cache, no-store, …',
+        'Alt-Svc: h3=":443"; ma=2592000, …',
+        'Set-Cookie: YSC=＊＊＊; Secure; HttpOnly; …',
+        ['（CR LF だけの空行）', 't-dim'],
+        ['<!DOCTYPE html><html … （Brotli で圧縮）', 't-dim']
+      ]);
+
+      /* 下の枠: 段階ごとの詳細 */
+      board(svg, 30, 372, 900, 178, '');
+      st.dTitle = S.text(44, 393, '', { cls: 't-xs t-b t-dim' }, svg);
+      st.details = [];
+
+      /* 段階1: 要求行のバイト */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const s = 'GET /watch?v=dQw4w9WgXcQ HTTP/1.1';
+        const bytes = [...s].map((c) => [c === ' ' ? 'SP' : c, c.charCodeAt(0)]).concat([['CR', 13], ['LF', 10]]);
+        const CW = 25.4, X0 = 36;
+        bytes.forEach(([c, v], k) => {
+          const x = X0 + k * CW, sp = c === 'SP' || c === 'CR' || c === 'LF';
+          S.rect(x, 408, CW - 2, 44, { rx: 3, cls: sp ? 'f-x-soft s-x w1' : 'f-in s-rule w1' }, g);
+          S.text(x + (CW - 2) / 2, 426, c, { cls: 't-c t-mono ' + (sp ? 't-xs t-x t-b' : 't-sm') }, g);
+          S.text(x + (CW - 2) / 2, 444, v.toString(16).toUpperCase().padStart(2, '0'), { cls: 't-c t-xs t-mono t-dim' }, g);
+        });
+        const brace = (a, b, label) => {
+          const x1 = X0 + a * CW + 2, x2 = X0 + (b + 1) * CW - 4;
+          S.path(`M${x1},462 V468 H${x2} V462`, { cls: 'f-none s-dim w1' }, g);
+          S.text((x1 + x2) / 2, 486, label, { cls: 't-c t-xs' }, g);
+        };
+        brace(0, 2, 'メソッド');
+        brace(4, 23, '対象（URL のパスとクエリ）');
+        brace(25, 32, '版');
+        brace(33, 34, '行の終わり');
+        S.text(44, 516, '1 文字が 1 バイト（ASCII）。空白 SP（0x20）で 3 つに区切る。ヘッダの各行も CR LF で終わる。', { cls: 't-xs t-dim' }, g);
+        S.text(44, 536, '35 バイトの中に、ホスト名は無い。ホスト名は次の行の Host ヘッダで送る。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, '要求行を 1 バイトずつ（16 進）']);
+      }
+      /* 段階2: ヘッダの数と大きさ */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const rows = [['視聴ページの要求（初めて開く）', '27 個', '約 1.1 KB', 'Cookie はまだ無い'], ['同じページの要求（2 回目）', '33 個', '約 1.8 KB', 'うち Cookie 約 0.5 KB'], ['サイト内の API の要求（POST）', '40 個', '約 3.7 KB', 'うち Cookie 約 1.8 KB']];
+        S.text(330, 418, 'ヘッダの数', { cls: 't-xs t-dim t-end' }, g);
+        S.text(430, 418, '文字にした大きさ', { cls: 't-xs t-dim t-end' }, g);
+        rows.forEach(([a, n, b, c], k) => {
+          const y = 444 + k * 26;
+          S.text(44, y, a, { cls: 't-sm' }, g);
+          S.text(330, y, n, { cls: 't-sm t-mono t-b t-end' }, g);
+          S.text(430, y, b, { cls: 't-sm t-mono t-b t-end' }, g);
+          S.text(456, y, c, { cls: 't-xs t-dim' }, g);
+        });
+        S.text(44, 530, '大きさは「名前: 値」の行を CR LF で並べたときのバイト数。sec-ch-ua で始まる 9〜11 個はクライアントヒント（ブラウザの銘柄・版・OS を項目ごとに知らせる）。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, 'Chrome 155 が実際に送ったヘッダ（2026 年 10 月の計測）']);
+      }
+      /* 段階3: 本文の終わりの示し方 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        S.text(44, 416, '長さを先に書く（POST の要求）', { cls: 't-xs t-b' }, g);
+        codeRows(g, 44, 436, [
+          'POST /youtubei/v1/get_watch HTTP/1.1',
+          'Content-Type: application/json',
+          'Content-Encoding: gzip',
+          ['Content-Length: 3202', 't-x t-b'],
+          ['（空行）', 't-dim'],
+          ['＜JSON を gzip で縮めた 3,202 バイト＞', 't-dim']
+        ], 18);
+        S.line(478, 406, 478, 540, { cls: 's-soft w1' }, g);
+        S.text(496, 416, '塊ごとに長さを書く（Transfer-Encoding: chunked）', { cls: 't-xs t-b' }, g);
+        codeRows(g, 496, 438, [
+          ['1f40', 't-x t-b'],
+          ['＜8,000 バイト＞', 't-dim'],
+          ['1f40', 't-x t-b'],
+          ['＜8,000 バイト＞ …', 't-dim'],
+          ['0', 't-x t-b']
+        ], 20);
+        S.text(560, 438, '← 16 進で書いた長さ（0x1f40 = 8,000）', { cls: 't-xs t-dim' }, g);
+        S.text(560, 518, '← 長さ 0 の塊で本文の終わり', { cls: 't-xs t-dim' }, g);
+        S.text(44, 540, '長さの数字も CR LF で終える。chunked は全体の長さを知らないまま送り始められる。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, '本文の終わりの示し方（HTTP/1.1。例の POST は HTTP/1.1 で書いた場合）']);
+      }
+      /* 段階4: 応答の本文の大きさ */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const X = 230, W = 660, full = 1395;   // 展開後 1,395 KB を W に
+        const bar = (y, kb, label, sub, cls) => {
+          S.text(44, y + 13, label, { cls: 't-sm t-b' }, g);
+          S.text(44, y + 28, sub, { cls: 't-xs t-dim' }, g);
+          S.rect(X, y, W * kb / full, 22, { rx: 3, cls }, g);
+        };
+        bar(410, 163, '送られてきた本文', 'Brotli で圧縮', 'f-d s-d w1');
+        S.text(X + W * 163 / full + 10, 426, '約 160 KB', { cls: 't-sm t-mono t-b' }, g);
+        bar(452, full, '展開した HTML', 'ブラウザが元に戻す', 'f-d-soft s-d w1');
+        S.text(X + W - 10, 468, '約 1.4 MB', { cls: 't-sm t-mono t-b t-end' }, g);
+        S.rect(X, 482, W * 0.974, 8, { rx: 2, cls: 'f-x-soft s-x w1' }, g);
+        S.text(X, 508, '↑ 97% は <script> の中（JS と、ytInitialData など埋め込みの JSON）', { cls: 't-xs t-x' }, g);
+        S.text(44, 536, '本文はできた部分から順に流れてくるので、ブラウザは全部が届く前に組み立てを始める（第10章）。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, '視聴ページの応答の本文（2026 年 10 月の計測）']);
+      }
+      /* 段階5: 擬似ヘッダ */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        S.text(44, 416, '要求', { cls: 't-xs t-b' }, g);
+        codeRows(g, 44, 440, [
+          [':method      GET', 't-x t-b'],
+          [':scheme      https', 't-x t-b'],
+          [':authority   www.youtube.com', 't-x t-b'],
+          [':path        /watch?v=dQw4w9WgXcQ', 't-x t-b'],
+          'accept-encoding  gzip, deflate, br, zstd  …'
+        ], 22);
+        S.line(478, 406, 478, 540, { cls: 's-soft w1' }, g);
+        S.text(496, 416, '応答', { cls: 't-xs t-b' }, g);
+        codeRows(g, 496, 440, [
+          [':status           200', 't-x t-b'],
+          'content-type       text/html; charset=utf-8',
+          'content-encoding   br',
+          'alt-svc            h3=":443"; ma=2592000',
+          ['理由の句（OK）と Transfer-Encoding は無い', 't-dim']
+        ], 22);
+        st.details.push([g, 'HTTP/2・HTTP/3 での同じ要求と応答（コロンで始まるのが擬似ヘッダ。名前は小文字）']);
+      }
+
+      /* 動く荷札 */
+      st.reqTok = pkt(svg, 'GET /watch?v=…', 'f-d');
+      st.resTok = pkt(svg, '200 OK', 'f-d');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.details.forEach(([g], k) => S.fade(g, k === i));
+      st.dTitle.textContent = st.details[i][1];
+      /* URL のどこが要求に入るか */
+      st.uHost.setAttribute('class', i === 1 || i === 4 ? 't-x t-b' : '');
+      st.uPath.setAttribute('class', i === 0 || i === 4 ? 't-x t-b' : '');
+      st.uNote.textContent = i === 0 ? '← パスとクエリが要求行の「対象」になる。スキームは接続の種類（TLS の 443 番）' : i === 1 ? '← ホスト名は Host ヘッダへ（1 つの番号で多くのサイトを見分ける）' : i === 4 ? '← ホストは :authority、パスとクエリは :path へ' : '';
+      st.uNote.setAttribute('class', 't-xs t-x');
+      /* 要求と応答の枠の、どの部分に注目するか */
+      const focus = [[0], [1], [2, 3], [], []][i];
+      const rfocus = [[], [], [3], [0, 1, 3], []][i];
+      const mark = (pan, list, rowsOf) => {
+        pan.parts.forEach((p, k) => {
+          const on = list.includes(k);
+          p.bar.setAttribute('class', on ? 'f-x' : 'f-rule');
+          p.t.setAttribute('class', 't-xs t-b ' + (on ? 't-x' : 't-dim'));
+        });
+        pan.lines.forEach((t, k) => {
+          const base = t.getAttribute('data-base') || t.getAttribute('class');
+          if (!t.getAttribute('data-base')) t.setAttribute('data-base', base);
+          const on = rowsOf(k);
+          t.setAttribute('class', base + (on ? ' t-x t-b' : ''));
+        });
+      };
+      const reqRow = (k) => (i === 0 && k === 0) || (i === 1 && k === 1);
+      const resRow = (k) => (i === 2 && k === 3) || (i === 3 && (k === 0 || k === 1 || k === 2));
+      mark(st.req, focus.map((p) => p).filter((p) => p < 4), reqRow);
+      mark(st.res, rfocus, resRow);
+      op(st.req.g, i === 3 || i === 4 ? 0.4 : '');
+      op(st.res.g, i <= 1 || i === 4 ? 0.4 : '');
+      /* 荷札の文字 */
+      st.reqTok.set(i === 4 ? 'HEADERS フレーム' : 'GET /watch?v=…');
+      st.resTok.set(i === 4 ? 'HEADERS ＋ DATA' : '200 OK');
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (!playing()) {
+        /* 止めているときは、注目している側の荷札だけを道の中ほどに置く */
+        const res = i === 3;
+        st.reqTok.style.display = res ? 'none' : '';
+        st.resTok.style.display = res ? '' : 'none';
+        S.place(res ? st.resTok : st.reqTok, res ? st.resRoad : st.reqRoad, 0.5);
+        return;
+      }
+      const m = trip(ctx.ts, [1.6, 0.5, 1.6, 0.9]);
+      st.reqTok.style.display = m.which === 0 && !m.rest ? '' : 'none';
+      st.resTok.style.display = m.which === 1 && !m.rest ? '' : 'none';
+      if (m.which === 0) S.place(st.reqTok, st.reqRoad, m.f);
+      else S.place(st.resTok, st.resRoad, m.f);
+    }
+  };
+
+  /* ================================================================
+     場面2 メソッドとステータス
+     ================================================================ */
+  /* 上の帯の 1 往復の台本。go は [荷札の文字, 道の向き 1=行き -1=帰り, 秒]、lost は途中で失う */
+  const S2_LANE = [
+    { sv: ['www.youtube.com', '142.250.196.110:443'], ph: [['GET /watch?v=dQw4w9WgXcQ', 1, 1.5], [null, 0, 0.4], ['200 OK  text/html', -1, 1.5], [null, 0, 0.6], ['POST /youtubei/v1/get_watch', 1, 1.5], [null, 0, 0.4], ['200 OK  application/json', -1, 1.5], [null, 0, 0.8]] },
+    { sv: ['www.youtube.com', '142.250.196.110:443'], ph: [['GET /watch?v=dQw4w9WgXcQ', 1, 0.9, 'lost'], [null, 0, 0.7, 'mark'], ['GET /watch?v=dQw4w9WgXcQ（送り直し）', 1, 1.5, 'mark'], [null, 0, 0.4], ['200 OK  text/html', -1, 1.5], [null, 0, 0.8]] },
+    { sv: ['www.youtube.com', '142.250.196.110:443'], ph: [['POST /api/stats/watchtime（本文 188 B）', 1, 1.6], [null, 0, 0.4], ['204 No Content（本文なし）', -1, 1.6], [null, 0, 0.9]] },
+    { sv: ['www.youtube.com', '142.250.196.110:443'], ph: [['GET …/base.js　Range: bytes=0-1023', 1, 1.6], [null, 0, 0.4], ['206　Content-Range: bytes 0-1023/2630456', -1, 1.6], [null, 0, 0.9]] },
+    { sv: ['rr1---sn-xxxxxxxx', '.googlevideo.com:443'], ph: [['POST /videoplayback?…（本文 約 1.4 KB）', 1, 1.6], [null, 0, 0.4], ['200　application/vnd.yt-ump（約 1.6 MB）', -1, 1.6], [null, 0, 0.9]] },
+    { sv: ['youtu.be', '短い URL'], ph: [['GET /dQw4w9WgXcQ', 1, 1.4], [null, 0, 0.4], ['303 See Other → /watch?v=dQw4w9WgXcQ', -1, 1.6], [null, 0, 0.9]] }
+  ];
+  const s2 = {
+    steps: [
+      { title: 'GET は取る、POST は送る', text: '`GET` は対象を取り出すだけで、本文を送らない。視聴ページ・JS・サムネイルはすべて GET。`POST` は本文を送って処理を頼む。YouTube は、再生の統計や、サイトの中で次の動画へ移るときの再生情報の問い合わせ（JSON）を POST で送る。' },
+      { title: '安全と冪等', text: '`GET` は**安全**（サーバーの状態を変えない）で**冪等**（何度送っても効果が 1 回と同じ）なので、ブラウザは失敗した要求を黙って送り直せる。`POST` はどちらでもないので、フォームを送り直す前にブラウザが確かめる。`PUT` と `DELETE` は冪等だが安全ではない。' },
+      { title: '2xx：成功', text: '`200 OK` は本文付きの成功。`204 No Content` は本文の無い成功で、再生中に 10 秒ごとに POST する視聴時間の統計には、これが返っていた。`206 Partial Content` は、範囲を指定した要求に、その部分だけを返す成功。' },
+      { title: '範囲を指定して取る（206）', text: '要求に `Range` で範囲を書くと、サーバーはその部分だけを `206 Partial Content` で返し、`Content-Range` に範囲と全体のバイト数を書く。図2 の上の帯は base.js の先頭 1,024 バイトを頼んだ例。`<video src>` や `<audio>` は、この形で少しずつ取る。' },
+      { title: 'YouTube の断片は POST で', text: '2026 年 10 月の計測では、動画と音声の断片を、範囲を指定した GET ではなく `/videoplayback` への POST で取っていた。本文（約 1.4 KB）で再生位置と手元に溜めた区間を伝え、どの断片を返すかは配信元の側でも決める。SABR と呼ばれる方式で、細部は公開されていない（第24章）。' },
+      { title: '3xx は転送、4xx・5xx は誤り', text: '`301` は恒久の移転で、`https://youtube.com/` は `www.youtube.com` へ移る。`youtu.be/…` は `303` で視聴ページへ。`304` は場面5。`404` は無い、`403` は許されない、`429` は送りすぎ。5xx はサーバー側の失敗で、`503` は一時的に応じられない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+
+      /* 上の帯 */
+      box(svg, 30, 8, 170, 46, 'ブラウザ（PC）', '192.168.1.10');
+      st.sv = box(svg, 740, 8, 190, 46, 'www.youtube.com', '142.250.196.110:443');
+      S.line(206, 31, 734, 31, { cls: 's-rule w15', 'marker-end': mk('dim'), 'marker-start': mk('dim') }, svg);
+      st.lost = S.g({ cls: 'fade hide' }, svg);
+      S.text(470, 38, '×', { cls: 't-c t-xl t-b t-x' }, st.lost);
+      S.text(470, 68, '途中で失われた', { cls: 't-c t-xs t-x' }, st.lost);
+      /* 荷札は × より後に描く（送り直しの荷札が × の上を通っても、文字が消されて見えないように） */
+      st.tok = pkt(svg, 'GET', 'f-d');
+
+      /* 左: メソッドの表 */
+      board(svg, 30, 86, 418, 462, 'メソッド');
+      const H = 132;
+      [['本文', 144], ['安全', 186], ['冪等', 230]].forEach(([s, x]) => S.text(x, H, s, { cls: 't-c t-xs t-b t-dim' }, svg));
+      S.text(266, H, '使いみち（YouTube での例）', { cls: 't-xs t-b t-dim' }, svg);
+      st.colHead = [S.text(186, H, '安全', { cls: 't-c t-xs t-b t-x', style: { opacity: 0 } }, svg), S.text(230, H, '冪等', { cls: 't-c t-xs t-b t-x', style: { opacity: 0 } }, svg)];
+      const methods = [
+        ['GET', '—', 1, 1, ['取り出す', 'ページ・JS・CSS・画像']],
+        ['HEAD', '—', 1, 1, ['ヘッダだけ取り出す', '本文は返らない']],
+        ['POST', 'あり', 0, 0, ['本文を送って処理を頼む', '統計・API・動画の断片']],
+        ['PUT', 'あり', 0, 1, ['本文の内容で置き換える', '']],
+        ['DELETE', '—', 0, 1, ['消す', '']],
+        ['OPTIONS', '—', 1, 1, ['使える方法を聞く', '別サイトへの要求の事前確認']]
+      ];
+      st.mrows = methods.map(([m, body, safe, idem, use], k) => {
+        const y = 144 + k * 66;
+        const g = S.g({ cls: 'fade' }, svg);
+        const bg = S.rect(40, y, 398, 58, { rx: 5, cls: 'f-in' }, g);
+        const name = S.text(52, y + 34, m, { cls: 't-md t-mono t-b' }, g);
+        S.text(144, y + 34, body, { cls: 't-c t-sm' + (body === 'あり' ? ' t-b' : ' t-dim') }, g);
+        const marks = [[186, safe], [230, idem]].map(([x, v]) => S.text(x, y + 34, v ? '○' : '×', { cls: 't-c t-md t-b' + (v ? '' : ' t-dim') }, g));
+        S.text(266, y + 26, use[0], { cls: 't-sm' }, g);
+        if (use[1]) S.text(266, y + 44, use[1], { cls: 't-xs t-dim' }, g);
+        return { g, bg, name, marks, safe, idem };
+      });
+      st.colHl = S.rect(166, 116, 86, 422, { rx: 4, cls: 'f-x-soft', style: { opacity: 0, 'pointer-events': 'none' } }, svg);
+
+      /* 右: 状態コード */
+      board(svg, 466, 86, 464, 462, '状態コード（百の位で種類が決まる）');
+      const SEEN = ['200', '204', '206', '301', '302', '303', '304', '401', '403', '404'];
+      const classes = [
+        ['1xx 途中経過', [['100 Continue', '101 Switching Protocols', '103 Early Hints']]],
+        ['2xx 成功', [['200 OK', '204 No Content', '206 Partial Content']]],
+        ['3xx 転送（別の場所・手元のものを使え）', [['301 Moved Permanently', '302 Found', '303 See Other'], ['304 Not Modified', '307 Temporary Redirect', '308 Permanent Redirect']]],
+        ['4xx 要求の側の誤り', [['400 Bad Request', '401 Unauthorized', '403 Forbidden'], ['404 Not Found', '429 Too Many Requests']]],
+        ['5xx サーバーの側の誤り', [['500 Internal Server Error', '502 Bad Gateway', '503 Service Unavailable'], ['504 Gateway Timeout']]]
+      ];
+      st.chips = {}; st.crow = [];
+      let y = 116;
+      classes.forEach(([label, lines]) => {
+        const g = S.g({ cls: 'fade' }, svg);
+        const lab = S.text(480, y + 12, label, { cls: 't-sm t-b' }, g);
+        lines.forEach((codes, li) => {
+          let x = 480;
+          const cy = y + 20 + li * 27;
+          codes.forEach((c) => {
+            const seen = SEEN.includes(c.slice(0, 3));
+            const w = tw(c, 10) + (seen ? 24 : 14);
+            const cg = S.g({}, g);
+            const r = S.rect(x, cy, w, 22, { rx: 4, cls: 'f-sf s-rule w1' }, cg);
+            const t = S.text(x + 7, cy + 15, c, { cls: 't-xs t-mono' }, cg);
+            if (seen) S.circle(x + w - 9, cy + 11, 3.5, { cls: 'f-d' }, cg);
+            st.chips[c.slice(0, 3)] = { r, t };
+            x += w + 8;
+          });
+        });
+        st.crow.push({ g, lab });
+        y += 32 + lines.length * 27;
+      });
+      S.circle(484, 522, 3.5, { cls: 'f-d' }, svg);
+      S.text(494, 526, '2026 年 10 月の計測で YouTube まわりの応答に見たコード（Chrome と curl）', { cls: 't-xs t-dim' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const L = S2_LANE[i];
+      st.sv.title.textContent = L.sv[0];
+      st.sv.sub.textContent = L.sv[1];
+      st.sv.title.setAttribute('class', 't-c t-b ' + (i === 4 ? 't-sm t-mono' : 't-md'));
+      /* メソッドの行 */
+      const mOn = [[0, 2], [], [2], [0], [2], [0]][i];
+      st.mrows.forEach((r, k) => {
+        const on = mOn.includes(k);
+        r.bg.setAttribute('class', on ? 'f-x-soft' : 'f-in');
+        r.name.setAttribute('class', 't-md t-mono t-b' + (on ? ' t-x' : ''));
+        r.marks.forEach((m, j) => {
+          const v = j ? r.idem : r.safe;
+          m.setAttribute('class', 't-c t-md t-b' + (i === 1 ? (v ? ' t-x' : ' t-dim') : (v ? '' : ' t-dim')));
+        });
+      });
+      op(st.colHl, i === 1 ? 1 : 0);
+      st.colHead.forEach((t) => op(t, i === 1 ? 1 : 0));
+      /* 状態コード */
+      const cOn = [['200'], [], ['200', '204', '206'], ['206'], ['200'], ['301', '303', '403', '404', '429', '503']][i];
+      Object.entries(st.chips).forEach(([c, ch]) => {
+        const on = cOn.includes(c);
+        ch.r.setAttribute('class', on ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        ch.t.setAttribute('class', 't-xs t-mono' + (on ? ' t-b t-x' : ''));
+      });
+      const rOn = [[1], [], [1], [1], [1], [2, 3, 4]][i];
+      st.crow.forEach((r, k) => { r.lab.setAttribute('class', 't-sm t-b' + (rOn.includes(k) ? ' t-x' : '')); op(r.g, i === 1 ? 0.45 : ''); });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, L = S2_LANE[i];
+      const X0 = 206, X1 = 734;
+      /* 荷札を道の上に置く。dir=1 は左から右、-1 は右から左。端で箱に重ならないよう荷札の幅だけ内側を動く */
+      const put = (text, dir, f) => {
+        st.tok.set(text);
+        st.tok.style.display = '';
+        const w = tw(text, 11) + 16, a = X0 + w / 2 + 6, b = X1 - w / 2 - 6;
+        const x = dir > 0 ? U.lerp(a, b, f) : U.lerp(b, a, f);
+        st.tok.setAttribute('transform', `translate(${x.toFixed(1)},31)`);
+      };
+      if (!playing()) {
+        /* 止めているときは、最後の応答の荷札を道の中ほどに */
+        const last = [...L.ph].reverse().find((p) => p[0]);
+        put(last[0], last[1], i === 1 ? 0.85 : 0.5);
+        S.fade(st.lost, i === 1);
+        return;
+      }
+      const q = U.seq(ctx.ts, L.ph.map((p) => p[2]), true);
+      const p = L.ph[q.i];
+      S.fade(st.lost, p[3] === 'mark');
+      if (!p[0]) { st.tok.style.display = 'none'; return; }
+      if (p[3] === 'lost') { put(p[0], p[1], U.ease.out(q.f) * 0.5); return; }
+      put(p[0], p[1], U.ease.inOut(q.f));
+    }
+  };
+
+  /* ================================================================
+     場面3 HTTP/1.1 → HTTP/2
+     ================================================================ */
+  /* 模式の時間（単位は任意）。往復 RTT、接続の準備（TCP と TLS で 2 往復）、資源の大きさ（全帯域で送ったときの時間） */
+  const H = { RTT: 2, SETUP: 4, TMAX: 28, FR: 0.25 };
+  const RES = [['base.js', 1.6], ['アプリの JS', 2.2], ['player.css', 0.5], ['アプリの CSS', 0.9], ['サムネイル', 0.4], ['フォント', 0.6], ['spf.js', 0.3], ['network.js', 0.3]];
+  /* HTTP/1.1: lanes 本の接続。応答を受け取り終えた接続が次の要求を送る。帯域は転送中の接続で等分 */
+  function simH1(lanes) {
+    const out = RES.map(() => ({}));
+    const L = Array.from({ length: lanes }, () => ({ st: 'setup', until: H.SETUP, cur: -1 }));
+    const queue = RES.map((_, k) => k);
+    const dt = 0.005;
+    for (let t = 0; t < 60; t += dt) {
+      L.forEach((l, li) => {
+        if ((l.st === 'setup' || l.st === 'idle') && t >= l.until && queue.length) {
+          const k = queue.shift();
+          Object.assign(out[k], { lane: li, req: t, start: t + H.RTT });
+          l.st = 'wait'; l.until = t + H.RTT; l.cur = k; l.rem = RES[k][1];
+        } else if (l.st === 'wait' && t >= l.until) l.st = 'xfer';
+      });
+      const xs = L.filter((l) => l.st === 'xfer');
+      xs.forEach((l) => {
+        l.rem -= dt / xs.length;
+        if (l.rem <= 0) { out[l.cur].end = t + dt; l.st = 'idle'; l.until = t + dt; }
+      });
+      if (!queue.length && L.every((l) => l.st === 'idle' || l.st === 'setup')) break;
+    }
+    return out;
+  }
+  /* HTTP/2: 1 本の接続に全部の要求を出し、応答はフレームの大きさ FR ずつ順に混ぜて送る */
+  function simH2() {
+    const t0 = H.SETUP + H.RTT, frames = [];
+    const rem = RES.map((r) => r[1]);
+    let t = t0;
+    while (rem.some((v) => v > 1e-9)) {
+      rem.forEach((v, k) => {
+        if (v <= 1e-9) return;
+        const len = Math.min(H.FR, v);
+        frames.push({ k, a: t, b: t + len });
+        rem[k] -= len; t += len;
+      });
+    }
+    return { frames, end: t };
+  }
+
+  const s3 = {
+    steps: [
+      { title: 'HTTP/1.1：1 本の接続で 1 つずつ', text: 'HTTP/1.1 の接続は、要求を送り、応答を最後まで受け取ってから次の要求を送る。要求ごとに 1 往復の待ちが入る。応答を待たずに続けて送るパイプラインも規格にはあるが、途中の機器との相性が悪く、主なブラウザは使っていない。' },
+      { title: '6 本を並べて待ちを隠す', text: 'そこでブラウザは、1 つの相手に TCP の接続を 6 本まで張って並べる。接続ごとに TCP と TLS の握手が要り、7 個目からは空いた接続を待つ。YouTube の視聴ページは www.youtube.com だけで 40 個を超える要求を出すので、HTTP/1.1 ではこの待ちが積み重なる。' },
+      { title: 'HTTP/2：フレームとストリーム', text: 'HTTP/2 はメッセージを 9 バイトの見出しの付いた**フレーム**に切る。ヘッダは HEADERS、本文は DATA フレームで運ぶ。要求と応答の 1 組が**ストリーム**で、ブラウザは奇数の番号（1, 3, 5…）を振る。違うストリームのフレームを混ぜて送れるので、接続は 1 本で足りる。' },
+      { title: 'HPACK：同じヘッダは番号で送る', text: 'ヘッダは要求ごとにほとんど同じなので、HPACK で縮める。よく使う 61 組は静的表の番号（`:method: GET` は 1 バイトの `82`）、一度送ったものは両端が覚える動的表の番号で送り、残りはハフマン符号で縮める。2 回目からは、多くのヘッダが 1 バイトずつになる。' },
+      { title: '残った詰まり：TCP の順番待ち', text: 'TCP は受け取ったバイトを順番どおりにしかアプリに渡さない。パケットが 1 個失われると、再送が届くまで（約 1 往復）、あとに届いた他のストリームのデータも全部待たされる。HTTP の層の詰まりは解けたが、TCP の層の詰まり（head-of-line blocking）は残った。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const TX0 = 150, TX1 = 930, sx = (t) => TX0 + (TX1 - TX0) * t / H.TMAX;
+      st.sx = sx;
+      st.items = [];   // 時刻 a〜b の部品。カーソルより先は薄くする
+      const item = (el, a) => { st.items.push({ el, a }); return el; };
+
+      /* 上: HTTP/1.1 */
+      S.text(30, 22, 'HTTP/1.1', { cls: 't-sm t-b' }, svg);
+      st.h1sub = S.text(100, 22, '', { cls: 't-xs t-dim' }, svg);
+      const drawH1 = (sched, lanes) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        for (let li = 0; li < lanes; li++) {
+          const y = 34 + li * 26;
+          S.text(30, y + 14, '接続 ' + (li + 1), { cls: 't-xs t-dim' }, g);
+          S.line(TX0, y + 10, TX1, y + 10, { cls: 's-soft w1' }, g);
+          item(S.rect(sx(0), y, sx(H.SETUP) - sx(0), 20, { rx: 3, cls: 'f-in s-rule w1' }, g), 0);
+          if (li === 0) item(S.text((sx(0) + sx(H.SETUP)) / 2, y + 14, '握手', { cls: 't-c t-xs t-dim' }, g), 0);
+        }
+        let end = 0;
+        sched.forEach((r, k) => {
+          const y = 34 + r.lane * 26;
+          item(S.rect(sx(r.req) - 1.5, y + 2, 3, 16, { cls: 'f-d' }, g), r.req);
+          item(S.line(sx(r.req) + 2, y + 10, sx(r.start), y + 10, { cls: 's-dim w1 dash' }, g), r.req);
+          item(S.rect(sx(r.start), y, Math.max(2, sx(r.end) - sx(r.start)), 20, { rx: 2, cls: 'f-d-soft s-d w1' }, g), r.start);
+          const w = sx(r.end) - sx(r.start);
+          if (w > tw(RES[k][0], 10) + 6) item(S.text((sx(r.start) + sx(r.end)) / 2, y + 14, RES[k][0], { cls: 't-c t-xs' }, g), r.start);
+          end = Math.max(end, r.end);
+        });
+        const lastY = 34 + (lanes - 1) * 26 + 24;
+        item(S.line(sx(end), 30, sx(end), lastY + 4, { cls: 's-x w15' }, g), end);
+        item(S.text(sx(end) - 4, lastY + 14, '全部そろう', { cls: 't-xs t-x t-b t-end' }, g), end);
+        return g;
+      };
+      st.h1a = drawH1(simH1(1), 1);
+      st.h1b = drawH1(simH1(6), 6);
+
+      /* 中: HTTP/2 */
+      const h2 = simH2();
+      const gh = st.h2 = S.g({ cls: 'fade' }, svg);
+      S.text(30, 214, 'HTTP/2', { cls: 't-sm t-b' }, gh);
+      S.text(90, 214, 'TCP 接続 1 本の中のストリーム', { cls: 't-xs t-dim' }, gh);
+      const RY = 226, RP = 14;
+      S.rect(TX0 - 4, RY - 4, TX1 - TX0 + 8, RES.length * RP + 6, { rx: 5, cls: 'f-none s-rule w1' }, gh);
+      item(S.rect(sx(0), RY, sx(H.SETUP) - sx(0), RES.length * RP - 2, { rx: 3, cls: 'f-in s-rule w1' }, gh), 0);
+      item(S.text((sx(0) + sx(H.SETUP)) / 2, RY + RES.length * RP / 2 + 3, '握手 1 回', { cls: 't-c t-xs t-dim' }, gh), 0);
+      RES.forEach((r, k) => {
+        const y = RY + k * RP;
+        S.text(TX0 - 10, y + 9, (2 * k + 1) + '  ' + r[0], { cls: 't-xs t-end pre' }, gh);
+        item(S.rect(sx(H.SETUP) - 1, y + 1, 3, RP - 4, { cls: 'f-d' }, gh), H.SETUP);
+        item(S.line(sx(H.SETUP) + 3, y + RP / 2 - 1, sx(H.SETUP + H.RTT), y + RP / 2 - 1, { cls: 's-dim w1 dash2' }, gh), H.SETUP);
+      });
+      st.frames = h2.frames.map((f) => item(S.rect(sx(f.a) + 0.5, RY + f.k * RP, Math.max(1.5, sx(f.b) - sx(f.a) - 1), RP - 2, { cls: 'f-d' }, gh), f.a));
+      const yb = RY + RES.length * RP + 2;
+      item(S.line(sx(h2.end), 220, sx(h2.end), yb, { cls: 's-x w15' }, gh), h2.end);
+      item(S.text(sx(h2.end) + 6, RY + 10, '全部そろう', { cls: 't-xs t-x t-b' }, gh), h2.end);
+      item(S.text(sx(h2.end) + 6, RY + 24, '接続 1 本・握手 1 回で、6 本の HTTP/1.1 とほぼ同じ頃', { cls: 't-xs t-x' }, gh), h2.end);
+      /* 段階5: 失われたパケットと、全ストリームの待ち */
+      const lostF = h2.frames.find((f) => f.a >= 8.0 && f.k === 1);
+      st.loss = S.g({ cls: 'fade hide' }, gh);
+      S.rect(sx(lostF.a), RY - 2, sx(lostF.a + H.RTT) - sx(lostF.a), RES.length * RP + 2, { cls: 'f-x-soft' }, st.loss);
+      S.rect(sx(lostF.a) + 0.5, RY + lostF.k * RP, sx(lostF.b) - sx(lostF.a) - 1, RP - 2, { cls: 'f-x' }, st.loss);
+      S.text(sx(lostF.a) + 4, RY + lostF.k * RP + 10, '×', { cls: 't-b t-x t-sm' }, st.loss);
+      S.text((sx(lostF.a) + sx(lostF.a + H.RTT)) / 2, RY - 8, 'アプリに渡せない（約 1 往復）', { cls: 't-c t-xs t-b t-x' }, st.loss);
+
+      /* 時間軸 */
+      S.line(TX0, 352, TX1, 352, { cls: 's-dim w1', 'marker-end': mk('dim') }, svg);
+      S.text(TX0, 366, '0', { cls: 't-xs t-dim t-mono' }, svg);
+      S.text(TX1, 366, '時間 →', { cls: 't-xs t-dim t-end' }, svg);
+      S.text(sx(H.RTT), 366, '1 往復', { cls: 't-c t-xs t-dim' }, svg);
+      S.line(TX0, 348, TX0, 356, { cls: 's-dim w1' }, svg);
+      S.line(sx(H.RTT), 348, sx(H.RTT), 356, { cls: 's-dim w1' }, svg);
+      st.cursor = S.line(TX0, 28, TX0, 350, { cls: 's-x w1 dash2' }, svg);
+
+      /* 下: 段階ごとの詳細 */
+      board(svg, 30, 376, 900, 174, '');
+      st.dTitle = S.text(44, 397, '', { cls: 't-xs t-b t-dim' }, svg);
+      st.details = [];
+      /* 段階1: 1 本の接続の中の順番 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const seq = [['GET …/base.js', 44, 150, 'req'], ['200 OK ＋ 本文', 300, 150, 'res'], ['GET …/player.css', 520, 150, 'req'], ['200 OK ＋ 本文', 776, 140, 'res']];
+        seq.forEach(([s, x, w, kd]) => {
+          S.rect(x, 414, w, 30, { rx: 4, cls: kd === 'req' ? 'f-d s-d w1' : 'f-d-soft s-d w1' }, g);
+          S.text(x + w / 2, 434, s, { cls: 't-c t-sm t-mono' + (kd === 'req' ? ' t-sf t-b' : '') }, g);
+        });
+        [[194, 300, '1 往復待つ'], [450, 520, ''], [670, 776, '1 往復待つ']].forEach(([a, b, s]) => {
+          S.line(a + 4, 429, b - 6, 429, { cls: 's-dim w15' + (s ? ' dash' : ''), 'marker-end': mk('dim') }, g);
+          if (s) S.text((a + b) / 2, 460, s, { cls: 't-c t-xs t-dim' }, g);
+        });
+        S.text(44, 494, '応答には要求の番号が付かず、要求を送った順に返すしかない。', { cls: 't-sm' }, g);
+        S.text(44, 518, 'だから 1 本の接続では、前の応答が終わるまで次の要求に進めない（HTTP の層の先頭の詰まり）。', { cls: 't-sm' }, g);
+        st.details.push([g, '1 本の接続の中を流れる順（HTTP/1.1）']);
+      }
+      /* 段階2: 接続を増やす費用 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const cols = [44, 250, 420, 600];
+        ['', 'TCP と TLS の握手', '1 本の接続に流す要求', '同時に流せる要求'].forEach((s, k) => S.text(cols[k], 420, s, { cls: 't-xs t-b t-dim' }, g));
+        [['HTTP/1.1・接続 1 本', '1 回', '8 個を順に', '1 個'], ['HTTP/1.1・接続 6 本', '6 回（並べて）', '1〜2 個ずつ', '6 個（7 個目からは待つ）'], ['HTTP/2・接続 1 本', '1 回', '8 個を混ぜて', 'サーバーが設定で上限を示す']].forEach((row, r) => {
+          row.forEach((s, k) => S.text(cols[k], 446 + r * 26, s, { cls: (k ? 't-sm' : 't-sm t-b') }, g));
+        });
+        S.text(44, 534, '接続が増えると、サーバーも接続ごとの状態と、TCP の輻輳制御（第19章）を別々に持つ。図の帯域は全部の接続で分け合っている。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, '接続を増やす費用']);
+      }
+      /* 段階3: フレームの見出し */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const fields = [['長さ', '24 ビット', 24, '00 01 C2', '450 バイト'], ['種類', '8', 8, '01', 'HEADERS'], ['フラグ', '8', 8, '05', '終わり 2 つ'], ['ストリーム番号', '1＋31 ビット', 32, '00 00 00 01', 'ストリーム 1']];
+        let x = 44;
+        const PX = 8.5;
+        fields.forEach(([name, bits, nb, hex, mean]) => {
+          const w = nb * PX;
+          S.rect(x, 408, w, 36, { cls: 'f-in s-mid w1' }, g);
+          S.text(x + w / 2, 423, name, { cls: 't-c t-xs t-b' }, g);
+          S.text(x + w / 2, 437, bits, { cls: 't-c t-xs t-dim' }, g);
+          S.text(x + w / 2, 462, hex, { cls: 't-c t-sm t-mono t-b' }, g);
+          S.text(x + w / 2, 480, mean, { cls: 't-c t-xs t-dim' }, g);
+          x += w;
+        });
+        S.rect(x, 408, 930 - 16 - x, 36, { cls: 'f-d-soft s-d w1' }, g);
+        S.text((x + 914) / 2, 430, '中身（長さぶん）', { cls: 't-c t-xs t-b' }, g);
+        S.text((x + 914) / 2, 462, 'HPACK で縮めたヘッダ', { cls: 't-c t-sm' }, g);
+        S.text((x + 914) / 2, 480, '450 バイト', { cls: 't-c t-xs t-dim' }, g);
+        S.text(44, 512, '見出しの 9 バイト: 例は段階4 の 17 個のヘッダを載せた HEADERS（フラグ 05 = ヘッダの終わり＋ストリームの終わり）。', { cls: 't-xs t-dim' }, g);
+        S.text(44, 534, '種類: 0 DATA（本文）、1 HEADERS（ヘッダ）、4 SETTINGS（設定）、7 GOAWAY（接続の終わりの予告）、8 WINDOW_UPDATE（受け取れる量）など。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, 'HTTP/2 のフレーム ＝ 9 バイトの見出し ＋ 中身']);
+      }
+      /* 段階4: HPACK */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const cols = [44, 340, 420, 690];
+        ['ヘッダ', '文字', '1 回目に送るバイト', '2 回目（同じ値）'].forEach((s, k) => S.text(cols[k], 418, s, { cls: 't-xs t-b t-dim' }, g));
+        [[':method: GET', '3 字', '82（静的表の 2 番）', '82'], [':authority: www.youtube.com', '15 字', '41 8C …（14 B。動的表に加える）', 'CB（動的表の番号）'], ['user-agent: Mozilla/5.0 …', '101 字', '7A …（80 B。ハフマン符号）', 'C7（1 B）'], ['17 個の合計', '682 B', '450 B', '35 B']].forEach((row, r) => {
+          row.forEach((s, k) => S.text(cols[k], 442 + r * 24, s, { cls: 't-sm' + (k === 0 || k >= 2 ? ' t-mono' : '') + (r === 3 ? ' t-b' : '') + (k === 3 ? ' t-x t-b' : '') }, g));
+        });
+        S.text(44, 540, '動的表は両端が同じ順に書き足す表で、既定の大きさは 4,096 バイト。あふれると古い組から押し出す。', { cls: 't-xs t-dim' }, g);
+        st.details.push([g, 'HPACK（17 個のヘッダを 2 回送った例。文字にすると 682 B）']);
+      }
+      /* 段階5: TCP から見た順番待ち */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const segs = [['1', 'S1 S3'], ['2', 'S5 S7'], ['3', 'S3'], ['4', 'S1 S5'], ['5', 'S7 S1'], ['6', 'S5 S7']];
+        segs.forEach(([n, s], k) => {
+          const x = 44 + k * 120, lost = k === 2, held = k > 2;
+          S.rect(x, 410, 108, 34, { rx: 4, cls: lost ? 'f-x-soft s-x w15 dash' : held ? 'f-d-soft s-d w1' : 'f-d s-d w1' }, g);
+          S.text(x + 54, 424, 'TCP の ' + n + ' 番目', { cls: 't-c t-xs' + (lost ? ' t-x t-b' : held ? '' : ' t-sf') }, g);
+          S.text(x + 54, 438, s, { cls: 't-c t-xs t-mono t-b' + (lost ? ' t-x' : held ? '' : ' t-sf') }, g);
+        });
+        S.text(44 + 2 * 120 + 54, 462, '× 失われた', { cls: 't-c t-xs t-b t-x' }, g);
+        S.path('M404,452 V458 H752 V452', { cls: 'f-none s-dim w1' }, g);
+        S.text(578, 474, '届いたが、3 番目の再送が来るまでアプリに渡せない', { cls: 't-c t-xs' }, g);
+        S.text(44, 508, 'TCP はバイトの順番だけを守り、どのストリームのデータかを区別しない。', { cls: 't-sm' }, g);
+        S.text(44, 532, '失われたのはストリーム 3 のデータだけなのに、あとに届いた S1・S5・S7 のデータも待たされる。', { cls: 't-sm' }, g);
+        st.details.push([g, 'TCP から見ると（受け手。S1 は「ストリーム 1 のフレーム」）']);
+      }
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.h1a, i === 0);
+      S.fade(st.h1b, i >= 1);
+      st.h1sub.textContent = i === 0 ? '接続 1 本' : '接続 6 本（1 つの相手にブラウザが張る上限）';
+      op(st.h2, i <= 1 ? 0.3 : '');
+      S.fade(st.loss, i === 4);
+      st.details.forEach(([g], k) => S.fade(g, k === i));
+      st.dTitle.textContent = st.details[i][1];
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      /* いまの時刻（模式の単位）。7 秒で端まで進み、2 秒止まる。止めているときは全部を見せる */
+      let now = H.TMAX;
+      if (playing()) {
+        const q = U.seq(ctx.ts, [7, 2], true);
+        now = q.i === 0 ? q.f * H.TMAX : H.TMAX;
+      }
+      st.items.forEach((it) => { it.el.style.opacity = it.a <= now ? '' : 0.22; });
+      const x = st.sx(now);
+      st.cursor.setAttribute('x1', x.toFixed(1)); st.cursor.setAttribute('x2', x.toFixed(1));
+      st.cursor.style.display = now >= H.TMAX ? 'none' : '';
+    }
+  };
+
+  /* ================================================================
+     場面4 HTTP/3
+     ================================================================ */
+  /* 失われたときの比べ方: 3 本のストリームのパケットを順に送り、LOST 番目が失われる。再送は 1 往復（RTT4 パケットぶん）後 */
+  const H3 = { N: 24, LOST: 7, RTT4: 6, TMAX: 32 };
+  function simLoss(tcp) {
+    const out = [];
+    for (let j = 0; j < H3.N; j++) {
+      const k = j % 3, a = j < H3.LOST + H3.RTT4 ? j : j + 1;   // 再送が 1 個入るぶん、あとは 1 つずれる
+      const inBand = j > H3.LOST && j < H3.LOST + H3.RTT4;
+      const lostRow = H3.LOST % 3;
+      const held = inBand && (tcp || k === lostRow);
+      out.push({ k, a, kind: j === H3.LOST ? 'lost' : held ? 'held' : 'ok' });
+    }
+    out.push({ k: H3.LOST % 3, a: H3.LOST + H3.RTT4, kind: 'retx' });
+    return out;
+  }
+  const s4 = {
+    steps: [
+      { title: '要求ごとに QUIC のストリーム', text: 'HTTP/3 では、要求と応答の 1 組が QUIC の双方向ストリーム 1 本に乗る。ブラウザが開く番号は 0, 4, 8…。中は HEADERS と DATA のフレームだが、HTTP/2 と違って番号は持たず、要求の終わりはストリームの終わりで示す。順番と再送は QUIC の仕事（第19章）。' },
+      { title: '失われても止まるのは 1 本だけ', text: 'QUIC はストリームごとに順番をそろえる。パケットが 1 個失われても、待つのはそのパケットにデータが入っていたストリームだけで、他のストリームのデータはそのまま HTTP に渡る。場面3 で残った TCP の順番待ちが、ここで解ける。' },
+      { title: 'QPACK：順番が崩れても縮められる', text: 'HPACK は、ヘッダが送った順に届く前提で動的表を書き足す。QUIC ではストリームの間の順番が崩れうるので、QPACK は表への書き込みを専用の一方向ストリームで送り、HEADERS の先頭には表のどこまでを使うかを書く。静的表は 99 組。' },
+      { title: 'h3 が使えると知る：Alt-Svc', text: '初めての相手には、TCP の HTTP/2 で接続することが多い。応答の `Alt-Svc: h3=":443"; ma=2592000` は「443 番で HTTP/3 も話せる。30 日有効」の意味で、次の要求から QUIC を使う。計測でも、HTML は HTTP/2、その後の要求の多くは HTTP/3 だった。' },
+      { title: 'DNS の HTTPS レコードで最初から', text: 'DNS の HTTPS レコード（第17章）に `alpn="h3"` があれば、最初の接続から QUIC にできる。動画の配信元の googlevideo.com はこの形で、計測では、接続を先に作る `generate_204` から HTTP/3 だった。www.youtube.com のレコードには alpn が無い。' },
+      { title: 'UDP が通らなければ HTTP/2 に戻る', text: '会社や学校の網では、UDP の 443 番が止められていることがある。Chrome は QUIC と TCP の接続を並べて試し、QUIC が成り立たなければ TCP の HTTP/2 で続け、その相手の QUIC はしばらく試さない。利用者は違いに気づかない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      st.items = [];
+
+      /* 上: 失われたときの比較 */
+      const gt = st.top = S.g({ cls: 'fade' }, svg);
+      S.text(30, 20, '応答がブラウザへ届く途中で、パケットが 1 個失われたとき', { cls: 't-sm t-b' }, gt);
+      const TX0 = 170, TX1 = 926, sx = (t) => TX0 + (TX1 - TX0) * t / H3.TMAX;
+      st.sx = sx;
+      /* 凡例 */
+      [['f-d', '渡せた'], ['f-sf s-d w1 dash2', '届いたが待つ'], ['f-x', '失われた・再送']].forEach(([c, s], k) => {
+        const x = 610 + k * 108;
+        S.rect(x, 10, 14, 12, { cls: c }, gt);
+        S.text(x + 19, 20, s, { cls: 't-xs t-dim' }, gt);
+      });
+      const block = (y0, title, names, tcp) => {
+        S.text(30, y0 + 4, title, { cls: 't-xs t-b' }, gt);
+        S.rect(TX0 - 4, y0 + 10, TX1 - TX0 + 8, 3 * 17 + 4, { rx: 4, cls: 'f-none s-rule w1' }, gt);
+        names.forEach((n, k) => S.text(TX0 - 10, y0 + 24 + k * 17, n, { cls: 't-xs t-mono t-end' }, gt));
+        const sched = simLoss(tcp);
+        /* 待ちの帯（TCP は全部の行、QUIC は失われた行だけ） */
+        const lr = H3.LOST % 3;
+        const band = S.rect(sx(H3.LOST), tcp ? y0 + 12 : y0 + 13 + lr * 17, sx(H3.LOST + H3.RTT4) - sx(H3.LOST), tcp ? 3 * 17 : 15, { cls: 'f-x-soft' }, gt);
+        st.items.push({ el: band, a: H3.LOST });
+        sched.forEach((f) => {
+          const y = y0 + 14 + f.k * 17;
+          const cls = f.kind === 'ok' ? 'f-d' : f.kind === 'held' ? 'f-sf s-d w1 dash2' : 'f-x';
+          const r = S.rect(sx(f.a) + 1, y, sx(f.a + 1) - sx(f.a) - 2, 13, { rx: 2, cls }, gt);
+          st.items.push({ el: r, a: f.a });
+          if (f.kind === 'lost') st.items.push({ el: S.text(sx(f.a) + 6, y + 11, '×', { cls: 't-xs t-b t-sf' }, gt), a: f.a });
+        });
+        const note = S.text((sx(H3.LOST) + sx(H3.LOST + H3.RTT4)) / 2, y0 + 4, tcp ? '3 本とも HTTP に渡せない（約 1 往復）' : '待つのはストリーム 4 だけ', { cls: 't-c t-xs t-b t-x' }, gt);
+        st.items.push({ el: note, a: H3.LOST });
+      };
+      block(34, 'HTTP/2（TCP の上）', ['S1', 'S3', 'S5'], true);
+      block(112, 'HTTP/3（QUIC の上）', ['0', '4', '8'], false);
+      S.line(TX0, 186, TX1, 186, { cls: 's-dim w1', 'marker-end': mk('dim') }, gt);
+      S.text(TX1, 198, '時間 →', { cls: 't-xs t-dim t-end' }, gt);
+      S.text(TX0, 198, '1 個が 1 パケット（中身は 1 本のストリームのデータ）', { cls: 't-xs t-dim' }, gt);
+      st.cursor = S.line(TX0, 28, TX0, 182, { cls: 's-x w1 dash2' }, gt);
+
+      /* 中: HTTP/3 の接続の中のストリーム */
+      const gm = st.mid = S.g({ cls: 'fade' }, svg);
+      S.rect(30, 208, 900, 162, { rx: 8, cls: 'f-sf s-rule w1' }, gm);
+      S.text(44, 226, 'HTTP/3 の接続の中（QUIC のストリーム）', { cls: 't-xs t-b t-dim' }, gm);
+      S.text(916, 226, '濃い色: ブラウザ → サーバー　薄い色: サーバー → ブラウザ', { cls: 't-xs t-dim t-end' }, gm);
+      const RX = 252, rows = [
+        ['双方向 0', '要求 1  /watch?v=…'], ['双方向 4', '要求 2  base.js'], ['双方向 8', '要求 3  player.css'],
+        ['一方向', '制御（ブラウザ →）'], ['一方向', 'QPACK 書き込み（→）'], ['一方向', 'QPACK 確認（← サーバー）']
+      ];
+      st.mrows = rows.map(([a, b], k) => {
+        const y = 238 + k * 21 + (k >= 3 ? 6 : 0);
+        const g = S.g({ cls: 'fade' }, gm);
+        S.text(44, y + 12, a, { cls: 't-xs t-mono t-dim' }, g);
+        S.text(104, y + 12, b, { cls: 't-xs t-b pre' }, g);
+        S.line(RX, y + 8, 916, y + 8, { cls: 's-soft w1' }, g);
+        return { g, y };
+      });
+      const fr = (row, x, w, s, out) => {
+        const y = st.mrows[row].y;
+        const r = S.rect(x, y, w, 16, { rx: 3, cls: out ? 'f-d s-d w1' : 'f-d-soft s-d w1' }, st.mrows[row].g);
+        S.text(x + w / 2, y + 12, s, { cls: 't-c t-xs t-mono' + (out ? ' t-sf t-b' : '') }, st.mrows[row].g);
+        return r;
+      };
+      const fin = (row, x) => S.text(x, st.mrows[row].y + 12, '終わり', { cls: 't-xs t-dim' }, st.mrows[row].g);
+      /* 一方向のストリームの先頭は種類の番号 */
+      fr(3, 256, 48, '種類 0', true); fr(3, 308, 70, 'SETTINGS', true);
+      fr(4, 256, 48, '種類 2', true);
+      st.ins = [fr(4, 308, 160, '表に加える :authority …', true), fr(4, 472, 160, '表に加える user-agent …', true)];
+      fr(5, 700, 48, '種類 3', false); st.ack = fr(5, 752, 120, '受け取った（2 組）', false);
+      /* 双方向: 要求の HEADERS → 応答の HEADERS と DATA */
+      st.reqH = [];
+      [[0, 3], [1, 3], [2, 2]].forEach(([row, nData]) => {
+        st.reqH.push(fr(row, 660, 60, 'HEADERS', true));
+        fr(row, 724, 60, 'HEADERS', false);
+        for (let d = 0; d < nData; d++) fr(row, 788 + d * 34, 30, 'DATA', false);
+        fin(row, 792 + nData * 34);
+      });
+      st.qp = S.g({ cls: 'fade hide' }, gm);
+      S.path(`M600,${st.mrows[4].y} V${st.mrows[0].y + 8} H654`, { cls: 'f-none s-x w15', 'marker-end': mk('x') }, st.qp);
+      /* 札の下地（行の線を隠す） */
+      const qpW = tw('HEADERS は「表の 2 組目まで使う」と書いて送る', 10) + 8;
+      S.rect(594 - qpW, st.mrows[2].y + 1, qpW, 15, { rx: 3, cls: 'f-sf' }, st.qp);
+      S.text(592, st.mrows[2].y + 12,'HEADERS は「表の 2 組目まで使う」と書いて送る', { cls: 't-xs t-x t-b t-end' }, st.qp);
+
+      /* 下: h3 を知る道 */
+      const gb = st.bot = S.g({ cls: 'fade' }, svg);
+      S.text(30, 392, 'ブラウザが HTTP/3 を使うまで（2026 年 10 月の計測。行 3 は UDP が止められた網の場合）', { cls: 't-xs t-b t-dim' }, gb);
+      const paths = [
+        [['www.youtube.com', 'HTTPS レコードに alpn なし'], [['DNS', 'A・AAAA を引く'], ['TCP ＋ TLS', 'ALPN で h2'], ['HTTP/2', 'GET /watch?v=…'], ['応答のヘッダ', 'Alt-Svc: h3=":443"'], ['次の要求から', 'QUIC で HTTP/3']]],
+        [['rr1---sn-xxxxxxxx', '.googlevideo.com'], [['DNS', 'HTTPS  alpn="h3"'], ['QUIC ＋ TLS', '最初から UDP 443'], ['HTTP/3', 'GET /generate_204'], ['HTTP/3', 'POST /videoplayback']]],
+        [['UDP が通らない網', '会社・学校など'], [['QUIC を試す', 'UDP 443 へ'], ['返事が無い', 'UDP が止められている'], ['TCP ＋ TLS', '並べて試していた'], ['HTTP/2 で続ける', 'QUIC はしばらく控える']]]
+      ];
+      st.paths = paths.map(([lab, boxes], r) => {
+        const y = 402 + r * 50;
+        const g = S.g({ cls: 'fade' }, gb);
+        S.text(30, y + 18, lab[0], { cls: 't-xs t-b t-mono' }, g);
+        S.text(30, y + 32, lab[1], { cls: 't-xs t-dim' }, g);
+        const bx = boxes.map(([a, b], k) => {
+          const x = 200 + k * 146, w = 128;
+          const rect = S.rect(x, y + 4, w, 36, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+          S.text(x + w / 2, y + 19, a, { cls: 't-c t-xs t-b' }, g);
+          S.text(x + w / 2, y + 33, b, { cls: 't-c t-xs t-mono t-dim' }, g);
+          if (k < boxes.length - 1) S.line(x + w + 3, y + 22, x + 143, y + 22, { cls: 's-dim w15', 'marker-end': mk('dim') }, g);
+          return rect;
+        });
+        return { g, bx };
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      op(st.top, i === 1 ? '' : 0.35);
+      op(st.mid, i === 0 || i === 2 ? '' : 0.35);
+      st.mrows.forEach((r, k) => op(r.g, i === 0 ? (k < 3 ? '' : 0.4) : i === 2 ? (k === 0 || k >= 4 ? '' : 0.4) : ''));
+      st.reqH.forEach((r, k) => r.setAttribute('class', i === 2 && k === 0 ? 'f-x s-x w1' : 'f-d s-d w1'));
+      st.ins.forEach((r) => r.setAttribute('class', i === 2 ? 'f-x s-x w1' : 'f-d s-d w1'));
+      S.fade(st.qp, i === 2);
+      op(st.bot, i >= 3 ? '' : 0.35);
+      st.paths.forEach((p, r) => op(p.g, i < 3 || r === i - 3 ? '' : 0.35));
+      st.seqRow = i >= 3 ? i - 3 : -1;
+      st.paths.forEach((p) => p.bx.forEach((b) => b.setAttribute('class', 'f-sf s-rule w1')));
+    },
+    frame(ctx) {
+      const st = ctx.state, run = playing();
+      /* 上: いまの時刻（段階2 だけ動かす） */
+      let now = H3.TMAX;
+      if (run && ctx.step === 1) {
+        const q = U.seq(ctx.ts, [6, 2], true);
+        now = q.i === 0 ? q.f * H3.TMAX : H3.TMAX;
+      }
+      st.items.forEach((it) => { it.el.style.opacity = it.a <= now ? '' : 0.2; });
+      const x = st.sx(now);
+      st.cursor.setAttribute('x1', x.toFixed(1)); st.cursor.setAttribute('x2', x.toFixed(1));
+      st.cursor.style.display = now >= H3.TMAX ? 'none' : '';
+      /* 下: 注目している行の箱を、左から順に灯す（止めているときは全部） */
+      if (st.seqRow >= 0) {
+        const bx = st.paths[st.seqRow].bx;
+        const k = run ? Math.floor(U.mod(ctx.ts, bx.length * 1.2 + 1.2) / 1.2) : bx.length;
+        bx.forEach((b, j) => b.setAttribute('class', j <= k ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 キャッシュと Cookie
+     ================================================================ */
+  /* 上の帯の台本。[荷札, 道（'c' 共有キャッシュまで / 'o' サーバーまで）, 向き 1 行き / -1 帰り, 秒] */
+  const S5_LANE = [
+    [],
+    [['GET 次の版の base.js', 'c', 1, 1.4], [null, 0, 0, 0.3], ['200', 'c', -1, 1.4], [null, 0, 0, 0.8]],
+    [['If-None-Match', 'c', 1, 1.4], [null, 0, 0, 0.3], ['304（本文なし）', 'c', -1, 1.4], [null, 0, 0, 0.8]],
+    [['GET /watch', 'o', 1, 1.7], [null, 0, 0, 0.3], ['200  no-store', 'o', -1, 1.7], [null, 0, 0, 0.5], ['GET base.js', 'c', 1, 1.2], [null, 0, 0, 0.3], ['200  Age: 448953', 'c', -1, 1.2], [null, 0, 0, 0.8]],
+    [['GET /watch', 'o', 1, 1.6], [null, 0, 0, 0.3], ['200 ＋ Set-Cookie', 'o', -1, 1.6], [null, 0, 0, 0.5], ['Cookie を付けて GET', 'o', 1, 1.6], [null, 0, 0, 0.8]],
+    [['Cookie: YSC=＊＊＊; …', 'o', 1, 1.8], [null, 0, 0, 0.8]]
+  ];
+  const s5 = {
+    steps: [
+      { title: '期限の間は聞きに行かない', text: 'プレーヤーの base.js の応答には `Cache-Control: public, max-age=31536000`（365 日）が付く。期限の間、ブラウザはディスクのキャッシュから出し、要求そのものを送らない。計測では、視聴ページを 2 回目に開くと 153 個の要求がキャッシュから出た。' },
+      { title: '版が変われば URL が変わる', text: '365 日も覚えさせてよいのは、URL に版ごとの文字列（`/s/player/5203c085/…`）が入っているから。プレーヤーを更新すると、毎回取り直す HTML が新しい URL を書くので、ブラウザは新しい版を取りに行く。中身を変えたら名前を変えるのが、長い期限の前提。' },
+      { title: '期限が切れたら確かめる：304', text: 'サムネイルには `max-age=7200`（2 時間）と `ETag: "1749462010"`（中身の版の札）が付く。期限が切れると、ブラウザは `If-None-Match` にその札を入れて聞き直す。変わっていなければ、本文の無い `304 Not Modified` が返り、手元の画像をそのまま使える。' },
+      { title: '保存させない応答、途中のキャッシュ', text: '視聴ページの HTML は `no-store`（保存するな）で、毎回取り直す。`public` は途中の共有キャッシュにも保存してよい印。HTTPS では経路の途中の機器は中身を読めないので、共有キャッシュはサーバーの側にある。base.js の `Age` は、そこに置かれていた秒数（どの段かは非公開、第22章）。' },
+      { title: 'Set-Cookie で札を渡す', text: '初めて開くと、応答に `Set-Cookie` が 8 個付いてきた（ログインしない状態）。ブラウザは名前と値を保存し、以後 youtube.com の下への要求に `Cookie: 名前=値; …` を付けて送り返す。`Expires` が保存の期限で、無い札はブラウザを閉じると消える。' },
+      { title: 'Secure・HttpOnly・SameSite', text: '`Secure` は HTTPS の要求にだけ付け、`HttpOnly` は JS から読ませない。`SameSite` は、他のサイトから始まった要求に札を付けるかを決める。YouTube の訪問者の札（YSC など）は `SameSite=none` と `Partitioned` で、埋め込まれた先のサイトごとに分けて保存される。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+
+      /* 左: ブラウザの中 */
+      S.rect(30, 8, 300, 354, { rx: 8, cls: 'f-sf s-fg w15' }, svg);
+      S.text(44, 28, 'ブラウザ（PC）', { cls: 't-sm t-b' }, svg);
+      S.text(44, 52, 'キャッシュ（ディスク）', { cls: 't-xs t-b t-dim' }, svg);
+      const crow = (y, name, sub, state) => {
+        const g = S.g({}, svg);
+        const r = S.rect(40, y, 280, 38, { rx: 5, cls: 'f-in s-rule w1' }, g);
+        S.text(50, y + 16, name, { cls: 't-xs t-b' }, g);
+        S.text(50, y + 31, sub, { cls: 't-xs t-mono t-dim' }, g);
+        const s = S.text(312, y + 16, state, { cls: 't-xs t-end' }, g);
+        return { r, s };
+      };
+      st.cache = [
+        crow(60, 'base.js（プレーヤー）', 'public, max-age=31536000', '残り 365 日'),
+        crow(102, 'hqdefault.jpg（サムネイル）', 'max-age=7200 ／ ETag', '残り 2 時間'),
+        crow(144, 'watch?v=…（視聴ページの HTML）', 'no-store', '保存しない')
+      ];
+      S.text(44, 206, 'Cookie（.youtube.com の札。値は伏せた）', { cls: 't-xs t-b t-dim' }, svg);
+      const krow = (y, name, exp, attrs) => {
+        const g = S.g({}, svg);
+        const r = S.rect(40, y, 280, 42, { rx: 5, cls: 'f-in s-rule w1' }, g);
+        S.text(50, y + 16, name, { cls: 't-xs t-b t-mono' }, g);
+        S.text(312, y + 16, exp, { cls: 't-xs t-dim t-end' }, g);
+        const a = S.text(50, y + 33, attrs, { cls: 't-xs t-mono t-dim' }, g);
+        return { r, a };
+      };
+      st.jar = [
+        krow(214, 'YSC=＊＊＊', '期限なし（閉じると消える）', 'Secure HttpOnly SameSite=none Partitioned'),
+        krow(260, 'VISITOR_INFO1_LIVE=＊＊＊', '約 180 日', 'Secure HttpOnly SameSite=none Partitioned'),
+        krow(306, 'GPS=＊＊＊', '30 分', 'Secure HttpOnly')
+      ];
+
+      /* 右上: 共有キャッシュとサーバー、その間の道（336〜490 と 630〜794）。
+         荷札は道の端で止まりかけても箱に掛からないよう、道の幅を荷札の幅（最大 約 152）より広くした */
+      st.cdn = box(svg, 496, 8, 128, 48, '共有キャッシュ', 'サーバー側（第22章）', { scls: '' });
+      st.org = box(svg, 800, 8, 130, 48, 'サーバー', 'www.youtube.com など', { scls: '' });
+      S.line(336, 32, 490, 32, { cls: 's-rule w15', 'marker-end': mk('dim'), 'marker-start': mk('dim') }, svg);
+      S.line(630, 32, 794, 32, { cls: 's-rule w15', 'marker-end': mk('dim'), 'marker-start': mk('dim') }, svg);
+      st.tok = pkt(svg, 'GET', 'f-d');
+      st.laneNote = S.text(413, 52, '', { cls: 't-c t-xs t-b t-x' }, svg);
+
+      /* 右の中: 段階ごとの図 */
+      board(svg, 350, 70, 580, 292, '');
+      st.mTitle = S.text(364, 90, '', { cls: 't-xs t-b t-dim' }, svg);
+      st.mids = [];
+      const X0 = 380, X1 = 910;
+      /* 段階1: 365 日の期限と、2 回目の転送 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const dx = (d) => X0 + (X1 - X0) * d / 365;
+        S.rect(dx(0), 132, dx(365) - dx(0), 18, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text((dx(0) + dx(365)) / 2, 145, 'このあいだは、キャッシュから出す（要求を送らない）', { cls: 't-c t-xs' }, g);
+        S.line(X0, 160, X1, 160, { cls: 's-dim w1' }, g);
+        [[0, '0 日'], [365, '365 日']].forEach(([d, s]) => S.text(dx(d), 174, s, { cls: 't-xs t-dim t-mono' + (d ? ' t-end' : '') }, g));
+        [0, 60, 150, 260].forEach((d, k) => S.path(`M${dx(d)},128 l-5,-8 h10 z`, { cls: k ? 'f-dim' : 'f-d' }, g));
+        S.text(dx(0), 114, '初回は取りに行く', { cls: 't-xs t-d t-b' }, g);
+        S.text(dx(160), 114, '開くたびに手元から（例）', { cls: 't-c t-xs t-dim' }, g);
+        S.text(364, 200, '視聴ページを開いた最初の 13 秒の、動画と音声を除く転送（計測）', { cls: 't-xs t-b' }, g);
+        const bar = (y, mb, label) => {
+          S.text(364, y + 13, label, { cls: 't-xs' }, g);
+          S.rect(420, y, Math.max(3, 380 * mb / 4.19), 18, { rx: 3, cls: 'f-d s-d w1' }, g);
+          S.text(420 + Math.max(3, 380 * mb / 4.19) + 8, y + 13, '約 ' + mb + ' MB', { cls: 't-xs t-mono t-b' }, g);
+        };
+        bar(214, 4.19, '1 回目');
+        bar(244, 0.24, '2 回目');
+        S.text(364, 290, '2 回目に残る転送の多くは、毎回取り直す HTML（約 0.16 MB）。', { cls: 't-xs t-dim' }, g);
+        S.text(364, 310, 'キャッシュから出た要求は、DevTools の Network の Size 欄に (disk cache) と出る。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'base.js の期限（max-age=31536000 秒 ＝ 365 日）']);
+      }
+      /* 段階2: 版ごとの URL */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const UX = 640;
+        S.text(364, 118, '/s/player/5203c085/…/base.js', { cls: 't-xs t-mono t-b' }, g);
+        S.rect(X0, 126, UX - X0, 16, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.rect(UX, 126, X1 - UX, 16, { rx: 3, cls: 'f-none s-dim w1 dash2' }, g);
+        S.text(UX + 8, 138, '使われないまま、期限か容量の都合で消える', { cls: 't-xs t-dim' }, g);
+        S.text(UX + 8, 180, '/s/player/（次の版）/…/base.js', { cls: 't-xs t-mono t-b' }, g);
+        S.rect(UX, 186, X1 - UX, 16, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text(UX + 8, 198, '初めての URL なので、取りに行く', { cls: 't-xs' }, g);
+        S.line(UX, 108, UX, 262, { cls: 's-x w15 dash' }, g);
+        S.text(UX, 104, 'プレーヤーの更新', { cls: 't-c t-xs t-b t-x' }, g);
+        [420, 500, 580, 700, 780, 860].forEach((x) => {
+          S.path(`M${x},246 v12`, { cls: 'f-none s-d w3' }, g);
+          S.path(`M${x},244 V${x < UX ? 146 : 206}`, { cls: 'f-none s-dim w1 dash2', 'marker-end': mk('dim') }, g);
+        });
+        S.text(364, 278, '▲ 視聴ページの HTML（no-store）を開くたびに取り直す', { cls: 't-xs t-mono t-b' }, g);
+        S.text(364, 306, 'HTML の中の script の URL に従って base.js を出す。点線は、その URL が指す版。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'プレーヤーを更新すると（模式図）']);
+      }
+      /* 段階3: 期限切れと 304 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const hx = (h) => X0 + (X1 - X0) * h / 6;
+        S.rect(hx(0), 136, hx(2) - hx(0), 18, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text((hx(0) + hx(2)) / 2, 149, '新しい（キャッシュから）', { cls: 't-c t-xs' }, g);
+        S.rect(hx(2), 136, hx(3) - hx(2), 18, { rx: 3, cls: 'f-none s-dim w1 dash2' }, g);
+        S.text((hx(2) + hx(3)) / 2, 149, '期限切れ', { cls: 't-c t-xs t-dim' }, g);
+        S.rect(hx(3), 136, hx(5) - hx(3), 18, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        S.text((hx(3) + hx(5)) / 2, 149, 'また 2 時間使える', { cls: 't-c t-xs' }, g);
+        S.line(X0, 166, X1, 166, { cls: 's-dim w1' }, g);
+        for (let h = 0; h <= 6; h++) S.text(hx(h), 180, h + ' 時間', { cls: 't-c t-xs t-dim' }, g);
+        S.path(`M${hx(3)},134 V120`, { cls: 'f-none s-x w15', 'marker-end': mk('x') }, g);
+        S.text(hx(3), 114, '3 時間後に開く → If-None-Match で確かめる → 304', { cls: 't-c t-xs t-b t-x' }, g);
+        S.text(364, 212, '応答の大きさ', { cls: 't-xs t-b' }, g);
+        S.text(364, 236, '200（本文あり）', { cls: 't-xs t-mono' }, g);
+        S.rect(470, 224, 300, 18, { rx: 3, cls: 'f-d s-d w1' }, g);
+        S.text(778, 237, '本文 21 KB ＋ ヘッダ', { cls: 't-xs' }, g);
+        S.text(364, 266, '304（本文なし）', { cls: 't-xs t-mono t-b t-x' }, g);
+        S.rect(470, 254, 8, 18, { rx: 2, cls: 'f-x' }, g);
+        S.text(486, 267, 'ヘッダだけ', { cls: 't-xs t-x t-b' }, g);
+        S.text(364, 300, '確かめに 1 往復はかかるが、本文は送らずに済む。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'サムネイルの期限（max-age=7200 秒 ＝ 2 時間）と、確かめる要求']);
+      }
+      /* 段階4: 保存の指定 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const rows = [['no-store', '保存しない。毎回取り直す', '視聴ページの HTML'], ['no-cache', '保存してよいが、使う前に毎回確かめる', ''], ['private', 'ブラウザだけが保存してよい', 'manifest（max-age=86400）'], ['public', '途中の共有キャッシュにも保存してよい', 'base.js・サムネイル・フォント'], ['Age（応答のヘッダ）', '共有キャッシュに置かれていた秒数', 'base.js で 448953（約 5.2 日）']];
+        S.text(364, 112, '指定', { cls: 't-xs t-b t-dim' }, g);
+        S.text(530, 112, '意味', { cls: 't-xs t-b t-dim' }, g);
+        S.text(760, 112, 'YouTube の例', { cls: 't-xs t-b t-dim' }, g);
+        rows.forEach(([a, b, c], k) => {
+          const y = 140 + k * 38;
+          S.text(364, y, a, { cls: 't-sm t-mono t-b' + (k === 0 || k === 4 ? ' t-x' : '') }, g);
+          S.text(530, y, b, { cls: 't-xs' }, g);
+          S.text(760, y, c, { cls: 't-xs t-dim' }, g);
+        });
+        S.text(364, 338, 'HTML の応答の「expires: 1990 年」は、古いキャッシュ向けに「もう期限切れ」と念を押す書き方。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'Cache-Control の主な指定']);
+      }
+      /* 段階5: Cookie を送る先 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        S.text(364, 116, 'Domain=.youtube.com の札を付ける先（2 回目に開いたときの計測）', { cls: 't-xs t-b' }, g);
+        [['www.youtube.com', '付く（30 個の要求の 30 個）', true], ['m.youtube.com など youtube.com の下', '付く（Domain の指定）', true], ['i.ytimg.com（サムネイル）', '付かない（別のドメイン）', false], ['rr1---sn-xxxxxxxx.googlevideo.com', '付かない（別のドメイン）', false]].forEach(([h, s, ok], k) => {
+          const y = 132 + k * 36;
+          S.rect(364, y, 552, 28, { rx: 5, cls: ok ? 'f-d-soft s-d w1' : 'f-in s-rule w1' }, g);
+          S.text(378, y + 19, ok ? '○' : '×', { cls: 't-sm t-b' + (ok ? ' t-d' : ' t-dim') }, g);
+          S.text(400, y + 19, h, { cls: 't-xs t-mono t-b' }, g);
+          S.text(904, y + 19, s, { cls: 't-xs t-end' + (ok ? '' : ' t-dim') }, g);
+        });
+        S.text(364, 300, '送り返すのは「名前=値」だけで、属性は送らない。', { cls: 't-xs t-dim' }, g);
+        S.text(364, 320, '動画の断片の要求には Cookie が付かない（googlevideo.com は別のドメイン）。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'Cookie を送る先']);
+      }
+      /* 段階6: 属性の意味 */
+      {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        [['Secure', 'HTTPS の要求にだけ付ける'], ['HttpOnly', 'JS（document.cookie）から読めない'], ['SameSite=lax', '他のサイトからは、リンクで移るときだけ付ける'], ['SameSite=none', '他のサイトに埋め込まれても付ける（Secure が要る）'], ['Partitioned', '埋め込み先のサイトごとに、別の入れ物に保存する']].forEach(([a, b], k) => {
+          const y = 120 + k * 36;
+          S.text(364, y, a, { cls: 't-sm t-mono t-b t-x' }, g);
+          S.text(520, y, b, { cls: 't-xs' }, g);
+        });
+        S.text(364, 310, 'SameSite を書かない札は、Chrome では lax として扱う。', { cls: 't-xs t-dim' }, g);
+        S.text(364, 330, '名前が __Secure- で始まる札は、Secure を付けたときだけ保存される。', { cls: 't-xs t-dim' }, g);
+        st.mids.push([g, 'Cookie の属性']);
+      }
+
+      /* 下: 実際のヘッダ */
+      board(svg, 30, 374, 900, 176, '');
+      st.hTitle = S.text(44, 395, '', { cls: 't-xs t-b t-dim' }, svg);
+      st.hdrs = [
+        [[['HTTP/2 200', 't-b'], 'cache-control: public, max-age=31536000', 'last-modified: Wed, 07 Oct 2026 04:33:48 GMT', 'content-length: 703954（Brotli で縮めた大きさ）', ['（2 回目は要求を送らず、ディスクのキャッシュから出す）', 't-dim']], null, 'base.js の応答（1 回目）'],
+        [['<script src="/s/player/5203c085/player_es6.vflset/ja_JP/base.js" name="player/base" nonce="…">', ['（視聴ページの HTML の中の 1 行。版が変わると、この URL が変わる）', 't-dim']], null, '視聴ページの HTML が base.js を指す所'],
+        [[['GET /vi/dQw4w9WgXcQ/hqdefault.jpg', 't-b'], ':authority: i.ytimg.com', ['if-none-match: "1749462010"', 't-x t-b']], [['HTTP/2 304', 't-x t-b'], 'etag: "1749462010"', 'cache-control: public, max-age=7200', ['（本文なし）', 't-dim']], '期限が切れたあとの要求と応答（curl で確かめた）'],
+        [[['視聴ページの HTML の応答', 't-b'], ['cache-control: no-cache, no-store,', 't-x t-b'], ['  max-age=0, must-revalidate', 't-x t-b'], 'expires: Mon, 01 Jan 1990 00:00:00 GMT'], [['base.js の応答', 't-b'], 'cache-control: public, max-age=31536000', ['age: 448953', 't-x t-b'], ['（共有キャッシュに 448,953 秒＝約 5.2 日）', 't-dim']], '保存の指定（応答のヘッダ）'],
+        [[['set-cookie: YSC=＊＊＊; Domain=.youtube.com; Path=/; Secure; HttpOnly; SameSite=none; Partitioned', ''], 'set-cookie: VISITOR_INFO1_LIVE=＊＊＊; Domain=.youtube.com; Expires=（180 日後）; Path=/; Secure; …', 'set-cookie: GPS=＊＊＊; Domain=.youtube.com; Expires=（30 分後）; Path=/; Secure; HttpOnly', ['（ほか 5 個）', 't-dim'], ['次の要求 → cookie: YSC=＊＊＊; VISITOR_INFO1_LIVE=＊＊＊; GPS=＊＊＊; …', 't-x t-b']], null, '初めて開いたときの応答と、次の要求'],
+        [['set-cookie: __Secure-BUCKET=＊＊＊; Domain=.youtube.com; Expires=（180 日後）; Path=/; Secure; HttpOnly; SameSite=lax', 'set-cookie: YSC=＊＊＊; Domain=.youtube.com; Path=/; Secure; HttpOnly; SameSite=none; Partitioned', ['（他のサイトに埋め込まれたときに付くのは YSC だけ。それも埋め込み先ごとの別の札）', 't-dim']], null, '属性の違う 2 つの札']
+      ].map(([L, R, title]) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        codeRows(g, 44, 420, L, 24, R ? 't-sm t-mono pre' : 't-xs t-mono pre');
+        if (R) { S.line(478, 404, 478, 540, { cls: 's-soft w1' }, g); codeRows(g, 496, 420, R, 24); }
+        return [g, title];
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.mids.forEach(([g], k) => S.fade(g, k === i));
+      st.mTitle.textContent = st.mids[i][1];
+      st.hdrs.forEach(([g], k) => S.fade(g, k === i));
+      st.hTitle.textContent = st.hdrs[i][1];
+      /* 左の行の注目 */
+      const cOn = [[0], [0], [1], [2], [], []][i];
+      st.cache.forEach((c, k) => c.r.setAttribute('class', cOn.includes(k) ? 'f-x-soft s-x w15' : 'f-in s-rule w1'));
+      st.cache[0].s.textContent = i === 1 ? '版ごとに別の URL' : '残り 365 日';
+      st.cache[1].s.textContent = i === 2 ? '期限切れ → 確かめる' : '残り 2 時間';
+      st.jar.forEach((c) => {
+        c.r.setAttribute('class', i >= 4 ? 'f-x-soft s-x w15' : 'f-in s-rule w1');
+        c.a.setAttribute('class', 't-xs t-mono ' + (i === 5 ? 't-x t-b' : 't-dim'));
+      });
+      op(st.cdn, i === 4 || i === 5 ? 0.35 : '');
+      st.cdn.rect.setAttribute('class', i === 3 ? 'f-x-soft s-x w15' : 'f-sf s-rule w15');
+      st.laneNote.textContent = i === 0 ? '要求は外へ出ない（転送 0）' : '';
+    },
+    frame(ctx) {
+      const st = ctx.state, L = S5_LANE[ctx.step];
+      const put = (text, road, dir, f) => {
+        st.tok.set(text);
+        st.tok.style.display = '';
+        const w = tw(text, 11) + 16, a = 336 + w / 2 + 4, b = (road === 'c' ? 490 : 794) - w / 2 - 4;
+        const x = dir > 0 ? U.lerp(a, Math.max(a, b), f) : U.lerp(Math.max(a, b), a, f);
+        st.tok.setAttribute('transform', `translate(${x.toFixed(1)},32)`);
+      };
+      if (!L.length) { st.tok.style.display = 'none'; return; }
+      if (!playing()) {
+        /* 止めているときは、最後の荷札をその道の箱の間に置く（共有キャッシュまでなら左、サーバーまでなら右） */
+        const last = [...L].reverse().find((p) => p[0]);
+        st.tok.set(last[0]);
+        st.tok.style.display = '';
+        st.tok.setAttribute('transform', `translate(${last[1] === 'c' ? 413 : 712},32)`);
+        return;
+      }
+      const q = U.seq(ctx.ts, L.map((p) => p[3]), true);
+      const p = L[q.i];
+      if (!p[0]) { st.tok.style.display = 'none'; return; }
+      put(p[0], p[1], p[2], U.ease.inOut(q.f));
+    }
+  };
+
+  /* ================================================================
+     場面6 YouTube を開くときの実際の要求
+     ================================================================ */
+  /* 2026-10-12 の計測（表紙の条件）。行は種類、要素は [要求を出した ms, 受け取り終えた ms, 転送 kB, HTTP/3 なら 1]。
+     視聴ページの要求を出した時刻が 0。最初の 30 秒に出した要求のうち、失敗したもの（GET /videoplayback の 403 など）は除いた */
+  const WF = [
+    [[0,1534,162.7,0]],
+    [[836,1222,704.7,0],[836,1504,2191.7,0],[836,951,14.2,0],[837,952,0.8,0],[837,1025,21.5,0],[837,1022,2,0],[869,1076,3,0],[869,1076,1.8,0],[1664,1698,23.4,1],[1694,1740,35.8,1],[1695,1715,2.6,1],[1695,1740,24,1],[1695,1717,7.3,1],[1695,1741,19.8,1],[1741,1755,12.2,1],[1743,1756,5,1],[1773,2349,2.5,0],[2224,2898,24.5,1],[2356,2374,13.8,0],[2778,2799,53.5,1],[3435,3448,1.6,1],[3473,3486,0.2,1]],
+    [[869,1491,15.7,0],[869,1000,58.9,0],[869,1000,1.5,0],[869,1051,0.7,0],[869,1050,0.3,0],[869,1170,303.9,0],[2897,2946,1.9,0],[2897,2963,0.7,0]],
+    [[836,1348,0.1,0],[836,1356,21.4,0],[1752,2508,34.2,0],[1753,1786,48.6,0],[1753,1799,36,0],[1753,1809,39.5,0],[1770,1809,1.2,0],[2378,2392,6.7,1],[2378,2392,0,1],[2468,2604,1.2,1],[2885,2896,2.1,0],[2987,2995,0,0],[3010,3024,0.6,1],[3010,3024,1.4,1],[3014,3028,9.5,1],[3014,3178,17.7,1],[3014,3044,18.6,1],[3014,3044,14.1,1],[3014,3044,21.9,1],[3038,3091,23.8,1],[3548,3566,1.6,1],[3552,3584,0.6,1],[3556,3585,4.5,1],[3560,3586,0.3,1],[3560,3587,1.1,1],[3561,3586,0.3,1],[3561,3586,0.4,1],[3571,3591,0.2,1]],
+    [[1524,1669,43.2,1],[1764,1780,20.6,1],[2468,2493,0.2,1],[2468,2493,0.2,1],[2774,2867,41.4,1],[3439,3486,0.2,1],[3440,3486,0.3,1],[3440,3455,0.2,1],[3440,3484,0.2,1],[3440,3486,0.3,1],[3440,3485,0.6,1],[3440,3492,0.4,1],[3441,3484,0.3,1],[3441,3485,0.2,1],[3441,3492,0.2,1],[3441,3493,0.3,1],[3441,3485,0.2,1],[3441,3492,0.2,1],[3441,3495,0.3,1],[3442,3492,0.2,1],[3442,3493,0.2,1],[3442,3493,0.3,1],[3442,3494,0.3,1],[3442,3494,0.6,1],[3442,3495,0.3,1],[3442,3477,0.3,1],[3443,3494,0.2,1],[3443,3478,0.2,1],[3443,3478,0.2,1],[3443,3495,0.2,1],[3443,3495,0.3,1],[3443,3509,0.5,1],[3443,3509,0.3,1],[3444,3509,0.2,1],[3550,3620,0.2,1],[3550,3637,0.3,1],[3550,3637,0.3,1],[3550,3635,0.2,1],[3551,3636,0.4,1],[3551,3636,0.4,1],[3551,3655,0.3,1],[3551,3655,0.3,1],[3551,3656,0.4,1],[3552,3658,0.3,1],[3552,3658,0.3,1],[3552,3657,0.2,1],[3552,3655,0.4,1],[3553,3660,0.4,1],[3553,3659,0.3,1],[3553,3636,0.4,1],[3553,3661,0.3,1],[3554,3654,0.4,1],[3554,3660,0.5,1],[3554,3660,0.5,1],[3554,3621,0.3,1],[3554,3660,0.3,1],[3555,3661,0.3,1],[3555,3660,0.3,1],[3555,3661,0.2,1],[3555,3636,0.3,1],[3555,3635,0.4,1],[3556,3663,0.3,1],[3556,3661,0.3,1],[3556,3662,0.3,1],[3556,3663,0.2,1],[3557,3662,0.2,1],[3557,3635,0.3,1],[3557,3663,0.3,1],[3557,3662,0.3,1],[3557,3683,0.3,1],[3558,3657,0.2,1],[3558,3682,0.2,1],[3558,3683,0.4,1],[3558,3652,0.3,1],[3559,3660,0.3,1],[3559,3652,0.3,1],[3559,3683,0.3,1],[3559,3683,0.3,1],[3559,3653,0.4,1],[3560,3661,0.2,1],[3560,3683,0.3,1],[3561,3657,0.3,1],[3561,3663,0.5,1],[3562,3684,0.2,1],[3562,3684,0.2,1],[3562,3661,0.2,1],[3563,3662,0.3,1],[3563,3683,0.3,1],[3569,3657,0.4,1],[3569,3684,0.3,1],[3570,3684,0.4,1],[3570,3684,0.3,1],[3570,3683,0.4,1]],
+    [[1509,1891,0,1],[1510,1900,0,1],[1685,2290,1647.1,1],[2338,2507,550.4,1],[7962,8320,1200.9,1],[8324,8337,0.2,1],[12962,13838,1298.2,1],[18854,19246,1200,1],[25963,26181,976,1]],
+    [[2317,2369,0,1],[2439,2504,0,1],[2440,2570,0,1],[2458,2527,0,1],[3134,3142,0,1],[3185,3239,0.1,1],[3471,3531,0,1],[3501,3566,0.1,1],[7672,7725,0,1],[11679,11737,0,1],[17672,17744,0,1],[27671,27718,0,1]],
+    [[1638,1740,2.1,1],[1783,1803,0,0],[2271,2291,0,1],[2440,2460,0,1],[2442,2462,0,1],[2459,3383,0.5,0],[2563,2926,0.1,1],[2563,3513,0.1,1],[2945,3480,0.1,1],[2948,3001,6.6,1],[2948,3003,7,1],[2948,2999,6.2,1],[2949,3001,6.7,1],[2949,3003,0,1],[3030,3075,0.1,1],[3040,3060,0,0],[3245,3431,0,1],[3430,3450,0,1],[3502,3550,0.1,1],[3545,3566,0.7,1],[3548,3566,5,1]]
+  ];
+  /* 関連動画をクリックしたあとの 13 秒（クリックが時刻 0）。行 0 は再生情報の API */
+  const WF_SPA = [
+    [[0,1127,141.5,1]],
+    [],
+    [],
+    [[767,797,24.8,1],[767,799,40.8,1],[1532,1693,47.7,1],[1533,1589,7.2,1],[1536,1589,0,1],[1749,1776,29,1],[1749,1761,2.2,1],[1782,1835,12.6,1],[1782,1794,8.1,1],[7693,8482,557.9,0],[8156,8174,1.6,1],[8160,8173,3.7,1],[8170,8178,0,1],[8172,8202,37.7,1]],
+    [[2310,2407,0.2,1],[2312,2407,0.2,1],[2312,2407,0.4,1]],
+    [[753,904,0,1],[761,905,0.1,1],[788,1579,425,1],[1198,1207,0,1],[7657,8185,274,1],[10935,11284,1723.3,1]],
+    [[737,819,0,1],[738,800,0,1],[1432,1537,0,1],[1529,1614,0,1],[1540,1604,0,1],[1540,1779,0,1],[2304,2367,0.1,1],[2545,2603,0,1],[7639,7686,0,1],[7639,7705,0,1],[7648,7698,0,1],[7649,7705,0,1],[7649,7713,0,1],[7697,7768,1,1],[8111,8177,0,1],[8153,8204,0,1],[8235,8284,0,1],[8236,8282,0,1],[9241,9300,0,1],[10759,10813,0,1],[11289,11350,0,1]],
+    [[782,1070,15.6,0],[790,979,0,1],[1080,1100,0,0],[1430,1623,0,1],[1527,1719,0,1],[1750,1797,0.1,1],[2309,2329,0,1],[2409,2454,0.1,1],[3764,3779,0.1,1],[4691,4706,0.1,1],[7641,7690,0.1,1],[7658,7821,0,1],[7681,7701,0,0],[8110,10445,0,1],[8153,8345,0,1],[8156,8403,0.1,1],[8157,8608,0.4,0],[8171,8231,0.1,1],[9987,10098,0.1,0],[10388,10401,0.1,1],[10389,10407,0.1,1],[11315,11328,0.1,1],[11317,11330,0.1,1],[11317,11423,0.1,1],[12910,13123,0.1,1]]
+  ];
+  const WF_ROWS = [
+    ['HTML', 'www.youtube.com/watch'], ['JS', 'www.youtube.com/s/… など'], ['CSS', 'www.youtube.com/s/… など'], ['画像', 'i.ytimg.com・yt3.ggpht.com'],
+    ['フォント・アイコン', 'fonts.gstatic.com'], ['動画・音声', 'rr1---sn-xxxxxxxx'], ['統計・ログ', '/api/stats/… など'], ['広告・その他', 'doubleclick.net など']
+  ];
+  const WF_FIRST_FRAME = 2374;   // 最初の画（video の playing）が出た ms
+  const s6 = {
+    steps: [
+      { title: '最初は HTML 1 個', text: '視聴ページの要求への応答は、ヘッダが先に届き、本文はできた部分から順に流れてきた。展開した HTML の 97% は `<script>` の中で、ページの中身と再生情報（形式の一覧と、断片を取りに行く URL）が JSON で埋め込まれている。' },
+      { title: 'JS と CSS：圧縮して約 3.5 MB', text: '約 0.8 秒後から、HTML に書かれた JS と CSS を取る。JS は展開すると約 14 MB になり、大半はアプリの JS とプレーヤーの base.js の 2 個。最初の十数個は HTML と同じ HTTP/2 の接続で、その後の多くは Alt-Svc を見たあとの HTTP/3 で届いた（場面4）。' },
+      { title: '画像とフォント：小さく、数が多い', text: '画像は動画のサムネイルとチャンネルのアイコン。フォント・アイコンの行の 93 個のうち 90 個は、ボタンなどの SVG で、1 個 0.3 KB ほど。これがすべて 1 本の HTTP/3 の接続に乗った。HTTP/1.1 なら、6 本の接続に 15 個ずつ並ぶ数。' },
+      { title: '動画と音声は googlevideo.com から', text: 'HTML の中の再生情報が示す配信元へ、まず本文の無い `generate_204` を送って接続を先に作る。続く POST の応答 1 つに、音声と映像の断片が数個ずつまとめて入っていた。最初の画は、これを受け取ってすぐに出た。この回では、以後 5〜7 秒ごとに約 1 MB ずつ取っていた（第24章）。' },
+      { title: '統計とログを送り続ける', text: '再生が始まると、再生の開始と、10 秒ごとに「どこまで見たか」を POST で送り、どれも本文の無い `204` が返る。画面の表示と操作の記録は 1 回 12 KB ほどの JSON。広告と計測の要求も 20 個ほどあり、どれも小さい。' },
+      { title: 'サイトの中で次の動画へ', text: '関連動画をクリックしても、HTML は取り直さない。`POST /youtubei/v1/get_watch` に JSON を送り、次の動画の再生情報と画面の中身（関連動画など）をまとめて JSON で受け取る。JS と CSS は手元にあるので、あとは断片・画像・統計の要求が続く。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      /* 時間の目盛り: 0〜4 秒は広く、4〜31 秒は縮める */
+      const TX0 = 196, TB = 576, TX1 = 776;
+      const tx = (ms) => ms <= 4000 ? TX0 + (TB - TX0) * ms / 4000 : TB + (TX1 - TB) * Math.min(ms - 4000, 27000) / 27000;
+      st.tx = tx;
+      [0, 1000, 2000, 3000, 4000, 10000, 20000, 30000].forEach((ms) => {
+        S.line(tx(ms), 44, tx(ms), 418, { cls: 's-soft w1' }, svg);
+        S.text(tx(ms), 38, (ms / 1000) + ' 秒', { cls: 't-c t-xs t-dim t-mono' }, svg);
+      });
+      S.line(TB, 44, TB, 418, { cls: 's-rule w1 dash' }, svg);
+      S.text(TB + 4, 22, '4 秒から先は縮めた', { cls: 't-xs t-dim' }, svg);
+      S.text(812, 38, '転送（圧縮後）', { cls: 't-xs t-dim' }, svg);
+      /* 最初の画 */
+      st.ff = S.g({ cls: 'fade' }, svg);
+      S.line(tx(WF_FIRST_FRAME), 30, tx(WF_FIRST_FRAME), 418, { cls: 's-x w15' }, st.ff);
+      S.text(tx(WF_FIRST_FRAME) - 4, 22, '最初の画 2.4 秒', { cls: 't-xs t-x t-b t-end' }, st.ff);
+
+      st.items = [];
+      /* 1 行ぶんの棒と転送量。data は WF か WF_SPA の 1 行 */
+      const drawRow = (p, y, reqs, set) => {
+        const lanes = [-1e9, -1e9, -1e9, -1e9];   // 重ならないよう 4 段に詰める
+        let kb = 0;
+        reqs.forEach(([a, b, size, h3], j) => {
+          kb += size;
+          const x1 = tx(a), x2 = Math.max(tx(b), x1 + 2);
+          let li = lanes.findIndex((e) => e + 1 <= x1);
+          if (li < 0) li = j % 4;
+          lanes[li] = Math.max(lanes[li], x2);
+          const r = S.rect(x1, y + 5 + li * 8, x2 - x1, 6, { cls: h3 ? 'f-d' : 'f-sf s-d w1' }, p);
+          set.push({ el: r, a });
+        });
+        const mb = kb / 1000;
+        if (reqs.length) S.rect(812, y + 24, Math.max(2, 110 * mb / 6.9), 8, { rx: 2, cls: 'f-d' }, p);
+        S.text(812, y + 18, reqs.length ? (mb >= 1 ? mb.toFixed(1) : mb < 0.005 ? '≒ 0' : mb.toFixed(2)) + ' MB　' + reqs.length + ' 個' : '要求なし', { cls: 't-xs t-mono t-b' }, p);
+      };
+      st.spaItems = [];
+      st.rows = WF.map((reqs, k) => {
+        const y = 50 + k * 46;
+        const g = S.g({ cls: 'fade' }, svg);
+        S.rect(30, y, 900, 40, { rx: 4, cls: 'f-in' }, g).style.opacity = 0.5;
+        const lab = S.text(40, y + 17, WF_ROWS[k][0], { cls: 't-xs t-b' }, g);
+        const sub = S.text(40, y + 32, WF_ROWS[k][1], { cls: 't-xs t-mono t-dim' }, g);
+        const gA = S.g({ cls: 'fade' }, g), gB = S.g({ cls: 'fade hide' }, g);
+        drawRow(gA, y, reqs, st.items);
+        drawRow(gB, y, WF_SPA[k], st.spaItems);
+        return { g, lab, sub, gA, gB };
+      });
+      st.cursor = S.line(TX0, 44, TX0, 418, { cls: 's-x w1 dash2' }, svg);
+
+      /* 下: 段階ごとの記録 */
+      board(svg, 30, 430, 900, 120, '');
+      st.dTitle = S.text(44, 450, '', { cls: 't-xs t-b t-dim' }, svg);
+      const rows = [
+        [['0.00 秒  GET  /watch?v=dQw4w9WgXcQ   → 200  text/html; charset=utf-8   HTTP/2', 't-b'], '0.13 秒  応答のヘッダ　　1.53 秒  本文の最後（Brotli 163 KB → 展開 1.40 MB）', '中身の例  ytInitialData（ページの中身）約 0.5 MB ／ ytInitialPlayerResponse（再生情報）約 73 KB'],
+        [['アプリの JS（ytmainappweb）  2.19 MB → 展開 10.9 MB', 't-b'], ['プレーヤーの /s/player/5203c085/…/base.js  0.70 MB → 展開 2.63 MB', 't-b'], 'ほかの JS 20 個 0.27 MB ／ CSS 8 個 0.38 MB → 展開 3.8 MB（大半はアプリの CSS）'],
+        ['i.ytimg.com/vi/（動画 ID）/hqdefault.jpg など  動画のサムネイル（関連動画の分も）／ yt3.ggpht.com  アイコン', 'fonts.gstatic.com/s/roboto/v51/….woff2  フォント Roboto（3 個、合わせて約 0.1 MB）', ['fonts.gstatic.com/s/i/youtube_outline_experimental/…/24px.svg  ボタンのアイコン（90 個）', 't-b']],
+        [['1.51 秒  GET  /generate_204   → 204（本文なし）', 't-b'], ['1.69 秒  POST /videoplayback?…（本文 1.4 KB） → 200  application/vnd.yt-ump  1.65 MB', 't-b'], '中身  初期化の部分と、音声（Opus）0〜20 秒・映像（AV1 720p）0〜17.4 秒の断片。2.37 秒に最初の画'],
+        ['2.44 秒        POST /api/stats/playback   → 204（本文 0）', ['7.7・17.7・27.7 秒  POST /api/stats/watchtime（本文 188 B） → 204', 't-b'], '3.50 秒        POST /youtubei/v1/log_event（JSON 約 12 KB） → 200'],
+        [['0.00 秒  POST /youtubei/v1/get_watch（JSON 4.8 KB を gzip で 3.2 KB） → 200  JSON 142 KB（展開 1.15 MB）', 't-b'], '　　　　 中身は [playerResponse（再生情報）, watchNextResponse（関連動画など画面の中身）] の 2 つ', '0.75 秒〜  断片の POST・画像・統計。13 秒で 72 個・3.4 MB（この回は先に広告が流れた）']
+      ];
+      const titles = ['視聴ページの HTML（計測の記録）', 'JS と CSS（圧縮後 → 展開後）', '画像・フォント・アイコン', '動画と音声（rr1---sn-xxxxxxxx.googlevideo.com、HTTP/3）', '統計とログ（www.youtube.com、HTTP/3）', '関連動画をクリックしたあと（そのクリックが時刻 0）'];
+      st.details = rows.map((ls, k) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        codeRows(g, 44, 474, ls, 24, 't-xs t-mono pre');
+        return [g, titles[k]];
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const on = [[0], [1, 2], [3, 4], [5], [6, 7], [0, 1, 2]][i];
+      const spa = i === 5;
+      st.rows.forEach((r, k) => {
+        op(r.g, spa || on.includes(k) ? '' : 0.35);
+        r.lab.setAttribute('class', 't-xs t-b' + (on.includes(k) ? ' t-x' : ''));
+        S.fade(r.gA, !spa);
+        S.fade(r.gB, spa);
+      });
+      st.rows[0].lab.textContent = spa ? '再生情報の API' : WF_ROWS[0][0];
+      st.rows[0].sub.textContent = spa ? '/youtubei/v1/get_watch' : WF_ROWS[0][1];
+      S.fade(st.ff, !spa);
+      st.details.forEach(([g], k) => S.fade(g, k === i));
+      st.dTitle.textContent = st.details[i][1];
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      /* いまの時刻。12 秒で 31 秒ぶんを進め（最初の 4 秒をゆっくり）、2 秒止まる */
+      let now = 31000;
+      if (playing()) {
+        const q = U.seq(ctx.ts, [6, 6, 2], true);
+        now = q.i === 0 ? q.f * 4000 : q.i === 1 ? 4000 + q.f * 27000 : 31000;
+      }
+      (ctx.step === 5 ? st.spaItems : st.items).forEach((it) => { it.el.style.opacity = it.a <= now ? '' : 0.2; });
+      const x = st.tx(now);
+      st.cursor.setAttribute('x1', x.toFixed(1)); st.cursor.setAttribute('x2', x.toFixed(1));
+      st.cursor.style.display = now >= 31000 ? 'none' : '';
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第V部 約束ごと ／ 第21章',
+      title: 'HTTP',
+      home: '../index.html',
+      prev: { href: '20-tls.html', title: 'TLS' },
+      next: { href: '22-server.html', title: 'YouTube のサーバー側' },
+      legend: [{ c: 'd', label: '要求・応答・データ' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

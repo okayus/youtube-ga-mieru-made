@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>入出力と周辺機器 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .reg-row.lit-reg rect { stroke: var(--c-x); stroke-width: 2; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第II部 計算機 ／ 第7章 ／ 全25章</p>
+    <h1 id="h-s0">入出力と周辺機器</h1>
+    <p class="standfirst">CPU とメモリだけでは、キーを押すことも、画面に出すことも、ネットワークにつなぐこともできない。この章では、CPU の外側にある装置とのやりとりを追う。速さの違う道（メモリバス・PCIe・USB）、装置のレジスタをアドレスで読み書きする仕組み（MMIO）、装置から CPU を呼ぶ合図（割り込み）、CPU を介さずにメモリへ書く仕掛け（DMA）、そしてキーボードのクリックがどう数字になり、ネットワークカードがどうビット列を電線に出すかまで。最後の NIC と Wi-Fi カードが、第11章以降のネットワークの出発点になる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の速さ・大きさは見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>バスの階層</a><p>メモリバス、PCIe のレーン、USB。近いほど太く、遠いほど細い道。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>デバイスレジスタと MMIO</a><p>装置のレジスタにアドレスを付け、普通の load/store で装置を動かす。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>割り込み</a><p>装置が CPU を呼ぶ合図。割り込みコントローラ、ベクタ表、ハンドラ、復帰。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>DMA</a><p>装置が自分でメモリへ書く。ディスクリプタ、完了の割り込み、IOMMU。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>キーボードとマウス</a><p>スイッチの格子をスキャンし、USB HID レポートにして、OS が文字とクリックにする。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>NIC と Wi-Fi カード</a><p>リングバッファ、MAC、PHY。ビット列が電線の信号・電波になる所。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（画面と音）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図はすべて模式図。速度の値は規格の理論値（片方向）で、実際の転送量はこれより小さい。アドレスやレジスタの名前は例。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 バスの階層 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="バス" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>バスの階層 — 近いほど太く、遠いほど細い</h2>
+    <p class="sh-meta"><span class="chip">DDR5</span><span class="chip">PCIe</span><span class="chip">USB</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU は1本の道で全部につながっているのではない。メモリへは専用のメモリバス、GPU や SSD へは PCIe、キーボードへは USB。装置ごとに必要な太さの道を使い分ける。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">速度はいずれも規格の理論値で片方向。PCIe の 1 レーンは Gen3 で 0.985 GB/s、Gen4 で 1.97 GB/s、Gen5 で 3.94 GB/s。USB 2.0 は 480 Mb/s、USB 3.2 は 5〜20 Gb/s、USB4 は 40 Gb/s。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CPU を中心に、メモリバス、PCIe、チップセット、USB でつながる装置と、それぞれの道を流れるデータ"></svg></div>
+    <figcaption>図1　CPU を中心にした道の階層。道の太さと粒の速さが帯域の違いを表す（比率は誇張）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 MMIO ================= -->
+<section class="scene sc-anim" id="s2" data-tab="MMIO" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>デバイスレジスタと MMIO</h2>
+    <p class="sh-meta"><span class="chip">load / store</span><span class="chip">0xFEB0_0000</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU が装置と話す方法は 1 つしかない。装置の中の小さな記憶（レジスタ）に<b>アドレス</b>を付け、メモリと同じ load/store で読み書きする。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PCIe 装置のレジスタの範囲（BAR）は起動時にファームウェアと OS が決めて割り当てる。x86 にはメモリとは別の 64K 個の I/O ポート空間（in/out 命令）も残っているが、現代の装置はほぼ MMIO を使う。ARM にはメモリマップしかない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CPU、物理アドレス空間、装置のレジスタ。store 命令の値がアドレスによって RAM ではなく装置へ届く"></svg></div>
+    <figcaption>図2　物理アドレス空間（中央）の一部が装置のレジスタに配線されている。CPU は普通の store/load で装置を動かし、状態を読む。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 割り込み ================= -->
+<section class="scene sc-anim" id="s3" data-tab="割り込み" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>割り込み — 装置が CPU を呼ぶ</h2>
+    <p class="sh-meta"><span class="chip">IRQ</span><span class="chip">APIC</span><span class="chip">IDT</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">装置の用事は、CPU の時間感覚からすると滅多に起きない。聞き続ける（ポーリング）代わりに、装置の側から CPU に合図を送り、CPU はそのときだけ対応する。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">x86 のベクタは 256 個で、0〜31 は CPU 自身の例外（ゼロ除算、ページフォールト）に予約。装置の割り込みは 32 以降を使う。合図から処理の開始まではおよそ 1 マイクロ秒前後、処理を含めても数マイクロ秒で元のプログラムに戻る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="実行中の命令列、キーボードからの割り込み線、割り込みコントローラ、ベクタ表、ハンドラへ飛んで戻る様子"></svg></div>
+    <figcaption>図3　上の帯が CPU の実行中の命令。キーボードの合図がコントローラ経由で CPU に届き、状態を保存してハンドラへ飛び、終わると続きに戻る。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 DMA ================= -->
+<section class="scene sc-anim" id="s4" data-tab="DMA" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>DMA — 装置が自分でメモリへ書く</h2>
+    <p class="sh-meta"><span class="chip">ディスクリプタ</span><span class="chip">IOMMU</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">届いたデータを CPU が 1 語ずつ運ぶのは遅く、CPU もふさがる。装置に「メモリのこの場所に書いてよい」と教え、装置が自分で書く。これが DMA で、ネットワークもディスクも GPU もこれで動く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PCIe の 1 回の書き込みは最大 128〜512 バイト（Max Payload Size）。Ethernet のフレーム 1,500 バイトなら数回の書き込みで運ぶ。NIC のリングは数百〜数千個のディスクリプタを持ち、10 Gb/s では毎秒最大 1,480 万フレームが届きうる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CPU、メモリ、NIC。CPU が運ぶ方法と、NIC が DMA で直接メモリに書く方法の比較"></svg></div>
+    <figcaption>図4　左が CPU、中央がメモリ（受信バッファとディスクリプタのリング）、右が NIC。段階 1 は CPU が運び、段階 3 からは NIC が直接書く。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 キーボードとマウス ================= -->
+<section class="scene sc-anim" id="s5" data-tab="キーボード" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>キーボードとマウス — 押した・動かしたが数字になる</h2>
+    <p class="sh-meta"><span class="chip">マトリクス</span><span class="chip">USB HID</span><span class="chip">keydown / click</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">キーは第1章のスイッチそのもの。キーボードの中のマイコンが、どのスイッチが閉じたかを格子で調べ、決まった形の数バイト（HID レポート）にして USB で送る。OS がそれを文字やクリックに変える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">HID のキーコードは配列上の位置を表す番号で、文字ではない（A のキーは 0x04）。日本語配列か英語配列か、Shift が押されているかを見て文字に直すのは OS の仕事。マウスの光学センサは毎秒数千枚の表面画像を比べて移動量を出し、分解能は 800〜1,600 CPI（1 インチ動かすと 800〜1,600 カウント）が一般的。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="キーの格子をスキャンするマイコン、USB HID レポートの 8 バイト、OS がキーコードを文字にする流れ、マウスの光学センサ"></svg></div>
+    <figcaption>図5　左がキーボードの中（4×4 の格子とマイコン）。右上が USB で送られる 8 バイトのレポートと OS の処理、右下がマウス。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 NIC / Wi-Fi ================= -->
+<section class="scene sc-anim" id="s6" data-tab="NIC" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>NIC と Wi-Fi カード — ビット列が信号になる所</h2>
+    <p class="sh-meta"><span class="chip">MAC</span><span class="chip">PHY</span><span class="chip">1000BASE-T</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ネットワークカード（NIC）は、メモリ上のビット列を電線の信号に変え、電線の信号をビット列に戻す装置。フレームの組み立てを受け持つ <b>MAC</b> と、信号との変換を受け持つ <b>PHY</b> の 2 段でできている。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">1000BASE-T は 4 対の銅線を同時に双方向で使い、1 対あたり毎秒 1 億 2,500 万シンボル、1 シンボルで 2 ビット（5 値の電圧）を運ぶ。4 対 × 2 ビット × 125 M = 1,000 Mb/s。Wi-Fi カードは PHY の先が電波（2.4 / 5 / 6 GHz）になるだけで、メモリとのやりとりは同じ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="NIC の内部（PCIe、DMA、リング、MAC、PHY）を通ってフレームが電線の信号になる流れと、Wi-Fi カードの構成"></svg></div>
+    <figcaption>図6　上段が有線の NIC。メモリのフレームが DMA で入り、MAC が FCS を付け、PHY が信号にする。下段が Wi-Fi カードで、PHY の先がアンテナになる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — CPU の外側とのやりとり</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>装置は速さの違う道でつながる。メモリバス（数十 GB/s）、PCIe（レーン数と世代で選ぶ）、USB（ホスト主導）。細い道の多くはチップセットがまとめる（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>装置のレジスタにはアドレスが付いていて、CPU は普通の load/store で装置を動かし、状態を読む（MMIO）。触れるのはカーネルのドライバだけ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>装置の用事は割り込みで知らせる。コントローラが番号を付け、CPU は状態を保存してベクタ表のハンドラへ飛び、終われば続きに戻る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>データの運搬は装置自身が DMA でメモリに書く。CPU はディスクリプタで置き場所を教え、完了の割り込みをまとめて受ける（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>キーボードは格子のスキャンで押されたキーを見つけ、8 バイトの HID レポートにする。OS がキーコードを文字に、ボタンをクリックにして、ブラウザのイベントになる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>NIC は MAC がフレームを組み立て、PHY がビットを電線の信号にする。Wi-Fi カードは PHY の先が電波。ここから先が第11章以降のネットワーク（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>バス</th><td>複数の装置が共有する、または装置ごとに引いた信号の道。メモリバス、PCIe、USB、SATA など。</td></tr>
+        <tr><th>PCIe（レーン）</th><td>送受 1 組の差動線が 1 レーン。×1 / ×4 / ×16 と束ねる。Gen3 0.985、Gen4 1.97、Gen5 3.94 GB/s（1 レーン・片方向）。</td></tr>
+        <tr><th>USB</th><td>ホストが主導するシリアルバス。2.0 は 480 Mb/s、3.2 は 5〜20 Gb/s、USB4 は 40 Gb/s。キーボードは割り込み転送で 1〜8 ms ごとに読まれる。</td></tr>
+        <tr><th>デバイスレジスタ・MMIO</th><td>装置内の制御・状態・データのレジスタに物理アドレスを割り当て、load/store で読み書きすること。範囲は PCIe の BAR で決まる。</td></tr>
+        <tr><th>ポーリング</th><td>状態レジスタを繰り返し読んで待つ方法。単純だが CPU 時間を浪費する。</td></tr>
+        <tr><th><i class="sw e"></i>割り込み（IRQ・MSI）</th><td>装置から CPU への合図。割り込みコントローラ（APIC / GIC）がベクタ番号を付け、CPU はベクタ表（IDT）のハンドラへ飛ぶ。</td></tr>
+        <tr><th>ハンドラ・EOI</th><td>割り込みを処理するカーネルの関数。装置と話し、コントローラに処理済み（EOI）を伝え、保存した状態を復元して戻る。</td></tr>
+        <tr><th><i class="sw d"></i>DMA・ディスクリプタ</th><td>装置が直接メモリを読み書きする仕組みと、置き場所（アドレスと長さ）を書いたメモリ上の表。リング状に並べる。</td></tr>
+        <tr><th>IOMMU</th><td>装置のメモリアクセスを翻訳・制限する装置用ページテーブル。Intel VT-d、AMD-Vi、ARM SMMU。</td></tr>
+        <tr><th>HID レポート</th><td>USB の入力装置が送る決まった形のバイト列。キーボードは 8 バイト（修飾キー 1、予約 1、キーコード 6）。</td></tr>
+        <tr><th>MAC・PHY</th><td>NIC の 2 段。MAC はフレームの組み立てと FCS、宛先の確認。PHY はビットと信号（電圧・光・電波）の変換。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+
+  /* ---------- この章で使う部品 ---------- */
+  /* 枠と題（と小さな副題）の箱 */
+  function box(parent, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, parent);
+    g.rect = S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-rule w15' }, g);
+    g.title = S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (tcls || '') }, g);
+    if (sub) g.sub = S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim' }, g);
+    return g;
+  }
+  /* 太さ w の道と、その中心線（流れ用）を描く */
+  function road(parent, d, w, cls) {
+    S.path(d, { cls: (cls || 's-rule') + ' f-none round', 'stroke-width': w }, parent);
+    S.path(d, { cls: 's-in f-none round', 'stroke-width': Math.max(2, w - 5) }, parent);
+    return S.path(d, { cls: 'f-none s-none' }, parent);
+  }
+  /* 動く札（データの包み）。中央基準の g を返す */
+  function token(parent, text, cls, w) {
+    const g = S.g({ cls: 'fade' }, parent);
+    w = w || Math.max(28, text.length * 8.5 + 12);
+    S.rect(-w / 2, -10, w, 20, { rx: 4, cls: cls || 'f-d' }, g);
+    S.text(0, 4, text, { cls: 't-c t-xs t-mono t-b t-sf' }, g);
+    g.setW = (t) => { S.clear(g); S.rect(-w / 2, -10, w, 20, { rx: 4, cls: cls || 'f-d' }, g); S.text(0, 4, t, { cls: 't-c t-xs t-mono t-b t-sf' }, g); };
+    return g;
+  }
+  /* 表（SVG の中の簡単な行列）。rows は [[c1, c2, ...], ...]、cols は x のオフセット配列 */
+  function table(parent, x, y, cols, rows, rowH, opts) {
+    opts = opts || {};
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const w = opts.w || (cols[cols.length - 1] + 90);
+    g.rows = rows.map((r, i) => {
+      const rg = S.g({}, g);
+      rg.bg = S.rect(0, i * rowH, w, rowH, { cls: i === 0 && opts.head ? 'f-in' : 'f-none' }, rg);
+      r.forEach((c, k) => S.text(cols[k], i * rowH + rowH / 2 + 4, c, { cls: 't-sm ' + (i === 0 && opts.head ? 't-b t-mid' : (opts.mono && k > 0 ? 't-mono' : '')) }, rg));
+      if (i) S.line(0, i * rowH, w, i * rowH, { cls: 's-soft w1' }, rg);
+      return rg;
+    });
+    g.insertBefore(S.rect(0, 0, w, rows.length * rowH, { rx: 4, cls: opts.box || 'f-sf s-rule w1' }), g.firstChild);
+    return g;
+  }
+
+  /* ================================================================
+     場面1 バスの階層
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'CPU の周りには速さの違う道がある', text: 'メモリへは専用のメモリバス、GPU や SSD へは PCIe、キーボードやマウスへは USB。遠い装置ほど細く遅い道でよく、近いほど太く速い道が要る。装置は CPU と直接話すのではなく、それぞれの道の規格に従ってデータを置き、受け取る。' },
+      { title: 'メモリバス：いちばん太い道', text: 'CPU とメモリの間は 64 ビット幅の道が 2 本（2 チャネル）。DDR5-4800 なら 1 チャネルあたり 38.4 GB/s。キャッシュ（第6章）に無いデータは必ずここを通るので、ここが詰まると CPU も装置も待たされる。' },
+      { title: 'PCIe：レーンを束ねて太さを選ぶ', text: '1 レーンは送信用と受信用の差動線 1 組ずつ。世代ごとに 1 レーンの速さが倍になり（Gen3 約 1 GB/s、Gen4 約 2 GB/s、Gen5 約 4 GB/s）、GPU は 16 レーン、NVMe SSD は 4 レーン、NIC は 1 レーンと、装置ごとに本数を選ぶ。' },
+      { title: 'USB：ホストが聞き、装置が答える', text: 'USB はパソコン（ホスト）が主導し、装置は聞かれたときだけ答える。USB 2.0 は 480 Mb/s、USB 3.2 は 5〜20 Gb/s、USB4 は 40 Gb/s。キーボードとマウスはもっとも遅い種類で足りる（[[5|キーボードとマウス]]）。' },
+      { title: 'チップセットと SoC、そしてネットワークの入口', text: '細い道の多くは CPU から直接ではなく、チップセット（PCH）がまとめ、CPU とは PCIe と同じ方式の専用リンク（DMI）でつなぐ。スマートフォンではこれらが 1 枚のチップ（SoC）に入るが、道の階層は同じ。NIC と Wi-Fi カード（[[6|NIC と Wi-Fi カード]]）もここにぶら下がる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const g = S.g({}, svg);
+      // 道（箱より下に描く）
+      const roads = st.roads = {};
+      const mkRoad = (key, d, w, speed, count, cls) => {
+        const gg = S.g({ cls: 'fade' }, g);
+        const p = road(gg, d, w);
+        roads[key] = { g: gg, flow: A.flow(p, { count, speed, r: w > 10 ? 3.5 : 2.6, cls: cls || 'f-d', parent: gg, jitter: Math.max(0, w / 2 - 5) }) };
+      };
+      mkRoad('mem', 'M190,200 V92 H360', 16, 170, 16);
+      mkRoad('gpu', 'M280,225 H520 V140 H700', 14, 150, 14);
+      mkRoad('ssd', 'M280,255 H560 V230 H700', 10, 110, 7);
+      mkRoad('dmi', 'M170,330 V400', 11, 100, 5);
+      mkRoad('nic', 'M280,420 H620 V320 H700', 6, 60, 3);
+      mkRoad('wifi', 'M280,445 H650 V410 H700', 6, 50, 2);
+      mkRoad('kb', 'M120,480 V500', 5, 30, 1);
+      mkRoad('mouse', 'M240,480 V500', 5, 30, 1);
+      mkRoad('usbm', 'M280,462 H400 V500', 6, 70, 3);
+      // 箱
+      st.boxes = {};
+      st.boxes.cpu = box(g, 80, 200, 200, 130, 'CPU', 'コア・キャッシュ・メモリ制御・PCIe 制御', 'f-sf s-fg w2', 't-lg');
+      st.boxes.mem = box(g, 360, 56, 260, 72, 'メモリ（DRAM）', 'DDR5 2 チャネル・各 64 ビット幅');
+      st.boxes.gpu = box(g, 700, 110, 210, 60, 'GPU', 'PCIe ×16');
+      st.boxes.ssd = box(g, 700, 200, 210, 60, 'NVMe SSD', 'PCIe ×4');
+      st.boxes.nic = box(g, 700, 290, 210, 60, 'NIC（有線 LAN）', 'PCIe ×1');
+      st.boxes.wifi = box(g, 700, 380, 210, 60, 'Wi-Fi カード', 'PCIe ×1 または USB');
+      st.boxes.pch = box(g, 80, 400, 200, 80, 'チップセット（PCH）', 'USB・SATA・細い PCIe をまとめる');
+      st.boxes.kb = box(g, 60, 500, 120, 44, 'キーボード', 'USB 2.0');
+      st.boxes.mouse = box(g, 180, 500, 120, 44, 'マウス', 'USB 2.0');
+      st.boxes.usbm = box(g, 340, 500, 140, 44, 'USB 機器', 'USB 3.2 ／ USB4');
+      // 速度の札
+      st.labels = {};
+      const lbl = (key, x, y, t, cls) => { st.labels[key] = S.text(x, y, t, { cls: 't-xs t-mono t-dim fade ' + (cls || '') }, g); };
+      lbl('mem', 200, 150, '38.4 GB/s × 2');
+      lbl('gpu', 400, 215, 'PCIe 5.0 ×16  63 GB/s');
+      lbl('ssd', 400, 275, 'PCIe 4.0 ×4  7.9 GB/s');
+      lbl('dmi', 185, 372, 'DMI 15.8 GB/s');
+      lbl('nic', 400, 412, 'PCIe 3.0 ×1  1 GB/s');
+      lbl('wifi', 400, 437, 'PCIe ×1 ／ USB');
+      lbl('usb2', 180, 556, 'USB 2.0  480 Mb/s', 't-c');
+      lbl('usb3', 410, 556, 'USB 3.2  10 Gb/s', 't-c');
+      // PCIe の表（段階3）
+      st.pcieTbl = table(g, 500, 462, [10, 90, 170, 250], [['1 レーン', 'Gen3', 'Gen4', 'Gen5'], ['片方向', '1.0 GB/s', '2.0 GB/s', '3.9 GB/s']], 24, { head: true, w: 330, mono: true });
+      st.pcieTbl.classList.add('fade');
+      // SoC の囲い（段階5）
+      st.soc = S.g({ cls: 'fade' }, g);
+      S.rect(60, 40, 870, 450, { rx: 14, cls: 'f-none s-x w2 dash' }, st.soc);
+      S.text(900, 60, 'スマートフォンの SoC：ほぼ全部が 1 チップ', { cls: 't-sm t-x t-b', 'text-anchor': 'end' }, st.soc);
+      st.netTag = S.g({ cls: 'fade' }, g);
+      S.rect(690, 282, 230, 166, { rx: 8, cls: 'f-none s-d w2' }, st.netTag);
+      S.text(805, 462, 'ここがネットワークの入口（場面 6）', { cls: 't-c t-xs t-d t-b' }, st.netTag);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const focus = { 0: null, 1: ['mem'], 2: ['gpu', 'ssd', 'nic'], 3: ['kb', 'mouse', 'usbm'], 4: ['dmi', 'nic', 'wifi', 'kb', 'mouse', 'usbm'] }[i];
+      Object.keys(st.roads).forEach((k) => { st.roads[k].g.style.opacity = (!focus || focus.includes(k)) ? 1 : 0.22; });
+      const boxFocus = { 0: null, 1: ['cpu', 'mem'], 2: ['cpu', 'gpu', 'ssd', 'nic'], 3: ['pch', 'kb', 'mouse', 'usbm'], 4: ['cpu', 'pch', 'nic', 'wifi', 'kb', 'mouse', 'usbm'] }[i];
+      Object.keys(st.boxes).forEach((k) => { st.boxes[k].style.opacity = (!boxFocus || boxFocus.includes(k)) ? 1 : 0.3; });
+      const lblShow = { 0: [], 1: ['mem'], 2: ['gpu', 'ssd', 'nic'], 3: ['usb2', 'usb3'], 4: ['dmi', 'nic', 'wifi', 'usb2', 'usb3'] }[i];
+      Object.keys(st.labels).forEach((k) => S.fade(st.labels[k], lblShow.includes(k)));
+      S.fade(st.pcieTbl, i === 2);
+      S.fade(st.soc, i === 4);
+      S.fade(st.netTag, i === 4);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state;
+      Object.keys(st.roads).forEach((k) => st.roads[k].flow.update(dt));
+    }
+  };
+
+  /* ================================================================
+     場面2 デバイスレジスタと MMIO
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '装置にも「レジスタ」がある', text: '装置の中には、CPU から読み書きできる小さな記憶が並んでいる。「動け」と命令する**制御レジスタ**、「準備できたか」を示す**状態レジスタ**、送るデータや置き場所を書くレジスタ。CPU と装置の会話は、すべてこの読み書きで行う。' },
+      { title: 'アドレス空間の一部を装置に割り当てる（MMIO）', text: '装置のレジスタにはメモリと同じ物理アドレスが付いている。例では 0xFEB0_0000 からの範囲が NIC のレジスタで、このアドレスへの読み書きは配線によって RAM ではなく装置に届く。メモリマップド I/O と呼ぶ。' },
+      { title: '書き込むと装置が動く', text: 'CPU が `store` 命令で 0xFEB0_0000 に 1 を書くと、値はバスを通って NIC の{x|制御レジスタ}に入り、送信回路が動き出す。CPU から見れば RAM への書き込みと同じ命令で、違いはアドレスだけ。装置側はレジスタの値が変わった瞬間に回路が反応する。' },
+      { title: '読み出すと状態が分かる', text: '状態レジスタを `load` すると「送信が終わったか」「受信データがあるか」が分かる。終わるまで繰り返し読む方法が**ポーリング**。CPU は毎秒数十億回読めるのに装置の答えは遅いので、ほとんどが無駄な問い合わせになる。解決は次の場面の割り込み。' },
+      { title: '触れるのはドライバだけ', text: 'このアドレスを読み書きできるのはカーネルモードの OS だけで、アプリは保護されたページ（第9章）を越えられない。装置ごとの読み書きの手順を知っているのが**デバイスドライバ**で、アプリはシステムコールで頼む。だから壊れたアプリが装置を直接壊すことはない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // 左: アプリ / ドライバ / CPU
+      st.app = box(g, 40, 50, 210, 54, 'アプリ（ブラウザなど）', 'ユーザーモード', 'f-sf s-rule w1 fade');
+      st.drv = box(g, 40, 118, 210, 54, 'OS のデバイスドライバ', 'カーネルモード', 'f-sf s-rule w1 fade');
+      st.cpu = box(g, 40, 200, 210, 150, 'CPU', null, 'f-sf s-fg w2', 't-lg');
+      st.cpu.title.setAttribute('y', 226);
+      st.instr = S.text(145, 262, '', { cls: 't-c t-mono t-sm t-b' }, g);
+      st.instr2 = S.text(145, 282, '', { cls: 't-c t-mono t-xs t-dim' }, g);
+      st.cpuNote = S.text(145, 330, '', { cls: 't-c t-xs t-dim' }, g);
+      // 中央: 物理アドレス空間
+      S.text(390, 44, '物理アドレス空間', { cls: 't-c t-b' }, g);
+      S.rect(330, 60, 120, 460, { rx: 4, cls: 'f-sf s-rule w1' }, g);
+      S.rect(330, 60, 120, 300, { cls: 'f-in' }, g);
+      S.text(390, 200, 'RAM', { cls: 't-c t-b' }, g);
+      S.text(390, 218, '3 GB', { cls: 't-c t-xs t-dim t-mono' }, g);
+      st.mmioRect = S.rect(330, 400, 120, 70, { cls: 'f-d-soft' }, g);
+      S.text(390, 430, 'NIC のレジスタ', { cls: 't-c t-sm t-b t-d' }, g);
+      S.text(390, 446, 'MMIO', { cls: 't-c t-xs t-dim t-mono' }, g);
+      S.rect(330, 490, 120, 30, { cls: 'f-in' }, g);
+      S.text(390, 509, 'ROM（ファームウェア）', { cls: 't-c t-xs t-dim' }, g);
+      [['0x0000_0000', 60], ['0xBFFF_FFFF', 360], ['0xFEB0_0000', 400], ['0xFEB1_FFFF', 470], ['0xFFFF_FFFF', 520]].forEach(([a, y]) => S.text(458, y + 4, a, { cls: 't-xs t-mono t-dim' }, g));
+      // 右: 装置
+      st.dev = box(g, 600, 120, 330, 330, 'NIC（ネットワークカード）', null, 'f-sf s-rule w15', 't-lg');
+      st.dev.title.setAttribute('y', 146);
+      const regs = st.regs = [];
+      [['CTRL', '+0x00', '制御', '0x0'], ['STATUS', '+0x08', '状態', '0x0'], ['TDT', '+0x18', '送信キュー末尾', '0x0']].forEach(([name, off, jp, val], k) => {
+        const y = 170 + k * 50;
+        const rg = S.g({ cls: 'reg-row' }, g);
+        S.rect(616, y, 298, 40, { rx: 4, cls: 'f-in s-rule w1' }, rg);
+        S.text(626, y + 17, name, { cls: 't-mono t-b t-sm' }, rg);
+        S.text(626, y + 32, jp, { cls: 't-xs t-dim' }, rg);
+        S.text(760, y + 25, off, { cls: 't-mono t-xs t-dim' }, rg);
+        const v = S.text(900, y + 25, val, { cls: 't-mono t-b t-lg', 'text-anchor': 'end' }, rg);
+        regs.push({ g: rg, v, y });
+      });
+      // 送信回路のランプ
+      st.lampHalo = S.circle(680, 395, 26, { cls: 'f-x', style: { opacity: 0 } }, g);
+      S.circle(680, 395, 12, { cls: 'f-in s-dim w15' }, g);
+      st.lampTxt = S.text(705, 390, '送信回路', { cls: 't-sm t-b' }, g);
+      st.lampSub = S.text(705, 406, '停止中', { cls: 't-xs t-dim' }, g);
+      st.rxTxt = S.text(880, 400, '', { cls: 't-xs t-dim', 'text-anchor': 'end' }, g);
+      // 道: CPU → アドレス空間 → 装置
+      S.path('M250,275 H330', { cls: 'f-none s-rule w6 round' }, g);
+      S.path('M450,275 H600', { cls: 'f-none s-rule w6 round', style: { opacity: 0 } }, g);
+      st.busLbl = S.text(290, 262, 'バス', { cls: 't-c t-xs t-dim' }, g);
+      // 配線: MMIO 領域 → 装置
+      st.wire = S.path('M450,435 H560 V190 H600', { cls: 'f-none s-d w3 dash fade', 'marker-end': mk('d') }, g);
+      st.wireTxt = S.text(575, 330, '配線で装置へ', { cls: 't-xs t-d t-b fade', transform: 'rotate(-90 575 330)' }, g);
+      // トークンの道
+      st.pStore = S.path('M250,275 H290 V435 H560 V190 H616', { cls: 'f-none s-none' }, g);
+      st.pLoad = S.path('M616,240 H560 V435 H290 V275 H250', { cls: 'f-none s-none' }, g);
+      st.pRam = S.path('M250,275 H390', { cls: 'f-none s-none' }, g);
+      st.tok = token(g, 'store 0x1', 'f-d', 72);
+      st.tok.style.opacity = 0;
+      st.tokRam = token(g, 'store', 'f-d', 50);
+      st.tokRam.style.opacity = 0;
+      // アプリからの矢印（段階5）
+      st.sys = S.g({ cls: 'fade' }, g);
+      S.path('M145,104 V118', { cls: 'f-none s-fg w2', 'marker-end': mk('fg') }, st.sys);
+      S.text(160, 114, 'システムコール', { cls: 't-xs' }, st.sys);
+      S.path('M250,77 C330,77 400,120 400,395', { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, st.sys);
+      S.text(300, 150, '直接は不可（保護）', { cls: 't-xs t-x t-b' }, st.sys);
+      S.text(300, 164, 'ページテーブルに無い', { cls: 't-xs t-x' }, st.sys);
+      st.pollCount = 0;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.app, i === 4); S.fade(st.drv, i === 4);
+      S.fade(st.wire, i >= 1); S.fade(st.wireTxt, i >= 1);
+      S.fade(st.sys, i === 4);
+      st.regs.forEach((r) => { r.g.classList.toggle('lit-reg', i === 0); r.v.textContent = '0x0'; });
+      st.mmioRect.setAttribute('class', i >= 1 ? 'f-d-soft' : 'f-in');
+      st.instr.textContent = i === 2 ? 'store 0x1 → 0xFEB0_0000' : i === 3 ? 'load ← 0xFEB0_0008' : i === 4 ? '（ドライバが実行）' : '';
+      st.instr2.textContent = i === 2 ? '普通の書き込み命令' : i === 3 ? '普通の読み出し命令' : '';
+      st.cpuNote.textContent = '';
+      st.lampHalo.style.opacity = 0; st.lampSub.textContent = '停止中'; st.rxTxt.textContent = '';
+      st.tok.style.opacity = 0; st.tokRam.style.opacity = 0;
+      st.pollCount = 0;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      if (i === 2) {
+        const q = U.seq(ts, [2.2, 0.4, 2.0], true);
+        if (q.i === 0) {
+          st.tok.setW('store 0x1');
+          S.place(st.tok, st.pStore, U.ease.inOut(q.f));
+          st.tok.style.opacity = 1;
+          st.regs[0].v.textContent = '0x0';
+          st.regs[0].g.classList.remove('lit-reg');
+          st.lampHalo.style.opacity = 0; st.lampSub.textContent = '停止中';
+        } else {
+          st.tok.style.opacity = 0;
+          st.regs[0].v.textContent = '0x1';
+          st.regs[0].g.classList.add('lit-reg');
+          st.lampHalo.style.opacity = (0.35 + 0.15 * Math.sin(t * 10)).toFixed(2);
+          st.lampSub.textContent = '動作中（制御レジスタ = 1）';
+        }
+      } else if (i === 3) {
+        const q = U.seq(ts, [0.9, 0.9, 0.3], true);
+        const cycleNo = Math.floor(ts / 2.1);
+        const ready = cycleNo % 4 === 3;
+        st.regs[1].v.textContent = ready ? '0x1' : '0x0';
+        st.regs[1].g.classList.toggle('lit-reg', true);
+        if (q.i === 0) { st.tok.setW('load'); S.place(st.tok, st.pStore, U.ease.inOut(q.f)); st.tok.style.opacity = 1; }
+        else if (q.i === 1) { st.tok.setW(ready ? '0x1 準備OK' : '0x0 まだ'); S.place(st.tok, st.pLoad, U.ease.inOut(q.f)); st.tok.style.opacity = 1; }
+        else { st.tok.style.opacity = 0; }
+        if (q.i === 2 && q.f < 0.1 && st.lastCycle !== cycleNo) { st.lastCycle = cycleNo; st.pollCount++; }
+        st.cpuNote.textContent = `問い合わせ ${st.pollCount} 回、うち無駄 ${Math.max(0, st.pollCount - Math.floor(st.pollCount / 4))} 回`;
+        st.rxTxt.textContent = ready ? '受信データあり' : '';
+      } else if (i === 1) {
+        // RAM への store と MMIO への store を交互に
+        const q = U.seq(ts, [1.6, 0.6, 1.6, 0.6], true);
+        if (q.i === 0) { S.place(st.tokRam, st.pRam, U.ease.inOut(q.f)); st.tokRam.style.opacity = 1; st.tok.style.opacity = 0; st.cpuNote.textContent = 'RAM のアドレスへ → メモリに入る'; }
+        else if (q.i === 2) { st.tok.setW('store'); S.place(st.tok, st.pStore, U.ease.inOut(q.f)); st.tok.style.opacity = 1; st.tokRam.style.opacity = 0; st.cpuNote.textContent = '0xFEB0_… へ → 装置に入る'; }
+        else { st.tok.style.opacity = 0; st.tokRam.style.opacity = 0; }
+      } else if (i === 4) {
+        st.cpuNote.textContent = 'ドライバが代わりに load/store する';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 割り込み
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'ポーリングは CPU の時間を捨てる', text: 'CPU は 1 秒に数十億命令を実行できるが、人がキーを押すのは 1 秒に数回。状態レジスタを読んで「まだか」と確かめ続けると、ほぼ全部の問い合わせが空振りになり、その間ほかのプログラムは進まない。' },
+      { title: '装置が CPU へ合図を送る', text: 'キーが押されると、キーボード側のコントローラが{e|割り込み線}（IRQ）に信号を出す。PCIe の装置は線の代わりに、決まったアドレスへの書き込み（MSI / MSI-X）として合図を送る。どちらも「用事ができた」という 1 ビットの知らせで、中身は含まない。' },
+      { title: '割り込みコントローラが番号を付ける', text: '合図は CPU に直接ではなく、割り込みコントローラ（x86 では APIC、ARM では GIC）に集まる。コントローラは装置ごとに決めた**ベクタ番号**（例: キーボードは 33）を付け、優先度と遮断（マスク）の設定を見て、CPU の割り込み端子に伝える。' },
+      { title: 'CPU は命令の切れ目で状態を保存して飛ぶ', text: 'CPU は実行中の命令を終えてから、次に実行する命令のアドレス（PC）とフラグをスタックに保存し、ベクタ表（IDT）の 33 番に書かれたハンドラのアドレスへ飛ぶ。同時にカーネルモードに切り替わる。ここまでおよそ 1 マイクロ秒。' },
+      { title: 'ハンドラが装置と話して、元に戻る', text: 'ハンドラは装置のデータレジスタからキーコードを読み（場面 2 の load）、OS の入力キューに入れ、コントローラに処理済み（EOI）を伝えて、保存した PC とフラグを復元する（`iret`）。中断されたプログラムは何も気づかずに続きを実行する。' },
+      { title: '1 秒に何回起きるか', text: 'タイマは 100〜1,000 回/秒で OS に時間を刻ませ、キーボードは多くて 10 回/秒。10 Gb/s の NIC は毎秒数十万フレームを受けるので、1 フレームごとに割り込むと処理が追いつかない。NIC は複数フレームを束ねて 1 回だけ割り込み（coalescing）、Linux はしばらくポーリングに切り替える（NAPI）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // 上: 命令の帯
+      S.text(60, 50, 'CPU が実行中の命令（プログラム）', { cls: 't-sm t-b' }, g);
+      st.progNames = ['load', 'add', 'store', 'cmp', 'jne', 'load', 'mul', 'store', 'add', 'load', 'cmp', 'jmp', 'load', 'add', 'sub', 'store'];
+      st.prog = st.progNames.map((n, k) => {
+        const x = 60 + k * 53;
+        const r = S.rect(x, 62, 50, 40, { rx: 4, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 25, 80, 'i' + (k + 1), { cls: 't-c t-xs t-dim t-mono' }, g);
+        S.text(x + 25, 95, n, { cls: 't-c t-xs t-mono' }, g);
+        return r;
+      });
+      st.pc = S.rect(60, 58, 50, 48, { rx: 5, cls: 'f-none s-x w3' }, g);
+      st.pcTxt = S.text(60, 124, 'PC', { cls: 't-xs t-x t-b t-mono' }, g);
+      // ポーリング用のループ表示（段階1）
+      st.pollG = S.g({ cls: 'fade' }, g);
+      S.rect(60, 150, 440, 60, { rx: 6, cls: 'f-x-soft s-x w1' }, st.pollG);
+      S.text(80, 174, 'while (STATUS == 0) { load STATUS; }   ← ずっとここを回る', { cls: 't-mono t-xs' }, st.pollG);
+      st.pollTxt = S.text(80, 196, '', { cls: 't-xs t-x t-b' }, st.pollG);
+      // 左下: キーボード → APIC → CPU
+      st.kb = box(g, 60, 290, 190, 90, 'キーボード', 'USB コントローラ');
+      st.key = S.rect(80, 352, 150, 24, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      st.keyTxt = S.text(155, 368, 'キー「A」', { cls: 't-c t-xs' }, g);
+      st.apic = box(g, 330, 290, 190, 90, '割り込みコントローラ', 'APIC（ARM: GIC）');
+      st.apicVec = S.text(425, 365, '', { cls: 't-c t-xs t-mono t-b t-x' }, g);
+      st.cpuBox = box(g, 600, 290, 320, 90, 'CPU', null, 'f-sf s-fg w2', 't-lg');
+      st.cpuBox.title.setAttribute('x', 700);
+      S.text(614, 362, 'INT 端子', { cls: 't-xs t-dim' }, g);
+      st.intPin = S.circle(604, 335, 6, { cls: 'f-in s-dim w15' }, g);
+      st.cpuMode = S.text(900, 362, 'ユーザーモード', { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, g);
+      // 線
+      st.irqLine = S.path('M250,335 H330', { cls: 'f-none s-e w3' }, g);
+      S.text(290, 325, 'IRQ1', { cls: 't-c t-xs t-e t-mono' }, g);
+      st.apicLine = S.path('M520,335 H598', { cls: 'f-none s-e w3' }, g);
+      st.pulse = S.circle(0, 0, 7, { cls: 'f-e glow', style: { opacity: 0 } }, g);
+      st.pIrq = S.path('M250,335 H330', { cls: 'f-none s-none' }, g);
+      st.pApic = S.path('M520,335 H598', { cls: 'f-none s-none' }, g);
+      // 下: スタック / ベクタ表 / ハンドラ
+      st.stackG = S.g({}, g);
+      S.text(60, 420, 'スタック（保存した状態）', { cls: 't-sm t-b' }, st.stackG);
+      st.stack = [0, 1].map((k) => {
+        const r = S.rect(60, 432 + k * 30, 190, 28, { rx: 3, cls: 'f-in s-rule w1' }, st.stackG);
+        const tx = S.text(70, 451 + k * 30, '', { cls: 't-xs t-mono' }, st.stackG);
+        return { r, tx };
+      });
+      st.idt = table(g, 330, 420, [10, 50], [['番号', 'ハンドラ'], ['32', 'タイマ'], ['33', 'キーボード → kbd_isr'], ['34', 'NIC → nic_isr']], 24, { head: true, w: 190, mono: true });
+      S.text(330, 412, 'ベクタ表（IDT、256 行）', { cls: 't-sm t-b' }, g);
+      st.idtArrow = S.path('M520,480 H560 V170 H600', { cls: 'f-none s-x w2 fade', 'marker-end': mk('x') }, g);
+      // ハンドラの帯
+      S.text(600, 160, 'ハンドラ kbd_isr（カーネル）', { cls: 't-sm t-b' }, g);
+      st.hNames = ['load DATA', 'キュー追加', 'EOI', 'iret'];
+      st.hand = st.hNames.map((n, k) => {
+        const x = 600 + k * 80;
+        const r = S.rect(x, 172, 76, 40, { rx: 4, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 38, 190, 'h' + (k + 1), { cls: 't-c t-xs t-dim t-mono' }, g);
+        S.text(x + 38, 205, n, { cls: 't-c t-xs t-mono' }, g);
+        return r;
+      });
+      st.hpc = S.rect(600, 168, 76, 48, { rx: 5, cls: 'f-none s-x w3', style: { opacity: 0 } }, g);
+      st.latency = S.text(600, 240, '', { cls: 't-xs t-dim t-mono' }, g);
+      // 段階6: 頻度の表
+      st.rateTbl = table(g, 600, 420, [10, 150], [['発生源', '回数／秒'], ['タイマ', '100〜1,000'], ['キーボード', '< 10'], ['NIC 10 Gb/s', '最大 数十万 → 束ねる']], 24, { head: true, w: 320, mono: true });
+      st.rateTbl.classList.add('fade');
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.pollG, i === 0);
+      S.fade(st.rateTbl, i === 5);
+      S.fade(st.idtArrow, i === 3);
+      st.stackG.style.opacity = i >= 3 ? 1 : 0.4;
+      st.stack.forEach((s) => { s.tx.textContent = ''; s.r.setAttribute('class', 'f-in s-rule w1'); });
+      st.idt.rows.forEach((r, k) => r.bg.setAttribute('class', k === 0 ? 'f-in' : 'f-none'));
+      st.apicVec.textContent = '';
+      st.hpc.style.opacity = 0;
+      st.pulse.style.opacity = 0;
+      st.key.setAttribute('class', 'f-in s-rule w1');
+      st.keyTxt.textContent = 'キー「A」';
+      st.cpuMode.textContent = 'ユーザーモード';
+      st.latency.textContent = '';
+      st.intPin.setAttribute('class', 'f-in s-dim w15');
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const setPC = (k, hand) => {
+        if (hand) { st.pc.style.opacity = 0.25; st.hpc.style.opacity = 1; st.hpc.setAttribute('x', 600 + k * 80); }
+        else { st.pc.style.opacity = 1; st.hpc.style.opacity = 0; st.pc.setAttribute('x', 60 + k * 53); st.pcTxt.setAttribute('x', 60 + k * 53); }
+      };
+      if (i === 0) {
+        const k = Math.floor(U.mod(t * 3, 3)) + 3;   // i4〜i6 を回る
+        setPC(k);
+        st.pollTxt.textContent = `問い合わせ ${Math.floor(ts * 3)} 回、答えは全部「まだ」`;
+        return;
+      }
+      if (i === 5) { setPC(Math.floor(U.mod(t * 2.5, 16))); return; }
+      // 段階1〜4 は同じ一連の流れを、段階に応じた所まで見せる
+      const q = U.seq(ts, [1.2, 0.8, 0.8, 0.8, 1.0, 0.6, 1.2, 1.0], true);
+      const limit = { 1: 1, 2: 2, 3: 4, 4: 7 }[i];
+      const ph = Math.min(q.i, limit);
+      const pressed = q.i >= 0 && q.t >= 0.3 || q.i > 0;
+      st.key.setAttribute('class', (q.i === 0 && q.t < 0.3) ? 'f-in s-rule w1' : 'f-x-soft s-x w15');
+      st.keyTxt.textContent = (q.i === 0 && q.t < 0.3) ? 'キー「A」' : 'キー「A」押された';
+      st.pulse.style.opacity = 0;
+      if (ph === 0) { setPC(Math.floor(U.mod(t * 2.5, 6))); }
+      if (ph >= 1 && q.i === 1) { const p = S.along(st.pIrq, q.f); st.pulse.setAttribute('cx', p.x); st.pulse.setAttribute('cy', p.y); st.pulse.style.opacity = 1; }
+      if (ph >= 1 && q.i >= 1 && limit === 1) setPC(Math.floor(U.mod(t * 2.5, 6)));
+      if (q.i >= 2 && limit >= 2) { st.apicVec.textContent = 'ベクタ 33・優先度 OK・マスク無し'; }
+      if (ph >= 2 && q.i === 2) { const p = S.along(st.pApic, q.f); st.pulse.setAttribute('cx', p.x); st.pulse.setAttribute('cy', p.y); st.pulse.style.opacity = 1; }
+      st.intPin.setAttribute('class', (q.i >= 3 && q.i <= 6 && limit >= 2) ? 'f-e s-e w15' : 'f-in s-dim w15');
+      if (limit === 2) { setPC(Math.floor(U.mod(t * 2.5, 6))); }
+      if (limit >= 4) {
+        if (q.i <= 2) { setPC(Math.min(6, Math.floor(ts * 2.5))); st.cpuMode.textContent = 'ユーザーモード'; }
+        if (q.i === 3) {
+          setPC(6);
+          st.stack[0].tx.textContent = 'PC = i8（戻り先）'; st.stack[1].tx.textContent = 'FLAGS';
+          st.stack.forEach((s) => s.r.setAttribute('class', 'f-x-soft s-x w1'));
+          st.idt.rows[2].bg.setAttribute('class', 'f-x-soft');
+          st.cpuMode.textContent = 'カーネルモードへ';
+          st.latency.textContent = '≒ 1 µs';
+        }
+        if (q.i >= 4 && q.i <= 6) {
+          st.idt.rows[2].bg.setAttribute('class', 'f-x-soft');
+          st.stack[0].tx.textContent = 'PC = i8（戻り先）'; st.stack[1].tx.textContent = 'FLAGS';
+          st.cpuMode.textContent = 'カーネルモード';
+          if (limit >= 7) {
+            const hk = q.i === 4 ? Math.min(1, Math.floor(q.f * 2)) : q.i === 5 ? 2 : 3;
+            setPC(hk, true);
+            st.latency.textContent = q.i === 4 ? 'キーコード 0x04 を読み、キューへ' : q.i === 5 ? 'EOI：コントローラに処理済みを通知' : 'iret：PC と FLAGS を復元';
+          } else { setPC(0, true); st.latency.textContent = 'ハンドラの先頭へ'; }
+        }
+        if (q.i === 7) {
+          if (limit >= 7) {
+            setPC(Math.min(15, 7 + Math.floor(q.f * 6)));
+            st.cpuMode.textContent = 'ユーザーモードに戻る';
+            st.latency.textContent = '合計 ≒ 数 µs。プログラムは i8 から続く';
+            st.stack.forEach((s) => { s.tx.textContent = ''; s.r.setAttribute('class', 'f-in s-rule w1'); });
+            st.idt.rows[2].bg.setAttribute('class', 'f-none');
+          } else { setPC(0, true); }
+        }
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 DMA
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: 'CPU が運ぶと遅い（PIO）', text: '届いたデータを CPU が装置のデータレジスタから 1 語ずつ `load` し、メモリへ `store` する方法。1 語ごとに PCIe を往復するので、1,500 バイトのパケットに数百回の往復がかかり、その間 CPU はほかの仕事をまったく進められない。' },
+      { title: '置き場所を装置に教える（ディスクリプタ）', text: 'ドライバはメモリに受信用のバッファを確保し、その先頭アドレスと長さを書いた{d|ディスクリプタ}をリング状に並べる。最後に「ここまで使ってよい」という末尾の位置を MMIO で NIC に知らせる（場面 2 の TDT/RDT レジスタ）。NIC はこれで書いてよい場所を知る。' },
+      { title: '装置が自分でメモリへ書く（DMA）', text: 'NIC の DMA エンジンが PCIe の書き込みトランザクションで、ディスクリプタが指すバッファへ直接書く。1 回に 128〜512 バイトずつ。メモリコントローラから見れば CPU からの書き込みと同じで、CPU はその間、別のプロセスを実行していられる。' },
+      { title: '終わったら 1 回だけ知らせる', text: '書き終えた NIC はディスクリプタの状態欄に「完了」を立て、割り込みを 1 回送る（場面 3）。ドライバは完了した分をまとめて処理する。パケットごとに割り込むと処理が追いつかないので、数十個ごと、または数十マイクロ秒ごとに束ねる。' },
+      { title: '好きな所に書かせない（IOMMU）', text: '装置がメモリのどこにでも書けると、壊れた装置や悪意ある外付け機器が OS を破壊できる。IOMMU（Intel VT-d、AMD-Vi、ARM SMMU）は装置専用のページテーブルで、許可した範囲だけ書けるようにする。CPU のキャッシュとの食い違いは、一貫性の仕組み（スヌープ）で解決する。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // CPU
+      st.cpu = box(g, 40, 90, 180, 110, 'CPU', null, 'f-sf s-fg w2', 't-lg');
+      st.cpu.title.setAttribute('y', 128);
+      st.cpuTask = S.text(130, 164, '', { cls: 't-c t-xs t-mono' }, g);
+      S.text(40, 232, 'CPU の使われ方', { cls: 't-xs t-dim' }, g);
+      S.rect(40, 240, 180, 14, { rx: 3, cls: 'f-in s-rule w1' }, g);
+      st.busyBar = S.rect(40, 240, 180, 14, { rx: 3, cls: 'f-x' }, g);
+      st.busyTxt = S.text(220, 270, '', { cls: 't-xs t-mono', 'text-anchor': 'end' }, g);
+      // メモリ
+      S.text(480, 50, 'メモリ（DRAM）', { cls: 't-c t-b' }, g);
+      S.rect(360, 60, 240, 440, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+      st.cells = [];
+      for (let k = 0; k < 7; k++) {
+        const y = 74 + k * 34;
+        const r = S.rect(372, y, 216, 28, { rx: 3, cls: 'f-in s-rule w1' }, g);
+        S.text(378, y + 18, '0x' + (0x1000 + k * 0x100).toString(16).toUpperCase().padStart(4, '0'), { cls: 't-xs t-mono t-dim' }, g);
+        st.cells.push({ r, fill: S.rect(372, y, 0, 28, { rx: 3, cls: 'f-d' }, g) });
+      }
+      S.text(480, 318, '受信バッファ（空き）', { cls: 't-c t-xs t-dim' }, g);
+      S.text(372, 346, 'ディスクリプタのリング', { cls: 't-xs t-b' }, g);
+      st.desc = [0, 1, 2].map((k) => {
+        const y = 356 + k * 44;
+        const r = S.rect(372, y, 216, 38, { rx: 3, cls: 'f-in s-rule w1' }, g);
+        const a = S.text(378, y + 15, '', { cls: 't-xs t-mono' }, g);
+        const s = S.text(378, y + 30, '', { cls: 't-xs t-mono t-dim' }, g);
+        return { r, a, s };
+      });
+      // NIC
+      st.nic = box(g, 700, 90, 220, 190, 'NIC', null, 'f-sf s-rule w15', 't-lg');
+      st.nic.title.setAttribute('y', 116);
+      S.text(716, 140, '受信 FIFO', { cls: 't-xs t-dim' }, g);
+      st.fifo = [0, 1, 2, 3].map((k) => S.rect(716, 148 + k * 22, 120, 18, { rx: 3, cls: 'f-d', style: { opacity: 0 } }, g));
+      S.text(716, 258, 'DMA エンジン', { cls: 't-xs t-b' }, g);
+      st.dmaLamp = S.circle(800, 254, 5, { cls: 'f-in s-dim w1' }, g);
+      st.dataReg = S.rect(850, 148, 60, 40, { rx: 3, cls: 'f-in s-rule w1' }, g);
+      S.text(880, 165, 'DATA', { cls: 't-c t-xs t-mono' }, g);
+      S.text(880, 180, 'レジスタ', { cls: 't-c t-xs t-dim' }, g);
+      st.rdt = S.text(880, 230, 'RDT = 0', { cls: 't-c t-xs t-mono' }, g);
+      // 回線から届くパケット
+      S.path('M960,120 H920', { cls: 'f-none s-e w3' }, g);
+      S.text(940, 108, '回線', { cls: 't-c t-xs t-dim' }, g);
+      st.pIn = S.path('M926,120 H900 V148', { cls: 'f-none s-none' }, g);   // 札（幅 60）が図の右端から出ないよう、半分の幅だけ内側から
+      st.inTok = token(g, 'フレーム', 'f-d', 60);
+      st.inTok.style.opacity = 0;
+      // 道
+      st.pPio1 = S.path('M836,168 H640 V40 H290 V120 H220', { cls: 'f-none s-none' }, g);  // NIC → CPU
+      st.pPio2 = S.path('M220,150 H372', { cls: 'f-none s-none' }, g);                     // CPU → メモリ
+      st.pDma = S.path('M700,200 H600', { cls: 'f-none s-none' }, g);
+      st.dmaRoad = S.path('M700,200 H600', { cls: 'f-none s-rule w10 round fade' }, g);
+      st.pDesc = S.path('M220,150 H372', { cls: 'f-none s-none' }, g);
+      st.pTail = S.path('M220,180 H330 V520 H880 V236', { cls: 'f-none s-none' }, g);
+      st.pIrq = S.path('M700,120 H220', { cls: 'f-none s-none' }, g);
+      st.tok = token(g, '1 語', 'f-d', 44);
+      st.tok.style.opacity = 0;
+      st.tok2 = token(g, '', 'f-d', 92);
+      st.tok2.style.opacity = 0;
+      st.irqTok = S.circle(0, 0, 7, { cls: 'f-e glow', style: { opacity: 0 } }, g);
+      st.note = S.text(480, 540, '', { cls: 't-c t-sm t-dim' }, g);
+      // IOMMU（段階5）
+      st.iommu = S.g({ cls: 'fade' }, g);
+      S.rect(615, 300, 150, 90, { rx: 6, cls: 'f-sf s-x w2' }, st.iommu);
+      S.text(690, 322, 'IOMMU', { cls: 't-c t-b t-x' }, st.iommu);
+      S.text(690, 340, '装置用ページテーブル', { cls: 't-c t-xs t-dim' }, st.iommu);
+      S.text(690, 358, '許可: 0x1000〜0x16FF', { cls: 't-c t-xs t-mono' }, st.iommu);
+      S.text(690, 376, 'それ以外 → 拒否・記録', { cls: 't-c t-xs t-x' }, st.iommu);
+      S.path('M700,200 V300', { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, st.iommu);
+      S.text(760, 480, 'キャッシュとの一貫性：', { cls: 't-xs t-dim' }, st.iommu);
+      S.text(760, 496, '装置の書き込みは CPU のキャッシュ', { cls: 't-xs t-dim' }, st.iommu);
+      S.text(760, 512, 'の古い行を無効化（スヌープ）', { cls: 't-xs t-dim' }, st.iommu);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.iommu, i === 4);
+      S.fade(st.dmaRoad, i >= 2);
+      st.desc.forEach((d, k) => {
+        const filled = i >= 1;
+        d.a.textContent = filled ? `addr 0x${(0x1000 + k * 0x200).toString(16).toUpperCase()}  len 1514` : '（空）';
+        d.s.textContent = filled ? '状態: 空き' : '';
+        d.r.setAttribute('class', filled ? 'f-d-soft s-d w1' : 'f-in s-rule w1');
+      });
+      st.rdt.textContent = i >= 1 ? 'RDT = 3' : 'RDT = 0';
+      st.cells.forEach((c) => c.fill.setAttribute('width', 0));
+      st.tok.style.opacity = 0; st.tok2.style.opacity = 0; st.irqTok.style.opacity = 0; st.inTok.style.opacity = 0;
+      st.fifo.forEach((f) => { f.style.opacity = 0; });
+      st.cpuTask.textContent = i === 0 ? 'load / store の繰り返し' : i === 1 ? 'ドライバ：表を書く' : 'ほかのプロセスを実行';
+      st.note.textContent = ['1 語ごとに PCIe を往復。1,500 バイトで数百回', 'ディスクリプタ 3 個を用意し、末尾（RDT）を NIC に通知', 'NIC が直接書く。CPU は別の仕事', '完了を立てて割り込み 1 回。束ねて処理', '装置の書き込み先を IOMMU が検査する'][i];
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const busy = (v, label) => { st.busyBar.setAttribute('width', (180 * v).toFixed(1)); st.busyTxt.textContent = label; };
+      if (i === 0) {
+        busy(1, '100%（運搬にかかりきり）');
+        const q = U.seq(ts, [0.9, 0.9, 0.2], true);
+        const n = Math.floor(ts / 2.0);
+        st.fifo.forEach((f, k) => { f.style.opacity = k < 3 ? 1 : 0; });
+        if (q.i === 0) { st.tok.setW('1 語'); S.place(st.tok, st.pPio1, U.ease.inOut(q.f)); st.tok.style.opacity = 1; }
+        else if (q.i === 1) { S.place(st.tok, st.pPio2, U.ease.inOut(q.f)); st.tok.style.opacity = 1; }
+        else st.tok.style.opacity = 0;
+        st.cells.forEach((c, k) => c.fill.setAttribute('width', k < Math.floor(n / 2) % 7 ? 216 : (k === Math.floor(n / 2) % 7 ? (n % 2) * 108 : 0)));
+        st.note.textContent = `1 語ごとに PCIe を往復。運んだ語: ${n}（1,500 バイトなら約 375 語）`;
+      } else if (i === 1) {
+        busy(0.15, '15%');
+        const q = U.seq(ts, [1.4, 0.3, 1.6, 1.0], true);
+        if (q.i === 0) { st.tok2.setW('addr, len'); S.place(st.tok2, st.pDesc, U.ease.inOut(q.f)); st.tok2.style.opacity = 1; }
+        else if (q.i === 2) { st.tok2.setW('store RDT=3'); S.place(st.tok2, st.pTail, U.ease.inOut(q.f)); st.tok2.style.opacity = 1; }
+        else st.tok2.style.opacity = 0;
+        st.rdt.textContent = (q.i >= 3) ? 'RDT = 3' : 'RDT = 0';
+        st.rdt.setAttribute('class', q.i >= 3 ? 't-c t-xs t-mono t-b t-x' : 't-c t-xs t-mono');
+      } else if (i === 2 || i === 4) {
+        busy(0.1, '10%（別の仕事）');
+        const q = U.seq(ts, [0.8, 1.6, 0.6], true);
+        const n = Math.floor(ts / 3.0) % 3;
+        if (q.i === 0) { S.place(st.inTok, st.pIn, U.ease.inOut(q.f)); st.inTok.style.opacity = 1; }
+        else st.inTok.style.opacity = 0;
+        st.fifo.forEach((f, k) => { f.style.opacity = (q.i === 1 && k === 0) ? 1 : 0; });
+        st.dmaLamp.setAttribute('class', q.i === 1 ? 'f-d s-d w1' : 'f-in s-dim w1');
+        if (q.i === 1) { st.tok.setW('128 B'); S.place(st.tok, st.pDma, U.mod(q.f * 3, 1)); st.tok.style.opacity = 1; }
+        else st.tok.style.opacity = 0;
+        st.cells.forEach((c, k) => {
+          const row = Math.floor(k / 2), done = row < n, cur = row === n;
+          c.fill.setAttribute('width', done ? 216 : cur && q.i === 1 ? (216 * q.f).toFixed(1) : cur && q.i === 2 ? 216 : 0);
+        });
+        st.desc.forEach((d, k) => { d.s.textContent = k < n || (k === n && q.i === 2) ? '状態: 完了（DD = 1）' : '状態: 空き'; });
+      } else if (i === 3) {
+        busy(0.1, '10%');
+        const q = U.seq(ts, [2.0, 1.0, 1.4], true);
+        st.cells.forEach((c, k) => c.fill.setAttribute('width', k < 6 ? 216 : 0));
+        st.desc.forEach((d) => { d.s.textContent = '状態: 完了（DD = 1）'; d.r.setAttribute('class', q.i >= 1 ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1'); });
+        if (q.i === 1) { const p = S.along(st.pIrq, q.f); st.irqTok.setAttribute('cx', p.x); st.irqTok.setAttribute('cy', p.y); st.irqTok.style.opacity = 1; }
+        else st.irqTok.style.opacity = 0;
+        st.cpuTask.textContent = q.i === 2 ? 'ドライバ：3 個まとめて処理' : 'ほかのプロセスを実行';
+        if (q.i === 2) busy(0.4, '40%（割り込み処理）');
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 キーボードとマウス
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'キーは格子に配線したスイッチ', text: 'キー 1 個ずつに線を引くと 100 本以上要るので、行と列の格子にして交点にスイッチを置く。8 行 × 16 列なら 24 本の線で 128 個のキーを調べられる。1 つのキーが押されると、その行と列の線がつながる。' },
+      { title: 'マイコンが行を順に通電し、列を読む', text: 'キーボード内のマイコンが行の線に 1 本ずつ電圧をかけ、そのたびに全部の列を読む。R1 に通電したときだけ C0 に電圧が現れれば、交点 (R1, C0) の A が押されている。1 秒に数百〜千回繰り返す。接点は押した直後 1〜5 ms 震えるので、何回か同じ値が続いてから確定する（デバウンス）。' },
+      { title: '8 バイトの HID レポートにして USB で送る', text: '確定した結果は決まった形のバイト列にする。1 バイト目が修飾キー（Shift・Ctrl…）、2 バイト目は予約、残り 6 バイトが同時に押されているキーのコード。A は 0x04。ホストは割り込み転送で 8 ms ごと（ゲーミングは 1 ms ごと）に読みに来る。' },
+      { title: 'OS がキーコードを文字にする', text: 'USB ドライバがレポートを受け取り、HID の層がキーコード 0x04 を取り出す。キーマップが配列（日本語 / 英語）と Shift の状態を見て「a」に直し、入力フォーカスのあるウィンドウに渡す。ブラウザなら `keydown` イベントになる（第10章）。' },
+      { title: 'マウスは表面の写真を比べて動きを出す', text: '光学センサが LED で照らした机の表面を毎秒数千枚撮影し、前の画像との模様のずれから移動量を求める。レポートはボタンの状態と dx・dy（符号付き整数）。画面上の位置はレポートを積算して OS が決める。分解能は 800〜1,600 CPI が一般的。' },
+      { title: '「再生」のクリックが JS に届くまで', text: 'ボタンを押して離す → レポートのビットが立ち、また下りる → USB で 1〜8 ms 以内に届く → 割り込み（場面 3）→ ドライバ → OS がポインタの下のウィンドウを調べる → ブラウザが要素を特定し、離したときに `click` を発火 → YouTube のプレーヤーの JS が動く。ここまで数ミリ秒。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // 左: 格子
+      S.text(60, 50, 'キーボードの中：4×4 の格子（本物は 8×16 など）', { cls: 't-sm t-b' }, g);
+      const rowsY = [110, 170, 230, 290], colsX = [120, 180, 240, 300];
+      const keys = [['Q', 'W', 'E', 'R'], ['A', 'S', 'D', 'F'], ['Z', 'X', 'C', 'V'], ['1', '2', '3', '4']];
+      st.rowLines = rowsY.map((y, r) => { const l = S.line(80, y, 330, y, { cls: 's-rule w2' }, g); S.text(70, y + 4, 'R' + r, { cls: 't-xs t-mono t-dim', 'text-anchor': 'end' }, g); return l; });
+      st.colLines = colsX.map((x, c) => { const l = S.line(x, 85, x, 330, { cls: 's-rule w2' }, g); S.text(x, 78, 'C' + c, { cls: 't-c t-xs t-mono t-dim' }, g); return l; });
+      st.keys = [];
+      rowsY.forEach((y, r) => colsX.forEach((x, c) => {
+        const kg = S.g({}, g);
+        S.rect(x + 8, y - 26, 30, 30, { rx: 4, cls: 'f-sf s-rule w1' }, kg);
+        S.text(x + 23, y - 7, keys[r][c], { cls: 't-c t-sm t-b' }, kg);
+        const sw = S.line(x, y, x + 8, y - 14, { cls: 's-fg w2 round' }, kg);   // 開いたスイッチ
+        S.circle(x, y, 3, { cls: 'f-fg' }, kg);
+        st.keys.push({ r, c, g: kg, sw, x, y, rect: kg.firstChild });
+      }));
+      st.mcu = box(g, 80, 350, 250, 60, 'マイコン（キーボード内）', 'R0〜R3 に順に電圧 ／ C0〜C3 を読む');
+      st.scanTxt = S.text(205, 436, '', { cls: 't-c t-xs t-mono' }, g);
+      st.scanTxt2 = S.text(205, 454, '', { cls: 't-c t-xs t-x t-b' }, g);
+      // USB ケーブル → ホスト
+      S.path('M330,380 H400', { cls: 'f-none s-rule w6 round' }, g);
+      S.text(365, 370, 'USB', { cls: 't-c t-xs t-dim' }, g);
+      // 右上: HID レポート
+      S.text(420, 50, 'USB HID レポート（キーボード、8 バイト）', { cls: 't-sm t-b' }, g);
+      const names = ['修飾', '予約', 'k1', 'k2', 'k3', 'k4', 'k5', 'k6'];
+      st.rep = names.map((n, k) => {
+        const x = 420 + k * 60;
+        S.rect(x, 62, 56, 40, { rx: 4, cls: k === 2 ? 'f-d-soft s-d w15' : 'f-sf s-rule w1' }, g);
+        S.text(x + 28, 78, n, { cls: 't-c t-xs t-dim' }, g);
+        return S.text(x + 28, 96, '00', { cls: 't-c t-mono t-b t-sm' }, g);
+      });
+      st.repNote = S.text(420, 122, '', { cls: 't-xs t-dim' }, g);
+      // ポーリングの時間軸
+      st.pollG = S.g({ cls: 'fade' }, g);
+      S.text(420, 152, 'ホストの問い合わせ（割り込み転送）', { cls: 't-xs t-b' }, st.pollG);
+      S.line(420, 190, 900, 190, { cls: 's-rule w1' }, st.pollG);
+      for (let k = 0; k <= 8; k++) { S.line(420 + k * 60, 184, 420 + k * 60, 196, { cls: 's-dim w1' }, st.pollG); S.text(420 + k * 60, 210, (k * 8) + ' ms', { cls: 't-c t-xs t-mono t-dim' }, st.pollG); }
+      st.pollMarks = [0, 1, 2, 3, 4, 5, 6, 7].map((k) => S.path(`M${420 + k * 60},170 V184`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, st.pollG));
+      st.pollCursor = S.circle(420, 190, 6, { cls: 'f-d' }, st.pollG);
+      st.pollRep = S.text(0, 0, '', { cls: 't-c t-xs t-mono t-d t-b' }, st.pollG);
+      // OS の処理の連鎖
+      st.chain = [];
+      const chainNames = [['USB ドライバ', 'レポート受信'], ['HID 層', 'コード 0x04'], ['キーマップ', '0x04 → "a"'], ['フォーカスの窓', 'ブラウザ'], ['keydown', 'JS のイベント']];
+      chainNames.forEach(([t1, t2], k) => {
+        const x = 420 + k * 98;
+        const b = box(g, x, 240, 90, 50, t1, t2, 'f-sf s-rule w1 fade', 't-xs');
+        b.title.setAttribute('class', 't-c t-b t-xs');
+        if (k < 4) S.path(`M${x + 91},265 H${x + 97}`, { cls: 'f-none s-dim w2 fade', 'marker-end': mk('dim') }, g).classList.add('chainArrow');
+        st.chain.push(b);
+      });
+      st.chainArrows = Array.from(g.querySelectorAll('.chainArrow'));
+      // 右下: マウス
+      st.mouseG = S.g({ cls: 'fade' }, g);
+      S.text(420, 330, 'マウス：光学センサの 2 枚の画像と、レポート', { cls: 't-sm t-b' }, st.mouseG);
+      const grid = (x0, y0, shift) => {
+        const gg = S.g({}, st.mouseG);
+        for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) {
+          const v = ((c + shift + r * 3) % 5 < 2) ? 'f-dim' : 'f-in';
+          S.rect(x0 + c * 14, y0 + r * 14, 13, 13, { cls: v }, gg);
+        }
+        return gg;
+      };
+      grid(420, 348, 0); grid(540, 348, 1);
+      S.text(462, 452, '前の画像', { cls: 't-c t-xs t-dim' }, st.mouseG);
+      S.text(582, 452, '次の画像（1 列ずれ）', { cls: 't-c t-xs t-dim' }, st.mouseG);
+      S.path('M508,390 H536', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.mouseG);
+      st.mouseRep = table(st.mouseG, 660, 348, [10, 110], [['欄', '値'], ['ボタン', '0b001（左）'], ['dx', '+3'], ['dy', '−1'], ['ホイール', '0']], 20, { head: true, w: 240, mono: true });
+      st.mouseNote = S.text(660, 468, '1 秒に数千枚。移動量を積算して位置に', { cls: 't-xs t-dim' }, st.mouseG);
+      // ミニ画面とポインタ
+      S.rect(420, 470, 220, 70, { rx: 4, cls: 'f-in s-rule w1' }, st.mouseG);
+      st.ptr = S.path('M0,0 L0,14 L4,10 L7,16 L9,15 L6,9 L11,9 Z', { cls: 'f-fg' }, st.mouseG);
+      S.text(530, 530, '画面', { cls: 't-c t-xs t-dim' }, st.mouseG);
+      // 段階6: クリックの道
+      st.clickG = S.g({ cls: 'fade' }, g);
+      const steps6 = ['ボタン閉じる', 'レポート 1 ビット', 'USB ≤ 8 ms', '割り込み', 'ドライバ', 'OS: 窓を特定', 'ブラウザ: 要素', 'click → JS'];
+      st.clickBoxes = steps6.map((n, k) => {
+        const x = 420 + (k % 4) * 122, y = 330 + Math.floor(k / 4) * 70;
+        const b = box(st.clickG, x, y, 112, 48, n, null, 'f-sf s-rule w1', 't-xs');
+        b.title.setAttribute('class', 't-c t-b t-xs');
+        S.text(x + 8, y + 12, String(k + 1), { cls: 't-xs t-mono t-dim' }, st.clickG);
+        return b;
+      });
+      st.clickNote = S.text(420, 470, '', { cls: 't-xs t-mono' }, st.clickG);
+      S.text(420, 500, '合計で数ミリ秒。第10章でブラウザの中の続きを追う', { cls: 't-xs t-dim' }, st.clickG);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.pollG, i === 2);
+      S.fade(st.mouseG, i === 4);
+      S.fade(st.clickG, i === 5);
+      st.chain.forEach((b) => S.fade(b, i === 3));
+      st.chainArrows.forEach((a) => S.fade(a, i === 3));
+      st.repNote.textContent = i >= 2 ? '[修飾][予約][k1〜k6]  A = 0x04（配列上の位置。文字ではない）' : '';
+      st.rep.forEach((r, k) => { r.textContent = (i >= 2 && k === 2) ? '04' : '00'; });
+      st.scanTxt.textContent = ''; st.scanTxt2.textContent = '';
+      st.keys.forEach((k) => { k.sw.setAttribute('transform', ''); k.rect.setAttribute('class', 'f-sf s-rule w1'); });
+      st.rowLines.forEach((l) => l.setAttribute('class', 's-rule w2'));
+      st.colLines.forEach((l) => l.setAttribute('class', 's-rule w2'));
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const keyA = st.keys[4];   // (R1, C0)
+      const pressed = i >= 1 || U.mod(ts, 3) > 1.2;
+      keyA.sw.setAttribute('transform', pressed ? `rotate(60 ${keyA.x} ${keyA.y})` : '');
+      keyA.rect.setAttribute('class', pressed ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      if (i === 0) {
+        st.scanTxt.textContent = pressed ? 'A が押された → R1 と C0 がつながる' : '何も押されていない';
+        st.rowLines.forEach((l, r) => l.setAttribute('class', pressed && r === 1 ? 's-x w3' : 's-rule w2'));
+        st.colLines.forEach((l, c) => l.setAttribute('class', pressed && c === 0 ? 's-x w3' : 's-rule w2'));
+        return;
+      }
+      if (i === 1) {
+        const r = Math.floor(U.mod(ts * 2, 4));
+        st.rowLines.forEach((l, k) => l.setAttribute('class', k === r ? 's-e w3' : 's-rule w2'));
+        st.colLines.forEach((l, c) => l.setAttribute('class', (r === 1 && c === 0) ? 's-e w3' : 's-rule w2'));
+        st.scanTxt.textContent = `R${r} に電圧 → 列を読む: C0=${r === 1 ? 1 : 0} C1=0 C2=0 C3=0`;
+        st.scanTxt2.textContent = r === 1 ? '→ (R1, C0) = A が押されている' : '';
+        return;
+      }
+      st.rowLines.forEach((l) => l.setAttribute('class', 's-rule w2'));
+      st.colLines.forEach((l) => l.setAttribute('class', 's-rule w2'));
+      if (i === 2) {
+        const f = U.cycle(ts, 6);
+        const x = 420 + f * 480;
+        st.pollCursor.setAttribute('cx', x);
+        const k = Math.floor(f * 8);
+        st.pollMarks.forEach((m, j) => m.setAttribute('class', j === k ? 'f-none s-d w3' : 'f-none s-dim w2'));
+        st.pollRep.setAttribute('x', U.clamp(420 + k * 60, 492, 876)); st.pollRep.setAttribute('y', 166);   // 図の右端（960）を越えない
+        st.pollRep.textContent = '00 00 04 00 00 00 00 00';
+        st.scanTxt.textContent = 'レポートは変化があったときに返す';
+      } else if (i === 3) {
+        const q = U.seq(ts, [0.8, 0.8, 0.8, 0.8, 0.8, 1.6], true);
+        st.chain.forEach((b, k) => b.rect.setAttribute('class', k <= Math.min(4, q.i) ? 'f-d-soft s-d w15' : 'f-sf s-rule w1'));
+        st.scanTxt.textContent = 'キーコード 0x04 → 文字 "a"（Shift なら "A"）';
+      } else if (i === 4) {
+        const f = U.cycle(ts, 4);
+        st.ptr.setAttribute('transform', `translate(${(440 + f * 150).toFixed(1)},${(500 - Math.sin(f * Math.PI) * 18).toFixed(1)})`);
+      } else if (i === 5) {
+        const k = Math.floor(U.cycle(ts, 8) * 8);
+        st.clickBoxes.forEach((b, j) => b.rect.setAttribute('class', j <= k ? 'f-d-soft s-d w15' : 'f-sf s-rule w1'));
+        st.clickNote.textContent = ['t = 0', 't ≈ 0', 't ≤ 8 ms', '+1 µs', '+数 µs', '+数十 µs', '+数百 µs', '≈ 数 ms'][k];
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 NIC と Wi-Fi カード
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: 'NIC の中身', text: 'ホストとの窓口が PCIe インターフェースと DMA エンジン。送信リングと受信リングのディスクリプタ（場面 4）でメモリとやりとりし、**MAC** がフレームを組み立て、**PHY** がビットを電線の信号に変える。安価な NIC でもこの構成は同じで、違いは速さと賢さ。' },
+      { title: '送信：メモリのフレームが信号になるまで', text: 'OS がフレーム（宛先 MAC・送信元 MAC・種別・中身）をメモリに置き、ディスクリプタに登録する。NIC が DMA で読み出し、MAC が末尾に 4 バイトの誤り検出符号 **FCS**（CRC-32）を付け、先頭に同期用のプリアンブルを足して PHY に渡す。' },
+      { title: 'PHY：ビットを電圧に', text: '1000BASE-T の PHY は、8 ビットずつを 4 対の線に 2 ビットずつ割り振り、各対で 5 段階の電圧（PAM-5）のシンボルを毎秒 1 億 2,500 万個送る。受信側は電圧の列からビットを復元する。ここで初めて{e|電気信号}になり、第13章の有線 LAN に続く。' },
+      { title: '受信：信号からフレームへ、そしてメモリへ', text: '届いた信号を PHY がビットに戻し、MAC が FCS を検算して壊れたフレームを捨て、宛先 MAC が自分（またはブロードキャスト）かを確かめる。合格したフレームは DMA で受信リングのバッファに書き、束ねて割り込む（場面 3・4）。' },
+      { title: 'Wi-Fi カード：PHY の先が電波', text: 'Wi-Fi カードも MAC と PHY でできているが、PHY はビットを 2.4 / 5 / 6 GHz の{r|電波}の波形（OFDM）に変え、RF 回路とアンテナから放つ。有線と違って同じ周波数を近くの機器と分け合うので、MAC には「空いているか聞いてから送る」手順（CSMA/CA）が加わる（第12章）。' },
+      { title: 'ここから先が「ネットワーク」', text: 'NIC が電線に出したビット列は、受け取る側から見れば Ethernet フレーム、その中が IP パケット、さらに中が TCP/QUIC のセグメント、いちばん内側が HTTP の要求。この入れ子が第11章の層モデルで、以後の章は電線・電波・光の上でこの入れ子がどう運ばれるかを追う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const g = S.g({}, svg);
+      // ホストメモリ
+      st.mem = box(g, 170, 40, 200, 70, 'ホストのメモリ', '送信リング／受信リング', 'f-sf s-rule w1');
+      // NIC
+      S.rect(40, 140, 880, 160, { rx: 10, cls: 'f-in s-rule w15' }, g);
+      S.text(900, 162, 'NIC（有線 LAN カード）', { cls: 't-b t-lg', 'text-anchor': 'end' }, g);
+      const blocks = [['pcie', 56, 'PCIe I/F', '×1 レーン', 112], ['dma', 200, 'DMA', 'リングを読み書き'], ['mac', 380, 'MAC', 'フレーム・FCS・宛先'], ['phy', 560, 'PHY', 'ビット ⇄ 電圧'], ['rj', 740, 'RJ45', '4 対の銅線']];
+      st.blk = {};
+      blocks.forEach(([k, x, t, sub, w]) => { st.blk[k] = box(g, x, 200, w || 140, 80, t, sub, 'f-sf s-rule w15'); });
+      [[168, 240, 200], [340, 240, 380], [520, 240, 560], [700, 240, 740]].forEach(([x1, y, x2]) => S.line(x1, y, x2, y, { cls: 's-rule w6 round' }, g));
+      S.path('M270,110 V200', { cls: 'f-none s-rule w6 round' }, g);
+      S.path('M880,240 H960', { cls: 'f-none s-e w4' }, g);
+      S.text(920, 230, 'ケーブルへ', { cls: 't-c t-xs t-dim' }, g);
+      // フレームの札（送信）
+      st.pTx = S.path('M270,110 V184 H960', { cls: 'f-none s-none' }, g);
+      st.frame = S.g({ cls: 'fade' }, g);
+      st.fParts = [];
+      const partDefs = [['宛先MAC', 'f-d'], ['送信元', 'f-d'], ['種別', 'f-d'], ['中身（IP…）', 'f-d-soft']];
+      let fx = 0;
+      partDefs.forEach(([n, c]) => {
+        const w = n.length * 9 + 14;
+        S.rect(fx, -12, w, 24, { rx: 3, cls: c + ' s-d w1' }, st.frame);
+        S.text(fx + w / 2, 4, n, { cls: 't-c t-xs t-mono ' + (c === 'f-d' ? 't-sf' : '') }, st.frame);
+        fx += w + 2;
+      });
+      st.fcs = S.g({ style: { opacity: 0 } }, st.frame);
+      S.rect(fx, -12, 44, 24, { rx: 3, cls: 'f-x s-x w1' }, st.fcs);
+      S.text(fx + 22, 4, 'FCS', { cls: 't-c t-xs t-mono t-b t-sf' }, st.fcs);
+      st.fW = fx + 46;
+      // PHY の波形（段階3）
+      st.phyG = S.g({ cls: 'fade' }, g);
+      S.rect(380, 310, 540, 150, { rx: 6, cls: 'f-sf s-rule w1' }, st.phyG);
+      S.text(396, 334, '1000BASE-T：8 ビット → 4 対 × 2 ビット → 5 段階の電圧（PAM-5）', { cls: 't-xs t-b' }, st.phyG);
+      st.bitsTxt = S.text(396, 356, '', { cls: 't-mono t-sm' }, st.phyG);
+      st.pamPaths = [0, 1, 2, 3].map((k) => {
+        const y = 380 + k * 20;
+        S.text(392, y + 4, '対 ' + (k + 1), { cls: 't-xs t-mono t-dim' }, st.phyG);
+        S.line(430, y, 900, y, { cls: 's-soft w1' }, st.phyG);
+        return S.path('', { cls: 'f-none s-e w2' }, st.phyG);
+      });
+      S.text(900, 456, '1 シンボル = 8 ns（125 M シンボル/秒）', { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.phyG);
+      // 受信（段階4）: 逆向きの札と検算
+      st.pRx = S.path('M924,184 H270 V110', { cls: 'f-none s-none' }, g);   // 札（幅 64）が図の右端から出ないよう、半分の幅だけ内側から
+      st.rxTok = token(g, 'フレーム', 'f-d', 64);
+      st.rxTok.style.opacity = 0;
+      st.rxNote = S.text(480, 320, '', { cls: 't-c t-sm' }, g);
+      st.rxNote2 = S.text(480, 342, '', { cls: 't-c t-xs t-dim' }, g);
+      // Wi-Fi カード（段階5）
+      st.wifiG = S.g({ cls: 'fade' }, g);
+      S.rect(40, 330, 880, 140, { rx: 10, cls: 'f-in s-rule w15' }, st.wifiG);
+      S.text(60, 352, 'Wi-Fi カード', { cls: 't-b t-lg' }, st.wifiG);
+      [[60, 'PCIe / USB', 'ホストとの窓口'], [240, 'MAC', 'フレーム・CSMA/CA・暗号'], [420, 'ベースバンド（PHY）', 'ビット ⇄ OFDM の波形'], [600, 'RF', '2.4 / 5 / 6 GHz に変換']].forEach(([x, t, sub]) => box(st.wifiG, x, 370, 160, 80, t, sub, 'f-sf s-rule w15'));
+      [[220, 240], [400, 420], [580, 600]].forEach(([x1, x2]) => S.line(x1, 410, x2, 410, { cls: 's-rule w6 round' }, st.wifiG));
+      S.line(760, 410, 800, 410, { cls: 's-rule w6 round' }, st.wifiG);
+      S.line(800, 410, 800, 360, { cls: 's-fg w3' }, st.wifiG);
+      S.text(800, 350, 'アンテナ', { cls: 't-c t-xs t-dim' }, st.wifiG);
+      st.waves = [1, 2, 3].map((k) => S.path(`M${812 + k * 14},${360 - k * 12} a${k * 14},${k * 14} 0 0 1 0,${k * 24}`, { cls: 'f-none s-r w2' }, st.wifiG));
+      // 段階6: 入れ子
+      st.nestG = S.g({ cls: 'fade' }, g);
+      const layers = [['Ethernet フレーム', 0, 860, 'f-sf s-mid', '第13章'], ['IP パケット', 98, 672, 'f-in s-mid', '第18章'], ['TCP / QUIC', 188, 492, 'f-sf s-mid', '第19章'], ['TLS', 278, 312, 'f-in s-mid', '第20章'], ['HTTP 要求', 368, 132, 'f-d-soft s-d', '第21章']];
+      layers.forEach(([n, dx, w, cls, chp], k) => {
+        S.rect(50 + dx, 320 + k * 14, w, 150 - k * 28, { rx: 6, cls: cls + ' w15' }, st.nestG);
+        S.text(56 + dx, 336 + k * 14, n, { cls: 't-xs t-b' }, st.nestG);
+        S.text(50 + dx + w - 6, 336 + k * 14, chp, { cls: 't-xs t-dim', 'text-anchor': 'end' }, st.nestG);
+      });
+      S.text(480, 500, '電線に出るのは一続きのビット列。受け取る側がこの入れ子として読む（第11章 層モデル）', { cls: 't-c t-xs t-dim' }, st.nestG);
+      st.bits = S.text(480, 520, '', { cls: 't-c t-xs t-mono t-d' }, st.nestG);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.frame, i === 1);
+      S.fade(st.phyG, i === 2);
+      S.fade(st.wifiG, i === 4);
+      S.fade(st.nestG, i === 5);
+      st.rxTok.style.opacity = 0; st.rxNote.textContent = ''; st.rxNote2.textContent = '';
+      const hi = { 0: null, 1: ['dma', 'mac'], 2: ['phy', 'rj'], 3: ['phy', 'mac', 'dma'], 4: null, 5: null }[i];
+      Object.keys(st.blk).forEach((k) => { st.blk[k].rect.setAttribute('class', (hi && hi.includes(k)) ? 'f-d-soft s-d w2' : 'f-sf s-rule w15'); });
+      st.fcs.style.opacity = 0;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      if (i === 1) {
+        const q = U.seq(ts, [1.2, 1.0, 1.2, 1.4, 1.0], true);
+        const segStart = [0, 0.1, 0.33, 0.56, 0.8][q.i], segEnd = [0.1, 0.33, 0.56, 0.8, 1][q.i];
+        const f = segStart + (segEnd - segStart) * U.ease.inOut(q.f);
+        const p = S.along(st.pTx, f);
+        st.frame.setAttribute('transform', `translate(${(p.x - st.fW / 2).toFixed(1)},${p.y.toFixed(1)})`);
+        st.fcs.style.opacity = q.i >= 2 ? 1 : 0;
+      } else if (i === 2) {
+        const sym = Math.floor(ts * 1.5);
+        const bits = [];
+        for (let k = 0; k < 8; k++) bits.push(((sym * 7 + k * 5 + Math.floor(k / 2)) % 3 === 0) ? 1 : 0);
+        st.bitsTxt.textContent = `いまの 8 ビット: ${bits.join('')}  →  対1: ${bits[0]}${bits[1]}  対2: ${bits[2]}${bits[3]}  対3: ${bits[4]}${bits[5]}  対4: ${bits[6]}${bits[7]}`;
+        st.pamPaths.forEach((p, k) => {
+          let d = '';
+          for (let s = 0; s < 12; s++) {
+            const sb = sym - 11 + s;
+            const b0 = ((sb * 7 + (2 * k) * 5 + k) % 3 === 0) ? 1 : 0, b1 = ((sb * 7 + (2 * k + 1) * 5 + k) % 3 === 0) ? 1 : 0;
+            const lvl = [-2, -1, 1, 2][b0 * 2 + b1];
+            const x0 = 430 + s * 39, y = 380 + k * 20 - lvl * 4;
+            d += (s ? 'L' : 'M') + x0 + ',' + y + ' L' + (x0 + 39) + ',' + y;
+          }
+          p.setAttribute('d', d);
+        });
+      } else if (i === 3) {
+        const q = U.seq(ts, [1.2, 1.0, 1.4, 1.0, 1.2, 0.8], true);
+        const segs = [[0, 0.1], [0.1, 0.33], [0.33, 0.56], [0.56, 0.8], [0.8, 1], [1, 1]][q.i];
+        const f = segs[0] + (segs[1] - segs[0]) * U.ease.inOut(q.f);
+        S.place(st.rxTok, st.pRx, f);
+        st.rxTok.style.opacity = q.i === 5 ? 0 : 1;
+        st.rxNote.textContent = ['信号が届く', 'PHY：電圧の列 → ビット', 'MAC：FCS を検算、宛先 MAC を確認 → 合格', 'DMA：受信リングのバッファへ', 'PCIe で書き込み、束ねて割り込み', '完了'][q.i];
+        st.rxNote2.textContent = q.i === 2 ? 'FCS 不一致や宛先違いはここで捨てる' : q.i === 4 ? '1 回の割り込みで複数フレーム' : '';
+      } else if (i === 4) {
+        st.waves.forEach((w, k) => { w.style.opacity = (0.35 + 0.65 * U.pulse(t - k * 0.25, 1.2)).toFixed(2); });
+      } else if (i === 5) {
+        const n = Math.floor(ts * 12);
+        let s = '';
+        for (let k = 0; k < 64; k++) s += ((n + k) * 2654435761 >>> 0) % 7 < 3 ? '1' : '0';
+        st.bits.textContent = s;
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第II部 計算機 ／ 第7章',
+      title: '入出力と周辺機器',
+      home: '../index.html',
+      prev: { href: '06-cpu.html', title: 'CPU' },
+      next: { href: '08-display.html', title: '画面と音' },
+      legend: [{ c: 'd', label: 'データ・アドレス・フレーム' }, { c: 'e', label: '電気信号・割り込み' }, { c: 'r', label: '電波' }, { c: 'x', label: '注目' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

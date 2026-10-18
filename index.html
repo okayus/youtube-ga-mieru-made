@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="assets/base.css">
+<script src="assets/engine.js"></script>
+<style>
+  /* 目次ページだけのスタイル */
+  .sc-map { grid-template-areas: "sh" "fig" "text"; }
+  .fit .sc-map { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "sh" "fig" "text"; }
+  .map-fig { display: grid; gap: 0.5rem; min-width: 0; }
+  .map-fig .fig-scroll { background: var(--surface); }
+  .map-fig svg { display: block; width: 100%; height: auto; max-height: 640px; }
+  .fit .map-fig svg { max-height: 600px; }
+  @media (max-width: 699px) { .map-fig svg { min-width: 900px; } }
+  .map-foot { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; font-size: 0.82rem; color: var(--fg-dim); }
+  svg a { cursor: pointer; }
+  svg a:hover rect.node { stroke: var(--fg); stroke-width: 2; }
+  svg a:hover text { text-decoration: underline; }
+
+  .sc-list { grid-template-areas: "sh" "tbl"; }
+  .fit .sc-list { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh" "tbl"; }
+  .parts { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+  .fit .parts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 20px; }
+  .part-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem 0.95rem 0.6rem; display: grid; gap: 0.35rem; align-content: start; }
+  .part-card h3 { font-family: var(--display); font-weight: 700; font-size: 1.02rem; line-height: 1.4; display: flex; align-items: baseline; gap: 0.6rem; }
+  .part-card h3 .n { font-size: 0.7rem; letter-spacing: 0.08em; }
+  .part-card p.part-lead { font-size: 0.8rem; color: var(--fg-dim); line-height: 1.6; }
+  .part-card ol { list-style: none; margin: 0; padding: 0; display: grid; }
+  .part-card li { border-top: 1px solid var(--rule-soft); }
+  .part-card li a { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 0 0.3rem; align-items: baseline; padding: 0.38rem 0; color: var(--fg); text-decoration: none; }
+  .part-card li a:hover b { text-decoration: underline; text-underline-offset: 0.2em; }
+  .part-card li b { font-weight: 600; font-size: 0.92rem; }
+  .part-card li small { grid-column: 2; font-size: 0.76rem; color: var(--fg-dim); line-height: 1.5; }
+  .part-card li.todo a { color: var(--fg-dim); pointer-events: none; }
+  .part-card li.todo b::after { content: "（準備中）"; font-weight: 400; font-size: 0.74rem; margin-left: 0.3rem; }
+  .fit .part-card li a { padding: 0.22rem 0; grid-template-columns: 1.6rem auto minmax(0, 1fr); gap: 0 0.6rem; }
+  .fit .part-card li small { grid-column: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fit .part-card { padding: 0.6rem 0.9rem 0.45rem; gap: 0.25rem; }
+
+  .fit #start-nav { display: none; }   /* 1画面版では同じボタンを上部バーに置く（縦読み版には上部バーが無いので表紙に残す） */
+
+  .sc-how { grid-template-areas: "sh" "text" "tbl"; }
+  .fit .sc-how { grid-template-columns: 46fr 54fr; grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh sh" "text tbl"; }
+  .how-tbl th { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">動く図で追う ／ 全25章・6部</p>
+    <h1 id="h-s0">YouTubeが見えるまで</h1>
+    <p class="standfirst">動画をクリックしてから最初の画が出るまでの約 2.4 秒に、電線の中の電子、トランジスタ、CPU、OS、ブラウザ、Wi-Fi の電波、ルーター、光ファイバーの光、海の向こうのサーバー、動画の圧縮と復号が、すべて順番に働く。この教材はその全部を、途中を飛ばさずに1本の道としてつなぐ。第1章の「電子が押される」から第25章の「画素が光る」まで、各章は前の章の部品を使って次の部品を組み立てる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">右上の <kbd>›</kbd>（または<kbd>→</kbd>）だけを押していけば、第1章の場面1から、段階・場面・章の順に全ページを通して見られる。章のまとめの次は、次の章の場面1。<kbd>‹</kbd>（<kbd>←</kbd>）で戻り、<kbd>スペース</kbd>で動きを止める。「自動で進む」で全章を自動で通す。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">6 部の構成</h2>
+    <ol>
+      <li><a href="chapters/01-denshi.html"><span class="n">I</span>電気（第1〜3章）</a><p>電子と電流、半導体とダイオード、トランジスタ。電気で動くスイッチができるまで。</p></li>
+      <li><a href="chapters/04-ronri.html"><span class="n">II</span>計算機（第4〜8章）</a><p>論理ゲート、記憶、CPU、入出力、画面と音。スイッチの組み合わせが計算し、覚え、表示する。</p></li>
+      <li><a href="chapters/09-os.html"><span class="n">III</span>ソフトウェア（第9〜10章）</a><p>OS とブラウザ。URL を打ってから画面に描くまでを、プロセスと描画の流れで追う。</p></li>
+      <li><a href="chapters/11-sou.html"><span class="n">IV</span>つながる（第11〜16章）</a><p>層モデル、Wi-Fi、Ethernet、ホームルーター、光回線、インターネットの骨格。家から世界へ。</p></li>
+      <li><a href="chapters/17-dns.html"><span class="n">V</span>約束ごと（第17〜21章）</a><p>DNS、IP、TCP・UDP・QUIC、TLS、HTTP。パケットの包み方と往復の手順。</p></li>
+      <li><a href="chapters/22-server.html"><span class="n">VI</span>YouTube（第22〜25章）</a><p>サーバー側、動画の圧縮、ストリーミングと再生、通しで見る。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" id="start-nav" aria-label="始める"><a class="next" href="chapters/01-denshi.html"><small>第1章から</small> 最初から通して見る ›</a><a href="#s1" data-go="1">全体の地図を見る</a><a href="#s2" data-go="2">25章の一覧</a></nav>
+    <p>図はすべて模式図。大きさ・個数・速さは見やすく誇張してあり、本文に書いた数値だけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 全体の地図 ================= -->
+<section class="scene sc-map" id="s1" data-tab="地図" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>全体の地図 — 要求が出ていき、映像が帰ってくる道</h2>
+    <p class="sh-meta"><span class="chip">箱を押すと章が開く</span></p>
+  </header>
+  <figure class="map-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 1400 600" role="img" aria-label="パソコンの中の層、家の中の機器、光回線とインターネット、YouTubeのサーバーを並べた地図。要求が右へ、映像が左へ流れる"></svg></div>
+    <figcaption>図1　左がパソコンの中（下が物理、上がソフトウェア）、中央が家の中の機器と回線、右が YouTube 側。濃い緑の四角は再生の要求、薄い緑の四角は帰ってくる映像の断片（どちらもデータ）。上の帯は、どの区間でも同じ「約束ごと」で包まれていることを表す。</figcaption>
+  </figure>
+  <p class="map-foot a-text"><span><i class="sw d"></i>要求（クリック → HTTP）が右へ</span><span><i class="sw d" style="opacity: 0.4"></i>映像の断片（セグメント）が左へ</span><span><i class="sw e"></i>電気信号の区間</span><span><i class="sw r"></i>電波の区間</span><span><i class="sw p"></i>光の区間</span></p>
+</section>
+
+<!-- ================= 2 25章の一覧 ================= -->
+<section class="scene sc-list" id="s2" data-tab="章の一覧" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>25章の一覧</h2>
+    <p class="sh-meta"><span class="chip" id="progress-chip">準備中の章は薄く表示</span></p>
+  </header>
+  <div class="parts a-tbl" id="parts">
+    <section class="part-card"><h3><span class="n">第I部</span>電気</h3><p class="part-lead">電子を押す、通す、止める。電気で動くスイッチができるまで。</p><ol>
+      <li><a href="chapters/01-denshi.html"><span class="n">1</span><b>電子と電流</b><small>自由電子、電圧と電場、抵抗と熱、回路、交流とコンデンサ</small></a></li>
+      <li><a href="chapters/02-handoutai.html"><span class="n">2</span><b>半導体とダイオード</b><small>シリコン、n型・p型、pn接合、整流、LEDとフォトダイオード</small></a></li>
+      <li><a href="chapters/03-transistor.html"><span class="n">3</span><b>トランジスタ</b><small>MOSFET、ゲート電圧とチャネル、CMOS、発熱、微細化</small></a></li>
+    </ol></section>
+    <section class="part-card"><h3><span class="n">第II部</span>計算機</h3><p class="part-lead">スイッチの組み合わせが、計算し、覚え、命令を実行し、表示する。</p><ol>
+      <li><a href="chapters/04-ronri.html"><span class="n">4</span><b>論理ゲートと2進数</b><small>ビット＝電圧、NAND から全部、加算器</small></a></li>
+      <li><a href="chapters/05-kioku.html"><span class="n">5</span><b>記憶</b><small>ラッチ、フリップフロップ、SRAM、DRAM、フラッシュ</small></a></li>
+      <li><a href="chapters/06-cpu.html"><span class="n">6</span><b>CPU</b><small>機械語、フェッチ・デコード・実行、パイプライン、キャッシュ</small></a></li>
+      <li><a href="chapters/07-shuuhen.html"><span class="n">7</span><b>入出力と周辺機器</b><small>バス、MMIO、割り込み、DMA、キーボード、NIC</small></a></li>
+      <li><a href="chapters/08-display.html"><span class="n">8</span><b>画面と音</b><small>フレームバッファ、GPU、液晶とOLED、vsync、DAC</small></a></li>
+    </ol></section>
+    <section class="part-card"><h3><span class="n">第III部</span>ソフトウェア</h3><p class="part-lead">OS が機械を束ね、ブラウザが URL から画面を描く。</p><ol>
+      <li><a href="chapters/09-os.html"><span class="n">9</span><b>OS</b><small>カーネル、プロセス、システムコール、仮想メモリ、スケジューラ、ソケット</small></a></li>
+      <li><a href="chapters/10-browser.html"><span class="n">10</span><b>ブラウザ</b><small>URL、DOM、スタイルとレイアウト、合成、JS、video と MSE</small></a></li>
+    </ol></section>
+    <section class="part-card"><h3><span class="n">第IV部</span>つながる</h3><p class="part-lead">家の中の電波と銅線、光ファイバー、ISP、そして世界の骨格。</p><ol>
+      <li><a href="chapters/11-sou.html"><span class="n">11</span><b>ネットワークの層</b><small>家の中の配置、層モデル、カプセル化、アドレス、パケット交換</small></a></li>
+      <li><a href="chapters/12-wifi.html"><span class="n">12</span><b>Wi-Fi</b><small>電波、変調、OFDM、CSMA/CA、WPA、速さが変わる理由</small></a></li>
+      <li><a href="chapters/13-ethernet.html"><span class="n">13</span><b>Ethernet とスイッチ</b><small>ツイストペア、フレーム、MAC テーブル、ARP</small></a></li>
+      <li><a href="chapters/14-router.html"><span class="n">14</span><b>ホームルーター</b><small>DHCP、サブネット、NAT、ファイアウォール、TTL</small></a></li>
+      <li><a href="chapters/15-hikari.html"><span class="n">15</span><b>光回線</b><small>全反射、レーザーと受光、ONU、PON、局舎から ISP へ</small></a></li>
+      <li><a href="chapters/16-internet.html"><span class="n">16</span><b>インターネットの骨格</b><small>AS、BGP、IX、海底ケーブル、ルーターの転送、Google のエッジ</small></a></li>
+    </ol></section>
+    <section class="part-card"><h3><span class="n">第V部</span>約束ごと</h3><p class="part-lead">どの区間でも同じ手順で包み、宛先を見つけ、確実に届け、暗号化する。</p><ol>
+      <li><a href="chapters/17-dns.html"><span class="n">17</span><b>DNS</b><small>名前と番号、階層、再帰問い合わせ、キャッシュ、Anycast、DoH</small></a></li>
+      <li><a href="chapters/18-ip.html"><span class="n">18</span><b>IP</b><small>ヘッダ、CIDR、IPv6、ホップ、MTU、ICMP</small></a></li>
+      <li><a href="chapters/19-tcp.html"><span class="n">19</span><b>TCP・UDP・QUIC</b><small>ポート、ハンドシェイク、再送、輻輳制御、QUIC</small></a></li>
+      <li><a href="chapters/20-tls.html"><span class="n">20</span><b>TLS</b><small>共通鍵、鍵交換、証明書、TLS 1.3、AEAD</small></a></li>
+      <li><a href="chapters/21-http.html"><span class="n">21</span><b>HTTP</b><small>要求と応答、HTTP/2・HTTP/3、キャッシュ、Cookie、実際の要求群</small></a></li>
+    </ol></section>
+    <section class="part-card"><h3><span class="n">第VI部</span>YouTube</h3><p class="part-lead">サーバー側の仕組み、動画の圧縮、届け方と映し方、そして通し。</p><ol>
+      <li><a href="chapters/22-server.html"><span class="n">22</span><b>YouTube のサーバー側</b><small>トランスコード、分散ストレージ、負荷分散、エッジと GGC</small></a></li>
+      <li><a href="chapters/23-codec.html"><span class="n">23</span><b>動画の圧縮</b><small>YUV、DCT と量子化、動き補償、ビットレート、コンテナ</small></a></li>
+      <li><a href="chapters/24-streaming.html"><span class="n">24</span><b>ストリーミングと再生</b><small>DASH、バッファ、ABR、デコード、表示と同期</small></a></li>
+      <li><a href="chapters/25-tooshi.html"><span class="n">25</span><b>通しで見る</b><small>再生ボタンから最初の画まで、1本の時間軸で</small></a></li>
+    </ol></section>
+  </div>
+</section>
+
+<!-- ================= 3 使い方 ================= -->
+<section class="scene sc-how" id="s3" data-tab="使い方" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>使い方</h2>
+  </header>
+  <div class="prose a-text">
+    <p>各章は、表紙、動く場面6つ、まとめの8場面でできている。動く場面は、左に説明と「段階」の操作、右に動く図。段階を進めると説明が変わり、図の中の対応する部分が動いたり色が付いたりする。</p>
+    <p>図の中の色は全章で同じ意味に使う。<span class="tag e">電子・電流・電気信号</span>、<span class="tag h">正孔・＋の電荷・高い電位</span>、<span class="tag p">光</span>、<span class="tag r">電波</span>、<span class="tag d">データ・パケット・ビット列</span>、<span class="tag x">強調・変化・注意</span>。章の上部バーに、その章で使う色の意味が常に出ている。</p>
+    <p>数値は、本文に書いたものだけが実際の値。図の中の粒の数・大きさ・速さは、見えるように誇張してある。</p>
+    <p>スマートフォンでは縦に読む形になり、段階の操作は画面の下端に出る。幅の要る図は、図の箱の中だけ横にスクロールする。</p>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="plain how-tbl">
+      <thead><tr><th>操作</th><th>キーボード</th><th>画面</th></tr></thead>
+      <tbody>
+        <tr><td>通しで進む／戻る</td><td><kbd>→</kbd>／<kbd>←</kbd></td><td>右上の ›／‹。› だけで 1 段階ずつ全ページを通せる。章のまとめの次は次の章の場面1</td></tr>
+        <tr><td>場面ごとに移る</td><td><kbd>↓</kbd> <kbd>PageDown</kbd>／<kbd>↑</kbd> <kbd>PageUp</kbd></td><td>上部のタブ（章の端では前後の章へ）</td></tr>
+        <tr><td>動きを止める／動かす</td><td><kbd>スペース</kbd></td><td>上部バーの「止める」</td></tr>
+        <tr><td>動きの速さ</td><td>—</td><td>上部バーの 0.5× / 1× / 2×</td></tr>
+        <tr><td>自動で進む</td><td>—</td><td>上部バーのチェック。段階は約10秒、表紙とまとめは約15秒で次へ。章もまたいで最後まで進む</td></tr>
+        <tr><td>章の移動</td><td>—</td><td>まとめで › を押すと次の章へ。表紙とまとめの「前の章」、上部バーの題で目次へ。目次の上部バーの「続きから」で前回の場面へ</td></tr>
+        <tr><td>特定の場面を開く</td><td>—</td><td>URL の末尾に <code>#s3</code> のように場面番号を付ける</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* 続きから: 前回いた章と場面（エンジンが localStorage の ytm-last に残す）。上部バーと、縦読み版の表紙の両方に出す */
+  let resume = null;
+  try {
+    const last = JSON.parse(localStorage.getItem('ytm-last') || 'null');
+    const file = last && /\/(\d\d-[a-z0-9-]+\.html)$/.exec(last.path || '');
+    if (file) {
+      const n = /第\d+章/.exec(last.eyebrow || '');
+      resume = { href: 'chapters/' + file[1] + '#s' + (Number(last.scene) || 0), label: (n ? n[0] + ' ' : '') + (last.title || '') + (last.scene ? '・場面' + Number(last.scene) : '') + ' ›' };
+    }
+  } catch (e) { /* 使えなければ出さない */ }
+  const nav = document.getElementById('start-nav');
+  if (resume && nav) {
+    const a = document.createElement('a');
+    a.className = 'next';
+    a.href = resume.href;
+    a.innerHTML = '<small>続きから</small> ' + YT.esc(resume.label);
+    nav.insertBefore(a, nav.children[1] || null);
+  }
+
+  /* 準備中の章を薄くする（http で開いたときだけ確認できる。file: では全部リンクのまま） */
+  if (location.protocol.startsWith('http')) {
+    const items = Array.from(document.querySelectorAll('#parts li a'));
+    let missing = 0;
+    Promise.all(items.map((a) => fetch(a.getAttribute('href'), { method: 'HEAD', cache: 'no-store' }).then((r) => {
+      if (!r.ok) { a.parentNode.classList.add('todo'); missing++; }
+    }).catch(() => {}))).then(() => {
+      const chip = document.getElementById('progress-chip');
+      if (chip) chip.textContent = missing ? `${25 - missing} / 25 章が公開済み` : '全25章が公開済み';
+    });
+  }
+
+  /* ================= 地図 ================= */
+  const s1 = {
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const link = (parent, href, title) => { const a = S.el('a', { href, 'aria-label': title }, parent); return a; };
+      const node = (parent, x, y, w, h, title, sub, href, cls) => {
+        const a = href ? link(parent, href, title) : S.g({}, parent);
+        S.rect(x, y, w, h, { rx: 6, cls: 'node ' + (cls || 'f-sf s-rule w1') }, a);
+        S.text(x + w / 2, y + (sub ? h / 2 - 2 : h / 2 + 5), title, { cls: 't-c t-b ' + (w < 110 ? 't-sm' : 't-md') }, a);
+        if (sub) S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-xs t-dim t-mono' }, a);
+        return a;
+      };
+      const ch = (n, name) => `chapters/${n}-${name}.html`;
+
+      // 上の帯: 約束ごと
+      S.rect(20, 14, 1360, 54, { rx: 8, cls: 'f-d-soft s-d w1' }, svg);
+      S.text(34, 36, '約束ごと', { cls: 't-b t-d' }, svg);
+      S.text(34, 54, 'どの区間でも同じ手順で包む', { cls: 't-xs t-dim' }, svg);
+      [['17', 'dns', 'DNS 名前→番号', 230], ['18', 'ip', 'IP 宛先と経路', 410], ['19', 'tcp', 'TCP / QUIC 確実に', 590], ['20', 'tls', 'TLS 暗号化', 790], ['21', 'http', 'HTTP 要求と応答', 960], ['11', 'sou', '層モデル', 1140]].forEach(([n, f, t, x]) => {
+        node(svg, x, 24, n === '11' ? 110 : 160, 34, t, null, ch(n, f), 'f-sf s-d w1');
+      });
+      node(svg, 1270, 24, 100, 34, '25 通しで見る', null, ch('25', 'tooshi'), 'f-fg s-fg w1');
+      svg.lastChild.querySelector('text').setAttribute('class', 't-c t-b t-sm t-sf');
+
+      // 3つの領域
+      const region = (x, w, title) => { S.rect(x, 86, w, 500, { rx: 10, cls: 'f-in s-soft', style: { opacity: 0.55 } }, svg); S.text(x + 14, 110, title, { cls: 't-b t-lg' }, svg); };
+      region(20, 560, '家の中');
+      region(596, 440, 'アクセス回線とインターネット');
+      region(1052, 328, 'YouTube（Google）');
+
+      // パソコンの中: 下が物理、上がソフト
+      S.rect(40, 126, 330, 450, { rx: 8, cls: 'f-sf s-fg w15' }, svg);
+      S.text(205, 148, 'パソコン（スマートフォンも同じ構造）', { cls: 't-c t-sm t-dim' }, svg);
+      const rows = [
+        ['08', 'display', '8 画面と音', '画素が光る・スピーカーが鳴る'],
+        ['10', 'browser', '10 ブラウザ', 'URL → DOM → 描画、video と MSE'],
+        ['09', 'os', '9 OS', 'プロセス・システムコール・ソケット'],
+        ['06', 'cpu', '6 CPU ／ 5 記憶 ／ 7 入出力', '命令を実行し、覚え、装置と話す'],
+        ['04', 'ronri', '4 論理ゲートと2進数', 'NAND から加算器まで'],
+        ['03', 'transistor', '3 トランジスタ ／ 2 半導体', '電圧で動くスイッチ'],
+        ['01', 'denshi', '1 電子と電流', '電子が押されて流れる']
+      ];
+      rows.forEach(([n, f, t, sub], k) => {
+        const y = 160 + k * 58;
+        node(svg, 54, y, 302, 48, t, sub, ch(n, f), k < 3 ? 'f-sf s-rule w1' : 'f-e-soft s-e w1');
+      });
+      S.text(44, 596, '↑ ソフトウェア　↓ 物理（電子・半導体）', { cls: 't-xs t-dim' }, svg);
+      // 家の機器
+      node(svg, 440, 200, 120, 56, '14 ルーター', 'NAT・DHCP', ch('14', 'router'), 'f-sf s-rule w15');
+      node(svg, 440, 320, 120, 56, '15 ONU', '光 ↔ 電気', ch('15', 'hikari'), 'f-sf s-rule w15');
+      // Wi-Fi: PC → ルーター（電波）
+      const wifiA = link(svg, ch('12', 'wifi'), '12 Wi-Fi');
+      for (let k = 1; k <= 3; k++) S.path(`M${392 + k * 10},${208 - k * 9} a${k * 14},${k * 14} 0 0 1 0,${k * 18 + 24}`, { cls: 'f-none s-r w2' }, wifiA);
+      S.text(414, 272, '12 Wi-Fi', { cls: 't-c t-sm t-b t-r' }, wifiA);
+      // 有線
+      const ethA = link(svg, ch('13', 'ethernet'), '13 Ethernet');
+      S.path('M370,330 H480 V256', { cls: 'f-none s-e w2 dash' }, ethA);
+      S.text(404, 326, '13 有線', { cls: 't-xs t-e t-b' }, ethA);
+      S.line(500, 256, 500, 320, { cls: 's-e w3' }, svg);
+      // 光ファイバー: ONU → 局舎
+      const fiberA = link(svg, ch('15', 'hikari'), '15 光回線');
+      S.path('M560,348 H640', { cls: 's-p w4' }, fiberA);
+      S.text(600, 338, '光ファイバー', { cls: 't-c t-xs t-p t-b' }, fiberA);
+      node(svg, 640, 320, 96, 56, '局舎', 'OLT', ch('15', 'hikari'));
+      node(svg, 776, 320, 96, 56, '16 ISP', 'AS・GGC', ch('16', 'internet'));
+      node(svg, 912, 320, 96, 56, 'IX / 長距離', '海底ケーブル', ch('16', 'internet'));
+      S.path('M736,348 H776', { cls: 's-p w4' }, svg);
+      S.path('M872,348 H912', { cls: 's-p w4' }, svg);
+      S.path('M1008,348 H1066', { cls: 's-p w4' }, svg);
+      S.text(812, 440, '16 インターネットの骨格：AS・BGP・IX', { cls: 't-c t-sm t-dim' }, svg);
+      S.text(812, 460, '光の区間。中継ごとに電気に戻して宛先を読む', { cls: 't-c t-xs t-dim' }, svg);
+      // Google 側
+      node(svg, 1066, 320, 130, 56, 'Google エッジ', 'キャッシュ・GFE', ch('22', 'server'));
+      node(svg, 1230, 320, 130, 56, '22 データセンター', '負荷分散・保存', ch('22', 'server'));
+      S.path('M1196,348 H1230', { cls: 's-p w4' }, svg);
+      node(svg, 1066, 160, 294, 56, '23 動画の圧縮', 'YUV・DCT・動き補償・コーデック', ch('23', 'codec'));
+      node(svg, 1066, 240, 294, 56, '24 ストリーミングと再生', 'DASH・セグメント・ABR・デコード', ch('24', 'streaming'));
+      S.path('M1213,296 V320', { cls: 's-dim w15', 'marker-end': mk('dim') }, svg);
+      S.text(1213, 470, 'アップロードされた動画は、あらかじめ', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(1213, 486, '複数の画質に圧縮して保存してある', { cls: 't-c t-xs t-dim' }, svg);
+
+      // 要求と映像の道（見えない path）
+      // 要求: ブラウザの行(右端) → Wi-Fi → ルーター → ONU → 光 → 局舎 → ISP → IX → エッジ → DC
+      const req = S.path('M356,242 C400,242 410,228 440,228 L500,228 V348 L560,348 H640 H736 H776 H872 H912 H1008 H1066 H1196 H1230', { cls: 'f-none s-none' }, svg);
+      const res = S.path('M1230,360 H1066 H1008 H912 H872 H776 H736 H640 H560 L500,360 V232 L440,232 C410,232 400,186 356,186', { cls: 'f-none s-none' }, svg);
+      st.req = req; st.res = res;
+      st.reqDot = S.g({}, svg);
+      S.rect(-9, -7, 18, 14, { rx: 3, cls: 'f-d' }, st.reqDot);
+      st.resDots = [0, 1, 2].map(() => { const g = S.g({}, svg); S.rect(-9, -7, 18, 14, { rx: 3, cls: 'f-d-soft s-d w15' }, g); return g; });
+      st.stateTxt = S.text(816, 596, '', { cls: 't-c t-sm t-d t-b' }, svg);
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      const q = U.seq(t, [4, 0.6, 5, 1.4], true);
+      if (q.i === 0) {
+        S.place(st.reqDot, st.req, U.ease.inOut(q.f));
+        st.reqDot.style.opacity = 1;
+        st.resDots.forEach((g) => { g.style.opacity = 0; });
+        st.stateTxt.textContent = '要求が YouTube へ（DNS → QUIC/TLS → HTTP）';
+      } else if (q.i === 1) {
+        st.reqDot.style.opacity = 1 - q.f;
+        st.stateTxt.textContent = 'サーバーが動画の断片を選ぶ';
+      } else if (q.i === 2) {
+        st.reqDot.style.opacity = 0;
+        st.resDots.forEach((g, k) => {
+          const f = U.clamp(q.f * 1.25 - k * 0.1, 0, 1);
+          S.place(g, st.res, U.ease.inOut(f));
+          g.style.opacity = f > 0 && f < 1 ? 1 : (f >= 1 ? 0.0 : 0);
+        });
+        st.stateTxt.textContent = '映像の断片が帰ってくる（数秒分ずつ、先回りして）';
+      } else {
+        st.resDots.forEach((g) => { g.style.opacity = 0; });
+        st.stateTxt.textContent = 'デコードして画面へ。約 0.2〜1 秒後に動き出す';
+      }
+      st.stateTxt.setAttribute('class', q.i === 2 ? 't-c t-sm t-b t-p' : 't-c t-sm t-b t-d');
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '目次',
+      title: 'YouTubeが見えるまで',
+      home: 'index.html',
+      next: { href: 'chapters/01-denshi.html', title: '電子と電流' },   // 最後の場面（使い方）の次は第1章（通しで進む）
+      // 上部バーのボタン（1画面版）。縦読み版では表紙の下の同じボタン（#start-nav）を使う
+      actions: [
+        { href: 'chapters/01-denshi.html#s1', sub: '第1章から', label: '最初から通して見る ›', primary: true },
+        resume && { href: resume.href, sub: '続きから', label: resume.label, primary: true },
+        { href: '#s1', go: 1, label: '全体の地図を見る' },
+        { href: '#s2', go: 2, label: '25章の一覧' }
+      ].filter(Boolean),
+      legend: [{ c: 'e', label: '電子・電気信号' }, { c: 'h', label: '＋の電荷' }, { c: 'p', label: '光' }, { c: 'r', label: '電波' }, { c: 'd', label: 'データ' }, { c: 'x', label: '注目' }]
+    },
+    scenes: { s1 }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1276 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Wi-Fi — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .mcs-now { font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第IV部 つながる ／ 第12章 ／ 全25章</p>
+    <h1 id="h-s0">Wi-Fi</h1>
+    <p class="standfirst">パソコンの Wi-Fi カード（<a class="xref" href="07-shuuhen.html#s6">第7章</a>）から出た 0 と 1 の列は、アンテナの中の電子の往復で電波になり、空気中を進んでルーターに届く。この章では電波とは何かから始めて、ビットを波に乗せる変調、多数の搬送波で並列に送る OFDM、順番を譲り合う CSMA/CA、接続と暗号化（WPA2／WPA3）、そして同じ Wi-Fi でも速さが変わる理由までを追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。波の速さや本数は見やすいように誇張してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>電波とは</a><p>アンテナの中の電子の往復が電磁波になる。周波数と波長、受信、混ざらない理由。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>変調：ビットを波に乗せる</a><p>ASK・PSK・QAM と星座図。点が多いほど速く、ノイズに弱い。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>OFDM：多数の波で並列に</a><p>64 本のサブキャリア、直交、ガードインターバル、Wi-Fi 6 の OFDMA。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>フレームと CSMA/CA</a><p>802.11 フレーム、聞いてから送る、ACK と再送、隠れ端末。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>接続と暗号化</a><p>ビーコンから 4-way handshake まで。PMK・PTK、AES-CCMP、WPA3 の SAE。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>速さが変わる理由</a><p>距離と壁、SNR と MCS、チャネル幅、干渉、MIMO、周波数帯の使い分け。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（Ethernet とスイッチ）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図はすべて模式図。電波の波長・速さ・本数、サブキャリアの数は見やすく変えてある。数値は規格値か目安で、場面6の距離・受信電力・速度は簡単なモデルで計算した例。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 電波とは ================= -->
+<section class="scene sc-anim" id="s1" data-tab="電波" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>電波とは</h2>
+    <p class="sh-meta"><span class="chip">2.4 / 5 / 6 GHz</span><span class="chip">λ = c / f</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">Wi-Fi カードの出口はアンテナ。そこで<span class="tag e">電子</span>を高速に往復させると、まわりの電場と磁場の変化が光速で広がる。それが<span class="tag r">電波</span>で、光と同じ電磁波の仲間である。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">日本の割り当て（2026 年時点）は、2.4 GHz 帯が 2.400〜2.4835 GHz、5 GHz 帯が 5.15〜5.35 GHz と 5.47〜5.73 GHz、6 GHz 帯（Wi-Fi 6E 以降）が 5.925〜6.425 GHz。電子レンジも 2.45 GHz を使う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="送信アンテナの中で往復する電子から電波が広がり、受信アンテナの電子を揺らす図と、電磁波の周波数の帯"></svg></div>
+    <figcaption>図1　送信アンテナで電子が往復し、電場と磁場の山（弧）が外へ広がる。段階4からは受信アンテナに同じ形の小さな電流が生まれる。段階2と5では下に電磁波の周波数の帯を出す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 変調 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="変調" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>変調：ビットを波に乗せる</h2>
+    <p class="sh-meta"><span class="chip">ASK / PSK / QAM</span><span class="chip">星座図</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">一定の波（搬送波）は、それだけでは何も伝えない。<span class="tag d">ビット</span>に合わせて波の振幅や位相を切り替える操作が変調で、1 回の切り替えで送る単位をシンボルと呼ぶ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">実際に運べるデータ量は、このビット数に誤り訂正の符号化率（1/2〜5/6）を掛けたもの。変調と符号化率の組を MCS と呼び、電波の状態に合わせて選び直す（<a class="xref" href="#s6" data-go="6">6「速さが変わる理由」</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ビット列を搬送波に乗せた波形と、I/Q 平面の星座図"></svg></div>
+    <figcaption>図2　上はビット列と、それを乗せた搬送波の波形（シンボルごとに区切り線）。右は星座図で、いま送っているシンボルの点に印が付く。下は方式ごとの点の数とビット数。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 OFDM ================= -->
+<section class="scene sc-anim" id="s3" data-tab="OFDM" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>OFDM：多数の波で並列に送る</h2>
+    <p class="sh-meta"><span class="chip">20 MHz = 64 本</span><span class="chip">3.2 µs + GI</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">Wi-Fi は 1 本の速い波ではなく、帯域を細かく分けた多数のサブキャリアに、それぞれゆっくりシンボルを乗せる。壁の反射で遅れて届く電波に強く、帯域を隙間なく使える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">パイロットは中身が決まった基準の波で、受信側はこれで位相と振幅のずれを測って補正する。データ用は 802.11a/g で 48 本、802.11n/ac で 52 本、Wi-Fi 6 の 20 MHz では 256 本のうち 234 本。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="20 MHz の帯域をサブキャリアに分けた周波数の図と、シンボルと反射波の時間の図"></svg></div>
+    <figcaption>図3　上は周波数の軸（20 MHz）で、棒 1 本が 1 サブキャリア、高さはそのシンボルで送っている値。下は時間の軸で、本来の波と壁で反射して遅れた波の重なり（段階3は直交の拡大図、段階6は速度の計算に替わる）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 CSMA/CA ================= -->
+<section class="scene sc-anim" id="s4" data-tab="CSMA/CA" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>フレームと CSMA/CA</h2>
+    <p class="sh-meta"><span class="chip">DIFS 34 µs</span><span class="chip">SIFS 16 µs</span><span class="chip">ACK</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">同じチャネルの端末は同じ空気を共有する。誰かが送っている間は他の全員が待ち、空いたら乱数で順番をずらして送る。届いたかどうかは ACK で確かめる。これが CSMA/CA。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">時間の値は 5 GHz 帯のもの。スロット 9 µs、SIFS 16 µs、DIFS ＝ SIFS ＋ 2 スロット ＝ 34 µs。いまの Wi-Fi（WMM）は DIFS の代わりに通信の種類ごとの AIFS を使い、ふつうのデータでは SIFS ＋ 3 スロット ＝ 43 µs。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="AP と 3 台の端末が 1 つのチャネルを譲り合う様子と、その時間軸"></svg></div>
+    <figcaption>図4　上は AP と端末 A・B・C。送信中の端末から電波が出る。下の時間軸は、聞く・待つ（DIFS、バックオフ）・送る・ACK の流れで、縦線がいまの時刻。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 接続と暗号化 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="接続とWPA" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>接続と暗号化</h2>
+    <p class="sh-meta"><span class="chip">SSID</span><span class="chip">4-way handshake</span><span class="chip">WPA2 / WPA3</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">端末が AP に「つながる」までには、見つける・名乗る・鍵を作る、の 3 段がある。パスフレーズそのものは電波に乗せず、両者が同じ計算をして同じ鍵にたどり着く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PMK は 256 ビット。PTK は WPA2-CCMP で 384 ビットで、KCK（MIC 用 128）・KEK（GTK の暗号化用 128）・TK（データ暗号化用 128）に分けて使う。GTK はブロードキャスト用に AP が全端末へ配る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="端末と AP の間のメッセージの往復と、鍵が作られる順序"></svg></div>
+    <figcaption>図5　左の縦線が端末、中央の縦線が AP。矢印がフレームで、点が送信側から受信側へ動く。右は鍵の系図で、その段階までにできた鍵が濃くなる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 速さが変わる理由 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="速さ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>速さが変わる理由</h2>
+    <p class="sh-meta"><span class="chip">RSSI / SNR</span><span class="chip">MCS</span><span class="chip">MIMO</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">同じルーターでも、部屋を移ると速さが変わる。電波が弱まると粗い変調に落ち、チャネルを共有する相手が増えると待ち時間が増える。箱に書かれた最大速度との差はここから生まれる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">表の速度は Wi-Fi 6・80 MHz 幅・1 ストリーム・GI 0.8 µs の規格値。雑音 −89 dBm は 80 MHz 幅の熱雑音に受信機の雑音約 6 dB を足した目安。dBm は 1 mW を 0 dB とした対数表示で、10 dB 下がると 1/10。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家の間取りの中を端末が移動し、受信強度と変調方式と速度が変わる図"></svg></div>
+    <figcaption>図6　左は家の間取り（上から見た図）。AP から端末までの距離と壁で受信電力が決まる。右は SNR に応じて選ばれる MCS（変調と符号化率）と PHY 速度の表、段階によってチャネル幅・干渉・MIMO・周波数帯の図に変わる。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 電波で 0 と 1 を運ぶ</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>アンテナの中の<span class="tag e">電子</span>の往復が<span class="tag r">電波</span>になる。周波数が波長を決め、2.4 GHz で 12.5 cm（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>ビットは搬送波の振幅と位相（I/Q の点）に乗せる。点が多いほど速く、雑音に弱い（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>帯域を多数のサブキャリアに分けて並列に送るのが OFDM。反射に強く、直交で隙間なく使える（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>空気は共有線。聞いてから乱数で待って送り、ACK で確認し、だめなら再送する（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>接続はビーコン→認証→アソシエーション→4-way handshake。パスフレーズは送らず、両者が PMK から PTK を作る（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>距離・壁・干渉で SNR が下がると MCS が落ちる。チャネル幅、MIMO、周波数帯が速さを左右する（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+    <p class="note">次の章（Ethernet とスイッチ）では、銅線の信号、Ethernet フレーム、スイッチ、ARP を見たあと、AP が 802.11 フレームを Ethernet フレームに組み替える所（<a class="xref" href="13-ethernet.html#s6">第13章の場面6</a>）でこの章とつながる。</p>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw r"></i>電磁波・電波</th><td>電場と磁場が互いを生みながら光速で進む波。Wi-Fi は 2.4 / 5 / 6 GHz 帯。波長 λ ＝ c ÷ f。</td></tr>
+        <tr><th>変調・シンボル</th><td>搬送波の振幅・位相をビットで切り替えること。1 回の切り替えがシンボル。BPSK 1 ビット〜4096-QAM 12 ビット。</td></tr>
+        <tr><th>星座図（I/Q）</th><td>cos 成分 I と sin 成分 Q を軸にした点の地図。受信側は最も近い点を選ぶ。SNR が低いと点を取り違える。</td></tr>
+        <tr><th>OFDM・サブキャリア</th><td>帯域を間隔 312.5 kHz（Wi-Fi 6 は 78.125 kHz）の多数の搬送波に分け、各 3.2 µs（12.8 µs）のシンボルを並列に送る方式。</td></tr>
+        <tr><th>ガードインターバル</th><td>シンボルの前に付ける 0.4〜3.2 µs の余白（規格による）。反射波の遅れを吸収する。</td></tr>
+        <tr><th>CSMA/CA</th><td>聞いて、DIFS と乱数スロットぶん待って送り、ACK で確認する媒体アクセス制御。衝突は検出できないので避ける。</td></tr>
+        <tr><th>SSID・BSSID</th><td>ネットワークの名前と、AP の MAC アドレス。ビーコンで約 100 ms ごとに知らされる。</td></tr>
+        <tr><th>PMK・PTK・GTK</th><td>パスフレーズと SSID から作る親鍵、接続ごとに乱数から作る鍵、全員宛て用の鍵。4-way handshake で PTK を確認し GTK を配る。</td></tr>
+        <tr><th>WPA2 / WPA3</th><td>AES-CCMP で暗号化。WPA3 は SAE で鍵交換し、録音からの総当たりを防ぎ、前方秘匿性を持つ。</td></tr>
+        <tr><th>MCS・MIMO</th><td>変調と符号化率の組（Wi-Fi 6 は 0〜11）。SNR に応じて選ぶ。MIMO は複数アンテナで空間ストリームを同時に送る。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+  const TAU = Math.PI * 2;
+  /* 種から決まる疑似乱数（xorshift32）。時刻の区切りを種にして、同じ段階・同じ時刻なら同じ見た目にする */
+  const prng = (seed) => { let s = (Math.imul(seed | 0, 2654435761) >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; };
+
+  /* ---------- この章で使う部品 ---------- */
+  function box(parent, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, parent);
+    S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-rule w1' }, g);
+    S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 4), title, { cls: 't-c t-b ' + (tcls || 't-sm') }, g);
+    if (sub) S.text(x + w / 2, y + h / 2 + 13, sub, { cls: 't-c t-xs t-dim' }, g);
+    return g;
+  }
+  /* 縦のアンテナ。dots が往復する */
+  function antenna(parent, x, y0, y1, n, cls) {
+    const g = S.g({}, parent);
+    S.line(x, y0, x, y1, { cls: 's-fg w6 round' }, g);
+    S.line(x, y0, x, y1, { cls: 's-in w2 round' }, g);
+    const dots = [];
+    for (let i = 0; i < n; i++) dots.push(S.circle(x, 0, 4, { cls: cls || 'f-e' }, g));
+    const base = dots.map((_, i) => y0 + 14 + (y1 - y0 - 28) * i / (n - 1));
+    return { g, dots, base, set(disp) { dots.forEach((d, i) => d.setAttribute('cy', (base[i] + disp).toFixed(1))); } };
+  }
+  /* 中心から広がる弧の列。a0〜a1 は角度（ラジアン、y は下向き）で、幅が 2π なら円を描く。
+     rMin より内側（中心の部品の上）には描かない */
+  function arcs(parent, cx, cy, n, cls) {
+    const list = [];
+    for (let i = 0; i < n; i++) list.push(S.path('', { cls: 'f-none ' + cls }, parent));
+    return {
+      list,
+      update(phase, lambda, a0, a1, maxR, rMin) {
+        const r0 = rMin || 4, full = a1 - a0 >= TAU - 1e-6;
+        list.forEach((p, i) => {
+          const r = U.mod(phase, lambda) + i * lambda;
+          if (r > maxR || r < r0) { p.setAttribute('d', ''); p.style.opacity = '0'; return; }   // 描かない弧は前の状態を残さない
+          const rs = r.toFixed(1);
+          if (full) {
+            p.setAttribute('d', `M${(cx - r).toFixed(1)},${cy} A${rs},${rs} 0 1 1 ${(cx + r).toFixed(1)},${cy} A${rs},${rs} 0 1 1 ${(cx - r).toFixed(1)},${cy}`);
+          } else {
+            const x1 = cx + r * Math.cos(a0), y1 = cy + r * Math.sin(a0);
+            const x2 = cx + r * Math.cos(a1), y2 = cy + r * Math.sin(a1);
+            p.setAttribute('d', `M${x1.toFixed(1)},${y1.toFixed(1)} A${rs},${rs} 0 0 1 ${x2.toFixed(1)},${y2.toFixed(1)}`);
+          }
+          p.style.opacity = Math.max(0.12, 1 - (r - r0) / Math.max(1, maxR - r0)).toFixed(2);
+        });
+      }
+    };
+  }
+
+  /* ================================================================
+     場面1 電波とは
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'アンテナの中で電子を往復させる', text: '送信回路が 2.4 GHz の交流をアンテナに流す。1 秒に 24 億回、{e|電子}が棒の中を往復する。電子が加速するたびに周囲の電場が変わり、その変化が光速で外へ伝わる。これが{r|電波}。' },
+      { title: '電場と磁場が互いを生む波', text: '電場の変化が磁場を作り、磁場の変化が電場を作る。この自己持続する波が電磁波で、真空中の速さは光と同じ約 30 万 km/s。光も電波も同じ電磁波で、違いは周波数（1 秒の振動の回数）だけ。' },
+      { title: '周波数と波長', text: '波長 λ ＝ 光速 ÷ 周波数なので、周波数が高いほど波長は短い（2.4 GHz で 12.5 cm）。アンテナは波長の 1/4 や 1/2 の長さで効率よく振動する。2.4 GHz の 1/4 波長は約 3 cm で、スマートフォンの縁に収まる。' },
+      { title: '受けるアンテナ', text: '届いた電波の電場が受信アンテナの電子を揺らし、送信側と同じ形の電流が生まれる。ただし電力は距離の 2 乗に反比例して弱まり、増幅前の電圧は数十 µV〜1 mV ほどしかない。受信回路はこれを増幅し、必要な周波数だけを取り出す。' },
+      { title: '混ざらない理由', text: '空間には放送・携帯電話・Wi-Fi の電波が同時に飛んでいる。周波数が違えば受信側は同調（フィルタ）で選り分けられる。Wi-Fi は 2.4 GHz 帯、5 GHz 帯、6 GHz 帯（Wi-Fi 6E 以降）の決められた範囲だけを使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 送信アンテナ
+      S.text(180, 70, '送信アンテナ', { cls: 't-c t-b' }, svg);
+      S.text(180, 88, 'Wi-Fi カードの出口', { cls: 't-c t-xs t-dim' }, svg);
+      st.tx = antenna(svg, 180, 110, 360, 9);
+      S.circle(180, 400, 22, { cls: 'f-sf s-fg w2' }, svg);
+      st.srcWave = S.path('', { cls: 'f-none s-e w2' }, svg);
+      S.text(180, 440, '2.4 GHz の交流', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(180, 455, '（送信回路）', { cls: 't-c t-xs t-dim' }, svg);
+      S.line(180, 360, 180, 378, { cls: 's-fg w2' }, svg);
+      // 波
+      st.waves = arcs(svg, 180, 235, 9, 's-r w2');
+      // 遠くへ進む電磁波では電場と磁場の山は同じ位置にある（向きが直角）
+      st.eb = S.g({ cls: 'fade hide' }, svg);
+      S.rect(548, 134, 372, 72, { rx: 6, cls: 'f-sf s-rule w1' }, st.eb);
+      S.line(560, 152, 600, 152, { cls: 's-r w2' }, st.eb);
+      S.text(608, 156, '弧 ＝ 電場 E と磁場 B の山（同じ位置を同じ速さで進む）', { cls: 't-xs t-r' }, st.eb);
+      S.text(560, 176, 'E はアンテナと平行、B はそれと直角（紙面に垂直）', { cls: 't-xs t-dim' }, st.eb);
+      S.text(560, 194, 'c ≒ 30 万 km/s（空気中もほぼ同じ）', { cls: 't-xs t-dim' }, st.eb);
+      // 波長の物差し
+      st.ruler = S.g({ cls: 'fade hide' }, svg);
+      S.path('M300,120 H370', { cls: 'f-none s-x w2', 'marker-end': mk('x'), 'marker-start': mk('x') }, st.ruler);
+      S.text(335, 110, 'λ', { cls: 't-c t-x t-b' }, st.ruler);
+      const rt = S.g({ transform: 'translate(560,60)' }, st.ruler);
+      S.rect(0, 0, 360, 96, { rx: 6, cls: 'f-sf s-rule w1' }, rt);
+      S.text(12, 20, '周波数 f', { cls: 't-xs t-dim' }, rt);
+      S.text(130, 20, '波長 λ = c / f', { cls: 't-xs t-dim' }, rt);
+      S.text(250, 20, 'λ/4 のアンテナ', { cls: 't-xs t-dim' }, rt);
+      [['2.4 GHz', '12.5 cm', '3.1 cm'], ['5 GHz', '6.0 cm', '1.5 cm'], ['6 GHz', '5.0 cm', '1.25 cm']].forEach((r, i) => {
+        S.text(12, 42 + i * 18, r[0], { cls: 't-sm t-mono' }, rt);
+        S.text(130, 42 + i * 18, r[1], { cls: 't-sm t-mono t-b' }, rt);
+        S.text(250, 42 + i * 18, r[2], { cls: 't-sm t-mono' }, rt);
+      });
+      // 受信アンテナ
+      st.rxg = S.g({ cls: 'fade hide' }, svg);
+      S.text(760, 70, '受信アンテナ', { cls: 't-c t-b' }, st.rxg);
+      S.text(760, 88, 'ルーター側', { cls: 't-c t-xs t-dim' }, st.rxg);
+      st.rx = antenna(st.rxg, 760, 110, 360, 9);
+      S.line(760, 360, 760, 378, { cls: 's-fg w2' }, st.rxg);
+      S.rect(690, 380, 140, 60, { rx: 6, cls: 'f-sf s-rule w1' }, st.rxg);
+      st.rxTrace = S.path('', { cls: 'f-none s-e w15' }, st.rxg);
+      S.text(760, 456, '受信信号（増幅前は µV〜mV）', { cls: 't-c t-xs t-dim' }, st.rxg);
+      S.label(st.rxg, 470, 391, '距離が 2 倍 → 電力は 1/4', { cls: 't-xs t-dim', box: 'f-sf s-rule w1', w: 150, h: 20 });
+      // スペクトル（下地の板で、後ろを通る弧を隠す）
+      st.spec = S.g({ cls: 'fade hide' }, svg);
+      S.rect(40, 462, 880, 94, { rx: 6, cls: 'f-sf s-rule w1' }, st.spec);
+      const sx = (f) => 60 + (Math.log10(f) - 5) * (840 / 10);   // 1e5 .. 1e15 Hz
+      S.rect(60, 486, 840, 14, { rx: 3, cls: 'f-in s-rule w1' }, st.spec);
+      [[1e6, 'AM ラジオ'], [8e7, 'FM'], [5e8, '地デジ'], [2e9, '携帯電話'], [2.8e10, '5G ミリ波'], [3e12, 'テラヘルツ'], [3e13, '赤外線'], [5.5e14, '可視光']].forEach(([f, l], i) => {
+        const x = sx(f);
+        S.line(x, 486, x, 500, { cls: 's-dim w1' }, st.spec);
+        S.text(x, i % 2 ? 530 : 516, l, { cls: 't-c t-xs t-dim' }, st.spec);
+      });
+      S.text(60, 478, '100 kHz', { cls: 't-xs t-dim t-mono' }, st.spec);
+      S.text(900, 478, '1 PHz', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, st.spec);
+      st.wifiBand = S.g({ cls: 'fade hide' }, st.spec);
+      const wx = sx(2.4e9), wx2 = sx(6.4e9);
+      S.rect(wx - 2, 480, wx2 - wx + 4, 26, { rx: 3, cls: 'f-x-soft s-x w15' }, st.wifiBand);
+      S.text((wx + wx2) / 2, 472, 'Wi-Fi 2.4 / 5 / 6 GHz（電子レンジ 2.45 GHz も）', { cls: 't-c t-xs t-x t-b' }, st.wifiBand);
+      S.text(480, 548, '周波数（対数目盛）。受信回路は同調で自分の帯だけを選ぶ', { cls: 't-c t-xs t-dim' }, st.spec);
+      st.f = 0.8; st.lambda = 70;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.eb, i === 1);
+      S.fade(st.ruler, i === 2);
+      S.fade(st.rxg, i >= 3);
+      S.fade(st.spec, i === 1 || i === 4);
+      S.fade(st.wifiBand, i === 4);
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      const w = Math.sin(TAU * st.f * t);
+      st.tx.set(w * 16);
+      // 発振器の波形
+      let d = '';
+      for (let k = 0; k <= 36; k++) { const x = 162 + k; d += (k ? 'L' : 'M') + x + ',' + (400 - 10 * Math.sin(TAU * (k / 18) + TAU * st.f * t)).toFixed(1); }
+      st.srcWave.setAttribute('d', d);
+      const speed = st.lambda * st.f;
+      st.waves.update(t * speed, st.lambda, -1.15, 1.15, 600);
+      if (i >= 3) {
+        const delay = 580 / speed;
+        const w2 = Math.sin(TAU * st.f * (t - delay));
+        st.rx.set(w2 * 4);
+        let dd = '';
+        for (let k = 0; k <= 60; k++) { const x = 700 + k * 2; dd += (k ? 'L' : 'M') + x + ',' + (410 - 14 * Math.sin(TAU * (k / 20) + TAU * st.f * (t - delay))).toFixed(1); }
+        st.rxTrace.setAttribute('d', dd);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 変調
+     ================================================================ */
+  const BITS = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1];
+  const MODES = [
+    { key: 'carrier', name: '搬送波のみ', bits: 0 },
+    { key: 'ask', name: 'ASK', bits: 1 }, { key: 'bpsk', name: 'BPSK', bits: 1 }, { key: 'qpsk', name: 'QPSK', bits: 2 },
+    { key: 'qam16', name: '16-QAM', bits: 4 }, { key: 'qam64', name: '64-QAM', bits: 6 }, { key: 'qam256', name: '256-QAM', bits: 8 }, { key: 'qam1024', name: '1024-QAM', bits: 10 }
+  ];
+  function symbolOf(mode, k) {   // k 番目のシンボルの (I, Q)（正規化）
+    const nb = mode.bits || 1;
+    const bits = [];
+    for (let j = 0; j < nb; j++) bits.push(BITS[(k * nb + j) % BITS.length]);
+    const val = bits.reduce((a, b) => a * 2 + b, 0);
+    if (mode.key === 'carrier') return { I: 1, Q: 0, bits: [] };
+    if (mode.key === 'ask') return { I: bits[0] ? 1 : 0.35, Q: 0, bits };
+    if (mode.key === 'bpsk') return { I: bits[0] ? -1 : 1, Q: 0, bits };
+    if (mode.key === 'qpsk') { const ph = [Math.PI / 4, 3 * Math.PI / 4, -Math.PI / 4, -3 * Math.PI / 4][val]; return { I: Math.cos(ph), Q: Math.sin(ph), bits }; }
+    const m = Math.sqrt(Math.pow(2, nb));           // 一辺の点の数
+    const half = nb / 2;
+    const iIdx = val >> half, qIdx = val & ((1 << half) - 1);
+    const lv = (idx) => (2 * idx - (m - 1)) / (m - 1);
+    return { I: lv(iIdx), Q: lv(qIdx), bits };
+  }
+  const s2 = {
+    steps: [
+      { title: '搬送波にビットを乗せる', text: '一定の周波数の正弦波（搬送波）そのものは情報を運ばない。ビットに応じて振幅・位相・周波数のどれかを変えるのが**変調**、受け手がその変化を読み取るのが復調。1 回の変化で送る単位を**シンボル**と呼ぶ。' },
+      { title: 'ASK と PSK', text: 'ASK は振幅で区別する（1 ＝ 大、0 ＝ 小）。PSK は位相を切り替える。BPSK は 0° と 180° で 1 ビット、QPSK は 90° 刻みの 4 つで 2 ビット。同じ最大振幅なら BPSK の 2 点（＋1 と −1）は ASK の 2 点より離れていて、雑音で取り違えにくい。' },
+      { title: 'QAM：振幅と位相の両方', text: 'QAM は振幅と位相を同時に変え、点を格子状に並べる。点の数が 2 倍になるごとに 1 シンボルのビット数が 1 増える（16 点で 4 ビット、Wi-Fi 7 の 4096 点で 12 ビット）。送信電力の上限は同じなので、点を増やすほど点どうしの間隔は狭くなる。' },
+      { title: '星座図と I/Q', text: '横軸 I は cos 波、縦軸 Q は sin 波の大きさ。送信側は点 (I, Q) を選び、I·cos ＋ Q·sin を出す。受信側は受けた波に cos と sin を掛けて (I, Q) を取り戻し、いちばん近い点を答えにする。星座図は「どの点を使うか」の地図である。' },
+      { title: 'ノイズと誤り', text: '雑音で受信点はずれる。1024-QAM のように点が密だと、小さなずれで隣の点と取り違える。信号対雑音比（SNR）が低いとき、端末と AP は粗い変調（QPSK など）に自動で切り替える。これが[[6|速さが変わる理由]]の中心になる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // ビット列
+      S.text(60, 40, '送るビット列', { cls: 't-sm t-b' }, svg);
+      st.bitBoxes = [];
+      for (let k = 0; k < 24; k++) {
+        const g = S.g({}, svg);
+        S.rect(60 + k * 22, 50, 20, 24, { rx: 3, cls: 'f-in s-rule w1' }, g);
+        S.text(70 + k * 22, 67, String(BITS[k]), { cls: 't-c t-mono t-sm' }, g);
+        st.bitBoxes.push(g);
+      }
+      st.bitHl = S.rect(60, 48, 20, 28, { rx: 3, cls: 'f-none s-x w2' }, svg);
+      // 波形
+      S.rect(60, 100, 540, 230, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+      S.line(70, 215, 590, 215, { cls: 's-rule w1' }, svg);
+      st.symLines = S.g({}, svg);
+      st.wave = S.path('', { cls: 'f-none s-r w2' }, svg);
+      st.now = S.line(330, 104, 330, 298, { cls: 's-x w15', 'stroke-dasharray': '4 3' }, svg);   // 下のビットの札にかからない長さ
+      S.text(330, 345, '↑ いま出している所', { cls: 't-c t-xs t-x' }, svg);
+      st.modeTxt = S.text(72, 120, '', { cls: 't-sm t-b' }, svg);
+      st.symTxt = S.g({}, svg);
+      // 星座図
+      const cg = S.g({ transform: 'translate(780,220)' }, svg);
+      S.rect(-135, -135, 270, 270, { rx: 6, cls: 'f-sf s-rule w1' }, cg);
+      S.line(-125, 0, 125, 0, { cls: 's-rule w1' }, cg);
+      S.line(0, -125, 0, 125, { cls: 's-rule w1' }, cg);
+      S.text(128, -6, 'I', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, cg);
+      S.text(6, -118, 'Q', { cls: 't-xs t-dim t-mono' }, cg);
+      S.text(0, -142, '星座図', { cls: 't-c t-sm t-b' }, cg);
+      st.points = S.g({}, cg);
+      st.noise = S.g({ cls: 'fade hide' }, cg);
+      st.cur = S.circle(0, 0, 8, { cls: 'f-none s-x w2' }, cg);
+      st.curTxt = S.text(0, 148, '', { cls: 't-c t-xs t-x t-b' }, cg);
+      st.cg = cg;
+      // 方式の表
+      const tg = S.g({ transform: 'translate(60,370)' }, svg);
+      S.rect(0, 0, 540, 170, { rx: 6, cls: 'f-sf s-rule w1' }, tg);
+      ['方式', '点の数', 'ビット/シンボル', '使われる所'].forEach((h, k) => S.text([14, 130, 230, 360][k], 22, h, { cls: 't-xs t-dim' }, tg));
+      st.rows = [];
+      [['BPSK', 2, 1, '制御・最も弱い電波'], ['QPSK', 4, 2, '遠い端末'], ['16-QAM', 16, 4, ''], ['64-QAM', 64, 6, '802.11a/g 以降'], ['256-QAM', 256, 8, '802.11ac 以降'], ['1024-QAM', 1024, 10, 'Wi-Fi 6 以降（近距離）'], ['4096-QAM', 4096, 12, 'Wi-Fi 7']].forEach((r, k) => {
+        const y = 42 + k * 18;
+        const bg = S.rect(6, y - 12, 528, 17, { rx: 3, cls: 'f-x-soft', style: { opacity: 0 } }, tg);
+        S.text(14, y, r[0], { cls: 't-sm t-mono' }, tg);
+        S.text(130, y, String(r[1]), { cls: 't-sm t-mono' }, tg);
+        S.text(230, y, String(r[2]), { cls: 't-sm t-mono' }, tg);
+        S.text(360, y, r[3], { cls: 't-xs t-dim' }, tg);
+        st.rows.push({ bg, name: r[0] });
+      });
+      // 雑音の結果は星座図の下に出す（表の最終行と重ねない）
+      st.snrTxt = S.text(780, 394, '', { cls: 't-c t-xs t-x' }, svg);
+      st.snrTxt2 = S.text(780, 410, '', { cls: 't-c t-xs t-x t-b' }, svg);
+      st.errCount = 0;
+    },
+    modeFor(i) {
+      // 段階ごとに表示する方式（時間で巡回するものもある）
+      return i;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.cycleStart = ctx.t;
+      S.fade(st.noise, i === 4);
+      st.errCount = 0;
+    },
+    frame(ctx, t) {
+      const st = ctx.state, i = ctx.step;
+      // 方式を決める
+      let mode;
+      if (i === 0) mode = MODES[0];
+      else if (i === 1) mode = MODES[1 + Math.floor(U.cycle(t, 12) * 3)];          // ASK → BPSK → QPSK
+      else if (i === 2) mode = MODES[4 + Math.floor(U.cycle(t, 12) * 3)];          // 16 → 64 → 256
+      else if (i === 3) mode = MODES[4];
+      else mode = U.cycle(t, 10) < 0.5 ? MODES[7] : MODES[3];                      // 1024-QAM ↔ QPSK
+      const nb = mode.bits || 1;
+      const symW = 90, period = 15, scroll = t * 30;
+      // 波形
+      let d = '';
+      for (let x = 70; x <= 590; x += 2) {
+        const gx = x - 70 + scroll;
+        const k = Math.floor(gx / symW);
+        const s = symbolOf(mode, k);
+        const amp = Math.hypot(s.I, s.Q) / Math.SQRT2 * (mode.key === 'ask' || mode.key === 'bpsk' ? Math.SQRT2 : 1);
+        const ph = Math.atan2(s.Q, s.I);
+        const y = 215 - 70 * Math.min(1, amp) * Math.cos(TAU * gx / period + ph);
+        d += (x === 70 ? 'M' : 'L') + x + ',' + y.toFixed(1);
+      }
+      st.wave.setAttribute('d', d);
+      // 区切り線とビット
+      S.clear(st.symLines); S.clear(st.symTxt);
+      const first = Math.floor(scroll / symW);
+      for (let k = first; k <= first + 7; k++) {
+        const x = 70 + k * symW - scroll;
+        if (x > 70 && x < 590) S.line(x, 108, x, 322, { cls: 's-soft w1' }, st.symLines);
+        if (mode.bits) {
+          const s = symbolOf(mode, k);
+          const cx = x + symW / 2, half = s.bits.length * 3 + 3;   // 等幅 10px で 1 字 ≒ 6px。枠（70〜590）からはみ出す札は出さない
+          if (cx - half > 70 && cx + half < 590) S.text(cx, 310, s.bits.join(''), { cls: 't-c t-xs t-mono t-d' }, st.symTxt);
+        }
+      }
+      st.modeTxt.textContent = mode.key === 'carrier' ? '搬送波のみ（情報なし）' : mode.name + '：1 シンボル = ' + mode.bits + ' ビット';
+      // いまのシンボル
+      const kNow = Math.floor((330 - 70 + scroll) / symW);
+      const sNow = symbolOf(mode, kNow);
+      // ビット列の強調
+      const bi = (kNow * nb) % BITS.length;
+      st.bitHl.setAttribute('x', 60 + bi * 22);
+      st.bitHl.setAttribute('width', mode.bits ? 22 * nb - 2 : 20);
+      st.bitHl.style.opacity = mode.bits && bi + nb <= BITS.length ? 1 : 0;
+      // 星座図
+      if (st.pointsMode !== mode.key) {
+        st.pointsMode = mode.key;
+        S.clear(st.points);
+        const pts = [];
+        if (mode.key === 'carrier') pts.push([1, 0]);
+        else if (mode.key === 'ask') pts.push([0.35, 0], [1, 0]);
+        else if (mode.key === 'bpsk') pts.push([-1, 0], [1, 0]);
+        else if (mode.key === 'qpsk') pts.push([0.707, 0.707], [-0.707, 0.707], [0.707, -0.707], [-0.707, -0.707]);
+        else { const m = Math.sqrt(Math.pow(2, mode.bits)); for (let a = 0; a < m; a++) for (let b = 0; b < m; b++) pts.push([(2 * a - (m - 1)) / (m - 1), (2 * b - (m - 1)) / (m - 1)]); }
+        const r = pts.length > 64 ? 1.6 : pts.length > 16 ? 2.6 : 4.5;
+        pts.forEach(([I, Q]) => S.circle(I * 110, -Q * 110, r, { cls: 'f-d' }, st.points));
+        st.rows.forEach((row) => { row.bg.style.opacity = row.name === mode.name ? 1 : 0; });
+      }
+      st.cur.setAttribute('cx', (sNow.I * 110).toFixed(1));
+      st.cur.setAttribute('cy', (-sNow.Q * 110).toFixed(1));
+      st.cur.style.opacity = mode.bits ? 1 : 0;
+      st.curTxt.textContent = mode.bits ? `いまのシンボル ${sNow.bits.join('')} → (I, Q) = (${sNow.I.toFixed(2)}, ${sNow.Q.toFixed(2)})` : '';
+      // ノイズ
+      if (i === 4) {
+        const sigma = mode.key === 'qpsk' ? 18 : 18;   // 同じ雑音の大きさ
+        if (!st.noiseDots) { st.noiseDots = []; for (let k = 0; k < 40; k++) st.noiseDots.push(S.circle(0, 0, 2.2, { cls: 'f-x', style: { opacity: 0.7 } }, st.noise)); }
+        // 雑音の点は 0.5 秒ごとに引き直す（種は時刻の区切り）
+        const R = prng(Math.floor(t / 0.5) + 1), rr = () => R() * 2 - 1;
+        const spacing = mode.key === 'qpsk' ? 155 : 220 / 31;
+        let err = 0;
+        st.noiseDots.forEach((nd) => {
+          const gx = (rr() + rr() + rr()) * sigma / 1.7;
+          const gy = (rr() + rr() + rr()) * sigma / 1.7;
+          nd.setAttribute('cx', (sNow.I * 110 + gx).toFixed(1));
+          nd.setAttribute('cy', (-sNow.Q * 110 + gy).toFixed(1));
+          if (Math.abs(gx) > spacing / 2 || Math.abs(gy) > spacing / 2) err++;
+        });
+        st.lastErr = err;
+        st.snrTxt.textContent = '同じ雑音（点の広がり）でも';
+        st.snrTxt2.textContent = `${mode.name} では 40 回中 ${st.lastErr || 0} 回を隣の点と取り違える`;
+      } else { st.snrTxt.textContent = ''; st.snrTxt2.textContent = ''; }
+    }
+  };
+
+  /* ================================================================
+     場面3 OFDM
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: '1 本の速い波の問題', text: '20 MHz 幅を 1 本の搬送波で使うと、1 シンボルは 50 ns ほどになる。壁で反射した電波は数十〜数百 ns 遅れて届くので、前のシンボルの反射が後のシンボルに重なって混ざる（シンボル間干渉）。' },
+      { title: '多数の遅い波に分ける', text: 'OFDM は 20 MHz を 64 本のサブキャリア（802.11a/g、間隔 312.5 kHz）に分け、それぞれにゆっくり送る。1 シンボルは 3.2 µs で、1 本あたりの速さは 1/64 でも合計は変わらない。反射の遅れはシンボルに対して十分短くなる。' },
+      { title: '直交：重なっても混ざらない', text: '各サブキャリアはシンボル時間 3.2 µs にちょうど整数回振動する（間隔 312.5 kHz ＝ 1/3.2 µs）。この条件では、ある搬送波の山の周波数でほかの搬送波の成分がちょうど 0 になる（直交）。隣と重ねて並べても分離でき、帯域を無駄にしない。' },
+      { title: 'ガードインターバル', text: 'シンボルの前に末尾のコピーを 0.8 µs 付ける（Wi-Fi 6 では 0.8/1.6/3.2 µs から選ぶ）。反射波の遅れがこの中に収まれば本体を壊さない。64 本の合成は逆 FFT、分解は FFT で行い、Wi-Fi カードのチップが毎シンボル計算する。' },
+      { title: 'Wi-Fi 6 の OFDMA', text: 'Wi-Fi 6 はサブキャリア間隔を 78.125 kHz に細かくし（20 MHz に 256 本、シンボル 12.8 µs）、26 本などの束（RU）を複数の端末に同時に割り当てる。端末ごとに順番を待つ代わりに、小さなパケットを並べて 1 回で送れる。' },
+      { title: '仕様の「最大速度」の中身', text: 'PHY 速度は、データ用サブキャリアの本数 × 1 本のビット数 × 符号化率 ÷ シンボル時間。80 MHz・1 ストリームでは約 600 Mbps で、製品の箱にある「最大 2,402 Mbps」は 160 MHz・2 ストリームの値。実際の転送速度はこれより低い（[[6|速さが変わる理由]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 周波数の軸（段階6では速度の計算に場所を譲る）
+      st.freqG = S.g({ cls: 'fade' }, svg);
+      S.text(60, 40, '周波数の軸（20 MHz のチャネル）', { cls: 't-sm t-b' }, st.freqG);
+      S.line(80, 240, 880, 240, { cls: 's-fg w1', 'marker-end': mk('fg') }, st.freqG);
+      S.text(80, 258, '−10 MHz', { cls: 't-xs t-dim t-mono' }, st.freqG);
+      S.text(480, 258, '中心周波数（例: 5,180 MHz）', { cls: 't-c t-xs t-dim t-mono' }, st.freqG);
+      S.text(880, 258, '+10 MHz', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, st.freqG);
+      st.single = S.g({ cls: 'fade' }, svg);
+      S.path('M90,240 C140,80 820,80 870,240', { cls: 'f-r-soft s-r w2' }, st.single);
+      S.text(480, 176, '1 本の搬送波が 20 MHz 全部を使う', { cls: 't-c t-sm t-r t-b' }, st.single);
+      S.text(480, 196, '1 シンボル ≒ 50 ns', { cls: 't-c t-xs t-dim' }, st.single);
+      st.multi = S.g({ cls: 'fade hide' }, svg);
+      st.bars = [];
+      for (let k = 0; k < 64; k++) {
+        const x = 80 + (k + 0.5) * 12.5;
+        const idx = k - 32;
+        const kind = idx === 0 || idx < -26 || idx > 26 ? 'null' : (Math.abs(idx) === 7 || Math.abs(idx) === 21 ? 'pilot' : 'data');
+        const bar = S.rect(x - 4, 240, 8, 0, { rx: 1, cls: kind === 'pilot' ? 'f-mid' : kind === 'data' ? 'f-d' : 'f-rule' }, st.multi);
+        st.bars.push({ bar, kind, k, x });
+      }
+      st.multiTxt = S.text(480, 78, '64 本のサブキャリア（間隔 312.5 kHz）', { cls: 't-c t-sm t-d t-b' }, st.multi);
+      st.multiSub = S.text(480, 96, 'データ 48 本 ・ パイロット 4 本（灰） ・ 中央と両端は使わない', { cls: 't-c t-xs t-dim' }, st.multi);
+      st.ruTags = S.g({}, st.multi);
+      // 直交の拡大図
+      st.orth = S.g({ cls: 'fade hide', transform: 'translate(600,300)' }, svg);
+      S.rect(0, 0, 300, 160, { rx: 6, cls: 'f-sf s-rule w1' }, st.orth);
+      S.text(150, 20, '隣り合う 3 本の成分（拡大）', { cls: 't-c t-xs t-b' }, st.orth);
+      S.line(20, 110, 280, 110, { cls: 's-rule w1' }, st.orth);
+      const sinc = (x) => x === 0 ? 1 : Math.sin(Math.PI * x) / (Math.PI * x);
+      [-1, 0, 1].forEach((c, j) => {
+        let d = '';
+        for (let px = 20; px <= 280; px += 2) { const f = (px - 150) / 40; const y = 110 - 70 * sinc(f - c); d += (px === 20 ? 'M' : 'L') + px + ',' + y.toFixed(1); }
+        S.path(d, { cls: 'f-none w15 ' + (j === 1 ? 's-d' : 's-r') }, st.orth);
+      });
+      [-1, 0, 1].forEach((c) => { S.circle(150 + c * 40, 40, 3, { cls: c === 0 ? 'f-d' : 'f-r' }, st.orth); S.line(150 + c * 40, 40, 150 + c * 40, 110, { cls: 's-soft w1', 'stroke-dasharray': '2 3' }, st.orth); });
+      S.text(150, 140, '山の周波数では隣の成分が 0 ＝ 直交', { cls: 't-c t-xs t-dim' }, st.orth);
+      S.text(150, 154, '間隔 312.5 kHz = 1 ÷ 3.2 µs', { cls: 't-c t-xs t-mono t-dim' }, st.orth);
+      // 時間の軸
+      st.timeG = S.g({}, svg);
+      S.text(60, 300, '時間の軸', { cls: 't-sm t-b' }, st.timeG);
+      st.timeLbl = S.text(140, 300, '', { cls: 't-xs t-dim' }, st.timeG);
+      S.text(80, 360, '本来の波', { cls: 't-xs t-dim' }, st.timeG);
+      S.text(80, 420, '反射波', { cls: 't-xs t-dim' }, st.timeG);
+      S.text(80, 436, '（壁で遅れる）', { cls: 't-xs t-dim' }, st.timeG);
+      st.rowA = S.g({}, st.timeG);
+      st.rowB = S.g({}, st.timeG);
+      st.overlap = S.g({}, st.timeG);
+      st.timeNote = S.text(520, 500, '', { cls: 't-c t-xs t-x t-b' }, st.timeG);   // 目盛り（472）の下
+      S.line(160, 455, 880, 455, { cls: 's-fg w1', 'marker-end': mk('fg') }, st.timeG);
+      st.tickTxt = S.g({}, st.timeG);
+      // 速度の式
+      st.formula = S.g({ cls: 'fade hide', transform: 'translate(100,180)' }, svg);
+      S.rect(0, 0, 760, 200, { rx: 6, cls: 'f-sf s-rule w1' }, st.formula);
+      S.text(380, 30, 'Wi-Fi 6（802.11ax）、80 MHz 幅、1 空間ストリームの PHY 速度', { cls: 't-c t-b' }, st.formula);
+      [['データ用サブキャリア', '980 本', '80 MHz = 1024 本のうち、パイロット 16・ガード・DC を除く'],
+       ['1 サブキャリアのビット数', '10 ビット', '1024-QAM（MCS 11）'],
+       ['符号化率', '5/6', '誤り訂正の冗長ビットを除いた実データの割合'],
+       ['シンボル時間', '13.6 µs', '12.8 µs ＋ ガードインターバル 0.8 µs']].forEach((r, k) => {
+        const y = 62 + k * 26;
+        S.text(20, y, r[0], { cls: 't-sm' }, st.formula);
+        S.text(260, y, r[1], { cls: 't-sm t-mono t-b' }, st.formula);
+        S.text(360, y, r[2], { cls: 't-xs t-dim' }, st.formula);
+      });
+      S.text(380, 180, '980 × 10 × 5/6 ÷ 13.6 µs ≒ 600.5 Mbps　（2 ストリームで 1,201 Mbps、160 MHz・2 ストリームで 2,402 Mbps）', { cls: 't-c t-sm t-mono t-d' }, st.formula);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.freqG, i !== 5);
+      S.fade(st.single, i === 0);
+      S.fade(st.multi, i >= 1 && i <= 4);
+      S.fade(st.orth, i === 2);
+      S.fade(st.formula, i === 5);
+      // 時間の軸は 20 MHz・64 本の場合の図。直交（3）・OFDMA（5）・速度の計算（6）では出さない
+      st.timeG.style.opacity = (i === 2 || i === 4 || i === 5) ? 0 : 1;
+      S.clear(st.rowA); S.clear(st.rowB); S.clear(st.overlap);   // 前の段階の帯を残さない（表示する段階は直後の frame が描く）
+      // OFDMA：端末 B の束だけ薄く塗って、隣の束との境目を見せる（色は全部データの緑）
+      st.bars.forEach((b) => {
+        if (b.kind === 'null') return;
+        let cls = b.kind === 'pilot' ? 'f-mid' : 'f-d';
+        if (i === 4 && b.kind === 'data' && b.k >= 22 && b.k < 42) cls = 'f-d-soft s-d w1';
+        b.bar.setAttribute('class', cls);
+      });
+      S.clear(st.ruTags);
+      if (i === 4) {
+        st.multiTxt.textContent = 'Wi-Fi 6：サブキャリアの束（RU）を端末ごとに割り当てる（OFDMA）';
+        st.multiSub.textContent = '実際は 20 MHz に 256 本。図では 64 本に見立てて 3 台に分けている';
+        [['端末 A の RU', 6, 22], ['端末 B の RU', 22, 42], ['端末 C の RU', 42, 59]].forEach(([n, k0, k1]) => {
+          const x0 = 80 + k0 * 12.5 + 2, x1 = 80 + k1 * 12.5 - 2;
+          S.path(`M${x0},141 V134 H${x1} V141`, { cls: 'f-none s-fg w1' }, st.ruTags);
+          S.text((x0 + x1) / 2, 127, n, { cls: 't-c t-xs t-b' }, st.ruTags);
+        });
+        S.text(480, 290, '3 台ぶんを 1 回の送信（同じシンボル時間）に並べて送る', { cls: 't-c t-sm t-x t-b' }, st.ruTags);
+      } else {
+        st.multiTxt.textContent = '64 本のサブキャリア（間隔 312.5 kHz）';
+        st.multiSub.textContent = 'データ 48 本 ・ パイロット 4 本（灰） ・ 中央と両端は使わない';
+      }
+      // 時間軸の目盛り
+      S.clear(st.tickTxt);
+      const span = i === 0 ? 1 : 16;    // µs
+      for (let k = 0; k <= 4; k++) {
+        const x = 160 + k * 180;
+        S.line(x, 452, x, 458, { cls: 's-fg w1' }, st.tickTxt);
+        S.text(x, 472, (span * k / 4).toFixed(span < 2 ? 2 : 0) + ' µs', { cls: 't-c t-xs t-mono t-dim' }, st.tickTxt);
+      }
+      st.timeLbl.textContent = i === 0 ? '1 µs のあいだ（シンボル 50 ns、反射の遅れ 300 ns）' : i === 3 ? '16 µs のあいだ（シンボル 3.2 µs ＋ GI 0.8 µs、反射の遅れ 0.3 µs）' : '16 µs のあいだ（シンボル 3.2 µs、反射の遅れ 0.3 µs）';
+      st.timeNote.textContent = i === 0 ? '反射波が後のシンボルに丸ごと重なる → 混ざって読めない' : i === 1 ? '重なるのはシンボルの先頭 0.3 µs だけ（約 9%）' : i === 3 ? 'GI の中で重なりが終わる → 本体は無傷' : '';
+      st.drawTime = true;
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      // サブキャリアの高さ（シンボルごとに変わる）
+      const symT = 1.4;
+      const sym = Math.floor(t / symT);
+      if (st.lastSym !== sym || !dt) {
+        st.lastSym = sym;
+        st.bars.forEach((b) => {
+          if (b.kind === 'null') { b.bar.setAttribute('height', 0); return; }
+          const h = b.kind === 'pilot' ? 56 : 24 + 72 * (0.5 + 0.5 * Math.sin(b.k * 7.3 + sym * 2.1));   // 最大 96（上の札にかからない）
+          b.bar.setAttribute('y', 240 - h);
+          b.bar.setAttribute('height', h);
+        });
+      }
+      // 時間軸の描画（カーソルが左から右へ）
+      if (i === 2 || i === 4 || i === 5) return;
+      const cycle = 6;
+      const f = U.cycle(t, cycle);
+      const xEnd = 160 + 720 * f;
+      S.clear(st.rowA); S.clear(st.rowB); S.clear(st.overlap);
+      const pxPerUs = i === 0 ? 720 : 45;    // 1 µs → px
+      const symUs = i === 0 ? 0.05 : 3.2, gi = i === 3 ? 0.8 : 0, delayUs = 0.3;
+      const total = symUs + gi;
+      const n = Math.ceil((720 / pxPerUs) / total) + 1;
+      for (let k = 0; k < n; k++) {
+        const t0 = k * total;
+        const x0 = 160 + t0 * pxPerUs, w = total * pxPerUs;
+        if (x0 > xEnd) break;
+        const wCl = Math.min(w, xEnd - x0);
+        if (gi) {
+          S.rect(x0, 340, Math.min(gi * pxPerUs, wCl), 30, { cls: 'f-in s-dim w1' }, st.rowA);
+          if (wCl > gi * pxPerUs) S.rect(x0 + gi * pxPerUs, 340, wCl - gi * pxPerUs, 30, { cls: (k % 2 ? 'f-d-soft' : 'f-d') + ' s-sf w1' }, st.rowA);
+        } else {
+          S.rect(x0, 340, wCl, 30, { cls: (k % 2 ? 'f-d-soft' : 'f-d') + ' s-sf w1' }, st.rowA);
+        }
+        // 反射波（遅れて、薄く）
+        const xr = x0 + delayUs * pxPerUs;
+        if (xr < xEnd) {
+          const wr = Math.min(w, xEnd - xr);
+          S.rect(xr, 400, wr, 30, { cls: (k % 2 ? 'f-r-soft' : 'f-r') + ' s-sf w1', style: { opacity: 0.6 } }, st.rowB);
+          // 重なり: 反射波の末尾が次のシンボルの本体に食い込む部分
+          const nextBody = x0 + w + gi * pxPerUs;
+          const ovStart = Math.max(x0 + w, xr), ovEnd = Math.min(xr + w, xEnd);
+          if (gi) {
+            // GI の中に収まるなら注意色にしない
+            if (xr + w > nextBody && ovEnd > nextBody) S.rect(nextBody, 372, Math.min(xr + w, xEnd) - nextBody, 26, { cls: 'f-x-soft s-x w1' }, st.overlap);
+          } else if (ovEnd > ovStart) {
+            S.rect(ovStart, 372, ovEnd - ovStart, 26, { cls: 'f-x-soft s-x w1' }, st.overlap);
+          }
+        }
+      }
+      S.line(xEnd, 339, xEnd, 455, { cls: 's-x w15' }, st.overlap);   // 上端は凡例の札（y 335）より下
+      if (i === 0 || i === 1) S.text(165, 335, i === 0 ? '赤 = 混ざった区間' : '赤 = 混ざった区間（先頭だけ）', { cls: 't-xs t-x' }, st.overlap);
+      if (gi) S.text(165, 335, 'グレー = GI 0.8 µs（末尾のコピー）', { cls: 't-xs t-dim' }, st.overlap);
+    }
+  };
+
+  /* ================================================================
+     場面4 CSMA/CA
+     ================================================================ */
+  // 時間軸のシナリオ。row: 'A' 'B' 'C' 'AP'、kind: listen/difs/backoff/data/sifs/ack/coll/rts/cts/nav、t0/t1 は µs
+  const SCN = {
+    coll: { span: 420, items: [
+      { row: 'A', t0: 0, t1: 34, kind: 'difs' }, { row: 'B', t0: 0, t1: 34, kind: 'difs' },
+      { row: 'A', t0: 34, t1: 134, kind: 'data', lbl: 'データ' }, { row: 'B', t0: 34, t1: 134, kind: 'data', lbl: 'データ' },
+      { row: 'AP', t0: 34, t1: 134, kind: 'coll', lbl: '衝突：両方壊れる' },
+      { row: 'A', t0: 134, t1: 230, kind: 'wait', lbl: 'ACK が来ない…' }, { row: 'B', t0: 134, t1: 230, kind: 'wait', lbl: 'ACK が来ない…' },
+      { row: 'A', t0: 230, t1: 264, kind: 'difs' }, { row: 'B', t0: 230, t1: 264, kind: 'difs' },
+      { row: 'A', t0: 264, t1: 318, kind: 'backoff', n: 6 }, { row: 'B', t0: 264, t1: 282, kind: 'backoff', n: 2 },
+      { row: 'B', t0: 282, t1: 382, kind: 'data', lbl: 'B が先に送る' }, { row: 'A', t0: 282, t1: 382, kind: 'listen', lbl: '聞いて待つ' },
+      { row: 'AP', t0: 398, t1: 420, kind: 'ack', lbl: 'ACK' }
+    ] },
+    csma: { span: 380, items: [
+      { row: 'C', t0: 0, t1: 100, kind: 'data', lbl: 'C が送信中' },
+      { row: 'A', t0: 0, t1: 100, kind: 'listen', lbl: '聞く：使用中' },
+      { row: 'AP', t0: 116, t1: 144, kind: 'ack', lbl: 'ACK' },
+      { row: 'A', t0: 144, t1: 178, kind: 'difs', lbl: 'DIFS 34' },
+      { row: 'A', t0: 178, t1: 241, kind: 'backoff', n: 7, lbl: 'バックオフ 7 スロット' },
+      { row: 'A', t0: 241, t1: 341, kind: 'data', lbl: 'A が送る' },
+      { row: 'AP', t0: 357, t1: 380, kind: 'ack', lbl: 'ACK' }
+    ] },
+    ack: { span: 520, items: [
+      { row: 'A', t0: 0, t1: 34, kind: 'difs' }, { row: 'A', t0: 34, t1: 61, kind: 'backoff', n: 3 },
+      { row: 'A', t0: 61, t1: 161, kind: 'data', lbl: 'データ #12' },
+      { row: 'AP', t0: 161, t1: 177, kind: 'sifs', lbl: 'SIFS' }, { row: 'AP', t0: 177, t1: 205, kind: 'ack', lbl: 'ACK #12' },
+      { row: 'A', t0: 205, t1: 239, kind: 'difs' }, { row: 'A', t0: 239, t1: 275, kind: 'backoff', n: 4 },
+      { row: 'A', t0: 275, t1: 375, kind: 'data', lbl: 'データ #13', bad: true },
+      { row: 'AP', t0: 275, t1: 375, kind: 'coll', lbl: '雑音で壊れた（FCS 不一致）' },
+      { row: 'A', t0: 375, t1: 430, kind: 'wait', lbl: 'ACK が来ない' },
+      { row: 'A', t0: 430, t1: 464, kind: 'difs' }, { row: 'A', t0: 464, t1: 520, kind: 'backoff', n: 6, lbl: 'CW 15→31 で再送' }
+    ] },
+    hidden: { span: 520, items: [
+      { row: 'A', t0: 0, t1: 34, kind: 'difs' }, { row: 'C', t0: 0, t1: 34, kind: 'difs' },
+      { row: 'A', t0: 34, t1: 134, kind: 'data', lbl: 'A → AP' }, { row: 'C', t0: 50, t1: 150, kind: 'data', lbl: 'C → AP（A が聞こえない）' },
+      { row: 'AP', t0: 50, t1: 134, kind: 'coll', lbl: 'AP で衝突' },
+      { row: 'A', t0: 220, t1: 254, kind: 'difs' }, { row: 'A', t0: 254, t1: 280, kind: 'rts', lbl: 'RTS' },
+      { row: 'AP', t0: 296, t1: 322, kind: 'cts', lbl: 'CTS：この先 160 µs 使う' },
+      { row: 'C', t0: 322, t1: 480, kind: 'nav', lbl: 'C は CTS を聞いて待つ（NAV）' },
+      { row: 'A', t0: 338, t1: 438, kind: 'data', lbl: 'A → AP' },
+      { row: 'AP', t0: 454, t1: 480, kind: 'ack', lbl: 'ACK' }
+    ] }
+  };
+  const s4 = {
+    steps: [
+      { title: '802.11 フレーム', text: '上位層のパケットに MAC ヘッダと FCS（CRC-32）を付け、先頭に同期用の既知パターン（プリアンブル）を付けて電波に乗せる。アドレスが 3 つあるのは、AP が受け取ったフレームを有線側へ中継するため（第13章）。これが 1 回の送信の単位。' },
+      { title: '空気は 1 本の共有線', text: '同じチャネルの端末は全員が同じ空間を使う。2 台が同時に送ると受信側で混ざり、両方壊れる（衝突）。送信中は自分の電波が強すぎて他を聞けないので、昔の共有型 Ethernet（CSMA/CD）のように衝突を検出できない。だから「衝突を避ける」仕組みが要る。' },
+      { title: '聞いてから送る', text: '送りたい端末はまずチャネルを聞く（キャリアセンス）。空きが DIFS（5 GHz で 34 µs）続いたら、さらに 0〜15 スロット（1 スロット 9 µs）の乱数ぶん待ち、まだ空いていれば送る。乱数で待ち時間がばらけるので、同時に送り始めにくい。' },
+      { title: 'ACK と再送', text: '無線は壊れやすいので、受信側は正しく受け取れたフレームに SIFS（16 µs）後に ACK を返す。ACK が来なければ送信側は壊れたと判断して再送し、乱数の幅（CW）を 15 → 31 → 63 と倍にして譲る。有線 Ethernet に ACK はない。' },
+      { title: '隠れ端末と RTS/CTS', text: '端末 A と C が互いに聞こえない位置だと、両方が「空いている」と判断して同時に AP へ送り、AP で衝突する。RTS/CTS では A が短い RTS を送り、AP が CTS で「これから何 µs 使う」と周囲に知らせる。C は CTS を聞いて待つ。' },
+      { title: '1 フレームの時間の内訳', text: '1,500 バイトを 600 Mbps で送る本体は 20 µs だが、DIFS・バックオフ・プリアンブル・SIFS・ACK を足すと約 200 µs になる。だから 802.11n 以降は多数のフレームをまとめて 1 回で送り（A-MPDU）、Wi-Fi 6 は OFDMA で複数端末を同時に扱う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 上: AP と端末
+      st.top = S.g({}, svg);
+      st.nodes = {};
+      const mkNode = (key, x, y, name, sub) => {
+        const g = S.g({}, st.top);
+        S.rect(x - 50, y - 22, 100, 44, { rx: 6, cls: key === 'AP' ? 'f-fg s-fg w1' : 'f-sf s-rule w15' }, g);
+        S.text(x, y - 2, name, { cls: 't-c t-b t-sm ' + (key === 'AP' ? 't-sf' : '') }, g);
+        S.text(x, y + 13, sub, { cls: 't-c t-xs ' + (key === 'AP' ? 't-sf' : 't-dim') }, g);
+        const status = S.text(x, y + 40, '', { cls: 't-c t-xs t-b' }, g);
+        const waves = arcs(st.top, x, y, 4, 's-r w15');
+        st.nodes[key] = { x, y, status, waves, g };
+      };
+      mkNode('AP', 480, 80, 'AP（ルーター）', 'チャネル 36');
+      mkNode('A', 150, 230, '端末 A', 'ノートパソコン');
+      mkNode('B', 480, 250, '端末 B', 'スマートフォン');
+      mkNode('C', 810, 230, '端末 C', 'テレビ');
+      // 段階5の壁（端末 B はこの段階では隠す）
+      st.wall = S.g({ cls: 'fade hide' }, st.top);
+      S.rect(472, 150, 16, 110, { cls: 'f-dim', style: { opacity: 0.5 } }, st.wall);
+      S.text(480, 284, '厚い壁', { cls: 't-c t-xs t-dim t-b' }, st.wall);
+      S.text(480, 298, 'A と C は互いに聞こえない', { cls: 't-c t-xs t-dim' }, st.wall);
+      // フレーム構造（アドレスの並びは端末 → AP の向き：受信者 = BSSID、送信元、最終の宛先）
+      st.frameG = S.g({ cls: 'fade' }, svg);
+      S.text(60, 330, '802.11 データフレーム（MAC 層）と PHY のプリアンブル', { cls: 't-sm t-b' }, st.frameG);
+      const fields = [['プリアンブル', 'PHY 約 40 µs', 110, 'f-r-soft s-r'], ['Frame Control', '2 B', 80, 'f-sf s-rule'], ['Duration', '2 B', 60, 'f-sf s-rule'], ['Addr1 受信者', '6 B', 80, 'f-in s-mid'], ['Addr2 送信元', '6 B', 80, 'f-in s-mid'], ['Addr3 宛先', '6 B', 80, 'f-in s-mid'], ['Seq', '2 B', 45, 'f-sf s-rule'], ['データ（IP パケットなど）', '≤ 2,304 B', 190, 'f-d-soft s-d'], ['FCS', 'CRC-32 4 B', 70, 'f-x-soft s-x']];
+      let fx = 60;
+      fields.forEach(([n, b, w, c]) => {
+        S.rect(fx, 350, w, 46, { cls: c + ' w1' }, st.frameG);
+        S.text(fx + w / 2, 368, n, { cls: 't-c t-xs t-b' }, st.frameG);
+        S.text(fx + w / 2, 384, b, { cls: 't-c t-xs t-dim t-mono' }, st.frameG);
+        fx += w + 2;
+      });
+      S.text(60, 426, '端末 → AP の向き：受信者 ＝ AP（BSSID）、送信元 ＝ 端末、宛先 ＝ AP の先の最終の宛先', { cls: 't-xs t-dim' }, st.frameG);
+      S.text(60, 446, 'Duration：このやりとりがあと何 µs 続くか（周囲の端末はその間待つ ＝ NAV）　FCS：合わなければ受信側が捨てる', { cls: 't-xs t-dim' }, st.frameG);
+      // 時間軸
+      st.tl = S.g({ cls: 'fade hide' }, svg);
+      S.text(60, 320, '時間軸（µs）', { cls: 't-sm t-b' }, st.tl);
+      st.tlTitle = S.text(160, 320, '', { cls: 't-xs t-dim' }, st.tl);
+      const rows = ['A', 'B', 'C', 'AP'];
+      st.rowY = {};
+      rows.forEach((r, k) => {
+        const y = 345 + k * 38;
+        st.rowY[r] = y;
+        S.text(96, y + 18, r === 'AP' ? 'AP' : '端末 ' + r, { cls: 't-xs t-b', 'text-anchor': 'end' }, st.tl);
+        S.line(110, y + 28, 890, y + 28, { cls: 's-soft w1' }, st.tl);
+      });
+      st.segs = S.g({}, st.tl);
+      st.cursor = S.line(110, 338, 110, 500, { cls: 's-x w15' }, st.tl);
+      st.tlTicks = S.g({}, st.tl);
+      st.legend = S.text(110, 540, 'グレー = 聞いて待つ（DIFS・バックオフ、数字は残りスロット）　緑 = データ・RTS　薄緑 = ACK・CTS　赤 = 壊れた', { cls: 't-xs t-dim' }, st.tl);
+      // 内訳
+      st.brk = S.g({ cls: 'fade hide' }, svg);
+      S.text(60, 320, '1,500 バイトを 1 回送るのにかかる時間（5 GHz、PHY 600 Mbps の例）', { cls: 't-sm t-b' }, st.brk);
+      const parts = [['DIFS', 34, 'f-rule'], ['バックオフ（平均）', 67, 'f-rule'], ['プリアンブル', 40, 'f-r-soft'], ['データ 1,500 B', 20, 'f-d'], ['SIFS', 16, 'f-rule'], ['ACK', 28, 'f-d-soft']];
+      let bx = 110; const scale = 3.6;
+      parts.forEach(([n, us, c]) => {
+        S.rect(bx, 350, us * scale, 34, { cls: c + ' s-sf w1' }, st.brk);
+        S.text(bx + us * scale / 2, 404, n, { cls: 't-c t-xs' }, st.brk);
+        S.text(bx + us * scale / 2, 418, us + ' µs', { cls: 't-c t-xs t-mono t-dim' }, st.brk);
+        bx += us * scale;
+      });
+      S.text(110, 340, '合計 約 205 µs のうち、データ本体は 20 µs（約 10%）', { cls: 't-xs t-x t-b' }, st.brk);
+      S.text(60, 460, 'A-MPDU（802.11n 以降）：多数のフレームを 1 つのプリアンブルと 1 つの ACK（Block ACK）でまとめて送る', { cls: 't-sm t-b' }, st.brk);
+      let bx2 = 110;
+      [['DIFS+BO', 101, 'f-rule'], ['プリ', 40, 'f-r-soft'], ['データ × 16 = 24,000 B', 320, 'f-d'], ['SIFS', 16, 'f-rule'], ['BA', 32, 'f-d-soft']].forEach(([n, us, c]) => {
+        const w = us * 1.4;
+        S.rect(bx2, 475, w, 30, { cls: c + ' s-sf w1' }, st.brk);
+        S.text(bx2 + w / 2, 522, n, { cls: 't-c t-xs' }, st.brk);
+        bx2 += w;
+      });
+      S.text(880, 545, '16 個まとめると本体の割合は約 63% に上がる', { cls: 't-xs t-x t-b', 'text-anchor': 'end' }, st.brk);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.frameG, i === 0);
+      S.fade(st.tl, i >= 1 && i <= 4);
+      S.fade(st.brk, i === 5);
+      S.fade(st.wall, i === 4);
+      S.fade(st.nodes.B.g, i !== 4);   // 隠れ端末の段階は A・C・AP だけ（壁が B の位置を通る）
+      st.scn = i === 1 ? SCN.coll : i === 2 ? SCN.csma : i === 3 ? SCN.ack : i === 4 ? SCN.hidden : null;
+      S.clear(st.tlTicks);
+      if (st.scn) {
+        for (let k = 0; k <= 4; k++) {
+          const x = 110 + 780 * k / 4;
+          S.text(x, 505, Math.round(st.scn.span * k / 4) + '', { cls: 't-c t-xs t-mono t-dim' }, st.tlTicks);
+        }
+        st.tlTitle.textContent = i === 1 ? '同時に送って衝突 → 乱数で待ち直す' : i === 2 ? 'C の送信中は待ち、DIFS ＋ バックオフののちに A が送る' : i === 3 ? 'ACK が来れば成功。来なければ CW を倍にして再送' : '隠れ端末の衝突と、RTS/CTS による回避';
+      }
+      // 前の段階の名残を消す（状態の札の色、時間軸の帯）。この段階の分は直後の frame が描く
+      Object.values(st.nodes).forEach((n) => { n.status.textContent = ''; n.status.setAttribute('class', 't-c t-xs t-b t-dim'); });
+      S.clear(st.segs);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      const scn = st.scn;
+      // 電波の弧：AP は下向き、端末は上向きに、箱と札にかからない半径（62）から描く
+      const waveAP = (sp) => st.nodes.AP.waves.update(t * sp, 30, 0.5, Math.PI - 0.5, 120, 62);
+      Object.values(st.nodes).forEach((n) => n.waves.update(0, 30, 0, 0, 0));
+      if (!scn) {
+        // 段階1と6: AP から小さく電波を出すだけ
+        waveAP(40);
+        return;
+      }
+      const cyc = scn.span / 60 + 1.5;          // 60 µs/秒で再生、終わりに 1.5 秒止まる
+      const now = Math.min(scn.span, U.mod(t, cyc) * 60);
+      const X = (us) => 110 + 780 * us / scn.span;
+      S.clear(st.segs);
+      const status = { A: '待機', B: '待機', C: '待機', AP: '受信待ち' };
+      const txNow = {};
+      scn.items.forEach((it) => {
+        if (it.t0 >= now) return;
+        const x0 = X(it.t0), x1 = X(Math.min(it.t1, now));
+        const y = st.rowY[it.row];
+        const cls = { difs: 'f-rule s-sf', backoff: 'f-rule s-sf', listen: 'f-in s-sf', wait: 'f-in s-sf', data: 'f-d s-sf', rts: 'f-d s-sf', sifs: 'f-rule s-sf', ack: 'f-d-soft s-d', cts: 'f-d-soft s-d', coll: 'f-x s-sf', nav: 'f-in s-sf' }[it.kind] || 'f-rule s-sf';
+        S.rect(x0, y + 4, Math.max(1, x1 - x0), 24, { rx: 2, cls: cls + ' w1' }, st.segs);
+        if (it.kind === 'backoff') {
+          const slots = it.n, slotUs = (it.t1 - it.t0) / slots;
+          for (let k = 0; k < slots; k++) {
+            const tx = it.t0 + k * slotUs;
+            if (tx >= now) break;
+            S.line(X(tx), y + 4, X(tx), y + 28, { cls: 's-sf w1' }, st.segs);
+            S.text(X(tx + slotUs / 2), y + 20, String(slots - k), { cls: 't-c t-xs t-mono' }, st.segs);
+          }
+        } else if (it.lbl && x1 - x0 > 30) {
+          // 短い制御フレーム（ACK・CTS・RTS）は、札が箱に収まらなければ箱の右に出す（10px で全角 ≒ 10、半角 ≒ 6.2）
+          const wEst = [...it.lbl].reduce((a, c) => a + (c.charCodeAt(0) > 255 ? 10 : 6.2), 0);
+          const short = it.kind === 'ack' || it.kind === 'cts' || it.kind === 'rts';
+          if (short && wEst + 8 > x1 - x0) S.text(x1 + 4, y + 20, it.lbl, { cls: 't-xs t-b' }, st.segs);
+          else S.text(x0 + 4, y + 20, it.lbl, { cls: 't-xs ' + (it.kind === 'data' || it.kind === 'rts' || it.kind === 'coll' ? 't-sf t-b' : it.kind === 'ack' || it.kind === 'cts' ? 't-b' : 't-dim') }, st.segs);
+        } else if (it.kind === 'difs' && x1 - x0 > 18) {
+          S.text(x0 + 3, y + 20, 'DIFS', { cls: 't-xs t-dim' }, st.segs);
+        }
+        if (it.t1 > now) {
+          const name = { difs: 'DIFS を待つ', backoff: 'バックオフ', listen: '聞く', wait: 'ACK 待ち', data: '送信中', rts: 'RTS 送信', sifs: 'SIFS', ack: 'ACK 送信', cts: 'CTS 送信', coll: '衝突！', nav: 'NAV で待つ' }[it.kind];
+          status[it.row] = name;
+          if (it.kind === 'data' || it.kind === 'rts' || it.kind === 'ack' || it.kind === 'cts') txNow[it.row] = true;
+        }
+      });
+      st.cursor.setAttribute('x1', X(now)); st.cursor.setAttribute('x2', X(now));
+      Object.keys(st.nodes).forEach((k) => {
+        const n = st.nodes[k];
+        n.status.textContent = status[k];
+        n.status.setAttribute('class', 't-c t-xs t-b ' + (status[k] === '衝突！' ? 't-x' : txNow[k] ? 't-d' : 't-dim'));
+        if (txNow[k]) {
+          if (k === 'AP') waveAP(60);
+          else n.waves.update(t * 60, 30, -Math.PI + 0.5, -0.5, 110, 62);
+        }
+      });
+    }
+  };
+
+  /* ================================================================
+     場面5 接続と暗号化
+     ================================================================ */
+  const s5 = {
+    steps: [
+      { title: 'ビーコンと SSID', text: 'AP は約 100 ms ごとにビーコン（SSID、対応速度、チャネル、暗号方式）を送り続ける。端末はチャネルを順に聞いて（スキャン）一覧を作る。SSID を隠した AP も、その名前を名指しした Probe Request には応答するので、名前を知る端末からは見つかる。' },
+      { title: '認証とアソシエーション', text: '端末は Authentication（WPA2-Personal では形式だけ）と Association Request を送り、AP は接続番号（AID）を返す。ここまでは平文で、まだデータは送れない。AP の MAC アドレス（BSSID）が以後のフレームの受信者アドレスになる。' },
+      { title: 'パスフレーズから PMK へ', text: '端末と AP はそれぞれ、パスフレーズと SSID から PBKDF2（SHA-1 を 4,096 回）で 256 ビットの PMK を計算する。PMK は電波に乗せない。同じパスフレーズを知る者だけが同じ PMK を持つ。' },
+      { title: '4-way handshake', text: 'AP が乱数 ANonce を送り（1）、端末は乱数 SNonce を返す（2）。両者は PMK・2 つの乱数・2 つの MAC アドレスから PTK を計算する。2〜4 には PTK で作った検証コード MIC が付き、相手が同じ PMK を持つことを確かめ合う。3 では GTK を暗号化して渡す。' },
+      { title: '暗号化されたフレーム', text: '以後のデータは PTK から取り出した TK を鍵に、AES（WPA2・WPA3 とも基本は CCMP）で暗号化と改ざん検知を受ける。MAC ヘッダは平文のまま。盗聴者に中身は読めないが、誰がどれだけ通信しているかは見える。' },
+      { title: 'WPA3 の SAE', text: 'WPA2 では handshake を録音すればパスフレーズを総当たりで試せた。WPA3 の SAE（Dragonfly）は楕円曲線の鍵交換で PMK を作るので、録音しても試せず、1 回の接続で 1 回しか推測できない。パスフレーズが後で漏れても過去の通信は解けない（前方秘匿性）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      st.mk = mk;
+      const XS = 200, XA = 620;
+      st.XS = XS; st.XA = XA;
+      box(svg, XS - 60, 30, 120, 40, '端末（PC）', 'MAC 3C:4D:…:81', 'f-sf s-rule w15');
+      box(svg, XA - 60, 30, 120, 40, 'AP', 'BSSID 02:…:F0', 'f-fg s-fg w1', 't-sm t-sf');   // 第13章の無線部と同じ AP
+      svg.lastChild.querySelectorAll('text')[1].setAttribute('class', 't-c t-xs t-sf');
+      S.line(XS, 70, XS, 540, { cls: 's-rule w1', 'stroke-dasharray': '4 4' }, svg);
+      S.line(XA, 70, XA, 540, { cls: 's-rule w1', 'stroke-dasharray': '4 4' }, svg);
+      st.msgs = S.g({}, svg);
+      st.dot = S.circle(0, 0, 6, { cls: 'f-d glow' }, svg);
+      // 鍵の系図
+      const kg = S.g({ transform: 'translate(700,80)' }, svg);
+      S.rect(0, 0, 240, 300, { rx: 6, cls: 'f-sf s-rule w1' }, kg);
+      S.text(120, 22, '鍵の系図', { cls: 't-c t-sm t-b' }, kg);
+      st.keys = {};
+      [['pass', 48, 'パスフレーズ ＋ SSID', '人が設定'], ['pmk', 108, 'PMK 256 bit', 'PBKDF2 × 4,096 回'], ['ptk', 168, 'PTK 384 bit', 'PMK ＋ ANonce ＋ SNonce ＋ MAC'], ['tk', 228, 'TK / KCK / KEK', 'データ暗号化・MIC・GTK 包み'], ['gtk', 276, 'GTK（全員宛て）', 'AP が配る']].forEach(([k, y, n, sub]) => {
+        const g = S.g({ cls: 'fade' }, kg);
+        S.rect(20, y - 18, 200, 40, { rx: 5, cls: 'f-in s-rule w1' }, g);
+        S.text(120, y - 1, n, { cls: 't-c t-xs t-b' }, g);
+        const subT = S.text(120, y + 13, sub, { cls: 't-c t-xs t-dim' }, g);
+        if (k === 'pmk') st.pmkSub = subT;   // WPA3（段階6）では作り方が変わる
+        if (k !== 'pass' && k !== 'gtk') S.path(`M120,${y - 44} V${y - 20}`, { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, kg);
+        st.keys[k] = g;
+      });
+      st.keyNote = S.text(120, 318, '', { cls: 't-c t-xs t-x t-b' }, kg);
+      // 暗号化フレーム
+      st.enc = S.g({ cls: 'fade hide' }, svg);
+      S.rect(48, 392, 636, 122, { rx: 6, cls: 'f-sf s-rule w1' }, st.enc);   // 下地の板（縦線を隠す）
+      S.text(60, 410, '暗号化後のデータフレーム', { cls: 't-sm t-b' }, st.enc);
+      S.rect(60, 420, 70, 40, { cls: 'f-r-soft s-r w1' }, st.enc);
+      S.text(95, 444, 'PHY', { cls: 't-c t-xs' }, st.enc);
+      S.rect(132, 420, 160, 40, { cls: 'f-in s-mid w1' }, st.enc);
+      S.text(212, 438, 'MAC ヘッダ（平文）', { cls: 't-c t-xs t-b' }, st.enc);
+      S.text(212, 452, '受信者・送信元・宛先・順序', { cls: 't-c t-xs t-dim' }, st.enc);
+      S.rect(294, 420, 70, 40, { cls: 'f-sf s-rule w1' }, st.enc);
+      S.text(329, 438, 'CCMP', { cls: 't-c t-xs t-b' }, st.enc);
+      S.text(329, 452, 'PN 48 bit', { cls: 't-c t-xs t-dim' }, st.enc);
+      S.rect(366, 420, 250, 40, { cls: 'f-d-soft s-d w1' }, st.enc);
+      st.cipher = S.text(491, 445, '', { cls: 't-c t-xs t-mono t-d' }, st.enc);
+      S.text(491, 412, 'AES-CCMP で暗号化された中身', { cls: 't-c t-xs t-d t-b' }, st.enc);
+      S.rect(618, 420, 50, 40, { cls: 'f-x-soft s-x w1' }, st.enc);
+      S.text(643, 444, 'MIC', { cls: 't-c t-xs t-b' }, st.enc);
+      S.text(60, 485, '盗聴者が見えるもの：ヘッダ（誰と誰が、いつ、何バイト）。見えないもの：中身。改ざんすると MIC が合わず捨てられる。', { cls: 't-xs t-dim' }, st.enc);
+      S.text(60, 503, 'PN（パケット番号）は毎フレーム増え、同じ鍵でも同じ暗号文が二度と出ない。再生攻撃も PN で弾く。', { cls: 't-xs t-dim' }, st.enc);
+    },
+    msgList(i) {
+      // [from, to, label, y] のリスト。from/to は 'S' か 'A'
+      if (i === 0) return [['A', 'S', 'Beacon：SSID "home-wifi"、ch 36、WPA2/WPA3', 100], ['A', 'S', 'Beacon（約 100 ms ごと）', 130], ['S', 'A', 'Probe Request：home-wifi ある？', 170], ['A', 'S', 'Probe Response：ここにいる', 200], ['A', 'S', 'Beacon', 240]];
+      if (i === 1) return [['S', 'A', 'Authentication Request（Open）', 100], ['A', 'S', 'Authentication Response：成功', 130], ['S', 'A', 'Association Request：対応速度・暗号方式', 170], ['A', 'S', 'Association Response：AID = 3', 200]];
+      if (i === 2) return [];
+      if (i === 3) return [['A', 'S', '① ANonce（AP の乱数 256 bit）', 100], ['S', 'A', '② SNonce（端末の乱数）＋ MIC', 150], ['A', 'S', '③ GTK を KEK で包んで ＋ MIC', 200], ['S', 'A', '④ 受け取った ＋ MIC', 250]];
+      if (i === 4) return [['S', 'A', 'データ（暗号化）：HTTP GET …', 110], ['A', 'S', 'データ（暗号化）：200 OK …', 150], ['S', 'A', 'データ（暗号化）', 190], ['A', 'S', 'データ（暗号化）', 230]];
+      return [['S', 'A', 'SAE Commit：スカラー ＋ 楕円曲線の点', 100], ['A', 'S', 'SAE Commit', 140], ['S', 'A', 'SAE Confirm（共有した秘密から作る確認値）', 180], ['A', 'S', 'SAE Confirm', 220], ['A', 'S', '→ 以後は 4-way handshake（PTK）', 270]];
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.clear(st.msgs);
+      const XS = st.XS, XA = st.XA;
+      st.list = this.msgList(i);
+      st.list.forEach(([f, to, lbl, y]) => {
+        const x1 = f === 'S' ? XS : XA, x2 = to === 'S' ? XS : XA;
+        const dir = x2 > x1 ? 1 : -1;
+        S.line(x1 + dir * 6, y, x2 - dir * 10, y, { cls: 'f-none s-fg w15', 'marker-end': st.mk('fg') }, st.msgs);
+        S.text((XS + XA) / 2, y - 7, lbl, { cls: 't-c t-xs' }, st.msgs);
+      });
+      // 補足の箱（幅 230）。AP 側は右の鍵の系図（x 700〜）にかからないよう、縦線より左に寄せる
+      const note = (x, y, lines, cls) => { const g = S.g({}, st.msgs); S.rect(x, y, 230, 14 + lines.length * 15, { rx: 5, cls: cls || 'f-in s-rule w1' }, g); lines.forEach((l, k) => S.text(x + 115, y + 16 + k * 15, l, { cls: 't-c t-xs' }, g)); };
+      const xA = XA - 175;
+      if (i === 0) { note(XS - 115, 290, ['端末の一覧：home-wifi −52 dBm', 'cafe-free −78 dBm、…'], 'f-sf s-rule w1'); }
+      if (i === 1) { note(XS - 115, 250, ['状態：Associated（AID 3）', 'まだ暗号鍵がない → データ不可']); note(xA, 250, ['AP の端末表に追加', '3C:…:81 → AID 3']); }
+      if (i === 2) {
+        note(XS - 115, 100, ['パスフレーズ "correct horse…"', '＋ SSID "home-wifi"', '↓ PBKDF2-SHA1 × 4,096', 'PMK = 7f3a…（256 bit）'], 'f-x-soft s-x w1');
+        note(xA, 100, ['同じパスフレーズ', '＋ 同じ SSID', '↓ 同じ計算', 'PMK = 7f3a…（同じ値）'], 'f-x-soft s-x w1');
+        S.line(XS + 6, 240, XA - 6, 240, { cls: 's-x w2', 'stroke-dasharray': '6 6' }, st.msgs);
+        S.text((XS + XA) / 2, 232, 'PMK もパスフレーズも送らない', { cls: 't-c t-xs t-x t-b' }, st.msgs);
+        S.text((XS + XA) / 2, 262, 'わざと重い計算にして、総当たりを遅くする', { cls: 't-c t-xs t-dim' }, st.msgs);
+      }
+      if (i === 3) {
+        note(XS - 115, 300, ['① を受けて PTK を計算', 'PTK = PRF(PMK, ANonce, SNonce,', 'MAC_AP, MAC_端末)'], 'f-x-soft s-x w1');
+        note(xA, 300, ['② を受けて PTK を計算し', 'MIC を検算 → 一致なら', '端末は同じ PMK を持つ'], 'f-x-soft s-x w1');
+        S.text((XS + XA) / 2, 390, '乱数が毎回違うので、PTK は接続のたびに新しい', { cls: 't-c t-xs t-dim' }, st.msgs);
+      }
+      if (i === 5) {
+        note(XS - 115, 300, ['パスフレーズから楕円曲線の点を', '作り、乱数と合成して送る'], 'f-x-soft s-x w1');
+        note(xA, 300, ['録音しても PMK は出せない', '間違いは 1 接続で 1 回しか試せない'], 'f-x-soft s-x w1');
+      }
+      st.pmkSub.textContent = i === 5 ? 'SAE の鍵交換で作る' : 'PBKDF2 × 4,096 回';
+      // 鍵の系図の強調
+      const lit = { pass: i >= 2, pmk: i >= 2, ptk: i >= 3, tk: i >= 4 || i === 3, gtk: i >= 3 };
+      Object.keys(st.keys).forEach((k) => { st.keys[k].style.opacity = lit[k] ? 1 : 0.25; });
+      st.keyNote.textContent = i === 2 ? 'PMK ができた（両側で同じ）' : i === 3 ? 'PTK と GTK ができた' : i === 4 ? 'TK でデータを暗号化' : i === 5 ? 'SAE では PMK が接続ごとに変わる' : '';
+      S.fade(st.enc, i === 4);
+      st.dot.style.opacity = st.list.length ? 1 : 0;
+    },
+    frame(ctx, t) {
+      const st = ctx.state;
+      if (!st.list || !st.list.length) { st.dot.style.opacity = 0; return; }
+      const per = 1.6;
+      const q = U.seq(t, st.list.map(() => per), true);
+      const [f, to, , y] = st.list[q.i];
+      const x1 = f === 'S' ? st.XS : st.XA, x2 = to === 'S' ? st.XS : st.XA;
+      const ff = U.ease.inOut(Math.min(1, q.f * 1.25));
+      st.dot.setAttribute('cx', (x1 + (x2 - x1) * ff).toFixed(1));
+      st.dot.setAttribute('cy', y);
+      st.dot.style.opacity = q.f < 0.85 ? 1 : 0;
+      if (ctx.step === 4) {
+        const hex = '0123456789abcdef';
+        // 28 桁（7 組）。等幅 10px で約 210px なので、幅 250 の枠に収まる
+        const R = prng(Math.floor(t / 0.25) + 7);   // 0.25 秒ごとに変わる見せかけの暗号文（種は時刻の区切り）
+        let s = ''; for (let k = 0; k < 28; k++) s += hex[Math.floor(R() * 16)] + (k % 4 === 3 && k < 27 ? ' ' : '');
+        st.cipher.textContent = s;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 速さが変わる理由
+     ================================================================ */
+  const MCS = [
+    [0, 'BPSK', '1/2', 5, 36.0], [1, 'QPSK', '1/2', 8, 72.1], [2, 'QPSK', '3/4', 11, 108.1], [3, '16-QAM', '1/2', 14, 144.1], [4, '16-QAM', '3/4', 18, 216.2],
+    [5, '64-QAM', '2/3', 22, 288.2], [6, '64-QAM', '3/4', 24, 324.3], [7, '64-QAM', '5/6', 26, 360.3], [8, '256-QAM', '3/4', 30, 432.4], [9, '256-QAM', '5/6', 32, 480.4], [10, '1024-QAM', '3/4', 35, 540.4], [11, '1024-QAM', '5/6', 37, 600.5]
+  ];
+  const s6 = {
+    steps: [
+      { title: '距離と壁で弱くなる', text: '電波は距離の 2 乗に反比例して弱まる。2.4 GHz で 10 m 離れると約 60 dB（100 万分の 1）。石膏ボードの壁で 3〜5 dB、鉄筋コンクリートで 10〜20 dB 失う。受信電力は −50 dBm なら強く、−80 dBm で弱い。' },
+      { title: 'SNR が変調を決める', text: '雑音（80 MHz 幅で約 −89 dBm）との比が SNR。1024-QAM には約 35 dB、QPSK なら 10 dB で足りる。端末と AP は誤り率を見て MCS（変調と符号化率の組）をパケットごとに選び直す。離れるほど MCS の番号が下がる。' },
+      { title: 'チャネル幅', text: '20・40・80・160 MHz と広げるほど速いが、同じ送信電力が広がる分、1 サブキャリアあたりの電力が下がり届きにくくなる。2.4 GHz 帯で重ならない 20 MHz 幅のチャネルは 3〜4 本（1・6・11 など）しかない。5 GHz 帯は日本で 20 本ある。' },
+      { title: '干渉と混雑', text: '隣家の AP、電子レンジ（2.45 GHz）、Bluetooth が 2.4 GHz 帯を使う。同じチャネルの他人の通信も CSMA/CA で待つ対象になるので、速度はチャネルを共有する全員で分け合う。見える AP が多い場所で遅いのはこのため。' },
+      { title: 'MIMO と空間ストリーム', text: 'アンテナを複数使い、直接波と反射波で経路の違う電波を行列計算で分離すると、同じ周波数で同時に複数の列（空間ストリーム）を送れる。2 ストリームなら最大速度は 2 倍。MU-MIMO は複数の端末へ同時に送る。' },
+      { title: '2.4／5／6 GHz の使い分け', text: '低い周波数ほど壁を通り抜けやすく遠くまで届くが、帯域が狭く混雑する。6 GHz 帯（Wi-Fi 6E/7）は広く空いているが届く範囲は短い。実際の転送速度は PHY 速度の 5〜6 割が目安（[[4|CSMA/CA]]のオーバーヘッド）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 間取り
+      const fp = st.fp = S.g({}, svg);
+      S.rect(40, 50, 520, 360, { rx: 4, cls: 'f-sf s-fg w2' }, fp);
+      // 内壁
+      [[300, 50, 300, 230], [40, 230, 300, 230], [300, 320, 560, 320], [420, 50, 420, 230]].forEach(([x1, y1, x2, y2]) => S.line(x1, y1, x2, y2, { cls: 's-fg w4' }, fp));
+      // 部屋の名前。リビングは AP と PC を結ぶ点線が通らない隅に置く
+      S.text(56, 218, 'リビング', { cls: 't-xs t-dim' }, fp);
+      S.text(360, 140, '廊下', { cls: 't-c t-xs t-dim' }, fp);
+      S.text(490, 140, '寝室', { cls: 't-c t-xs t-dim' }, fp);
+      S.text(170, 330, 'キッチン', { cls: 't-c t-xs t-dim' }, fp);
+      S.text(430, 380, '書斎', { cls: 't-c t-xs t-dim' }, fp);
+      // 縮尺：40 px ＝ 1 m（家は約 13 m × 9 m）
+      S.text(40, 430, '上から見た間取り（模式図）', { cls: 't-xs t-dim' }, fp);
+      S.path('M350,421 V431 M350,426 H550 M550,421 V431', { cls: 'f-none s-dim w1' }, fp);
+      S.text(558, 430, '5 m', { cls: 't-xs t-dim' }, fp);
+      // AP
+      st.apx = 110; st.apy = 110;
+      st.apWaves = arcs(fp, st.apx, st.apy, 6, 's-r w15');
+      S.rect(st.apx - 22, st.apy - 12, 44, 24, { rx: 4, cls: 'f-fg' }, fp);
+      S.text(st.apx, st.apy + 4, 'AP', { cls: 't-c t-xs t-b t-sf' }, fp);
+      // 端末の道（リビング → 廊下 → 寝室 → 書斎 → キッチン）
+      st.path = S.path('M150,180 H260 L300,180 H380 L420,180 H500 V300 L500,330 L380,380 L240,380 L200,300 L150,180', { cls: 'f-none s-none' }, fp);
+      st.dev = S.g({}, fp);
+      S.rect(-16, -11, 32, 22, { rx: 3, cls: 'f-sf s-fg w15' }, st.dev);
+      S.text(0, 4, 'PC', { cls: 't-c t-xs t-b' }, st.dev);
+      st.link = S.line(st.apx, st.apy, 0, 0, { cls: 's-r w1', 'stroke-dasharray': '4 4' }, fp);
+      // 隣の AP と電子レンジ（段階4）。右の説明の板は x 640 から
+      st.intf = S.g({ cls: 'fade hide' }, fp);
+      st.nWaves = arcs(st.intf, 600, 300, 5, 's-x w15');
+      S.rect(578, 288, 44, 24, { rx: 4, cls: 'f-x' }, st.intf);
+      S.text(600, 304, '隣家', { cls: 't-c t-xs t-b t-sf' }, st.intf);
+      S.text(600, 328, '隣の AP', { cls: 't-c t-xs t-x' }, st.intf);
+      S.text(600, 342, '（同じ ch）', { cls: 't-c t-xs t-x' }, st.intf);
+      st.mwWaves = arcs(st.intf, 100, 300, 4, 's-x w15');
+      S.rect(78, 288, 44, 24, { rx: 4, cls: 'f-x-soft s-x w1' }, st.intf);
+      S.text(100, 304, 'レンジ', { cls: 't-c t-xs t-b' }, st.intf);
+      // 受信強度の表示
+      const mg = S.g({ transform: 'translate(40,450)' }, svg);
+      S.text(0, 0, '受信電力 RSSI', { cls: 't-xs t-dim' }, mg);
+      S.rect(0, 8, 240, 12, { rx: 3, cls: 'f-in s-rule w1' }, mg);
+      st.rssiBar = S.rect(0, 8, 0, 12, { rx: 3, cls: 'f-r' }, mg);
+      st.rssiTxt = S.text(250, 19, '', { cls: 't-sm t-mono t-b' }, mg);
+      S.text(0, 46, 'SNR（雑音 −89 dBm との差）', { cls: 't-xs t-dim' }, mg);
+      S.rect(0, 54, 240, 12, { rx: 3, cls: 'f-in s-rule w1' }, mg);
+      st.snrBar = S.rect(0, 54, 0, 12, { rx: 3, cls: 'f-d' }, mg);
+      st.snrTxt = S.text(250, 65, '', { cls: 't-sm t-mono t-b' }, mg);
+      st.wallTxt = S.text(0, 90, '', { cls: 't-xs t-dim' }, mg);
+      st.rateTxt = S.text(400, 19, '', { cls: 't-lg t-b t-mono' }, mg);
+      st.rateSub = S.text(400, 40, '', { cls: 't-xs t-dim' }, mg);
+      // 右: MCS 表
+      const tg = st.tg = S.g({ transform: 'translate(600,40)', cls: 'fade' }, svg);
+      S.rect(0, 0, 340, 400, { rx: 6, cls: 'f-sf s-rule w1' }, tg);
+      S.text(170, 22, 'MCS（Wi-Fi 6、80 MHz、1 ストリーム）', { cls: 't-c t-xs t-b' }, tg);
+      ['MCS', '変調', '符号化率', '必要 SNR', 'PHY 速度'].forEach((h, k) => S.text([14, 50, 130, 195, 268][k], 44, h, { cls: 't-xs t-dim' }, tg));
+      st.mcsRows = MCS.map((r, k) => {
+        const y = 66 + k * 27;
+        const bg = S.rect(6, y - 14, 328, 24, { rx: 3, cls: 'f-x-soft', style: { opacity: 0 } }, tg);
+        S.text(14, y + 4, String(r[0]), { cls: 't-sm t-mono' }, tg);
+        S.text(50, y + 4, r[1], { cls: 't-sm t-mono' }, tg);
+        S.text(130, y + 4, r[2], { cls: 't-sm t-mono' }, tg);
+        S.text(195, y + 4, '≥ ' + r[3] + ' dB', { cls: 't-sm t-mono t-dim' }, tg);
+        S.text(268, y + 4, r[4].toFixed(1) + ' Mbps', { cls: 't-sm t-mono' }, tg);
+        return bg;
+      });
+      S.text(170, 392, '必要 SNR は目安（実装で数 dB 違う）', { cls: 't-c t-xs t-dim' }, tg);
+      // 右: チャネル幅
+      const cg = st.cg = S.g({ transform: 'translate(600,40)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 340, 400, { rx: 6, cls: 'f-sf s-rule w1' }, cg);
+      S.text(170, 22, '2.4 GHz 帯のチャネル（各 20 MHz 幅）', { cls: 't-c t-xs t-b' }, cg);
+      S.line(20, 120, 320, 120, { cls: 's-rule w1' }, cg);
+      for (let ch = 1; ch <= 13; ch++) {
+        const fc = 2412 + (ch - 1) * 5;
+        const x = 20 + (fc - 2402) / (2482 - 2402) * 300;
+        const w = 20 / 80 * 300;
+        const main = ch === 1 || ch === 6 || ch === 11;
+        S.path(`M${x - w / 2},120 Q${x},${main ? 40 : 70} ${x + w / 2},120`, { cls: 'f-none w15 ' + (main ? 's-r' : 's-rule') }, cg);
+        if (main) S.text(x, 134, String(ch), { cls: 't-c t-xs t-r t-b' }, cg);
+      }
+      S.text(170, 156, '重ならないのは 1・6・11 など 3〜4 本だけ', { cls: 't-c t-xs t-dim' }, cg);
+      S.text(170, 190, '5 GHz 帯：20 MHz を束ねて広げる', { cls: 't-c t-xs t-b' }, cg);
+      [['20 MHz', 1], ['40 MHz', 2], ['80 MHz', 4], ['160 MHz', 8]].forEach(([n, u], k) => {
+        const y = 210 + k * 40;
+        for (let j = 0; j < u; j++) S.rect(20 + j * 28, y, 26, 22, { rx: 3, cls: j === 0 ? 'f-d' : 'f-d-soft s-d w1' }, cg);
+        S.text(20 + u * 28 + 8, y + 15, n, { cls: 't-xs t-b' }, cg);
+        S.text(330, y + 15, ['×1', '×2', '×4', '×8'][k], { cls: 't-xs t-dim', 'text-anchor': 'end' }, cg);
+      });
+      S.text(170, 374, '幅を倍にすると速度は約 2 倍', { cls: 't-c t-xs t-dim' }, cg);
+      S.text(170, 390, '1 Hz あたりの電力は半分になり、届く範囲は狭まる', { cls: 't-c t-xs t-dim' }, cg);
+      // 右: 干渉（隣家の AP を左に置くので、この板だけ幅 300 で x 640 から）
+      const ig = st.ig = S.g({ transform: 'translate(640,40)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 300, 400, { rx: 6, cls: 'f-sf s-rule w1' }, ig);
+      S.text(150, 22, 'チャネルを共有する相手', { cls: 't-c t-xs t-b' }, ig);
+      [['隣家の AP と端末', ['同じ ch なら CSMA/CA で順番待ち。', 'ずれていても重なれば雑音になる']],
+       ['電子レンジ', ['内部で数百 W〜1 kW の 2.45 GHz を使う。', '漏れはわずかでも 2.4 GHz 帯を乱す']],
+       ['Bluetooth', ['2.4 GHz 帯を 1〜2 MHz 幅で飛び回る', '（周波数ホッピング）']],
+       ['自分の家の他の端末', ['テレビ・スマホ・スマートスピーカーも', '同じ空気を使う']],
+       ['Wi-Fi 6 の BSS Coloring', ['隣の BSS の弱い電波は無視して送り、', '待ちを減らす']]].forEach(([n, d], k) => {
+        const y = 56 + k * 66;
+        S.text(16, y, n, { cls: 't-sm t-b' }, ig);
+        S.lines(16, y + 18, d, { cls: 't-xs t-dim' }, ig, 15);
+      });
+      st.shareTxt = S.text(150, 392, '', { cls: 't-c t-xs t-x t-b' }, ig);
+      // 右: MIMO（2 本の列はデータの緑と灰で区別する）
+      const mm = st.mm = S.g({ transform: 'translate(600,40)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 340, 400, { rx: 6, cls: 'f-sf s-rule w1' }, mm);
+      S.text(170, 22, '2×2 MIMO：2 本のアンテナで 2 列を同時に', { cls: 't-c t-xs t-b' }, mm);
+      S.rect(20, 60, 60, 120, { rx: 4, cls: 'f-fg' }, mm); S.text(50, 125, 'AP', { cls: 't-c t-sm t-b t-sf' }, mm);
+      S.rect(260, 60, 60, 120, { rx: 4, cls: 'f-sf s-fg w15' }, mm); S.text(290, 125, 'PC', { cls: 't-c t-sm t-b' }, mm);
+      S.line(80, 90, 80, 70, { cls: 's-fg w2' }, mm); S.line(80, 150, 80, 130, { cls: 's-fg w2' }, mm);
+      S.line(260, 90, 260, 70, { cls: 's-fg w2' }, mm); S.line(260, 150, 260, 130, { cls: 's-fg w2' }, mm);
+      st.mimoPaths = [S.path('M80,90 L260,90', { cls: 'f-none s-d w2' }, mm), S.path('M80,150 L260,150', { cls: 'f-none s-mid w2' }, mm), S.path('M80,90 Q170,230 260,150', { cls: 'f-none s-d w15', 'stroke-dasharray': '5 4' }, mm), S.path('M80,150 Q170,10 260,90', { cls: 'f-none s-mid w15', 'stroke-dasharray': '5 4' }, mm)];
+      st.mimoFlows = [A.flow(st.mimoPaths[0], { count: 5, speed: 70, r: 3.5, cls: 'f-d', parent: mm }), A.flow(st.mimoPaths[1], { count: 5, speed: 70, r: 3.5, cls: 'f-mid', parent: mm }), A.flow(st.mimoPaths[2], { count: 4, speed: 70, r: 2.5, cls: 'f-d', parent: mm }), A.flow(st.mimoPaths[3], { count: 4, speed: 70, r: 2.5, cls: 'f-mid', parent: mm })];
+      S.text(170, 258, '実線 = 直接波、破線 = 反射波。各アンテナには 2 列が混ざって届く', { cls: 't-c t-xs t-dim' }, mm);
+      S.text(170, 276, '経路の違い（行列 H）を測って逆算し、2 列に分ける', { cls: 't-c t-xs t-dim' }, mm);
+      [['1×1', '600 Mbps'], ['2×2', '1,201 Mbps'], ['4×4', '2,402 Mbps'], ['8×8（規格の上限）', '4,804 Mbps']].forEach(([n, v], k) => {
+        const y = 310 + k * 22;
+        S.text(20, y, n, { cls: 't-sm' }, mm);
+        S.text(320, y, v, { cls: 't-sm t-mono', 'text-anchor': 'end' }, mm);
+      });
+      S.text(170, 395, '80 MHz・1024-QAM での PHY 速度。スマホは 2×2 が多い', { cls: 't-c t-xs t-dim' }, mm);
+      // 右: 周波数帯
+      const bg = st.bg = S.g({ transform: 'translate(600,40)', cls: 'fade hide' }, svg);
+      S.rect(0, 0, 340, 400, { rx: 6, cls: 'f-sf s-rule w1' }, bg);
+      S.text(170, 22, '3 つの周波数帯', { cls: 't-c t-xs t-b' }, bg);
+      ['', '届く範囲', '帯域幅', '混雑'].forEach((h, k) => S.text([16, 110, 190, 270][k], 48, h, { cls: 't-xs t-dim' }, bg));
+      // 帯域幅は日本の割り当て（2026 年時点）：5 GHz 帯は W52・W53 の 200 MHz ＋ W56 の 260 MHz
+      [['2.4 GHz', 1.0, 83.5, '多い', '壁に強い。重ならない ch は 3〜4 本'], ['5 GHz', 0.65, 460, '中', '帯域が広い。DFS でレーダー回避'], ['6 GHz', 0.55, 500, '少ない', 'Wi-Fi 6E/7。日本は 500 MHz（2026 年）']].forEach(([n, reach, bw, crowd, note], k) => {
+        const y = 80 + k * 100;
+        S.text(16, y, n, { cls: 't-sm t-b' }, bg);
+        S.rect(110, y - 11, 70 * reach, 12, { rx: 3, cls: 'f-r' }, bg);
+        S.rect(190, y - 11, Math.min(70, bw / 7.2), 12, { rx: 3, cls: 'f-d' }, bg);
+        S.text(190, y + 22, bw + ' MHz', { cls: 't-xs t-mono t-dim' }, bg);
+        S.text(270, y, crowd, { cls: 't-sm' }, bg);
+        S.text(16, y + 40, note, { cls: 't-xs t-dim' }, bg);
+      });
+      S.text(170, 392, '実測の転送速度 ≒ PHY 速度 × 0.5〜0.6', { cls: 't-c t-xs t-x t-b' }, bg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.tg, i <= 1);
+      S.fade(st.cg, i === 2);
+      S.fade(st.ig, i === 3);
+      S.fade(st.mm, i === 4);
+      S.fade(st.bg, i === 5);
+      S.fade(st.intf, i === 3);
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.apWaves.update(t * 50, 34, -Math.PI, Math.PI, 90, 30);   // AP のまわりの輪（部屋の札にかからない半径まで）
+      // 端末の位置
+      const f = U.cycle(t, 24);
+      const p = S.along(st.path, f);
+      st.dev.setAttribute('transform', `translate(${p.x.toFixed(1)},${p.y.toFixed(1)})`);
+      st.link.setAttribute('x2', p.x.toFixed(1)); st.link.setAttribute('y2', p.y.toFixed(1));
+      // 距離（40 px = 1 m）と壁の数
+      const dist = Math.hypot(p.x - st.apx, p.y - st.apy) / 40;
+      const walls = [[300, 50, 300, 230], [40, 230, 300, 230], [300, 320, 560, 320], [420, 50, 420, 230]].filter(([x1, y1, x2, y2]) => {
+        // 線分の交差判定
+        const d = (ax, ay, bx, by, cx, cy) => (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+        const a1 = d(st.apx, st.apy, p.x, p.y, x1, y1), a2 = d(st.apx, st.apy, p.x, p.y, x2, y2);
+        const b1 = d(x1, y1, x2, y2, st.apx, st.apy), b2 = d(x1, y1, x2, y2, p.x, p.y);
+        return a1 * a2 < 0 && b1 * b2 < 0;
+      }).length;
+      // 簡単なモデル：1 m で −35 dBm、距離の 2 乗で弱まり、壁 1 枚で −8 dB。雑音は 80 MHz 幅で −89 dBm
+      const rssi = -35 - 20 * Math.log10(Math.max(1, dist)) - walls * 8;
+      const noise = i === 3 ? -80 : -89;                              // 干渉で雑音床が上がる
+      const snr = rssi - noise;
+      let mcs = -1;
+      MCS.forEach((r, k) => { if (snr >= r[3]) mcs = k; });
+      const rate = mcs >= 0 ? MCS[mcs][4] : 0;
+      const share = i === 3 ? 0.4 : 1;
+      st.rssiBar.setAttribute('width', U.remap(rssi, -95, -30, 0, 240).toFixed(1));
+      st.rssiTxt.textContent = rssi.toFixed(0) + ' dBm';
+      st.snrBar.setAttribute('width', U.remap(snr, 0, 60, 0, 240).toFixed(1));
+      st.snrTxt.textContent = snr.toFixed(0) + ' dB';
+      st.wallTxt.textContent = `距離 ${dist.toFixed(1)} m、間の壁 ${walls} 枚（1 枚 −8 dB）` + (i === 3 ? '、雑音床 −80 dBm（干渉あり）' : '');
+      const v = rate * (i === 4 ? 2 : 1) * share;
+      st.rateTxt.textContent = mcs >= 0 ? `MCS ${mcs} → ${U.fmt(v, v >= 1000 ? 0 : 1)} Mbps` : '圏外';
+      st.rateSub.textContent = mcs >= 0 ? `${MCS[mcs][1]} ${MCS[mcs][2]}` + (i === 4 ? '（2 ストリーム）' : i === 3 ? '（隣家と分け合い 40%）' : '') : '';
+      st.mcsRows.forEach((bgEl, k) => { bgEl.style.opacity = k === mcs ? 1 : 0; });
+      if (i === 3) {
+        st.nWaves.update(t * 50, 34, Math.PI - 0.6, Math.PI + 0.6, 80, 30);   // 家のほうへ向かう弧
+        st.mwWaves.update(t * 70, 20, -Math.PI, Math.PI, 50, 28);
+        st.shareTxt.textContent = '隣家が送信中の時間（約 60%）は待つ → 速度 40%';
+      }
+      if (i === 4) st.mimoFlows.forEach((fl) => fl.update(dt));
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第IV部 つながる ／ 第12章',
+      title: 'Wi-Fi',
+      home: '../index.html',
+      prev: { href: '11-sou.html', title: 'ネットワークの層' },
+      next: { href: '13-ethernet.html', title: 'Ethernet とスイッチ' },
+      legend: [{ c: 'r', label: '電波' }, { c: 'e', label: '電子・電流' }, { c: 'd', label: 'ビット列・データ' }, { c: 'x', label: '注目・衝突' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

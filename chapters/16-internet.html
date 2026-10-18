@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>インターネットの骨格 — YouTubeが見えるまで</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  .pkt text { pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第IV部 つながる ／ 第16章 ／ 全25章</p>
+    <h1 id="h-s0">インターネットの骨格</h1>
+    <p class="standfirst">家を出たパケットは、約 8 万の独立した網（AS）がつながったインターネットの中を、ルーターからルーターへ渡されていく。この章では、AS どうしが BGP で経路を教え合い、IX で直接つながり、海底ケーブルの光で大陸どうしを結ぶ仕組みと、各ルーターがロンゲストマッチで出口を決める手順を見る。最後に、YouTube へのパケットが ISP の中や国内の拠点でどう Google に届くかを追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の距離・台数・速さは見やすいように誇張・省略してある。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>ISP と AS</a><p>インターネットは約 8 万の AS の集まり。AS はアドレスの範囲を持ち、契約で隣とつながる。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>BGP</a><p>「この範囲へはこちら」の広告が AS から AS へ伝わり、各 AS が道を 1 つ選ぶ。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>IX とピアリング</a><p>大きなスイッチ 1 台に多くの AS がつながり、上流を通さずに直接交換する。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>海底ケーブルと DWDM</a><p>大陸の間は海底の光ファイバー。1 本に数十の波長を重ね、光のまま増幅して運ぶ。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>ルーターの転送</a><p>宛先と先頭のビットがいちばん長く一致する行の出口へ送る（ロンゲストマッチ）。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>Google に着くまで</a><p>ページの要求は国内のエッジへ、動画の断片の多くは ISP の中の GGC から。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（DNS）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。AS64500 などの AS 番号（RFC 5398）と、203.0.113.0/24・198.51.100.0/24・192.0.2.0/24 のアドレス（RFC 5737）は説明用に予約された値。Google の AS15169 と 142.250.0.0/15、2008 年の YouTube の経路は実在の値で、142.250.196.110 はその範囲の中から全章で共通に使う例（実際の答えは第17章）。数値は本文に書いたものだけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 ISP と AS ================= -->
+<section class="scene sc-anim" id="s1" data-tab="AS" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>ISP と AS — 網をつないだ網</h2>
+    <p class="sh-meta"><span class="chip">AS 約 8 万（2025 年）</span><span class="chip">AS64500（例）</span><span class="chip">AS15169 Google</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">インターネットは、別々の組織が運用する約 8 万の網（AS）をつないだもの。家の ISP も Google も 1 つの AS で、自分のアドレスの範囲を持ち、隣の AS とのつなぎ方を契約で決めている。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">AS 番号は当初 16 ビットで、足りなくなり 32 ビットに広げた（RFC 6793）。64496〜64511 は説明用に予約された番号で、AS64500 は実在しない。IPoE の家では、局舎の先で最初に入る AS が ISP ではなく VNE のこともある（<a class="xref" href="15-hikari.html#s5">第15章</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家の ISP、上流の ISP、海外の大手 ISP、Google の 4 つの AS と、その間のトランジットとピアリングの接続"></svg></div>
+    <figcaption>図1　枠が AS、線が AS どうしの接続。家の ISP（AS64500）は上流の AS64510 から全体への経路を買い、Google（AS15169）とは直接つながる。AS 番号は Google 以外は説明用の値。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 BGP ================= -->
+<section class="scene sc-anim" id="s2" data-tab="BGP" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>BGP — 「この範囲はこちら」を隣へ伝える</h2>
+    <p class="sh-meta"><span class="chip">BGP-4（RFC 4271）</span><span class="chip">TCP 179</span><span class="chip">AS_PATH</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">AS どうしは BGP で「この範囲へは自分を通れば届く」と隣の AS に広告する。広告は AS から AS へ伝わり、通ってきた AS の列（AS_PATH）が伸びる。各 AS は届いた候補から道を 1 つ選ぶ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">AS の中で境目のルーターどうしが外の経路を共有するのにも BGP を使い（iBGP）、AS の間のもの（eBGP）と区別する。誤った広告への対策として、範囲ごとに広告してよい AS を署名付きで登録する RPKI が広がり、2025 年時点で経路の半分以上が登録済み。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="Google の 142.250.0.0/15 の広告が、直接のピアリングと上流経由の 2 つの道で家の ISP に届き、AS_PATH が伸びていく図と、ISP が受け取った候補の表"></svg></div>
+    <figcaption>図2　Google（AS15169）の 142.250.0.0/15 の広告が、直接と上流経由の 2 つの道で家の ISP（AS64500）に届く。下の欄は段階ごとに、広告の中身・AS_PATH の伸び方・受け取った候補・広告とパケットの向き・経路表を示す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 IX とピアリング ================= -->
+<section class="scene sc-anim" id="s3" data-tab="IX" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>IX とピアリング — 1 か所で多くの AS とつながる</h2>
+    <p class="sh-meta"><span class="chip">IX</span><span class="chip">ルートサーバー（route server）</span><span class="chip">PNI</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">AS どうしを 1 対ずつつなぐと、n 社なら n(n−1)/2 本の線がいる。IX はデータセンターに置いた大きなスイッチで、各 AS は 1 本つなぐだけで多くの AS と直接パケットを交換できる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">東京と大阪には JPNAP、JPIX、BBIX、エクイニクスなど複数の IX がある。世界最大級の DE-CIX フランクフルトには 1,000 を超える網がつながり、交換量のピークは毎秒 18 テラビットを超える（2025 年）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="IX のスイッチに家の ISP、別の ISP、Google、ほかの参加者、経路を配るルートサーバー（route server）がつながり、上流経由の道と Google との直結の道もある図"></svg></div>
+    <figcaption>図3　IX のスイッチに家の ISP（AS64500）・別の ISP・Google などがつながる。上は上流（トランジット）を経由する道、左下は Google との直結（PNI）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 海底ケーブルと DWDM ================= -->
+<section class="scene sc-anim" id="s4" data-tab="海底ケーブル" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>海底ケーブルと DWDM — 1 本のファイバーに数十の波長</h2>
+    <p class="sh-meta"><span class="chip">C バンド 約 1530〜1565 nm</span><span class="chip">中継器 約 60〜90 km ごと</span><span class="chip">日米 片道 約 45 ms</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">国際通信のほとんどは海底の光ファイバーを通る。1 本のファイバーに数十の波長の光を重ね（DWDM）、新しいケーブルは 1 本で 200 Tbps を超える。ただし日本で見る YouTube の動画の多くは海を渡らない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">日本の太平洋側の陸揚げ局（千葉県・三重県・茨城県など）に、米国やアジアへのケーブルが集まる。ケーブルの故障の多くは漁具や錨による浅い所での損傷で、専用のケーブル船が海底から引き上げてつなぎ直す。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="日本と米国を結ぶ海底ケーブルの断面図、ケーブルの断面、DWDM で複数の波長を 1 本のファイバーに重ねて分ける仕組み"></svg></div>
+    <figcaption>図4　上は日本と米国を結ぶ海底ケーブル（深さと中継器の数は誇張・省略）。左下はケーブルの断面、右下は DWDM で波長を重ねて分ける仕組み。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 ルーターの転送 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="転送" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>ルーターの転送 — いちばん長く一致した行へ</h2>
+    <p class="sh-meta"><span class="chip">ロンゲストマッチ</span><span class="chip">FIB</span><span class="chip">TTL −1</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ISP とインターネットのルーターも、第14章のホームルーターと同じ手順でパケットを 1 個ずつ送る（NAT は除く）。違いは経路表の大きさと、宛先に合う行が複数あるときの規則で、範囲がいちばん狭い行を使う。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">IPv6 の経路も同じ規則で選ぶ。ISP の基幹の中では、入口のルーターが付けた短いラベルで中継する MPLS を使うこともある。公開の Looking Glass で、外の AS のルーターが持つ経路を調べられる。CIDR の計算は<a class="xref" href="18-ip.html#s2">第18章 場面2</a>、traceroute は<a class="xref" href="18-ip.html#s6">場面6</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ルーターの転送の手順、ISP の基幹ルーターの経路表と出口、宛先と各行の先頭のビットを比べてロンゲストマッチで行を選ぶ図"></svg></div>
+    <figcaption>図5　上はルーターが 1 個のパケットに行う手順。中央はある ISP の基幹ルーターの経路表（例）と出口、下は宛先と各行の先頭のビットの比較。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 Google に着くまで ================= -->
+<section class="scene sc-anim" id="s6" data-tab="Google へ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>Google に着くまで — エッジと GGC</h2>
+    <p class="sh-meta"><span class="chip">エッジ 142.250.196.110</span><span class="chip">GGC 198.51.100.80（例）</span><span class="chip">AS64500 → AS15169</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">YouTube のパケットの行き先は 2 つある。ページや操作の要求は Google の網の入口（エッジ）へ、動画の断片の多くは ISP の中に置かれた Google のサーバー（GGC）へ。どちらも多くは国内で届く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">GGC は ISP と BGP で話し、その GGC が受け持つ利用者のアドレスの範囲を ISP から教わる。Google の網の入口（エッジ）は、世界の 100 を超える相互接続施設に置かれている（Google の説明）。エッジの中で要求を振り分ける仕組みは<a class="xref" href="22-server.html">第22章</a>。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家から局舎、ISP の網、IX または直結を経て Google のエッジへ向かう道と、ISP の中に置かれた GGC への道、Google の基幹網とデータセンター"></svg></div>
+    <figcaption>図6　家から Google までの道（ルーターの数は省略）。ISP（AS64500）の中に GGC があり、ISP の境目から IX か直結（PNI）で Google（AS15169）のエッジへ渡る。その先は Google の基幹網。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 網がつながり、経路が決まり、パケットが運ばれる</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>インターネットは約 8 万の AS の集まり。AS はアドレスの範囲を持ち、隣とはトランジット（客が上流に払う）かピアリング（多くは無償）でつながる（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>BGP は「この範囲へは自分を通れば届く」を隣へ広告する。広告は AS_PATH を伸ばしながら伝わり、各 AS は方針と AS_PATH の長さで道を 1 つ選ぶ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>IX は多くの AS がつながる大きなスイッチ。上流を通さずに直接交換でき、通信量の多い相手とは PNI で直結する（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>大陸の間は海底の光ファイバー。1 本に数十の波長を重ね（DWDM）、中継器が光のまま増幅する。距離による遅れは縮まない（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>ISP やインターネットのルーターも、家のルーターと同じく Ethernet をはがし、TTL を減らし、宛先と先頭のビットがいちばん長く一致する行の出口へ送る（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>YouTube のページの要求は国内のエッジへ向かい、動画の断片の多くは ISP の中の GGC から届く。どちらも海を渡らないことが多い（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>AS（自律システム）</th><td>1 つの組織が 1 つの経路の方針で運用する網。32 ビットの AS 番号で区別する。経路表に現れる数は約 8 万（2025 年）。</td></tr>
+        <tr><th>プレフィックス</th><td>先頭の n ビットで表すアドレスの範囲。142.250.0.0/15 は先頭 15 ビットが共通の 131,072 個。</td></tr>
+        <tr><th>トランジット<br>／ ピアリング</th><td>料金を払って上流から全体への経路と転送を受ける契約 ／ 互いの網（と客）宛てだけを交換する契約。ピアリングの多くは無償。</td></tr>
+        <tr><th><i class="sw d"></i>BGP</th><td>AS の間で経路を広告し合う約束ごと。TCP 179 番、BGP-4（RFC 4271）。全体で IPv4 約 100 万・IPv6 約 22 万経路（2025 年）。</td></tr>
+        <tr><th>AS_PATH</th><td>広告が通ってきた AS 番号の列。短い方を選ぶ目安と、ループの検出に使う。</td></tr>
+        <tr><th>IX ／ PNI</th><td>多くの AS がつながる共用の L2 スイッチ ／ 2 つの AS のルーターを専用の光ファイバーで直結すること。</td></tr>
+        <tr><th>海底ケーブル</th><td>大陸の間を結ぶ光ファイバーのケーブル。約 570 本が稼働（2025 年）。約 60〜90 km ごとに中継器（EDFA）。</td></tr>
+        <tr><th><i class="sw p"></i>DWDM</th><td>波長の違う光を 1 本のファイバーに重ねる方式。C バンド（約 1530〜1565 nm）に約 90 波、1 対で 10〜20 Tbps 前後。</td></tr>
+        <tr><th><i class="sw x"></i>ロンゲストマッチ</th><td>宛先に合う行が複数あるとき、/n が最も長い（範囲が狭い）行を使う規則。転送部の専用回路が毎パケット行う。</td></tr>
+        <tr><th>GGC</th><td>ISP の中に置かれる Google のキャッシュサーバー。機材は Google、場所・電源・回線・アドレスは ISP が出す。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 文字幅の見積もり（全角 ≒ 1em、半角 ≒ 0.6em） */
+  function tw(s, fs) {
+    let w = 0;
+    for (const ch of String(s)) w += ch.charCodeAt(0) > 0x2e80 ? fs : fs * 0.6;
+    return w;
+  }
+  /* 題と副題の付いた箱 */
+  function box(p, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-fg w15' }, g);
+    if (title) S.text(x + w / 2, y + (sub ? h / 2 - 3 : h / 2 + 5), title, { cls: 't-c t-b ' + (tcls || 't-md') }, g);
+    if (sub) S.text(x + w / 2, y + h / 2 + 14, sub, { cls: 't-c t-sm t-dim t-mono' }, g);
+    return g;
+  }
+  /* AS の枠。左上に AS 番号と名前 */
+  function asArea(p, x, y, w, h, asn, name) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 14, cls: 'f-in s-rule w15' }, g);
+    S.text(x + 14, y + 22, asn, { cls: 't-md t-b t-mono' }, g);
+    S.text(x + 22 + tw(asn, 12.5), y + 22, name, { cls: 't-sm t-dim' }, g);
+    return g;
+  }
+  /* ルーター（丸） */
+  function router(p, x, y, r) {
+    return S.circle(x, y, r || 9, { cls: 'f-sf s-fg w2' }, p);
+  }
+  /* 荷札。lines は 1〜2 行。既定は塗りつぶしのパケット（d）。経路の広告は薄い塗り＋枠（advert） */
+  function pkt(p, lines, cls, tcls, under) {
+    lines = Array.isArray(lines) ? lines : [lines];
+    const g = S.g({ cls: 'pkt' }, p);
+    const width = (ls) => Math.max(...ls.map((l) => tw(l, 11))) + 16;
+    const w = width(lines);
+    const h = lines.length > 1 ? 34 : 21;
+    // 薄い塗りの札は下の線が透けないよう、地の色の板を敷く
+    const u = under ? S.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: 'f-sf' }, g) : null;
+    const r = S.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: cls || 'f-d' }, g);
+    const ts = lines.map((l, i) => S.text(0, lines.length > 1 ? -3 + i * 14 : 4, l, { cls: 't-c t-sm t-b t-mono ' + (tcls == null ? 't-sf' : tcls) }, g));
+    return {
+      g, rect: r, texts: ts,
+      set(newLines) {
+        newLines = Array.isArray(newLines) ? newLines : [newLines];
+        const nw = width(newLines);
+        r.setAttribute('x', -nw / 2); r.setAttribute('width', nw);
+        if (u) { u.setAttribute('x', -nw / 2); u.setAttribute('width', nw); }
+        ts.forEach((t, i) => { t.textContent = newLines[i] || ''; });
+      },
+      show(on) { g.style.display = on ? '' : 'none'; }
+    };
+  }
+  const advert = (p, lines) => pkt(p, lines, 'f-d-soft s-d w1', '', true);
+  /* 見えない道 */
+  function road(p, d) { return S.path(d, { cls: 'f-none s-none' }, p); }
+  /* 点の列を通る折れ線の d */
+  const via = (pts) => pts.map((q, k) => (k ? 'L' : 'M') + q[0] + ',' + q[1]).join(' ');
+  const dim = (g, on) => { g.style.opacity = on ? 0.28 : ''; };
+  /* 道を dur 秒で進み、rest 秒消えてから繰り返す。at0 は時刻 0（動きを止めているときに見える位置）の進み具合 0..1 */
+  const easeInv = (a) => (a < 0.5 ? Math.sqrt(a / 2) : 1 - Math.sqrt((1 - a) / 2));
+  function run(node, path, ts, dur, rest, at0) {
+    const q = U.seq(ts + easeInv(at0 == null ? 0.5 : at0) * dur, [dur, rest || 0.6], true);
+    S.place(node, path, q.i === 0 ? U.ease.inOut(q.f) : 1);
+    node.style.opacity = q.i === 0 ? 1 : 0;
+  }
+
+  /* ================================================================
+     場面1 ISP と AS
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: 'AS ＝ 1 つの方針で運用される網', text: 'AS（自律システム）は、1 つの組織が 1 つの経路の方針で運用する網で、AS 番号で区別する。家の ISP は AS64500（例）、Google は AS15169。家から www.youtube.com へのパケットは、ISP の AS から Google の AS へ渡されて届く。' },
+      { title: 'AS はアドレスの範囲を持つ', text: '各 AS は自分のアドレスの範囲（プレフィックス）を持つ。ISP の 203.0.113.0/24（例）の中に家の 203.0.113.5 が、Google の 142.250.0.0/15 の中に 142.250.196.110 がある。この「範囲と AS の対応」を、AS どうしが [[2|BGP]] で伝え合う。' },
+      { title: 'AS の中の道は AS が決める', text: 'AS の中のルーターどうしは、OSPF や IS-IS（IGP）で線のつながりとコストを教え合い、各自がコストの合計が最小の道を計算する。中の作りは外からは見えない。外の AS に知らせるのは、どの範囲を持っているかと、どの AS を通れば届くかだけ。' },
+      { title: 'AS の間は 2 種類の契約', text: '**トランジット**は、客の AS が上流の AS に料金を払い、インターネット全体への経路と転送を受ける契約。**ピアリング**は、2 つの AS が互いの網（とその客）宛ての通信だけを交換する契約で、多くは料金を払い合わない。ISP は Google 宛てをピアリングで、それ以外を上流へ送る。' },
+      { title: '上流をたどると Tier 1 に着く', text: '上流をたどると、誰にもトランジット料を払わずにピアリングだけで全体へ届く少数の AS（Tier 1）に着く。図では家の ISP の上流 AS64510 がすでに Tier 1 だが、間にさらに上流が挟まることも多い。Tier 1 どうしは互いにピアリングしているので、上流をたどればどの AS にも届く。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ---- AS の枠
+      st.asUp = asArea(svg, 330, 22, 250, 100, 'AS64510', '上流の ISP（例）');
+      st.asT1 = asArea(svg, 650, 22, 290, 100, 'AS64511', '海外の大手 ISP（例）');
+      st.asIsp = asArea(svg, 140, 160, 320, 270, 'AS64500', '家の ISP（例）');
+      st.asG = asArea(svg, 620, 190, 320, 240, 'AS15169', 'Google');
+      // ---- 家
+      st.home = box(svg, 18, 270, 92, 60, '家', '203.0.113.5');
+      // 光回線の線と札も家と一緒に薄くする
+      S.line(110, 300, 191, 300, { cls: 's-p w3' }, st.home);
+      S.text(150, 290, '光回線', { cls: 't-c t-xs t-p t-b' }, st.home);
+      // ---- ISP の中
+      const R = st.R = { A: [200, 300], C1: [300, 245], C2: [300, 365], B1: [430, 300], B2: [400, 200],
+        T1: [400, 104], T2: [565, 72], U1: [665, 72], U2: [880, 104], G1: [650, 300], G2: [880, 214] };
+      const gIn = st.ispIn = S.g({}, st.asIsp);
+      [['A', 'C1'], ['A', 'C2'], ['C1', 'C2'], ['C1', 'B1'], ['C2', 'B1'], ['C1', 'B2']].forEach(([a, b]) => S.line(R[a][0], R[a][1], R[b][0], R[b][1], { cls: 's-mid w2' }, gIn));
+      st.igpPath = S.path(via([R.A, R.C1, R.B1]), { cls: 'f-none s-x w4 round fade hide' }, gIn);
+      ['A', 'C1', 'C2', 'B1', 'B2'].forEach((k) => router(gIn, R[k][0], R[k][1]));
+      S.text(200, 326, '加入者側', { cls: 't-c t-xs t-dim' }, gIn);
+      S.text(430, 326, '境目', { cls: 't-c t-xs t-dim' }, gIn);
+      S.text(388, 226, '境目', { cls: 't-c t-xs t-dim' }, gIn);
+      st.ispPfx = S.label(st.asIsp, 300, 404, '203.0.113.0/24', { cls: 't-sm t-b t-mono', box: 'f-sf s-rule w1' });
+      // IGP のコスト（段階3）
+      st.costs = S.g({ cls: 'fade hide' }, gIn);
+      [[250, 263, '10'], [242, 343, '10'], [312, 305, '10'], [372, 262, '10'], [372, 346, '30'], [338, 216, '10']].forEach(([x, y, c]) => S.text(x, y, c, { cls: 't-c t-xs t-mono t-b t-x' }, st.costs));
+      // ---- 上流と海外の大手
+      const gUp = S.g({}, st.asUp);
+      S.path(via([R.T1, [470, 72], R.T2]), { cls: 'f-none s-mid w2' }, gUp);
+      router(gUp, R.T1[0], R.T1[1]); router(gUp, 470, 72); router(gUp, R.T2[0], R.T2[1]);
+      const gT1 = S.g({}, st.asT1);
+      S.path(via([R.U1, [780, 72], R.U2]), { cls: 'f-none s-mid w2' }, gT1);
+      router(gT1, R.U1[0], R.U1[1]); router(gT1, 780, 72); router(gT1, R.U2[0], R.U2[1]);
+      // ---- Google の中
+      const gG = S.g({}, st.asG);
+      st.edge = box(gG, 720, 272, 180, 56, 'エッジのサーバー', '142.250.196.110');
+      S.line(R.G1[0], R.G1[1], 720, 300, { cls: 's-mid w2' }, gG);
+      S.line(R.G2[0], R.G2[1], 880, 272, { cls: 's-mid w2' }, gG);
+      router(gG, R.G1[0], R.G1[1]); router(gG, R.G2[0], R.G2[1]);
+      st.gPfx = S.label(st.asG, 780, 404, '142.250.0.0/15', { cls: 't-sm t-b t-mono', box: 'f-sf s-rule w1' });
+      // ---- AS の間の線（トランジットは実線、ピアリングは破線）
+      st.links = S.g({}, svg);
+      st.lTransit = S.line(R.B2[0], R.B2[1] - 10, R.T1[0], R.T1[1] + 10, { cls: 's-fg w3' }, st.links);
+      st.lPeerUp = S.line(R.T2[0] + 10, R.T2[1], R.U1[0] - 10, R.U1[1], { cls: 's-fg w2 dash' }, st.links);
+      st.lPeerG2 = S.line(R.U2[0], R.U2[1] + 10, R.G2[0], R.G2[1] - 10, { cls: 's-fg w2 dash' }, st.links);
+      st.lPeerIX = S.line(R.B1[0] + 10, R.B1[1], R.G1[0] - 10, R.G1[1], { cls: 's-fg w2 dash' }, st.links);
+      st.linkLbl = S.g({}, svg);
+      S.text(410, 150, 'トランジット', { cls: 't-sm t-b' }, st.linkLbl);
+      S.text(615, 62, 'ピアリング', { cls: 't-c t-xs t-b' }, st.linkLbl);
+      S.text(890, 162, 'ピアリング', { cls: 't-xs t-b' }, st.linkLbl);
+      S.text(540, 284, 'ピアリング（IX）', { cls: 't-c t-sm t-b' }, st.linkLbl);
+      // 料金の向き（段階4）
+      st.fee = S.g({ cls: 'fade hide' }, svg);
+      S.path('M386,182 V126', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.fee);
+      S.text(378, 160, '料金', { cls: 't-xs t-b t-x', 'text-anchor': 'end' }, st.fee);
+      // 線の見方
+      st.key = S.g({}, svg);
+      S.line(24, 468, 64, 468, { cls: 's-fg w3' }, st.key);
+      S.text(72, 472, 'トランジット（客が上流に料金を払う）', { cls: 't-sm' }, st.key);
+      S.line(24, 494, 64, 494, { cls: 's-fg w2 dash' }, st.key);
+      S.text(72, 498, 'ピアリング（互いの範囲だけ交換。多くは無償）', { cls: 't-sm' }, st.key);
+      // 範囲の注記（段階2）
+      st.pfxNote = S.g({ cls: 'fade hide' }, svg);
+      S.rect(222, 390, 156, 28, { rx: 5, cls: 'f-none s-x w2' }, st.pfxNote);
+      S.rect(702, 390, 156, 28, { rx: 5, cls: 'f-none s-x w2' }, st.pfxNote);
+      S.text(300, 452, '家の 203.0.113.5 はこの範囲の中', { cls: 't-c t-sm t-b t-x' }, st.pfxNote);
+      S.text(780, 452, '142.250.196.110 はこの範囲の中', { cls: 't-c t-sm t-b t-x' }, st.pfxNote);
+      // IGP の注記（段階3）
+      st.igpNote = S.g({ cls: 'fade hide' }, svg);
+      S.text(300, 452, 'IGP：コストの合計が最小の道（10 + 10 = 20）', { cls: 't-c t-sm t-b t-x' }, st.igpNote);
+      // Tier 1（段階5）
+      st.tier = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.tier, 545, 41, 'Tier 1', { cls: 't-sm t-b t-x', box: 'f-x-soft s-x w1', w: 64 });
+      S.label(st.tier, 900, 41, 'Tier 1', { cls: 't-sm t-b t-x', box: 'f-x-soft s-x w1', w: 64 });
+      S.text(615, 145, 'Tier 1 どうしはピアリング', { cls: 't-c t-xs t-b t-x' }, st.tier);
+      // パケット
+      st.pG = pkt(svg, '宛先 142.250.196.110');
+      st.pX = pkt(svg, '宛先 192.0.2.7');
+      // 止まる位置で札がエッジの箱の題や図の端にかからないよう、道の終わりは箱と枠の手前にする
+      st.rG = road(svg, via([R.A, R.C1, R.B1, R.G1, [686, 300]]));
+      st.rX = road(svg, via([R.A, R.C1, R.B2, R.T1, [470, 72], R.T2, R.U1, [780, 72], [880, 72]]));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.pfxNote, i === 1);
+      S.fade(st.costs, i === 2);
+      S.fade(st.igpPath, i === 2);
+      S.fade(st.igpNote, i === 2);
+      S.fade(st.fee, i === 3);
+      S.fade(st.tier, i === 4);
+      // 薄くする所
+      dim(st.asUp, i === 1 || i === 2);
+      dim(st.asT1, i === 1 || i === 2);
+      dim(st.asG, i === 2 || i === 4);
+      dim(st.asIsp, i === 4);
+      dim(st.home, i === 2 || i === 4);
+      dim(st.links, i === 1 || i === 2);
+      dim(st.linkLbl, i === 1 || i === 2);
+      st.lPeerUp.setAttribute('class', i === 4 ? 's-x w3 dash' : 's-fg w2 dash');
+      st.pG.show(i === 0 || i === 3);
+      st.pX.show(i === 3);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      if (i === 0 || i === 3) run(st.pG.g, st.rG, ctx.ts, 4.2, 0.8, 0.363);
+      if (i === 3) run(st.pX.g, st.rX, ctx.ts, 5.0, 0.8, 0.988);
+    }
+  };
+
+  /* 行の並んだ表。cols は列の x（表の左端から）、rows は文字列の配列の配列 */
+  function table(p, x, y, w, cols, head, rows, opts) {
+    opts = opts || {};
+    const g = S.g({}, p);
+    const rh = opts.rh || 26;
+    const h = rh * (rows.length + 1) + 8;
+    if (!opts.nobox) S.rect(x, y, w, h, { rx: 6, cls: opts.box || 'f-sf s-rule w1' }, g);
+    head.forEach((hd, k) => S.text(x + cols[k], y + 18, hd, { cls: 't-sm t-b t-dim' }, g));
+    S.line(x + 6, y + rh + 2, x + w - 6, y + rh + 2, { cls: 's-rule w1' }, g);
+    const rowG = rows.map((r, ri) => {
+      const rg = S.g({}, g);
+      const bg = S.rect(x + 4, y + rh * (ri + 1) + 5, w - 8, rh - 2, { rx: 3, cls: 'f-x-soft', style: { opacity: 0 } }, rg);
+      const cells = r.map((c, k) => S.text(x + cols[k], y + rh * (ri + 2) - 3, c, { cls: 't-sm' + ((opts.mono || [])[k] ? ' t-mono' : '') }, rg));
+      return { g: rg, bg, cells };
+    });
+    return { g, rows: rowG, h };
+  }
+
+  /* ================================================================
+     場面2 BGP
+     ================================================================ */
+  const s2 = {
+    steps: [
+      { title: '隣の AS と BGP で話す', text: '境目のルーターどうしが TCP の 179 番で接続し、UPDATE というメッセージで経路を広告する。中身は宛先の範囲（142.250.0.0/15）、通ってきた AS の列（AS_PATH）、次に渡す相手のアドレス（NEXT_HOP）など。Google はまず AS_PATH「15169」で隣へ送る。' },
+      { title: '伝わるたびに AS_PATH が伸びる', text: '広告を受けた AS は、自分の番号を AS_PATH の先頭に足して、さらに隣へ送る。AS64511 と AS64510 を経て届く広告は「64510 64511 15169」になる。自分の番号がすでに入っている広告は、一周して戻ってきたものなので捨てる（ループの防止）。' },
+      { title: '候補から 1 つを選ぶ', text: 'AS64500 には、Google から直接の「15169」と、上流経由の「64510 64511 15169」の 2 つが届く。方針の値（LOCAL_PREF）の高い方、同じなら AS_PATH の短い方、と規則を順に当てて 1 つに決める。多くの ISP は、料金の掛からないピアの経路を上流より優先する。' },
+      { title: '広告とパケットは逆向きに流れる', text: '142.250.0.0/15 の広告は Google から ISP へ流れ、その範囲宛てのパケットは ISP から Google へ流れる。ISP も自分の 203.0.113.0/24 を Google と上流に広告し、返事のパケットはその広告の逆をたどって家に戻る。行きと帰りの道は、別々の広告で決まる。' },
+      { title: '道が切れたら別の候補へ', text: 'Google との直接の接続が切れると、AS64500 はそこから聞いた経路を消し、残っていた上流経由の候補に切り替える。経路の取り消し（UPDATE の withdraw）と新しい広告が AS から AS へ伝わり、全体が落ち着くまで数秒〜数分かかることがある。' },
+      { title: '全部の広告を集めた経路表', text: 'すべての AS の広告を集めると、2025 年時点で IPv4 は約 100 万、IPv6 は約 22 万の経路になる。ISP の境目のルーターの多くは、この表をまるごと持つ。BGP は届いた広告をおおむね信じるので、誤った広告も同じように広がる（[[5:4|2008 年の YouTube]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const R = { P1: [230, 100], P2: [290, 72], Q1: [690, 72], Q2: [860, 100], G2: [860, 215], G1: [716, 255], I2: [244, 255], I1: [230, 215] };
+      // ---- AS
+      st.asUp = asArea(svg, 60, 24, 250, 96, 'AS64510', '上流の ISP（例）');
+      st.asT1 = asArea(svg, 650, 24, 250, 96, 'AS64511', '海外の大手 ISP（例）');
+      st.asIsp = asArea(svg, 24, 180, 250, 110, 'AS64500', '家の ISP（例）');
+      st.asG = asArea(svg, 686, 180, 250, 110, 'AS15169', 'Google');
+      [[st.asUp, 'P1', 'P2'], [st.asT1, 'Q1', 'Q2'], [st.asIsp, 'I1', 'I2'], [st.asG, 'G1', 'G2']].forEach(([g, a, b]) => {
+        S.line(R[a][0], R[a][1], R[b][0], R[b][1], { cls: 's-mid w2' }, g);
+        router(g, R[a][0], R[a][1]); router(g, R[b][0], R[b][1]);
+      });
+      S.label(st.asIsp, 104, 266, '203.0.113.0/24', { cls: 't-sm t-b t-mono', box: 'f-sf s-rule w1' });
+      S.label(st.asG, 846, 266, '142.250.0.0/15', { cls: 't-sm t-b t-mono', box: 'f-sf s-rule w1' });
+      // ---- AS の間
+      st.lUp = S.line(230, 109, 230, 206, { cls: 's-fg w3' }, svg);
+      S.text(240, 142, 'トランジット', { cls: 't-sm t-b' }, svg);
+      st.lT = S.line(299, 72, 681, 72, { cls: 's-fg w2 dash' }, svg);
+      S.text(490, 62, 'ピアリング', { cls: 't-c t-sm t-b' }, svg);
+      st.lG = S.line(860, 109, 860, 206, { cls: 's-fg w2 dash' }, svg);
+      S.text(870, 152, 'ピアリング', { cls: 't-sm t-b' }, svg);
+      st.lIX = S.line(253, 255, 707, 255, { cls: 's-fg w2 dash' }, svg);
+      st.ixLbl = S.text(480, 234, 'ピアリング（IX）', { cls: 't-c t-sm t-b' }, svg);
+      st.cut = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 263, '✕', { cls: 't-c t-xxl t-b t-x' }, st.cut);
+      S.text(480, 290, '接続が切れた', { cls: 't-c t-sm t-b t-x' }, st.cut);
+      // ---- 道
+      st.rDirect = road(svg, 'M716,255 H244');
+      st.rDirectBack = road(svg, 'M244,255 H716');
+      // 上流経由の広告は AS64500 の枠の手前で止める（止まった札が枠の題を隠さないように）
+      const upPts = [R.G2, R.Q2, R.Q1, R.P2, R.P1, [230, 170]];
+      st.rUp = road(svg, via(upPts));
+      // AS_PATH が伸びる位置（AS64511 を出る Q1、AS64510 を出る P1）を、道の上の割合で持っておく
+      const cum = upPts.map((q, k) => upPts.slice(1, k + 1).reduce((s, p, j) => s + Math.hypot(p[0] - upPts[j][0], p[1] - upPts[j][1]), 0));
+      st.upAt = [cum[2] / cum[5], cum[4] / cum[5]];
+      st.rUpBack = road(svg, via([R.I1, R.P1, R.P2, R.Q1, R.Q2, R.G2]));
+      st.rUpOwn = road(svg, via([R.I1, R.P1, R.P2]));
+      // ---- 広告とパケット
+      st.adD = advert(svg, ['142.250.0.0/15', 'AS_PATH 15169']);
+      st.adU = advert(svg, ['142.250.0.0/15', 'AS_PATH 15169']);
+      st.adOwn = advert(svg, ['203.0.113.0/24', 'AS_PATH 64500']);
+      st.pkGo = pkt(svg, '宛先 142.250.196.110');
+      st.pkBack = pkt(svg, '宛先 203.0.113.5');
+      st.pkUp = pkt(svg, '宛先 142.250.196.110');
+      // ---- 下の欄
+      S.rect(24, 318, 912, 226, { rx: 8, cls: 'f-sf s-rule w1' }, svg);
+      st.panels = [];
+      // 段階1: UPDATE の中身
+      const p0 = S.g({ cls: 'fade' }, svg);
+      S.text(44, 346, 'UPDATE メッセージの主な中身（Google → AS64500）', { cls: 't-md t-b' }, p0);
+      [['宛先の範囲', '142.250.0.0/15'], ['AS_PATH', '15169'], ['NEXT_HOP', 'Google のルーターのアドレス（IX 上）'], ['そのほか', 'ORIGIN、MED などの属性']].forEach(([k, v], r) => {
+        S.text(64, 380 + r * 30, k, { cls: 't-sm t-b t-dim' }, p0);
+        S.text(200, 380 + r * 30, v, { cls: 't-sm' + (r < 2 ? ' t-mono t-b' : '') }, p0);
+      });
+      S.text(916, 380, 'TCP 179 番の接続の上で送る', { cls: 't-sm t-dim', 'text-anchor': 'end' }, p0);
+      S.text(916, 404, '接続の初めに OPEN、以後は UPDATE と KEEPALIVE', { cls: 't-sm t-dim', 'text-anchor': 'end' }, p0);
+      st.panels.push(p0);
+      // 段階2: AS_PATH の伸び方
+      const p1 = S.g({ cls: 'fade hide' }, svg);
+      S.text(44, 346, 'AS_PATH の伸び方', { cls: 't-md t-b' }, p1);
+      [['Google（AS15169）が送る', '15169'], ['AS64511 が送る', '64511 15169'], ['AS64510 が送る', '64510 64511 15169']].forEach(([k, v], r) => {
+        S.text(64, 382 + r * 32, k, { cls: 't-sm' }, p1);
+        S.path(`M262,${378 + r * 32} H300`, { cls: 'f-none s-d w2', 'marker-end': mk('d') }, p1);
+        S.label(p1, 312 + tw(v, 11) / 2 + 8, 378 + r * 32, v, { cls: 't-sm t-b t-mono', box: 'f-d-soft s-d w1' });
+      });
+      S.text(600, 382, '先頭に自分の番号を足して隣へ', { cls: 't-sm t-dim' }, p1);
+      S.text(600, 414, '受け取った列に自分の番号があれば', { cls: 't-sm t-x t-b' }, p1);
+      S.text(600, 432, '捨てる（ループの防止）', { cls: 't-sm t-x t-b' }, p1);
+      st.panels.push(p1);
+      // 段階3・5: 候補の表
+      const p2 = S.g({ cls: 'fade hide' }, svg);
+      S.text(44, 346, 'AS64500 が受け取った 142.250.0.0/15 の候補', { cls: 't-md t-b' }, p2);
+      st.cand = table(p2, 44, 360, 872, [16, 250, 470, 600, 740], ['AS_PATH', '次に渡す相手', '相手の種類', '方針の値', '結果'], [
+        ['15169', 'Google（IX）', 'ピア', '高い', ''],
+        ['64510 64511 15169', 'AS64510', '上流', '低い', '']
+      ], { rh: 30, mono: [true], nobox: true });
+      st.strike = S.line(52, 413, 900, 413, { cls: 's-x w2', style: { opacity: 0 } }, p2);
+      S.text(60, 480, '選び方：① 方針の値（LOCAL_PREF）が高い　→　② AS_PATH が短い　→　③ そのほかの規則（MED、AS の中での近さ など）', { cls: 't-sm t-dim' }, p2);
+      S.text(60, 504, '方針の値は各 AS が自分で決める。多くは「客 ＞ ピア ＞ 上流」の順に高くする', { cls: 't-sm t-dim' }, p2);
+      st.panels.push(p2);
+      // 段階4: 向き
+      const p3 = S.g({ cls: 'fade hide' }, svg);
+      S.text(44, 346, '広告の向きとパケットの向き', { cls: 't-md t-b' }, p3);
+      [['広告 142.250.0.0/15', 'AS64500 ← Google', 'パケット 宛先 142.250.196.110', 'AS64500 → Google'], ['広告 203.0.113.0/24', 'AS64500 → Google', '返事 宛先 203.0.113.5', 'AS64500 ← Google']].forEach(([a, b, c, d], r) => {
+        const y = 386 + r * 40;
+        S.label(p3, 64 + tw(a, 11) / 2 + 8, y, a, { cls: 't-sm t-b t-mono', box: 'f-d-soft s-d w1' });
+        S.text(250, y + 4, b, { cls: 't-sm t-mono' }, p3);
+        S.label(p3, 470 + tw(c, 11) / 2 + 8, y, c, { cls: 't-sm t-b t-mono t-sf', box: 'f-d' });
+        S.text(740, y + 4, d, { cls: 't-sm t-mono' }, p3);
+      });
+      S.text(64, 482, '広告が届いた向きと逆に、パケットが流れる', { cls: 't-sm t-dim' }, p3);
+      st.panels.push(p3);
+      // 段階6: 経路表
+      const p5 = S.g({ cls: 'fade hide' }, svg);
+      S.text(44, 346, 'AS64500 の境目のルーターの経路表（一部）', { cls: 't-md t-b' }, p5);
+      table(p5, 44, 356, 872, [16, 220, 470], ['宛先の範囲', 'AS_PATH', '出口'], [
+        ['142.250.0.0/15', '15169', 'IX（Google）'],
+        ['192.0.2.0/24', '64510 64511 64496', '上流 AS64510'],
+        ['198.51.100.0/24', '—（自分の網）', 'ISP の中'],
+        ['203.0.113.0/24', '—（自分の網）', 'ISP の中'],
+        ['…', '…', '…　IPv4 で約 100 万行、IPv6 で約 22 万行（2025 年）']
+      ], { rh: 26, mono: [true, true], nobox: true });
+      st.panels.push(p5);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const panelOf = [0, 1, 2, 3, 2, 4];
+      st.panels.forEach((p, k) => S.fade(p, panelOf[i] === k));
+      // 候補の表
+      const res = st.cand.rows.map((r) => r.cells[4]);
+      res[0].textContent = i === 4 ? '消えた（接続が切れた）' : i >= 2 ? '✓ 使う' : '';
+      res[1].textContent = i === 4 ? '✓ 使う' : i >= 2 ? '予備' : '';
+      res[0].setAttribute('class', 't-sm t-b' + (i === 4 ? ' t-dim' : ' t-x'));
+      res[1].setAttribute('class', 't-sm t-b' + (i === 4 ? ' t-x' : ' t-dim'));
+      st.cand.rows[0].bg.style.opacity = i === 2 || i === 3 ? 1 : 0;
+      st.cand.rows[1].bg.style.opacity = i === 4 ? 1 : 0;
+      st.cand.rows[0].g.style.opacity = i === 4 ? 0.45 : '';
+      st.strike.style.opacity = i === 4 ? 1 : 0;
+      // 線
+      S.fade(st.cut, i === 4);
+      st.lIX.style.opacity = i === 4 ? 0.3 : '';
+      st.ixLbl.style.opacity = i === 4 ? 0.3 : '';
+      st.lIX.setAttribute('class', i === 2 || i === 3 ? 's-x w3 dash' : 's-fg w2 dash');
+      [st.lUp, st.lT, st.lG].forEach((l) => l.setAttribute('class', (i === 4 ? 's-x w3' : 's-fg ' + (l === st.lUp ? 'w3' : 'w2')) + (l === st.lUp ? '' : ' dash')));
+      dim(st.asUp, i === 0 || i === 3);
+      dim(st.asT1, i === 0 || i === 3);
+      // 荷札
+      st.adD.show(i === 0 || i === 2 || i === 3);
+      st.adU.show(i === 1 || i === 2);
+      st.adOwn.show(i === 3);
+      st.pkGo.show(i === 3);
+      st.pkBack.show(i === 3);
+      st.pkUp.show(i === 4);
+      [st.adD, st.adU, st.adOwn, st.pkGo, st.pkBack, st.pkUp].forEach((o) => { o.g.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      // 上流経由の広告。AS を出るときに先頭へ番号が足される
+      const upAd = (f) => {
+        S.place(st.adU.g, st.rUp, f);
+        st.adU.set(['142.250.0.0/15', 'AS_PATH ' + (f < st.upAt[0] ? '15169' : f < st.upAt[1] ? '64511 15169' : '64510 64511 15169')]);
+      };
+      if (i === 0) run(st.adD.g, st.rDirect, ts, 3.2, 1.0, 0.25);
+      if (i === 1) {
+        const q = U.seq(ts + 2.72, [6.0, 1.6], true);
+        upAd(q.i === 0 ? q.f : 1);
+        st.adU.g.style.opacity = 1;
+      }
+      if (i === 2) {
+        const q = U.seq(ts + 2.72, [6.0, 2.0], true);
+        const f = q.i === 0 ? q.f : 1;
+        upAd(f);
+        S.place(st.adD.g, st.rDirect, Math.min(1, f * 1.9));
+        st.adU.g.style.opacity = 1;
+        st.adD.g.style.opacity = 1;
+      }
+      if (i === 3) {
+        // 広告（右→左）→ パケット（左→右）→ 自分の範囲の広告（左→右）→ 返事（右→左）
+        const q = U.seq(ts + 0.85, [2.4, 2.4, 2.4, 2.4], true);
+        const f = U.ease.inOut(q.f);
+        [st.adD, st.pkGo, st.adOwn, st.pkBack].forEach((o, k) => { o.g.style.opacity = q.i === k ? 1 : 0; });
+        if (q.i === 0) S.place(st.adD.g, st.rDirect, f);
+        if (q.i === 1) S.place(st.pkGo.g, st.rDirectBack, f);
+        if (q.i === 2) S.place(st.adOwn.g, st.rDirectBack, f);
+        if (q.i === 3) S.place(st.pkBack.g, st.rDirect, f);
+      }
+      if (i === 4) run(st.pkUp.g, st.rUpBack, ts, 5.0, 0.8, 0.566);
+    }
+  };
+
+  /* AS の箱。AS 番号（等幅）と名前 */
+  function asBox(p, x, y, w, h, asn, name, cls) {
+    const g = S.g({}, p);
+    S.rect(x, y, w, h, { rx: 6, cls: cls || 'f-sf s-fg w15' }, g);
+    S.text(x + w / 2, y + h / 2 - 3, asn, { cls: 't-c t-md t-b t-mono' }, g);
+    S.text(x + w / 2, y + h / 2 + 15, name, { cls: 't-c t-sm t-dim' }, g);
+    return g;
+  }
+
+  /* ================================================================
+     場面3 IX とピアリング
+     ================================================================ */
+  const s3 = {
+    steps: [
+      { title: 'IX が無いと上流を回る', text: '同じ東京にある 2 つの ISP でも、直接つながっていなければ、パケットは両者の上流（トランジット）の網を通る。道が長くなるうえ、両方の ISP が流した量に応じて上流に料金を払う。国内どうしの通信を国内で直接やりとりする場所として、各地に IX が作られた。' },
+      { title: 'IX の中身はスイッチ', text: 'IX（Internet Exchange）の中身は、データセンターに置いた大きなイーサネットスイッチ（L2）。参加する AS は自分のルーターを 1 本の線（10〜400 Gbps など）でつなぐ。スイッチは MAC アドレスで運ぶだけなので、IP から見ると、相手のルーターは 1 ホップ先の隣になる。' },
+      { title: 'ピアリング：互いの範囲を教え合う', text: 'AS64500 と Google は IX の上で BGP を張り、ISP は 203.0.113.0/24 を、Google は 142.250.0.0/15 を広告する。以後、互いの範囲宛てのパケットは IX を通って直接届く。払うのは IX の接続料などで、ピアリングの相手には多くの場合払わない。' },
+      { title: 'ルートサーバーで BGP をまとめる', text: '参加者が数百あると、全員と 1 対 1 で BGP を張るのは手間がかかる。IX のルートサーバー（DNS の root server とは別）と張れば、ほかの参加者の広告をまとめて受け取れる。パケットは参加者どうしが直接送り合う。Google は 2024 年から原則としてこれを使わず、1 対 1 で張る。' },
+      { title: '量の多い相手とは直結する（PNI）', text: '通信量がとくに多い組み合わせ（大手の ISP と Google など）は、共用のスイッチを通さず、同じデータセンターの中で両者のルーターを専用の光ファイバーで直結することが多い。これをプライベートピアリング（PNI）と呼ぶ。BGP の使い方は IX と同じ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // ---- 上流（トランジット）
+      st.transit = S.g({}, svg);
+      S.path('M125,236 V61 H380', { cls: 'f-none s-fg w3' }, st.transit);
+      S.path('M835,236 V61 H580', { cls: 'f-none s-fg w3' }, st.transit);
+      S.text(135, 150, 'トランジット', { cls: 't-sm t-b' }, st.transit);
+      S.text(825, 150, 'トランジット', { cls: 't-sm t-b', 'text-anchor': 'end' }, st.transit);
+      st.transitHL = S.path('M125,236 V61 H835 V236', { cls: 'f-none s-x w4 round fade hide' }, svg);
+      st.up = asBox(svg, 380, 30, 200, 62, 'AS64510', '上流の ISP（トランジット）');
+      st.feeNote = S.g({ cls: 'fade hide' }, svg);
+      S.text(480, 118, '両方の ISP が上流に料金を払う', { cls: 't-c t-sm t-b t-x' }, st.feeNote);
+      // ---- IX のスイッチ
+      st.ix = S.g({}, svg);
+      S.text(485, 228, 'IX のスイッチ（L2、東京のデータセンターの中）', { cls: 't-c t-sm t-b' }, st.ix);
+      S.rect(300, 240, 370, 52, { rx: 8, cls: 'f-in s-fg w2' }, st.ix);
+      S.line(312, 266, 658, 266, { cls: 's-rule w3' }, st.ix);
+      [[300, 266], [670, 266], [385, 292], [585, 292], [640, 292]].forEach(([x, y]) => S.rect(x - 6, y - 6, 12, 12, { rx: 2, cls: 'f-fg' }, st.ix));
+      st.ixHL = S.rect(300, 240, 370, 52, { rx: 8, cls: 'f-none s-x w3 fade hide' }, svg);
+      // ---- 参加者
+      st.isp = asBox(svg, 40, 236, 170, 60, 'AS64500', '家の ISP');
+      st.isp2 = asBox(svg, 750, 236, 170, 60, 'AS64501', '別の ISP（例）');
+      st.goo = asBox(svg, 300, 420, 170, 60, 'AS15169', 'Google');
+      st.oth = S.g({}, svg);
+      S.rect(512, 410, 170, 60, { rx: 6, cls: 'f-sf s-rule w1' }, st.oth);
+      S.rect(506, 415, 170, 60, { rx: 6, cls: 'f-sf s-rule w1' }, st.oth);
+      asBox(st.oth, 500, 420, 170, 60, 'AS64502 …', 'ほかの参加者（例）');
+      st.rs = S.g({}, svg);
+      box(st.rs, 730, 420, 180, 60, 'ルートサーバー', '', 'f-sf s-fg w15');
+      S.text(820, 470, 'route server（IX が運用）', { cls: 't-c t-sm t-dim' }, st.rs);
+      // 接続の線
+      st.ports = S.g({}, svg);
+      S.line(210, 266, 294, 266, { cls: 's-fg w3' }, st.ports);
+      S.line(676, 266, 750, 266, { cls: 's-fg w3' }, st.ports);
+      S.line(385, 298, 385, 420, { cls: 's-fg w3' }, st.ports);
+      S.line(585, 298, 585, 420, { cls: 's-fg w3' }, st.ports);
+      S.path('M820,420 V340 H640 V298', { cls: 'f-none s-fg w2' }, st.ports);
+      st.portNote = S.g({ cls: 'fade hide' }, svg);
+      S.text(252, 256, '1 本', { cls: 't-c t-sm t-b t-x' }, st.portNote);
+      S.text(713, 256, '1 本', { cls: 't-c t-sm t-b t-x' }, st.portNote);
+      S.text(395, 360, '1 本', { cls: 't-sm t-b t-x' }, st.portNote);
+      S.text(595, 360, '1 本', { cls: 't-sm t-b t-x' }, st.portNote);
+      st.rsNote = S.g({ cls: 'fade hide' }, svg);
+      S.text(820, 506, '経路だけを中継し、パケットは通らない', { cls: 't-c t-sm t-b t-x' }, st.rsNote);
+      S.text(820, 526, '1 対 1 なら 1 社あたり（参加数 − 1）本', { cls: 't-c t-sm t-dim' }, st.rsNote);
+      // ---- PNI
+      st.pni = S.g({}, svg);
+      S.path('M125,296 V450 H300', { cls: 'f-none s-fg w3' }, st.pni);
+      S.text(200, 480, 'PNI：専用の光ファイバーで直結', { cls: 't-c t-sm t-b' }, st.pni);
+      st.pniHL = S.path('M125,296 V450 H300', { cls: 'f-none s-x w4 round fade hide' }, svg);
+      // ---- 道と荷札
+      st.rTransit = road(svg, 'M125,236 V61 H835 V236');
+      st.rIX = road(svg, 'M210,266 H750');
+      st.rToG = road(svg, 'M210,266 H385 V420');
+      st.rFromG = road(svg, 'M385,420 V266 H210');
+      // 段階4：別の ISP（AS64501）の広告がルートサーバーを経て、家の ISP とほかの参加者へ配られる。
+      // Google は 2024 年からルートサーバーを使わない方針なので、ここでは別の ISP の広告で示す
+      st.rBtoRS = road(svg, 'M750,266 H640 V340 H820 V420');
+      st.rRStoI = road(svg, 'M820,420 V340 H640 V266 H210');
+      st.rRStoO = road(svg, 'M820,420 V340 H640 V266 H585 V420');
+      st.rPNI = road(svg, 'M125,296 V450 H300');
+      st.pk = pkt(svg, 'パケット');
+      st.pk2 = pkt(svg, 'パケット');
+      st.adI = advert(svg, ['203.0.113.0/24', 'AS_PATH 64500']);
+      st.adG = advert(svg, ['142.250.0.0/15', 'AS_PATH 15169']);
+      st.adB = advert(svg, ['AS64501 の範囲', 'AS_PATH 64501']);
+      st.adB2 = advert(svg, ['AS64501 の範囲', 'AS_PATH 64501']);
+      st.ads = [st.pk, st.pk2, st.adI, st.adG, st.adB, st.adB2];
+      // 上流の箱をいちばん上に重ね、パケットが上流の網の中を通り抜けるように見せる
+      svg.appendChild(st.up);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.transitHL, i === 0);
+      S.fade(st.feeNote, i === 0);
+      S.fade(st.ixHL, i === 1 || i === 2 || i === 3);
+      S.fade(st.portNote, i === 1);
+      S.fade(st.rsNote, i === 3);
+      S.fade(st.pniHL, i === 4);
+      dim(st.ix, i === 0 || i === 4);
+      dim(st.ports, i === 0);
+      dim(st.transit, i >= 1);
+      dim(st.up, i >= 1);
+      dim(st.goo, i === 0 || i === 3);
+      dim(st.oth, i !== 1 && i !== 3);
+      dim(st.rs, i !== 1 && i !== 3);
+      dim(st.isp2, i === 2 || i === 4);
+      dim(st.pni, i !== 4);
+      st.ads.forEach((o) => { o.g.style.opacity = 0; });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      const hideAll = () => st.ads.forEach((o) => { o.g.style.opacity = 0; });
+      if (i === 0) run(st.pk.g, st.rTransit, ts, 4.5, 0.8, 0.283);
+      if (i === 1) run(st.pk.g, st.rIX, ts, 2.6, 0.8, 0.5);
+      if (i === 2) {
+        // 広告を交換してから、パケットが直接届く
+        const q = U.seq(ts + 0.93, [2.4, 2.4, 0.4], true);
+        hideAll();
+        if (q.i === 0) {
+          S.place(st.adI.g, st.rToG, U.ease.inOut(q.f)); st.adI.g.style.opacity = 1;
+          S.place(st.adG.g, st.rFromG, U.ease.inOut(q.f)); st.adG.g.style.opacity = 1;
+        } else if (q.i === 1) {
+          S.place(st.pk.g, st.rToG, U.ease.inOut(q.f)); st.pk.g.style.opacity = 1;
+        }
+      }
+      if (i === 3) {
+        // 別の ISP の広告がルートサーバーへ → 参加者へ配られる → パケットは別の ISP へ直接
+        const q = U.seq(ts + 1.3, [2.6, 2.6, 2.2, 0.4], true);
+        hideAll();
+        if (q.i === 0) { S.place(st.adB.g, st.rBtoRS, U.ease.inOut(q.f)); st.adB.g.style.opacity = 1; }
+        else if (q.i === 1) {
+          S.place(st.adB.g, st.rRStoI, U.ease.inOut(q.f)); st.adB.g.style.opacity = 1;
+          S.place(st.adB2.g, st.rRStoO, U.ease.inOut(q.f)); st.adB2.g.style.opacity = 1;
+        } else if (q.i === 2) { S.place(st.pk.g, st.rIX, U.ease.inOut(q.f)); st.pk.g.style.opacity = 1; }
+      }
+      if (i === 4) {
+        run(st.pk.g, st.rPNI, ts, 2.2, 0.5, 0.25);
+        run(st.pk2.g, st.rPNI, ts, 2.2, 0.5, 0.75);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 海底ケーブルと DWDM
+     ================================================================ */
+  const s4 = {
+    steps: [
+      { title: '大陸の間は海底の光ファイバー', text: '世界で約 570 本の海底ケーブルが使われている（2025 年時点）。衛星が運ぶのはごく一部。日本と米国西海岸の間は約 9,000 km で、ファイバーの中の光は秒速約 20 万 km なので片道に約 45 ms、往復で 90 ms 以上かかる。この遅れは回線を太くしても縮まない。' },
+      { title: 'ケーブルの中身', text: '中心に数対〜二十数対の光ファイバーがあり（1 対で行きと帰り）、鋼線、銅の管、ポリエチレンの被覆が順に包む。深海の部分は直径 2 cm ほどで海底にそのまま置き、漁具や錨に触れやすい浅い所は鋼線を巻いて太くし、海底に埋める。' },
+      { title: '中継器が光のまま増幅する', text: '光は進むうちに弱まるので、約 60〜90 km ごとに中継器を置き、エルビウムを添加したファイバー（EDFA）で光のまま増幅する。全部の波長をまとめて増幅でき、電気の信号には戻さない。中継器の電源は、陸揚げ局から銅の管に流す直流（最大 1 万数千ボルト）で送る。' },
+      { title: 'DWDM：波長ごとに別の信号', text: '送る側は、波長が少しずつ違うレーザー（C バンド、約 1530〜1565 nm）でそれぞれ別の信号を光にし、合波器で 1 本のファイバーにまとめる。受ける側は分波器で波長ごとに分け、別々の受光器で読む。約 0.4 nm（50 GHz）間隔なら約 90 波を並べられる。' },
+      { title: '容量の目安', text: '1 波で毎秒数百ギガビット、それを数十〜約 100 波重ねると、ファイバー 1 対で毎秒 10〜20 テラビット前後になる。Google が敷いた Topaz（カナダ〜日本）は 16 対・設計容量 240 Tbps。国内の基幹網も、陸上の光ファイバーで同じ DWDM を使う。' },
+      { title: 'YouTube の動画は海を渡るか', text: '多くの場合、渡らない。よく見られる動画は ISP の中の GGC や国内の Google の拠点に置かれていて、家にはそこから届く（[[6|Google に着くまで]]）。海底ケーブルを通るのは、国内のキャッシュへの補充、あまり見られない動画、海外のサービスとの通信などが中心になる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ================= 上：海の断面 =================
+      const top = st.top = S.g({}, svg);
+      S.rect(150, 74, 660, 158, { cls: 'f-in' }, top);
+      S.line(150, 74, 810, 74, { cls: 's-dim w1' }, top);
+      S.path('M150,74 C170,90 182,150 214,202 L260,216 H700 L746,202 C778,150 790,90 810,74 V232 H150 Z', { cls: 'f-rule s-none' }, top);
+      S.path('M16,58 H130 C140,58 146,64 150,74 V232 H16 Z', { cls: 'f-soft s-rule w1' }, top);
+      S.path('M944,58 H830 C820,58 814,64 810,74 V232 H944 Z', { cls: 'f-soft s-rule w1' }, top);
+      S.text(83, 226, '日本', { cls: 't-c t-md t-b' }, top);
+      S.text(877, 226, '米国西海岸', { cls: 't-c t-md t-b' }, top);
+      box(top, 26, 76, 114, 30, '陸揚げ局', '', 'f-sf s-fg w15', 't-sm');
+      box(top, 820, 76, 114, 30, '陸揚げ局', '', 'f-sf s-fg w15', 't-sm');
+      S.text(480, 92, '太平洋', { cls: 't-c t-sm t-dim' }, top);
+      // 距離
+      st.dist = S.g({}, svg);
+      S.line(150, 40, 810, 40, { cls: 's-fg w15', 'marker-start': mk('fg'), 'marker-end': mk('fg') }, st.dist);
+      S.rect(330, 28, 300, 24, { cls: 'f-sf' }, st.dist);
+      S.text(480, 45, '約 9,000 km（光で片道 約 45 ms）', { cls: 't-c t-md t-b' }, st.dist);
+      // ケーブルと光
+      const cd = 'M140,91 H150 C170,98 182,152 214,199 L260,212 H700 L746,199 C778,152 790,98 810,91 H820';
+      st.cable = S.path(cd, { cls: 'f-none s-fg w3 round' }, svg);
+      st.light = A.flow(st.cable, { count: 16, speed: 110, r: 3.5, cls: 'f-p', parent: svg });
+      st.light.update(0);
+      // 給電（銅の管を流れる直流）
+      st.feed = S.g({ cls: 'fade hide' }, svg);
+      const fd = S.path(cd, { cls: 'f-none s-e w1', transform: 'translate(0,7)' }, st.feed);
+      st.feedFlow = A.flow(fd, { count: 22, speed: 60, r: 2.2, cls: 'f-e', parent: st.feed });
+      st.feedFlow.g.setAttribute('transform', 'translate(0,7)');
+      st.feedFlow.update(0);
+      S.text(30, 128, '給電装置', { cls: 't-sm t-b t-e' }, st.feed);
+      S.text(30, 144, '直流 最大', { cls: 't-xs t-e' }, st.feed);
+      S.text(30, 157, '1 万数千 V', { cls: 't-xs t-e' }, st.feed);
+      // 中継器
+      const L = S.len(st.cable);
+      st.reps = S.g({}, svg);
+      st.repX = [];
+      for (let k = 1; k <= 9; k++) {
+        const pt = S.along(st.cable, 0.02 + 0.96 * k / 10);
+        st.repX.push(pt.x);
+        S.rect(pt.x - 8, pt.y - 5, 16, 10, { rx: 3, cls: 'f-sf s-fg w15' }, st.reps);
+      }
+      st.repHL = S.g({ cls: 'fade hide' }, svg);
+      st.repX.forEach((x, k) => { const pt = S.along(st.cable, 0.02 + 0.96 * (k + 1) / 10); S.rect(pt.x - 11, pt.y - 8, 22, 16, { rx: 4, cls: 'f-none s-x w2' }, st.repHL); });
+      S.text(480, 250, '中継器（実際は約 60〜90 km ごと。図では数を減らしている）', { cls: 't-c t-sm t-b t-x' }, st.repHL);
+      // 光の強さ（段階3）
+      st.power = S.g({ cls: 'fade hide' }, svg);
+      const xs = st.repX.slice(1, 8);
+      let pd = '';
+      for (let k = 0; k < xs.length - 1; k++) {
+        const a = xs[k], b = xs[k + 1];
+        for (let j = 0; j <= 12; j++) {
+          const x = a + (b - a) * j / 12;
+          const y = 104 + 40 * (1 - Math.exp(-1.6 * j / 12)) / (1 - Math.exp(-1.6));
+          pd += (pd ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+        }
+        if (k < xs.length - 2) pd += 'L' + b.toFixed(1) + ',104';
+      }
+      S.path(pd, { cls: 'f-none s-p w2' }, st.power);
+      S.text(480, 172, '光の強さ：進むと弱まり、中継器で元に戻る（図は模式）', { cls: 't-c t-sm t-b' }, st.power);
+      // 段階6：動画は国内から
+      st.yt = S.g({ cls: 'fade hide' }, svg);
+      box(st.yt, 26, 120, 114, 40, 'GGC・国内拠点', '', 'f-sf s-x w2', 't-sm');
+      box(st.yt, 26, 178, 114, 30, '家', '', 'f-sf s-fg w15', 't-sm');
+      S.path('M83,161 V177', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, st.yt);
+      S.path('M800,128 H160', { cls: 'f-none s-d w15 dash', 'marker-end': mk('d') }, st.yt);
+      S.rect(330, 116, 300, 22, { cls: 'f-in' }, st.yt);
+      S.text(480, 132, '海を渡るのは、補充・まれな動画・海外との通信など', { cls: 't-c t-sm t-b t-d' }, st.yt);
+      S.text(480, 172, 'よく見られる動画は、国内の GGC・拠点から家に届く', { cls: 't-c t-sm t-b t-x' }, st.yt);
+
+      // ================= 左下：ケーブルの断面 =================
+      const ca = st.cross = S.g({}, svg);
+      S.rect(16, 262, 314, 284, { rx: 8, cls: 'f-sf s-rule w1' }, ca);
+      S.text(30, 288, 'ケーブルの断面（深海の部分）', { cls: 't-md t-b' }, ca);
+      const cx = 104, cy = 408;
+      S.circle(cx, cy, 78, { cls: 'f-in s-fg w15' }, ca);
+      st.copper = S.circle(cx, cy, 52, { cls: 'f-none s-e w6' }, ca);
+      for (let k = 0; k < 14; k++) {
+        const a = Math.PI * 2 * k / 14;
+        S.circle(cx + Math.cos(a) * 38, cy + Math.sin(a) * 38, 6.5, { cls: 'f-mid s-sf w1' }, ca);
+      }
+      S.circle(cx, cy, 26, { cls: 'f-sf s-fg w15' }, ca);
+      st.fibers = S.g({}, ca);
+      for (let k = 0; k < 8; k++) {
+        const a = Math.PI * 2 * k / 8;
+        S.circle(cx + Math.cos(a) * 13, cy + Math.sin(a) * 13, 3.5, { cls: 'f-p' }, st.fibers);
+      }
+      const lbl = (y, x0, y0, t1, t2, cls) => {
+        S.line(x0, y0, 196, y - 4, { cls: 's-dim w1' }, ca);
+        S.text(200, y, t1, { cls: 't-sm t-b ' + (cls || '') }, ca);
+        if (t2) S.text(200, y + 15, t2, { cls: 't-xs t-dim' }, ca);
+      };
+      lbl(330, cx + 10, cy - 12, '光ファイバー', '数対〜二十数対');
+      lbl(372, cx + 34, cy - 18, '鋼線', '張力に耐える');
+      lbl(414, cx + 50, cy + 8, '銅の管', '中継器への給電', 't-e');
+      lbl(456, cx + 74, cy + 24, 'ポリエチレン', '絶縁と保護');
+      S.text(cx, 506, '直径 約 2 cm（図は拡大）', { cls: 't-c t-sm t-dim' }, ca);
+      st.pairNote = S.text(200, 530, '× 数対〜二十数対', { cls: 't-sm t-b t-x fade hide' }, ca);
+
+      // ================= 右下：DWDM =================
+      const dw = st.dwdm = S.g({}, svg);
+      S.rect(346, 262, 598, 284, { rx: 8, cls: 'f-sf s-rule w1' }, dw);
+      S.text(360, 288, 'DWDM：波長の違う光を 1 本に重ねて送り、分けて受ける', { cls: 't-md t-b' }, dw);
+      const ys = [304, 332, 360, 388];
+      st.dwFlows = [];
+      ys.forEach((y, k) => {
+        box(dw, 362, y, 54, 22, 'λ' + (k + 1), '', 'f-sf s-p w15', 't-sm');
+        box(dw, 870, y, 54, 22, 'λ' + (k + 1), '', 'f-sf s-p w15', 't-sm');
+        const a = S.path(`M416,${y + 11} C440,${y + 11} 446,${358 + k * 4} 470,${358 + k * 4}`, { cls: 'f-none s-p w15' }, dw);
+        const b = S.path(`M816,${358 + k * 4} C840,${358 + k * 4} 846,${y + 11} 870,${y + 11}`, { cls: 'f-none s-p w15' }, dw);
+        const c = S.path(`M506,${358 + k * 4} H780`, { cls: 'f-none s-none' }, dw);
+        [a, c, b].forEach((pp) => st.dwFlows.push(A.flow(pp, { count: pp === c ? 6 : 3, speed: 70 + k * 9, r: 2.6, cls: 'f-p', parent: dw, phase: k * 0.13 })));
+      });
+      st.dwFlows.forEach((f) => f.update(0));
+      S.text(389, 430, '… 約 90 波', { cls: 't-c t-sm t-dim' }, dw);
+      S.text(897, 430, '… 受光器', { cls: 't-c t-sm t-dim' }, dw);
+      S.polygon([[470, 306], [506, 340], [506, 392], [470, 426]], { cls: 'f-in s-fg w15' }, dw);
+      S.polygon([[780, 340], [816, 306], [816, 426], [780, 392]], { cls: 'f-in s-fg w15' }, dw);
+      S.text(488, 444, '合波器', { cls: 't-c t-sm t-b' }, dw);
+      S.text(798, 444, '分波器', { cls: 't-c t-sm t-b' }, dw);
+      S.rect(506, 352, 274, 28, { rx: 4, cls: 'f-p-soft s-p w1' }, dw);
+      S.text(580, 346, '1 本のファイバー', { cls: 't-c t-sm t-b' }, dw);
+      S.polygon([[628, 348], [668, 366], [628, 384]], { cls: 'f-sf s-fg w2' }, dw);
+      S.text(648, 402, '増幅（EDFA）', { cls: 't-c t-sm t-b' }, dw);
+      // スペクトル
+      S.text(360, 482, 'C バンド（約 1530〜1565 nm）に約 0.4 nm 間隔で並べる（図は本数を減らしている）', { cls: 't-sm' }, dw);
+      S.line(380, 520, 926, 520, { cls: 's-fg w1' }, dw);
+      for (let k = 0; k < 40; k++) S.rect(388 + k * 13.4, 492, 6, 28, { cls: 'f-p' }, dw);
+      S.text(391, 536, '1530 nm', { cls: 't-c t-xs t-mono t-dim' }, dw);
+      S.text(914, 536, '1565 nm', { cls: 't-c t-xs t-mono t-dim' }, dw);
+      S.text(653, 536, '波長 →', { cls: 't-c t-xs t-dim' }, dw);
+      // 容量（段階5）
+      st.cap = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.cap, 404, 455, '1 波：数百 Gbps', { cls: 't-sm t-b t-x', box: 'f-sf s-x w1' });
+      S.label(st.cap, 643, 318, '× 約 90 波 ＝ 1 対で 10〜20 Tbps 前後', { cls: 't-sm t-b t-x', box: 'f-sf s-x w1' });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.feed, i === 2);
+      S.fade(st.repHL, i === 2);
+      S.fade(st.power, i === 2);
+      S.fade(st.yt, i === 5);
+      S.fade(st.cap, i === 4);
+      S.fade(st.pairNote, i === 4);
+      dim(st.top, i === 1 || i === 3 || i === 4);
+      dim(st.dist, i === 1 || i === 3 || i === 4 || i === 5);
+      dim(st.cable, i === 3 || i === 4);
+      dim(st.reps, i === 1 || i === 3 || i === 4);
+      st.light.g.style.opacity = i === 1 || i === 3 || i === 4 ? 0.25 : '';
+      dim(st.cross, i === 0 || i === 3 || i === 5);
+      dim(st.dwdm, i <= 2 || i === 5);
+      st.copper.setAttribute('class', i === 2 ? 'f-none s-e w10' : 'f-none s-e w6');
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.light.update(dt);
+      if (i === 2) st.feedFlow.update(dt);
+      if (i === 3 || i === 4) st.dwFlows.forEach((f) => f.update(dt));
+    }
+  };
+
+  /* ================================================================
+     場面5 ルーターの転送（ロンゲストマッチ）
+     ================================================================ */
+  /* "a.b.c.d" → 32 個のビット */
+  const ipBits = (ip) => ip.split('.').map(Number).reduce((a, o) => a.concat([...Array(8)].map((_, k) => (o >> (7 - k)) & 1)), []);
+  /* 宛先 dst と、プレフィックス pfx/n を先頭から比べる。{ match: 一致したか, upto: 一致したビット数, miss: 最初に食い違ったビット（0 始まり）か -1 } */
+  function cmpPrefix(dst, pfx, n) {
+    const a = ipBits(dst), b = ipBits(pfx);
+    for (let k = 0; k < n; k++) if (a[k] !== b[k]) return { match: false, upto: k, miss: k };
+    return { match: true, upto: n, miss: -1 };
+  }
+  const s5 = {
+    steps: [
+      { title: 'どのルーターも同じ手順', text: '受信 → Ethernet をはがす → TTL を 1 減らす → 経路表を引く → 次の区間の Ethernet を付けて送信。ISP の中のルーターも、IX の先の Google のルーターも、第14章のホームルーターと同じ手順を繰り返す。違いは、境目のルーターの表が約 100 万行あり、毎秒数億回引くこと。' },
+      { title: '経路表の行は「範囲 → 出口」', text: '各行は宛先の範囲（プレフィックス）と次の行き先の組。BGP で聞いた外の範囲（142.250.0.0/15 など）と、IGP で知った ISP の中の範囲（198.51.100.0/24 など）が並ぶ。0.0.0.0/0 はどの宛先にも合う行（デフォルトルート）で、ここでは上流へ向かう。' },
+      { title: '先頭の n ビットを比べる', text: '宛先 142.250.196.110 を 32 ビットに直し、各行の先頭 n ビットと比べる。142.250.0.0/15 とは先頭 15 ビットが一致し、0.0.0.0/0 は比べるビットが無いので必ず一致する。198.51.100.0/24 と 203.0.113.0/24・/26 は 2 ビット目で食い違う。' },
+      { title: 'いちばん長い一致を選ぶ', text: '一致した行が複数あれば、/n がいちばん大きい（範囲が狭い）行を使う。142.250.196.110 は /15 が /0 に勝って Google へ。192.0.2.7 は /0 しか合わないので上流へ。家へ戻る 203.0.113.5 は /0・/24・/26 のうち /26 に合い、局舎 A へ向かう。', dur: 13 },
+      { title: '細かい広告が勝つ：2008 年の YouTube', text: '2008 年 2 月、パキスタンの通信会社が国内での遮断用に作った 208.65.153.0/24 の経路が、上流から世界へ広がった。YouTube の 208.65.152.0/22 より長いので、各地のルーターが YouTube 宛てをそちらへ送り、約 2 時間、多くの地域で見られなくなった。' },
+      { title: '毎秒数億回の検索は専用回路で', text: 'BGP や IGP の計算はルーターの CPU（制御部）が行い、選んだ経路を転送用の表（FIB）にまとめて専用回路（ASIC）に書き込む。パケットごとのロンゲストマッチはこの回路が行い、CPU は通らない。経路が変わったときだけ FIB が書き換わる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // ---- 上：1 ホップの手順
+      st.pipe = S.g({}, svg);
+      st.ops = ['受信', 'Ethernet をはがす', 'TTL − 1', '経路表を引く', 'Ethernet を付ける', '送信'].map((t, k) => {
+        const x = 20 + k * 156;
+        const r = S.rect(x, 24, 140, 40, { rx: 6, cls: 'f-sf s-rule w15' }, st.pipe);
+        S.text(x + 70, 49, t, { cls: 't-c t-sm t-b' }, st.pipe);
+        if (k < 5) S.path(`M${x + 142},44 H${x + 154}`, { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, st.pipe);
+        return { r, x };
+      });
+      st.cursor = S.rect(20, 24, 140, 40, { rx: 6, cls: 'f-none s-x w3', style: { opacity: 0 } }, svg);
+      // ---- 中央左：経路表
+      st.rows = [
+        { pfx: '0.0.0.0', n: 0, to: '上流 AS64510', from: 'BGP' },
+        { pfx: '142.250.0.0', n: 15, to: 'Google AS15169（IX・PNI）', from: 'BGP' },
+        { pfx: '198.51.100.0', n: 24, to: 'ISP 内のサーバー（GGC など）', from: 'IGP' },
+        { pfx: '203.0.113.0', n: 24, to: '局舎 B', from: 'IGP' },
+        { pfx: '203.0.113.0', n: 26, to: '局舎 A', from: 'IGP' }
+      ];
+      const tg = st.tbl = S.g({}, svg);
+      S.rect(20, 92, 560, 196, { rx: 6, cls: 'f-sf s-rule w1' }, tg);
+      [['宛先の範囲', 36], ['/n', 214], ['次の行き先', 252], ['知った方法', 494]].forEach(([h, x]) => S.text(x, 114, h, { cls: 't-sm t-b t-dim' }, tg));
+      S.line(26, 124, 574, 124, { cls: 's-rule w1' }, tg);
+      st.rows.forEach((r, k) => {
+        const y = 128 + k * 31;
+        r.bg = S.rect(24, y, 552, 28, { rx: 3, cls: 'f-none' }, tg);
+        r.t = [
+          S.text(36, y + 19, r.pfx + '/' + r.n, { cls: 't-sm t-mono t-b' }, tg),
+          S.text(214, y + 19, String(r.n), { cls: 't-sm t-mono' }, tg),
+          S.text(252, y + 19, r.to, { cls: 't-sm' }, tg),
+          S.text(494, y + 19, r.from, { cls: 't-sm t-mono t-dim' }, tg)
+        ];
+        r.y = y + 14;
+      });
+      // ---- 中央右：ルーターと出口
+      const rg = st.router = S.g({}, svg);
+      S.rect(604, 92, 150, 196, { rx: 8, cls: 'f-in s-fg w15' }, rg);
+      S.text(679, 110, 'ISP の基幹ルーター', { cls: 't-c t-sm t-b' }, rg);
+      st.ctrl = S.rect(614, 120, 130, 52, { rx: 5, cls: 'f-sf s-rule w1' }, rg);
+      S.text(679, 141, '制御部（CPU）', { cls: 't-c t-sm t-b' }, rg);
+      S.text(679, 160, 'BGP・IGP の計算', { cls: 't-c t-xs t-dim' }, rg);
+      st.fwd = S.rect(614, 212, 130, 66, { rx: 5, cls: 'f-sf s-rule w1' }, rg);
+      S.text(679, 235, '転送部（ASIC）', { cls: 't-c t-sm t-b' }, rg);
+      st.fwdTxt = S.text(679, 253, 'FIB で 1 個ずつ', { cls: 't-c t-xs t-dim' }, rg);
+      S.text(679, 267, 'ロンゲストマッチ', { cls: 't-c t-xs t-dim' }, rg);
+      st.fibArrow = S.path('M679,174 V208', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, rg);
+      st.fibTxt = S.text(694, 195, 'FIB', { cls: 't-xs t-b t-dim' }, rg);
+      st.exits = st.rows.map((r) => {
+        const g = S.g({}, svg);
+        const line = S.line(754, r.y, 790, r.y, { cls: 's-fg w2' }, g);
+        const t = S.text(796, r.y + 4, r.to.replace('（GGC など）', '').replace(' AS15169', ''), { cls: 't-sm' }, g);
+        return { g, line, t, y: r.y };
+      });
+      st.dot = S.circle(0, 0, 6, { cls: 'f-d', style: { opacity: 0 } }, svg);
+      // ---- 下：ビットの比較
+      const CW = 15, X0 = 182;
+      const bx = (k) => X0 + k * CW + Math.floor(k / 8) * 6;
+      const bitRow = (parent, y) => [...Array(32)].map((_, k) => ({
+        r: S.rect(bx(k), y, CW - 2, 20, { rx: 2, cls: 'f-none s-soft w1' }, parent),
+        t: S.text(bx(k) + (CW - 2) / 2, y + 14, '', { cls: 't-c t-sm t-mono t-b' }, parent)
+      }));
+      const bits = st.bits = S.g({}, svg);
+      S.rect(20, 300, 920, 246, { rx: 8, cls: 'f-sf s-rule w1' }, bits);
+      S.text(36, 324, '宛先と各行の先頭のビットを比べる', { cls: 't-md t-b' }, bits);
+      st.dstPkt = pkt(bits, '宛先 142.250.196.110');
+      st.dstPkt.g.setAttribute('transform', 'translate(840,320)');
+      [0, 8, 16, 24].forEach((k) => S.text(bx(k), 346, String(k + 1), { cls: 't-xs t-mono t-dim' }, bits));
+      st.dstLbl = S.text(36, 368, '宛先', { cls: 't-sm t-b' }, bits);
+      st.dstRow = bitRow(bits, 354);
+      st.bitRows = st.rows.map((r, k) => {
+        const y = 384 + k * 30;
+        S.text(36, y + 15, r.pfx + '/' + r.n, { cls: 't-sm t-mono' }, bits);
+        return { cells: bitRow(bits, y), res: S.text(700, y + 15, '', { cls: 't-sm' }, bits) };
+      });
+      // ---- 2008 年の YouTube（段階5）
+      const yt = st.yt = S.g({ cls: 'fade hide' }, svg);
+      S.rect(20, 300, 920, 246, { rx: 8, cls: 'f-sf s-x w15' }, yt);
+      S.text(36, 324, '2008 年 2 月 24 日：より長い経路が YouTube 宛ての通信を集めた', { cls: 't-md t-b' }, yt);
+      st.ytDst = bitRow(yt, 344);
+      S.text(36, 358, '208.65.153.x 宛て', { cls: 't-sm t-b' }, yt);
+      const ytRows = [['208.65.152.0', 22, 'YouTube が広告', '22 ビット一致', ''], ['208.65.153.0', 24, '別の AS が広告', '24 ビット一致 → こちらが選ばれる', 't-x t-b']];
+      st.ytRows = ytRows.map(([pfx, n, who, res, cls], k) => {
+        const y = 376 + k * 30;
+        S.text(36, y + 15, pfx + '/' + n, { cls: 't-sm t-mono' }, yt);
+        S.text(36, y + 28, who, { cls: 't-xs t-dim' }, yt);
+        S.text(700, y + 15, res, { cls: 't-sm ' + cls }, yt);
+        return bitRow(yt, y);
+      });
+      const tl = [['18:47 UTC', '誤った /24 が広がる'], ['20:07', 'YouTube も /24 を広告'], ['20:18', 'YouTube が /25 を 2 本広告'], ['21:01', '上流が誤った経路を取り消す']];
+      S.line(60, 470, 900, 470, { cls: 's-rule w2' }, yt);
+      tl.forEach(([tm, ev], k) => {
+        const x = 60 + k * 240;
+        S.circle(x, 470, 5, { cls: k === 0 ? 'f-x' : 'f-fg' }, yt);
+        S.text(x, 494, tm, { cls: 't-sm t-mono t-b' }, yt);
+        S.text(x, 512, ev, { cls: 't-sm' }, yt);
+      });
+      S.text(36, 536, 'YouTube は、さらに長い /25 を広告して通信を取り戻した。同じロンゲストマッチの規則による', { cls: 't-sm t-dim' }, yt);
+      // 2008 年の比較は固定なので、ここで描いておく
+      const paint = (cells, dst, pfx, n, isDst) => cells.forEach((c, k) => {
+        const a = ipBits(dst)[k], b = ipBits(pfx)[k];
+        if (isDst) {
+          c.r.setAttribute('class', k < 24 ? 'f-in s-rule w1' : 'f-none s-soft w1');
+          c.t.textContent = k < 24 ? String(a) : '·';
+          c.t.setAttribute('class', 't-c t-sm t-mono t-b' + (k < 24 ? '' : ' t-dim'));
+          return;
+        }
+        if (k >= n) { c.r.setAttribute('class', 'f-none s-soft w1 dash2'); c.t.textContent = ''; return; }
+        c.r.setAttribute('class', a === b ? 'f-d-soft s-d w1' : 'f-x-soft s-x w15');
+        c.t.textContent = String(b);
+        c.t.setAttribute('class', 't-c t-sm t-mono t-b');
+      });
+      paint(st.ytDst, '208.65.153.0', '208.65.153.0', 32, true);
+      paint(st.ytRows[0], '208.65.153.0', '208.65.152.0', 22, false);
+      paint(st.ytRows[1], '208.65.153.0', '208.65.153.0', 24, false);
+      st.examples = [
+        { dst: '142.250.196.110' },
+        { dst: '192.0.2.7' },
+        { dst: '203.0.113.5' }
+      ];
+      st.shown = null;
+    },
+    /* 宛先 dst について、表と出口とビットの比較を描く。pick が真なら選ばれた行と出口を強調 */
+    show(st, dst, pick) {
+      if (st.shown === dst + pick) return;
+      st.shown = dst + pick;
+      const res = st.rows.map((r) => cmpPrefix(dst, r.pfx, r.n));
+      let best = -1;
+      res.forEach((c, k) => { if (c.match && (best < 0 || st.rows[k].n > st.rows[best].n)) best = k; });
+      st.dstPkt.set('宛先 ' + dst);
+      ipBits(dst).forEach((b, k) => {
+        st.dstRow[k].r.setAttribute('class', 'f-in s-rule w1');
+        st.dstRow[k].t.textContent = String(b);
+      });
+      st.rows.forEach((r, k) => {
+        const c = res[k], row = st.bitRows[k], pb = ipBits(r.pfx);
+        row.cells.forEach((cell, j) => {
+          if (j >= r.n) { cell.r.setAttribute('class', 'f-none s-soft w1 dash2'); cell.t.textContent = ''; return; }
+          cell.t.textContent = String(pb[j]);
+          if (c.match || j < c.miss) { cell.r.setAttribute('class', 'f-d-soft s-d w1'); cell.t.setAttribute('class', 't-c t-sm t-mono t-b'); }
+          else if (j === c.miss) { cell.r.setAttribute('class', 'f-x-soft s-x w15'); cell.t.setAttribute('class', 't-c t-sm t-mono t-b t-x'); }
+          else { cell.r.setAttribute('class', 'f-none s-soft w1'); cell.t.setAttribute('class', 't-c t-sm t-mono t-dim'); }
+        });
+        const chosen = pick && k === best;
+        row.res.textContent = c.match ? (r.n === 0 ? '一致（比べるビットが無い）' : `${r.n} ビットすべて一致`) + (chosen ? ' → これを使う' : '') : `${c.miss + 1} ビット目で食い違う`;
+        row.res.setAttribute('class', 't-sm' + (chosen ? ' t-b t-x' : c.match ? ' t-b' : ' t-dim'));
+        r.bg.setAttribute('class', chosen ? 'f-x-soft' : c.match && pick ? 'f-d-soft' : 'f-none');
+        const ex = st.exits[k];
+        ex.line.setAttribute('class', chosen ? 's-x w4' : 's-fg w2');
+        ex.t.setAttribute('class', 't-sm' + (chosen ? ' t-b t-x' : ''));
+      });
+      st.best = best;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.shown = null;
+      S.fade(st.yt, i === 4);
+      dim(st.pipe, i >= 1 && i !== 5);
+      dim(st.tbl, i === 0 || i === 4 || i === 5);
+      dim(st.bits, i === 0 || i === 1 || i === 5);
+      st.exits.forEach((e) => dim(e.g, i === 0 || i === 4 || i === 5));
+      st.router.style.opacity = i === 0 || i === 4 ? 0.28 : '';
+      st.ops.forEach((o, k) => o.r.setAttribute('class', i >= 1 && k === 3 ? 'f-x-soft s-x w2' : 'f-sf s-rule w15'));
+      st.ctrl.setAttribute('class', i === 5 ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+      st.fwd.setAttribute('class', i === 5 ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+      st.fibArrow.setAttribute('class', i === 5 ? 'f-none s-x w3' : 'f-none s-dim w2');
+      st.fibArrow.setAttribute('marker-end', S.markers(ctx.svg)(i === 5 ? 'x' : 'dim'));
+      st.fibTxt.setAttribute('class', 't-xs t-b ' + (i === 5 ? 't-x' : 't-dim'));
+      st.fwdTxt.textContent = i === 5 ? '毎秒 数億回の' : 'FIB で 1 個ずつ';
+      st.fwdTxt.setAttribute('class', 't-c t-xs ' + (i === 5 ? 't-b t-x' : 't-dim'));
+      st.cursor.style.opacity = 0;
+      st.dot.style.opacity = 0;
+      // 段階1〜3 は 142.250.196.110 を、段階4 は frame で 3 つを順に
+      s5.show(st, '142.250.196.110', i === 3);
+      // 段階1・2 では、まだ比べていないので比較の欄を空にしておく
+      if (i <= 1) st.bitRows.forEach((r) => {
+        r.cells.forEach((c) => { c.r.setAttribute('class', 'f-none s-soft w1'); c.t.textContent = ''; });
+        r.res.textContent = '';
+      });
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts;
+      if (i === 0) {
+        const q = U.seq(ts, [0.8, 0.8, 0.8, 1.2, 0.8, 0.8, 1.0], true);
+        const k = Math.min(5, q.i);
+        st.cursor.setAttribute('x', st.ops[k].x);
+        st.cursor.style.opacity = q.i <= 5 ? 1 : 0;
+      }
+      if (i === 3) {
+        const q = U.seq(ts, [4.2, 4.2, 4.2], true);
+        s5.show(st, st.examples[q.i].dst, true);
+        const ex = st.exits[st.best];
+        const f = U.prog(q.t, 1.6, 1.6);
+        const x = f < 0.5 ? U.lerp(679, 754, f * 2) : U.lerp(754, 930, (f - 0.5) * 2);
+        const y = f < 0.5 ? U.lerp(245, ex.y, f * 2) : ex.y;
+        S.attrs(st.dot, { cx: x.toFixed(1), cy: y.toFixed(1) });
+        st.dot.style.opacity = f > 0 && f < 1 ? 1 : 0;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 Google に着くまで（エッジ・GGC）
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: '行き先は 2 つ', text: 'www.youtube.com（例：142.250.196.110）宛てのパケットは、国内にある Google の拠点に届く。動画の断片の名前は YouTube のサーバーが選んで渡し、DNS はそれに ISP の中の GGC の番号（例：198.51.100.80）を返すことがある（第17章）。' },
+      { title: 'ページの要求はエッジへ', text: '142.250.196.110 宛てのパケットは、ISP の境目のルーターで 142.250.0.0/15 の行に一致し、IX か直結（PNI）で Google のエッジに渡る。同じ番号を各地の拠点が広告している場合（Anycast、第17章）は、経路の上で近い拠点に着く。往復は数 ms〜十数 ms が目安。' },
+      { title: '動画の断片は ISP の中の GGC から', text: 'GGC は、Google が機材を出し、ISP が場所・電源・回線・アドレスを出して ISP の建物に置くキャッシュサーバー。198.51.100.80 は ISP の範囲のアドレスなので、断片の要求も応答も ISP の網の中だけを通り、IX にも海底ケーブルにも出ない。' },
+      { title: 'GGC に無い動画は取り寄せる', text: '要求された断片が GGC に無ければ、GGC は Google の網から取り寄せて応答し、同じ断片を手元に残す。次の利用者からは GGC が返すので、ISP の外へ出る通信が減る。Google は、キャッシュできる通信の 7〜9 割を GGC から返せることが多いと説明している。', dur: 12 },
+      { title: 'Google の網の中', text: 'エッジから先は Google の AS の中で、自前の基幹網（専用の光ファイバーや海底ケーブル）がエッジと各地のデータセンターを結ぶ。エッジで受けた要求のうち、データセンターでの処理が要るものはこの網で運ばれ、途中でほかの AS は通らない。' },
+      { title: '帰り道も経路表で', text: '応答の宛先は 203.0.113.5。Google のルーターは、AS64500 から BGP で聞いた 203.0.113.0/24 の行に従って ISP へ渡し、ISP の中でもロンゲストマッチを重ねて局舎へ、家のルーターが NAT で PC に戻す（第14章）。行きと帰りは別々に選ばれ、同じ道とは限らない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const Y = 260;
+      const R = st.R = { A: 272, C: 392, B: 520, E: 652 };
+      // ---- AS の枠
+      st.isp = asArea(svg, 226, 40, 340, 456, 'AS64500', '家の ISP（例）');
+      st.goo = asArea(svg, 606, 40, 338, 456, 'AS15169', 'Google');
+      // ---- 線
+      st.lines = S.g({}, svg);
+      S.line(106, Y, 130, Y, { cls: 's-p w3' }, st.lines);
+      S.line(206, Y, R.B, Y, { cls: 's-mid w2' }, st.lines);
+      st.lGGC = S.line(R.C, Y, R.C, 372, { cls: 's-mid w2' }, st.lines);
+      st.lIX = S.line(R.B, Y, R.E, Y, { cls: 's-fg w2 dash' }, st.lines);
+      S.text(586, 250, 'IX か PNI', { cls: 't-c t-sm t-b' }, st.lines);
+      S.line(R.E, Y, 690, Y, { cls: 's-mid w2' }, st.lines);
+      st.lBB = S.line(800, 226, 800, 134, { cls: 's-mid w3' }, st.lines);
+      st.bbLbl = S.text(772, 184, 'Google の基幹網', { cls: 't-sm t-b', 'text-anchor': 'end' }, st.lines);
+      // ---- 家と局舎
+      st.home = box(svg, 16, 226, 90, 68, '家', '203.0.113.5');
+      st.kyoku = box(svg, 130, 236, 76, 48, '局舎・NGN', '', 'f-sf s-fg w15', 't-sm');
+      S.text(168, 302, '第15章', { cls: 't-c t-xs t-dim' }, svg);
+      // ---- ルーター
+      st.rts = S.g({}, svg);
+      [['A', '加入者側'], ['C', '基幹'], ['B', '境目'], ['E', '境目']].forEach(([k, l]) => {
+        router(st.rts, R[k], Y, 10);
+        // 基幹のルーターの真下は GGC への線が通るので、札は線の右に置く
+        if (k === 'C') S.text(R[k] + 6, Y + 28, l, { cls: 't-xs t-dim' }, st.rts);
+        else S.text(R[k], Y + 28, l, { cls: 't-c t-xs t-dim' }, st.rts);
+      });
+      // ---- GGC
+      st.ggc = S.g({}, svg);
+      box(st.ggc, 322, 372, 140, 64, 'GGC', '198.51.100.80');
+      S.text(392, 454, 'ISP の建物の中の Google のサーバー', { cls: 't-c t-xs t-dim' }, st.ggc);
+      st.ggcHL = S.rect(318, 368, 148, 72, { rx: 8, cls: 'f-none s-x w2 fade hide' }, svg);
+      st.ggcSaved = S.label(svg, 514, 404, '断片を保存', { cls: 't-sm t-b t-x', box: 'f-sf s-x w1' });
+      st.ggcSaved.classList.add('fade', 'hide');
+      // ---- エッジとデータセンター
+      st.pop = S.g({}, svg);
+      box(st.pop, 690, 226, 160, 68, 'エッジ（国内の拠点）', '142.250.196.110');
+      S.text(770, 312, '要求を受けるサーバー（第22章）', { cls: 't-c t-xs t-dim' }, st.pop);
+      st.popHL = S.rect(686, 222, 168, 76, { rx: 8, cls: 'f-none s-x w2 fade hide' }, svg);
+      st.dc = box(svg, 692, 74, 216, 60, 'データセンター（国内外）', '動画の元のコピー');
+      // ---- 名前（段階1）
+      st.names = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.names, 392, 476, 'rr1---sn-xxxxxxxx.googlevideo.com', { cls: 't-sm t-b t-mono t-x', box: 'f-sf s-x w1' });
+      S.label(st.names, 770, 340, 'www.youtube.com', { cls: 't-sm t-b t-mono t-x', box: 'f-sf s-x w1' });
+      // ---- 帰り道の札（段階6）
+      st.back = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.back, 702, 212, '203.0.113.0/24 → AS64500', { cls: 't-sm t-b t-mono t-x', box: 'f-sf s-x w1' });
+      S.label(st.back, 61, 330, 'NAT で PC へ', { cls: 't-sm t-b t-x', box: 'f-sf s-x w1' });
+      // ---- 状況の 1 行
+      st.status = S.text(480, 534, '', { cls: 't-c t-md t-b' }, svg);
+      // ---- 道
+      const H = 106;
+      st.rEdge = road(svg, `M${H},${Y} H668`);   // 札（幅 約 44）がエッジの箱の題に掛からないよう、箱の手前で止める
+      st.rGGC = road(svg, `M${H},${Y} H${R.C} V372`);
+      st.rGGCback = road(svg, `M${R.C},372 V${Y} H${H}`);
+      st.rFill = road(svg, `M${R.C},372 V${Y} H800 V134`);
+      st.rFillBack = road(svg, `M800,134 V${Y} H${R.C} V372`);
+      st.rBB = road(svg, 'M800,226 V134');
+      st.rBBback = road(svg, 'M800,134 V226');
+      // 応答は家の箱の手前で止める（止まった札が家のアドレスを隠さないように）
+      st.rReturn = road(svg, `M690,${Y + 14} H${H + 12}`);
+      // ---- 荷札（短い札。宛先と TTL は下の 1 行に出す）
+      st.pReq = pkt(svg, '要求');
+      st.pSeg = [0, 1, 2].map(() => pkt(svg, '断片'));
+      st.pFill = pkt(svg, '取り寄せ');
+      st.pCopy = pkt(svg, 'コピー');
+      st.pBB = pkt(svg, '要求');
+      st.pRet = pkt(svg, '応答');
+      st.all = [st.pReq, st.pFill, st.pCopy, st.pBB, st.pRet].concat(st.pSeg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.names, i === 0);
+      S.fade(st.ggcHL, i === 0 || i === 2 || i === 3);
+      S.fade(st.popHL, i === 0 || i === 1);
+      S.fade(st.back, i === 5);
+      st.ggcSaved.classList.add('hide');
+      dim(st.ggc, i === 1 || i === 4 || i === 5);
+      dim(st.pop, i === 2);
+      dim(st.dc, i <= 2 || i === 5);
+      dim(st.isp, i === 4);
+      dim(st.home, i === 4);
+      dim(st.kyoku, i === 4);
+      dim(st.goo, i === 2);
+      st.lBB.setAttribute('class', i === 4 ? 's-x w4' : 's-mid w3');
+      st.lIX.setAttribute('class', i === 1 || i === 3 || i === 5 ? 's-x w3 dash' : 's-fg w2 dash');
+      st.lGGC.setAttribute('class', i === 2 || i === 3 ? 's-x w3' : 's-mid w2');
+      st.bbLbl.setAttribute('class', 't-sm t-b' + (i === 4 ? ' t-x' : ''));
+      st.bbLbl.setAttribute('text-anchor', 'end');
+      st.all.forEach((o) => { o.g.style.opacity = 0; });
+      st.status.textContent = '';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = ctx.ts, R = st.R, Y = 260;
+      const hide = () => st.all.forEach((o) => { o.g.style.opacity = 0; });
+      const go = (o, path, f) => { S.place(o.g, path, f); o.g.style.opacity = 1; };
+      // パケットの x から、通ったルーターの数を数えて TTL を出す（PC が 64 で送り、家のルーターで 63）
+      const ttl = (x, last) => 63 - [R.A, R.C, R.B, R.E].filter((rx) => rx <= last && x > rx + 2).length;
+      hide();
+      if (i === 0) {
+        const q = U.seq(ts + 1.17, [3.0, 3.0], true);
+        go(st.pReq, q.i === 0 ? st.rEdge : st.rGGC, U.ease.inOut(Math.min(1, q.f * 1.15)));
+        st.pReq.g.style.opacity = q.f < 0.9 ? 1 : 0;
+        st.status.textContent = q.i === 0 ? 'www.youtube.com → 142.250.196.110（エッジ）' : 'rr1---sn-xxxxxxxx.googlevideo.com → 198.51.100.80（GGC）';
+      }
+      if (i === 1) {
+        const q = U.seq(ts + 2.06, [4.6, 1.2], true);
+        const f = q.i === 0 ? U.ease.inOut(q.f) : 1;
+        go(st.pReq, st.rEdge, f);
+        const x = S.along(st.rEdge, f).x;
+        st.status.textContent = '宛先 142.250.196.110　TTL ' + ttl(x, R.E) + (f >= 1 ? '（エッジに到着。図は代表の 4 台。第18章の例は 9 台で TTL 55）' : '');
+      }
+      if (i === 2) {
+        const q = U.seq(ts + 1.66, [3.0, 3.4], true);
+        if (q.i === 0) {
+          const f = U.ease.inOut(q.f);
+          go(st.pReq, st.rGGC, f);
+          const pt = S.along(st.rGGC, f);
+          st.status.textContent = '宛先 198.51.100.80　TTL ' + (pt.y > Y + 2 ? 61 : ttl(pt.x, R.C)) + '（ISP の外へ出ない）';
+        } else {
+          st.pSeg.forEach((o, k) => {
+            const f = U.clamp((q.t - k * 0.55) / 2.2, 0, 1);
+            go(o, st.rGGCback, U.ease.inOut(f));
+            o.g.style.opacity = f > 0 && f < 1 ? 1 : 0;
+          });
+          st.status.textContent = '応答：動画の断片が GGC から家へ（宛先 203.0.113.5）';
+        }
+      }
+      if (i === 3) {
+        // 要求 → GGC に無い → 取り寄せ → 保存 → 家へ
+        const q = U.seq(ts + 1.33, [2.4, 2.8, 2.8, 2.4], true);
+        const f = U.ease.inOut(q.f);
+        if (q.i === 0) go(st.pReq, st.rGGC, f);
+        if (q.i === 1) go(st.pFill, st.rFill, f);
+        if (q.i === 2) go(st.pCopy, st.rFillBack, f);
+        if (q.i === 3) go(st.pSeg[0], st.rGGCback, f);
+        st.ggcSaved.classList.toggle('hide', q.i !== 3);
+        st.status.textContent = ['① 断片の要求が GGC に届く', '② GGC に無い → Google の網から取り寄せる', '③ コピーが届き、GGC が手元に残す', '④ GGC から家へ。次の利用者には GGC が返す'][q.i];
+      }
+      if (i === 4) {
+        const q = U.seq(ts + 1.0, [2.0, 2.0], true);
+        go(q.i === 0 ? st.pBB : st.pRet, q.i === 0 ? st.rBB : st.rBBback, U.ease.inOut(q.f));
+        st.status.textContent = 'エッジ ⇄ データセンター：Google の AS の中だけを通る';
+      }
+      if (i === 5) {
+        run(st.pRet.g, st.rReturn, ts, 4.4, 0.8, 0.42);
+        st.status.textContent = '応答の宛先 203.0.113.5 → 203.0.113.0/24 の行 → AS64500 → 局舎 → 家';
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第IV部 つながる ／ 第16章',
+      title: 'インターネットの骨格',
+      home: '../index.html',
+      prev: { href: '15-hikari.html', title: '光回線' },
+      next: { href: '17-dns.html', title: 'DNS' },
+      legend: [{ c: 'd', label: 'パケット・経路の広告' }, { c: 'p', label: '光' }, { c: 'e', label: '電流（給電）' }, { c: 'x', label: '注目・選んだ道' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>
