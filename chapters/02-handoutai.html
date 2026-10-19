@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>半導体とダイオード — YouTubeが見えるまで</title>
+<meta name="description" content="第1章で、電気を流す導体と止める絶縁体の間に、流れる量を調整できる半導体があることを見た。この章ではその中身に入る。シリコンの結晶に不純物をごく少量混ぜると、電子が余る n 型と、電子の空席（正孔）が動く p 型ができる。">
+<meta property="og:title" content="半導体とダイオード — YouTubeが見えるまで">
+<meta property="og:description" content="第1章で、電気を流す導体と止める絶縁体の間に、流れる量を調整できる半導体があることを見た。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">半導体とダイオード</h1>
     <p class="standfirst">第1章で、電気を流す導体と止める絶縁体の間に、流れる量を調整できる半導体があることを見た。この章ではその中身に入る。シリコンの結晶に不純物をごく少量混ぜると、電子が余る n 型と、電子の空席（正孔）が動く p 型ができる。この2つを1枚の結晶の中で隣り合わせた pn 接合は電流を一方向にしか通さず（ダイオード）、電子と正孔が出会う所では光が生まれ、逆に光を当てれば電流が生まれる。トランジスタも、光ファイバーの光源と受光器も、ここから始まる。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。原子の大きさや電子の数は見やすいように誇張してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -145,7 +151,7 @@
 <section class="scene sc-anim" id="s6" data-tab="LEDと受光" aria-labelledby="h-s6">
   <header class="sh a-sh">
     <h2 id="h-s6"><span class="n">6</span>LED とフォトダイオード — 光と電気の変換</h2>
-    <p class="sh-meta"><span class="chip">λ ≒ 1240 / E</span><span class="chip">InGaN 450 nm</span><span class="chip">1310 / 1550 nm</span></p>
+    <p class="sh-meta"><span class="chip">λ ≒ 1240 / E</span><span class="chip">InGaN 450 nm</span><span class="chip">1310 / 1490 nm</span></p>
   </header>
   <div class="col a-left">
     <p class="prose a-lead">再結合で放出されるエネルギーを光として取り出すのが LED。逆に、光で電子と正孔を作って電流にするのがフォトダイオード。光ファイバー通信の送り手と受け手はこの2つでできている。</p>
@@ -899,7 +905,7 @@
       { title: '再結合が光になる', text: '順方向の pn 接合では、境目で電子が正孔に落ちるたびにバンドギャップ分のエネルギーが放出される。それが光子（光の粒）として出るのが{p|発光}。波長はバンドギャップで決まり、λ(nm) ≒ 1240 ÷ E(eV)。シリコンは 1.12 eV で赤外になるうえ、エネルギーがほぼ熱になる性質（間接遷移）のため光らない。' },
       { title: '色は材料で決まる', text: '光る材料は化合物半導体。赤は AlGaInP（約 2.0 eV、625 nm）、緑と青は InGaN（青 450 nm は約 2.7 eV）。青色 LED の実用化は 1990 年代で、2014 年のノーベル物理学賞の対象になった。白色 LED は青の LED に黄色の蛍光体を重ねて作る。' },
       { title: 'フォトダイオード：光で電子正孔対を作る', text: '逆方向電圧をかけて空乏層を広げた接合に光を当てると、光子が吸収されて電子と正孔のペアが生まれる。空乏層の電場がすぐに 2 つを引き離し、電子は n 側へ、正孔は p 側へ流れて電流になる。電流は光の強さに比例し、応答はナノ秒以下。' },
-      { title: '光で 1 と 0 を送る', text: '送り手の LED やレーザーを 1 で点け 0 で消し、受け手のフォトダイオードが電流に戻せば、光で情報を送れる。光ファイバーでは 1310 nm や 1550 nm の赤外線を使い、受光には InGaAs を使う。10 Gbps なら 1 秒に約 100 億回の点滅になる（第15章）。' },
+      { title: '光で 1 と 0 を送る', text: '送り手の LED やレーザーを 1 で点け 0 で消し、受け手のフォトダイオードが電流に戻せば、光で情報を送れる。家庭の光回線では上り 1310 nm・下り 1490 nm の赤外線を使い、受光には InGaAs を使う。10 Gbps なら 1 秒に約 100 億回の点滅になる（第15章）。' },
       { title: 'レーザーダイオード', text: 'LED の光は位相も向きもばらばらで、遠くへ飛ばしにくい。接合の両端を鏡にして光を往復させると、光が光を誘い出す**誘導放出**がそろった光を増幅し、位相と向きのそろった細い光が出る。これがレーザーダイオードで、光ファイバーの光源はほぼこれ。' }
     ],
     setup(ctx) {
@@ -993,7 +999,7 @@
       st.beam = A.wave(st.beamPath, { x0: 530, x1: 930, y: 145, amp: 10, lambda: 36, speed: 180 });
       S.arrow(st.ldG, 540, 180, 920, 180, 'p', { cls: 's-p w2' });
       S.text(730, 200, '位相と向きのそろった光 → 光ファイバーへ（第15章）', { cls: 't-c t-sm t-p t-b' }, st.ldG);
-      S.text(730, 222, '1310 nm ／ 1550 nm（InGaAsP）', { cls: 't-c t-sm t-mono t-dim' }, st.ldG);
+      S.text(730, 222, '上り 1310 nm ／ 下り 1490 nm（InGaAsP）', { cls: 't-c t-sm t-mono t-dim' }, st.ldG);
       st.ldNote = S.g({ transform: 'translate(80,300)' }, st.ldG);
       S.rect(0, 0, 850, 150, { rx: 6, cls: 'f-sf s-rule w1' }, st.ldNote);
       S.text(425, 30, '誘導放出：通りかかった光子が、同じ波長・同じ位相・同じ向きの光子をもう 1 個引き出す', { cls: 't-c t-b t-sm' }, st.ldNote);
@@ -1109,7 +1115,7 @@
       title: '半導体とダイオード',
       home: '../index.html',
       prev: { href: '01-denshi.html', title: '電子と電流' },
-      next: { href: '03-transistor.html', title: 'トランジスタ' },
+      next: { href: '03-transistor.html', title: 'トランジスタ', lead: '前の章の n 型・p 型・pn 接合を使って、「電圧で動くスイッチ」を作る。' },
       legend: [{ c: 'e', label: '電子・−イオン' }, { c: 'h', label: '正孔・＋イオン' }, { c: 'p', label: '光' }, { c: 'x', label: '再結合・電場' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

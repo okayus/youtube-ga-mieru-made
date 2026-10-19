@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>Ethernet とスイッチ — YouTubeが見えるまで</title>
+<meta name="description" content="Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。">
+<meta property="og:title" content="Ethernet とスイッチ — YouTubeが見えるまで">
+<meta property="og:description" content="Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">Ethernet とスイッチ</h1>
     <p class="standfirst">Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。この章では、より対線 1 本で 1 Gbps を運ぶ電気的な工夫（差動信号と符号化）、フレームの構造と誤り検出、スイッチが宛先を覚えて配る仕組み、IP アドレスから MAC アドレスを調べる ARP、そして無線と有線を 1 つの LAN にまとめるブリッジまでを見る。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の電圧・時間・フレームの大きさは見やすいように誇張してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -42,7 +48,7 @@
   </nav>
   <footer class="cover-foot a-foot">
     <nav class="chnav" data-auto aria-label="章の移動"></nav>
-    <p>アドレスは例。PC は 192.168.1.10（MAC <span class="mac">3C:4D:5E:6F:70:81</span>）、ルーターは 192.168.1.1、YouTube 側は 142.250.196.110 で、第14章以降と共通。ほかの MAC は <span class="mac">02:</span> で始まるローカル管理アドレス。規格の数値は IEEE 802.3 の規定値、速度は理論値。</p>
+    <p>アドレスは例。PC は 192.168.1.10（MAC <span class="mac">3C:4D:5E:6F:70:81</span>）、ルーターは 192.168.1.1、YouTube 側は 142.250.196.110 で、第11章以降と共通。ほかの MAC は <span class="mac">02:</span> で始まるローカル管理アドレス。規格の数値は IEEE 802.3 の規定値、速度は理論値。</p>
   </footer>
 </section>
 
@@ -53,7 +59,7 @@
     <p class="sh-meta"><span class="chip">UTP Cat5e / Cat6</span><span class="chip">RJ45</span><span class="chip">100 m</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">LAN ケーブルの中の銅線は、1 本ずつではなく 2 本ひと組で使う。2 本の電圧の<b>差</b>で信号を送り、2 本をより合わせることで、外から乗る<span class="tag x">ノイズ</span>を受け手で打ち消す。シールドの無い安い線で 100 m 届くのはこの工夫による。</p>
+    <p class="prose a-lead">LAN ケーブルの銅線は、1 本ずつではなく 2 本ひと組で使う。2 本の電圧の<b>差</b>で信号を送り、2 本をより合わせることで、外から乗る<span class="tag x">ノイズ</span>を受け手で打ち消す。シールドの無い安い線で 100 m 届くのはこのため。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">芯線は AWG 24 前後（直径約 0.5 mm）の銅。100BASE-TX は 1-2 と 3-6 の 2 対を片方向ずつ使い（PC 側は 1-2 で送る）、1000BASE-T は 4 対すべてを両方向に使う（<a class="xref" href="#s2" data-go="2">場面 2</a>）。</p>
@@ -72,7 +78,7 @@
     <p class="sh-meta"><span class="chip">10BASE-T</span><span class="chip">100BASE-TX</span><span class="chip">1000BASE-T</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">ビットをそのまま電圧の高低にすると、同じ値が続いたとき受け手が拍を見失う。Ethernet は、拍を取り出せて線の帯域に収まる<b>符号</b>を規格ごとに選んできた。10 Mbps から 1 Gbps へ速さは 100 倍になったが、<span class="tag e">シンボル</span>の速さは 12.5 倍で済んでいる。</p>
+    <p class="prose a-lead">ビットをそのまま電圧にすると、同じ値が続いたとき受け手が拍を見失う。Ethernet は、拍を取り出せて線の帯域に収まる<b>符号</b>を規格ごとに選び、速さ 100 倍の 1 Gbps でも<span class="tag e">シンボル</span>の速さは 12.5 倍で済む。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">符号化は PHY（物理層チップ）の仕事で、<a class="xref" href="07-shuuhen.html#s6">第7章</a>の NIC の PHY がこれにあたる。1 Gbps なら MAC 層から 8 ビットずつ受け取って対ごとの電圧の列に変え、受け側ではその逆をする。</p>
@@ -91,7 +97,7 @@
     <p class="sh-meta"><span class="chip">64〜1518 B</span><span class="chip">MAC 48 bit</span><span class="chip">CRC-32</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">線の上を流れるのは、ただのビットの列ではなく、区切りと宛名と検算の付いた<span class="tag d">フレーム</span>。受け手の NIC は拍を合わせ、宛先が自分かを見て、壊れていないかを確かめてから中身を OS に渡す。IP パケット（第18章）はこの「中身」の欄に入って運ばれる。</p>
+    <p class="prose a-lead">線の上を流れるのは、ビットの列ではなく、区切りと宛名と検算の付いた<span class="tag d">フレーム</span>。受け手の NIC は拍を合わせ、宛先が自分かを見て、壊れていないかを確かめて中身を OS に渡す。IP パケット（第18章）は中身の欄に入る。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">FCS は CRC-32（生成多項式 0x04C11DB7）。でたらめに化けたフレームを見逃す確率は約 2<sup>32</sup> 分の 1（約 43 億分の 1）。1000BASE-T の規格はビット誤り率 10<sup>−10</sup> 未満を求めているので、化けること自体がまれ。</p>
@@ -129,7 +135,7 @@
     <p class="sh-meta"><span class="chip">EtherType 0x0806</span><span class="chip">ブロードキャスト</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">ソフトウェアは相手を IP アドレスで指定するが、同じネットワークの中でフレームを届けるには宛先 <b>MAC</b> アドレスが要る。それを調べるのが ARP（Address Resolution Protocol）で、YouTube 宛てのフレームにも、こうして調べたルーターの MAC が入る。</p>
+    <p class="prose a-lead">ソフトウェアは相手を IP アドレスで指定するが、同じネットワークでフレームを届けるには宛先 <b>MAC</b> が要る。それを調べるのが ARP で、YouTube 宛てのフレームにも、こうして調べたルーターの MAC が入る。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">ARP には認証が無く、偽の応答で宛先 MAC をすり替えられる（ARP スプーフィング）。家の LAN が信頼できる前提の仕組みで、外との通信の中身は TLS（第20章）で守る。</p>
@@ -148,7 +154,7 @@
     <p class="sh-meta"><span class="chip">802.11 ⇄ Ethernet</span><span class="chip">br0</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">ホームルーターの中では、無線部（アクセスポイント、AP）と有線の LAN ポートが 1 つの<b>ブリッジ</b>にまとまっている。<span class="tag r">電波</span>で届いた 802.11 フレームは AP で Ethernet フレームに組み替えられ、<a class="xref" href="#s4" data-go="4">場面 4</a> のスイッチと同じ規則で配られる。</p>
+    <p class="prose a-lead">ホームルーターでは、無線部（アクセスポイント、AP）と LAN ポートが 1 つの<b>ブリッジ</b>にまとまる。<span class="tag r">電波</span>で届いた 802.11 フレームは AP が Ethernet フレームに組み替え、<a class="xref" href="#s4" data-go="4">場面 4</a> と同じ規則で配る。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">Linux ベースのルーターでは <code>br0</code> というブリッジに <code>eth0</code>〜<code>eth3</code>（LAN）と <code>wlan0</code>（無線）が束ねられ、<code>br0</code> 自身がルーター部の LAN 側 IP（192.168.1.1）を持つ。</p>
@@ -186,7 +192,7 @@
         <tr><th>FCS（CRC-32）</th><td>フレーム末尾の 32 ビットの検算。受け手が計算し直して違えば破棄する。</td></tr>
         <tr><th>スイッチ（L2）</th><td>宛先 MAC で転送先のポートを決める装置。各ポートは全二重で、衝突は起きない。</td></tr>
         <tr><th>MAC アドレス表</th><td>送信元 MAC とポートの対応を学習した表。その MAC が既定で約 300 秒現れないと消える。無い宛先はフラッディング。</td></tr>
-        <tr><th>ARP</th><td>IP アドレスから MAC アドレスを調べる手順。要求はブロードキャスト、応答はユニキャスト。結果は ARP キャッシュに残る。</td></tr>
+        <tr><th>ARP</th><td>Address Resolution Protocol。IP アドレスから MAC アドレスを調べる手順。要求はブロードキャスト、応答はユニキャスト。結果は ARP キャッシュに残る。</td></tr>
         <tr><th><i class="sw r"></i>ブリッジ</th><td>無線部と有線ポートを 1 つの L2 セグメントにまとめる機能。AP がフレームの形式を変換する。</td></tr>
       </tbody>
     </table>
@@ -1176,7 +1182,7 @@
       title: 'Ethernet とスイッチ',
       home: '../index.html',
       prev: { href: '12-wifi.html', title: 'Wi-Fi' },
-      next: { href: '14-router.html', title: 'ホームルーター' },
+      next: { href: '14-router.html', title: 'ホームルーター', lead: '家の Wi-Fi ルーターは、家の中の機器どうしをつなぐ役と、家の中と外（インターネット）の境目に立つ役を 1 台でこなす。' },
       legend: [{ c: 'e', label: '電気信号' }, { c: 'd', label: 'フレーム・ビット列' }, { c: 'r', label: '電波' }, { c: 'x', label: 'ノイズ・注目' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

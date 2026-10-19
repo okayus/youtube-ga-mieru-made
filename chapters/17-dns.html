@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>DNS — YouTubeが見えるまで</title>
+<meta name="description" content="ブラウザが YouTube に接続するには、まず www.youtube.com という名前を、IP パケットの宛先に書ける番号（IP アドレス）に変えなければならない。">
+<meta property="og:title" content="DNS — YouTubeが見えるまで">
+<meta property="og:description" content="ブラウザが YouTube に接続するには、まず www.youtube.com という名前を、IP パケットの宛先に書ける番号（IP アドレス）に変えなければならない。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -27,7 +33,7 @@
     <h1 id="h-s0">DNS</h1>
     <p class="standfirst">ブラウザが YouTube に接続するには、まず <code>www.youtube.com</code> という名前を、IP パケットの宛先に書ける番号（IP アドレス）に変えなければならない。その変換を引き受けるのが DNS で、名前の木をルート・TLD・権威のサーバーが分けて持ち、ISP のフルリゾルバが代わりにたどり、答えは期限付きで何段にも覚えられる。この章から第V部「約束ごと」に入り、DNS → IP → TCP・UDP・QUIC → TLS → HTTP の順に、第IV部で見た道の上でやり取りされる手順を追う。名前の変換は、その最初の 1 往復。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のメッセージの動きは、見やすいように実際よりずっと遅くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -54,7 +60,7 @@
     <p class="sh-meta"><span class="chip">UDP 53</span><span class="chip">A ／ AAAA</span><span class="chip">RFC 1035</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">IP パケットの宛先欄に書けるのは番号（IP アドレス）だけ。だからブラウザは接続の前に、名前を番号に変える問い合わせを DNS サーバーに送る。問い合わせも答えも、数十バイトの<span class="tag d">メッセージ</span>1 個ずつ。</p>
+    <p class="prose a-lead">第16章までは道を見た。第17〜21章は、その道の上でやり取りされる手順を時間順に追う。IP パケットの宛先欄に書けるのは番号だけなので、ブラウザは接続の前に、名前を番号に変える<span class="tag d">問い合わせ</span>を DNS サーバーに送る。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">実際の答えには番号が複数入る。2026 年 10 月に権威サーバーへ問い合わせると、www.youtube.com は A が 8 個、AAAA が 8 個で、TTL はどれも 300 秒だった。この章では 1 個だけを例（142.250.196.110）として追う。</p>
@@ -247,10 +253,10 @@
      ================================================================ */
   const s1 = {
     steps: [
-      { title: '宛先欄は 32 ビットの番号', text: 'IPv4 ヘッダの宛先は 32 ビット、IPv6 は 128 ビットの番号で、名前を書く欄はない（第18章）。だから URL のホスト名 `www.youtube.com` は、接続の前に番号に変えておく。ブラウザのネットワークプロセス（第10章）は、この変換を OS などの**スタブリゾルバ**に頼む。' },
+      { title: '宛先欄は 32 ビットの番号', text: 'IPv4 ヘッダの宛先は 32 ビット、IPv6 は 128 ビットの番号で、名前を書く欄はない（第18章）。だから URL のホスト名 `www.youtube.com` は、接続の前に番号に変えておく。ブラウザのネットワークサービス（第9・10章）は、この変換を OS などの**スタブリゾルバ**に頼む。' },
       { title: '名前はラベルの列', text: '名前は点で区切った**ラベル**の列で、右へ行くほど木の根に近い。末尾の点は根（空のラベル）を表し、ふだんは省く。メッセージの中では各ラベルの前に長さを 1 バイトで置き、長さ 0 で終える。ラベルは 63 バイト、名前全体は 255 バイトまで。' },
       { title: '問い合わせは 33 バイト', text: 'ヘッダ 12 バイトと質問 21 バイト（拡張の EDNS を付けると増える）。ヘッダには 16 ビットの乱数の ID と、相手に最後まで調べてもらうことを頼む RD ビットが入る。質問は名前・タイプ（A）・クラス（IN）。これを 192.168.1.1 の 53 番へ UDP（第19章）で 1 個送る。' },
-      { title: '答えは質問の写しに足して返る', text: '答えは同じ ID で QR ビットを 1 にし、質問をそのまま写してから**リソースレコード**を足す。レコードは名前・タイプ・クラス・{x|TTL}（使い回してよい秒数）・データの組で、A のデータは 4 バイトの番号。PC は ID と送り元が合う答えだけを受け取る。' },
+      { title: '答えは質問の写しに足して返る', text: '答えは同じ ID で QR ビットを 1 にし、質問をそのまま写してから**リソースレコード**を足す。レコードは名前・タイプ・クラス・{x|TTL}（使い回してよい秒数。第14・18章の IP の TTL＝ホップ数とは別物）・データの組で、A のデータは 4 バイトの番号。PC は ID と送り元が合う答えだけを受け取る。' },
       { title: 'レコードのタイプ', text: 'A は IPv4、AAAA は IPv6 の番号、CNAME は別名、NS は担当のサーバー、MX はメールの宛先、HTTPS は接続のしかた（[[6|DoH／DoT と DNS 転送]]）。ブラウザは A と AAAA を同時に問い合わせ、IPv6 が使える家では AAAA の番号で接続することが多い（第18章）。' }
     ],
     setup(ctx) {
@@ -553,7 +559,7 @@
     steps: [
       { title: '①　PC はルーターに 1 回聞くだけ', text: 'PC のスタブリゾルバは、DHCP で教わった DNS サーバー 192.168.1.1（第14章）の 53 番に、RD ビットを 1 にした問い合わせを送る。RD は「再帰を望む」、つまり途中の紹介ではなく最後の答えだけを返してほしいという意味。PC の仕事はこの 1 往復だけ。' },
       { title: '②　ルーターが ISP のフルリゾルバへ転送する', text: 'ルーターは自分のキャッシュに答えが無いので、WAN 側の 203.0.113.5 から ISP のフルリゾルバ 198.51.100.53 へ、自分の ID を付けて同じ質問を送り直す。フルリゾルバの番号は、回線につないだときに ISP から受け取っている（第15章）。' },
-      { title: '③④　ルートは com の担当を紹介する', text: '何も覚えていないフルリゾルバは、まずルートに聞く。ルートは答えを持たず、「com はこの 13 台が担当」という NS と番号を返す。これが**紹介**（リフェラル）。今の多くのリゾルバは、ルートには名前のうち `com` の部分だけを見せる（QNAME 最小化、RFC 9156）。' },
+      { title: '③④　ルートは com の担当を紹介する', text: '何も覚えていないフルリゾルバは、まずルートに聞く（ルートサーバーの番号だけは最初から設定してある）。ルートは答えを持たず、「com はこの 13 台が担当」という NS と番号を返す。これが**紹介**（リフェラル）。多くのリゾルバは、ルートには名前のうち `com` の部分だけを見せる（QNAME 最小化、RFC 9156）。' },
       { title: '⑤⑥　com は youtube.com の担当を紹介する', text: '次に com のサーバー（a.gtld-servers.net など）へ聞くと、「youtube.com は ns1〜ns4.google.com が担当」という紹介が返る。番号（216.239.32.10 など）も付いているので、すぐ次へ聞ける。' },
       { title: '⑦⑧　権威サーバーが答える', text: 'ns1.google.com は youtube.com のゾーンの持ち主なので、AA ビットを立てて A 142.250.196.110、TTL 300 秒を返す。ここで初めて答えが出る。フルリゾルバから見れば、紹介を 2 回たどった 3 往復。' },
       { title: '⑨⑩　答えが PC まで戻る', text: 'フルリゾルバは RA=1（再帰に対応）、AA=0（受け売り）でルーターへ答え、ルーターは ID を PC の 0x5A3C に戻して PC へ返す。途中で受け取った紹介と答えは、フルリゾルバとルーターがそれぞれ TTL の間覚える（[[4|キャッシュと TTL]]）。' }
@@ -1035,7 +1041,7 @@
       title: 'DNS',
       home: '../index.html',
       prev: { href: '16-internet.html', title: 'インターネットの骨格' },
-      next: { href: '18-ip.html', title: 'IP' },
+      next: { href: '18-ip.html', title: 'IP', lead: 'DNS が番号を返すと、ブラウザの最初のパケットは宛先 142.250.196.110 を書いた IP ヘッダを付けて家を出る。' },
       legend: [{ c: 'd', label: 'DNS のメッセージ・データ' }, { c: 'x', label: '注目・注意' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

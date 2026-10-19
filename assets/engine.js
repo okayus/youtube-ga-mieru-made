@@ -16,7 +16,9 @@
      場面（まとめ）なら meta.next の章の場面1（#s1。章の表紙は飛ばす）へ進む。目次では › で第1章の場面1へ。
      ‹（#pg-prev）と ← はその逆（前の場面は最後の段階から。場面1 の最初の段階で ‹ を押すと、表紙を飛ばして
      前の章のまとめ（#last）へ。第1章なら目次へ）。↓↑ は場面ごとに移り、章の端では前後の章へ。
-     「自動で進む」も同じ順に進む。今いる章と場面は localStorage（ytm-last）に残し、目次の「続きから」に使う。
+     「自動で進む」も同じ順に進む（段階は本文の長さに応じて 12〜30 秒）。今いる章・場面・段階は localStorage（ytm-last）に残し、
+     目次の「続きから」に使う。URL の末尾は #s3（場面3）または #s3.2（場面3 の段階2）。
+     まとめの下には次の章の導入（meta.next.lead）を出し、表紙の操作の説明（.keys[data-auto]）も埋める。
    ============================================================ */
 (function () {
   'use strict';
@@ -344,9 +346,11 @@
     wireNav();
     wireKeys();
     wireHl();
-    var m = /^#s(\d+)$/.exec(location.hash || '');
-    if (m) curScene = Math.min(scenes.length - 1, Number(m[1]));
-    else if (location.hash === '#last') curScene = scenes.length - 1;
+    var m = /^#s(\d+)(?:\.(\d+))?$/.exec(location.hash || '');
+    if (m) {
+      curScene = Math.min(scenes.length - 1, Number(m[1]));
+      if (m[2] && ctxs[curScene] && ctxs[curScene].steps) goStep(ctxs[curScene], Number(m[2]) - 1);
+    } else if (location.hash === '#last') curScene = scenes.length - 1;
     showScene(curScene, false);
     if (!isFit()) watchMobile();
     requestAnimationFrame(loop);
@@ -374,7 +378,7 @@
       '<div class="motion" role="group" aria-label="動き">' +
         '<button type="button" class="mo-btn" id="mo-play" aria-pressed="true" title="動きを止める／動かす（スペースキー）"></button>' +
         '<select class="mo-sel" id="mo-speed" aria-label="動きの速さ"><option value="0.5">0.5×</option><option value="1">1×</option><option value="2">2×</option></select>' +
-        '<label class="mo-auto" title="段階・場面・章を一定時間ごとに自動で進める（段階は約 10 秒、表紙とまとめは約 15 秒）"><input type="checkbox" id="mo-auto">自動で進む</label>' +
+        '<label class="mo-auto" title="段階・場面・章を自動で進める（段階は本文の長さに応じて約 12〜30 秒、表紙とまとめは約 15 秒）"><input type="checkbox" id="mo-auto">自動で進む</label>' +
       '</div>' +
       // 移動はこの ‹ › に集める。› だけ押していけば、段階・場面・章の順に全ページを通せる
       '<div class="pager">' +
@@ -436,15 +440,29 @@
     $$('.m-play').forEach(function (b) { b.textContent = motion.playing ? '❚❚' : '▶'; b.setAttribute('aria-pressed', motion.playing ? 'true' : 'false'); });
   }
 
-  /* data-auto の付いた凡例・章の前後リンクを meta から埋める */
+  /* 表紙の操作の説明（1画面版だけに出る。章の HTML には <p class="keys fit-only" data-auto></p> と書く） */
+  var KEYS_HTML = '右上の <kbd>›</kbd>（または<kbd>→</kbd>）だけを押していけば、段階・場面・章の順に全ページを通して見られる。章のまとめの次は、次の章の場面1。<kbd>‹</kbd>（<kbd>←</kbd>）で戻り、<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、<kbd>スペース</kbd>で動きを止める。図の大きさや速さは見やすいように誇張してある。';
+  /* data-auto の付いた凡例・操作の説明・章の前後リンクを meta から埋める */
   function fillAuto(meta) {
     $$('.legend[data-auto]').forEach(function (p) { p.innerHTML = legendHtml(meta.legend); });
+    $$('.keys[data-auto]').forEach(function (p) { p.innerHTML = KEYS_HTML; });
+    var glossHref = (meta.home || '../index.html').replace(/index\.html$/, '') + 'glossary.html';
     $$('.chnav[data-auto]').forEach(function (nav) {
       var h = '';
       if (meta.prev) h += '<a class="prev" href="' + esc(meta.prev.href) + '">‹ <small>前の章</small> ' + esc(meta.prev.title) + '</a>';
       h += '<a class="home" href="' + esc(meta.home || '../index.html') + '">目次</a>';
+      if (nav.closest('.sc-wrap')) h += '<a class="gloss" href="' + esc(glossHref) + '">用語索引</a>';
       if (meta.next) h += '<a class="next" href="' + esc(meta.next.href) + '"><small>次の章</small> ' + esc(meta.next.title) + ' ›</a>';
       nav.innerHTML = h;
+      // まとめの下に、次の章の導入（次の章の表紙のリードの 1 文目。meta.next.lead）を出す。通しで進むときは表紙を飛ばすので、
+      // 章の境目で「前の章を受ける一文」が消えないようにする
+      if (meta.next && meta.next.lead && nav.closest('.sc-wrap')) {
+        var num = /(\d+)-[a-z]/.exec(meta.next.href || '');
+        var p = document.createElement('p');
+        p.className = 'next-lead';
+        p.innerHTML = '<small>次の章</small> <b>' + (num ? '第' + Number(num[1]) + '章 ' : '') + esc(meta.next.title) + '</b><span class="lead-text">' + esc(meta.next.lead) + '</span><span class="go">右上の › で進む</span>';
+        nav.parentNode.insertBefore(p, nav);
+      }
     });
     $$('[data-chapter-title]').forEach(function (e) { e.textContent = meta.title || ''; });
   }
@@ -541,6 +559,18 @@
     ctx.ts = 0;
     renderStepText(ctx);
     if (ctx.ready) enterStep(ctx, prevIdx);
+    if (inited && ctx.index === curScene) { syncHash(); rememberPlace(); }
+  }
+  /* 1画面版では URL の末尾を今の場面と段階にする（#s3 ＝ 場面3 の最初の段階、#s3.2 ＝ 場面3 の段階2）。
+     ‹ › やキーで移っても、再読み込み・共有で同じ所に戻れる。履歴は増やさない */
+  function hashFor(n) {
+    var c = ctxs[n];
+    return '#' + scenes[n].id + (c && c.steps && c.step > 0 ? '.' + (c.step + 1) : '');
+  }
+  function syncHash() {
+    if (!isFit() || !history.replaceState) return;
+    var h = hashFor(curScene);
+    if (location.hash !== h) history.replaceState(null, '', h);
   }
   function enterStep(ctx, prevIdx) {
     var st = ctx.steps[ctx.step];
@@ -571,6 +601,16 @@
     settle(ctx);
   }
 
+  /* 「自動で進む」で 1 段階に留まる秒数。段階の dur → 章の stepDur → 本文の字数から（8 秒 ＋ 0.1 秒×字数、12〜30 秒） */
+  function stepWait(ctx) {
+    var st = ctx.steps[ctx.step];
+    if (st.dur) return st.dur;
+    if (DEF.stepDur) return DEF.stepDur;
+    var plain = String(st.text || '').replace(/\{[ehprdx]\|([^}]+)\}/g, '$1').replace(/\[\[\d+(?::\d+)?\|([^\]]+)\]\]/g, '$1').replace(/\*\*|`/g, '');
+    var n = Array.from ? Array.from(plain).length : plain.length;
+    return util.clamp(8 + 0.1 * n, 12, 30);
+  }
+
   /* ---------- 動きの時計 ---------- */
   var last = 0;
   function loop(now) {
@@ -587,11 +627,10 @@
     if (!motion.auto) return;
     if (isFit()) {
       // 段階は stepDur（既定 10 秒）、段階の無い場面（表紙・まとめ）は def.dur か stillDur（既定 15 秒）ごとに進む
-      var wait = ctx.steps ? (ctx.steps[ctx.step].dur || DEF.stepDur || 10) : (ctx.def.dur || DEF.stillDur || 15);
+      var wait = ctx.steps ? stepWait(ctx) : (ctx.def.dur || DEF.stillDur || 15);
       if (ctx.ts >= wait) { ctx.ts = 0; goNext(); }
     } else if (ctx.steps && ctx.step < ctx.steps.length - 1) {
-      var dur = ctx.steps[ctx.step].dur || DEF.stepDur || 10;
-      if (ctx.ts >= dur) ctx.next();
+      if (ctx.ts >= stepWait(ctx)) ctx.next();
     }
   }
 
@@ -642,7 +681,8 @@
   function rememberPlace() {
     if (LINKS.isHome) return;
     var meta = DEF.meta || {};
-    try { localStorage.setItem('ytm-last', JSON.stringify({ path: location.pathname, scene: curScene, title: meta.title || document.title, eyebrow: meta.eyebrow || '' })); } catch (e) { /* 無視 */ }
+    var c = ctxs[curScene];
+    try { localStorage.setItem('ytm-last', JSON.stringify({ path: location.pathname, scene: curScene, step: c && c.steps ? c.step : 0, title: meta.title || document.title, eyebrow: meta.eyebrow || '' })); } catch (e) { /* 無視 */ }
   }
 
   /* ---------- 場面の切り替え ---------- */
@@ -680,8 +720,8 @@
       scenes[n].scrollIntoView({ behavior: reduced.matches ? 'auto' : 'smooth', block: 'start' });
     }
     syncNav();
-    // 1画面版では URL の末尾も今の場面にする（‹ › や キーで移っても、再読み込みで同じ場面に戻れる）
-    if (isFit() && history.replaceState && location.hash !== '#' + scenes[n].id && (changed || location.hash === '#last')) history.replaceState(null, '', '#' + scenes[n].id);
+    // 1画面版では URL の末尾も今の場面と段階にする（‹ › や キーで移っても、再読み込みで同じ所に戻れる）
+    if (changed || /^#(last|s\d+\.\d+)$/.test(location.hash)) syncHash();
     rememberPlace();
     if (changed && ctxs[n] && ctxs[n].def.resize) safe(ctxs[n], function () { ctxs[n].def.resize(ctxs[n]); });
   }
@@ -694,7 +734,7 @@
       var n = Number(a.dataset.go);
       if (a.dataset.step !== undefined && STEPPERS[n]) STEPPERS[n].goStep(Number(a.dataset.step));
       showScene(n, true);
-      if (history.replaceState) history.replaceState(null, '', '#' + scenes[n].id);
+      if (isFit()) syncHash(); else if (history.replaceState) history.replaceState(null, '', '#' + scenes[n].id);
     });
     if (ui.prev) ui.prev.addEventListener('click', function () { goPrev(); });
     if (ui.next) ui.next.addEventListener('click', function () { goNext(); });
@@ -713,9 +753,12 @@
     }
     window.addEventListener('resize', function () { if (!raf) raf = requestAnimationFrame(relayout); });
     window.addEventListener('hashchange', function () {
-      var m = /^#s(\d+)$/.exec(location.hash || '');
-      if (m) showScene(Number(m[1]), true);
-      else if (location.hash === '#last') showScene(scenes.length - 1, true);
+      var m = /^#s(\d+)(?:\.(\d+))?$/.exec(location.hash || '');
+      if (m) {
+        var n = Math.min(scenes.length - 1, Number(m[1]));
+        if (m[2] && ctxs[n] && ctxs[n].steps) goStep(ctxs[n], Number(m[2]) - 1);
+        showScene(n, true);
+      } else if (location.hash === '#last') showScene(scenes.length - 1, true);
     });
   }
 

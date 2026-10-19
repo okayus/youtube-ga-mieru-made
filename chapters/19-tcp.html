@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>TCP・UDP・QUIC — YouTubeが見えるまで</title>
+<meta name="description" content="IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（第18章）。その上で、機器の中のどのプログラム宛てかをポート番号で分けるのがトランスポート層の TCP・UDP・QUIC で、TCP と QUIC は抜けた分を送り直し、送る速さを網の混み具合にも合わせる。">
+<meta property="og:title" content="TCP・UDP・QUIC — YouTubeが見えるまで">
+<meta property="og:description" content="IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（第18章）。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">TCP・UDP・QUIC</h1>
     <p class="standfirst">IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（<a class="xref" href="18-ip.html">第18章</a>）。その上で、機器の中のどのプログラム宛てかをポート番号で分けるのがトランスポート層の TCP・UDP・QUIC で、TCP と QUIC は抜けた分を送り直し、送る速さを網の混み具合にも合わせる。この章では、ポート、TCP の接続の始め方・番号と再送・速さの決め方、何も足さない UDP、UDP の上で TCP と TLS の仕事をまとめた QUIC を順に見る。Chrome で YouTube を見るとき、動画の断片は多くの場合 QUIC で届く。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のパケットの動きは、見やすいように実際よりずっと遅くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -42,7 +48,7 @@
   </nav>
   <footer class="cover-foot a-foot">
     <nav class="chnav" data-auto aria-label="章の移動"></nav>
-    <p>図は模式図。PC 192.168.1.10:51234、NAT の後の 203.0.113.5:40001、YouTube の 142.250.196.110:443 は全章で共通の例（第14章）。動画の配信元 198.51.100.80 などは説明用に予約された範囲（RFC 5737）の値。往復時間は、手元の回線から www.youtube.com までの実測（約 7〜12 ms、2026 年 10 月）から 10 ms とした。</p>
+    <p>図は模式図。PC 192.168.1.10:51234（QUIC）・51235（TCP）、NAT の後の 203.0.113.5:40001、YouTube の 142.250.196.110:443 は全章で共通の例（第14章）。動画の配信元 198.51.100.80 などは説明用に予約された範囲（RFC 5737）の値。往復時間は、手元の回線から www.youtube.com までの実測（約 7〜12 ms、2026 年 10 月）から 10 ms とした。</p>
   </footer>
 </section>
 
@@ -178,7 +184,7 @@
   <div class="tbl-wrap a-tbl">
     <table class="gloss">
       <tbody>
-        <tr><th>ポート番号</th><td>16 ビット（0〜65,535）。0〜1023 はよく知られたポート（443 HTTPS、53 DNS）。送り手の一時ポートは OS が選ぶ（Linux 32768〜60999、Windows・macOS 49152〜65535）。</td></tr>
+        <tr><th>ポート番号</th><td>16 ビット（0〜65,535）。0〜1023 はよく知られたポート（443 HTTPS、53 DNS）。送り手の一時ポートは OS が選ぶ（Linux 32768〜60999、Windows・macOS 49152〜65535）。第13章のスイッチのポート（差し込み口）とは別。</td></tr>
         <tr><th>5 つ組</th><td>プロトコル・送信元 IP・送信元ポート・宛先 IP・宛先ポート。カーネルはこれでパケットをソケットへ振り分ける。</td></tr>
         <tr><th><i class="sw d"></i>シーケンス番号・ISN</th><td>データの 1 バイトごとの 32 ビットの番号。初めの値（ISN）は接続ごとに予測しにくく選ぶ。SYN と FIN も番号を 1 つ使う。</td></tr>
         <tr><th>TCP の状態</th><td>LISTEN・SYN_SENT・SYN_RECV・ESTABLISHED・FIN_WAIT_1/2・CLOSE_WAIT・LAST_ACK・TIME_WAIT など。TIME_WAIT は Linux で 60 秒。</td></tr>
@@ -273,7 +279,7 @@
       { title: 'ポートは 16 ビットの番号 2 つ', text: 'TCP と UDP のヘッダは、どちらも先頭の 4 バイトが{d|送信元ポート}と{d|宛先ポート}（各 16 ビット、0〜65,535）。カーネルは IP ヘッダのプロトコル欄（6＝TCP、17＝UDP）で種類を選び、ポートで機器の中の受け取り手を選ぶ。図は YouTube から PC に届いた QUIC のパケット。' },
       { title: 'サーバーは決まった番号で待つ', text: 'サーバーは、役割ごとに決まった番号でソケットを開いて待つ（TCP なら LISTEN）。HTTPS は 443（QUIC も UDP の 443）、DNS は 53、HTTP は 80。0〜1023 は**よく知られたポート**で、対応は IANA が登録する。ブラウザは URL の https から 443 を決める。' },
       { title: '送り手の番号は OS が選ぶ', text: '接続する側の送信元ポートは、OS が空いている番号から通信ごとに選ぶ（**一時ポート**）。既定の範囲は OS で違い、Linux は 32768〜60999、Windows と macOS は 49152〜65535。返事はこの番号宛てに戻るので、通信が続く間は変えない。例の 51234 もその 1 つ。' },
-      { title: '5 つ組で 1 本を見分ける', text: '1 本の通信は、プロトコル・送信元 IP・送信元ポート・宛先 IP・宛先ポートの{x|5 つ組}で決まる。表の 1 行目と 2 行目は数字が全部同じでも、UDP と TCP で別の通信になる。サーバーの 443 番には無数の接続が同時に来るが、相手の IP とポートで区別できる。' },
+      { title: '5 つ組で 1 本を見分ける', text: '1 本の通信は、プロトコル・送信元 IP・送信元ポート・宛先 IP・宛先ポートの{x|5 つ組}で決まる。4 つの数字が全部同じでも、UDP と TCP なら別の通信になる。サーバーの 443 番には無数の接続が同時に来るが、相手の IP とポートで区別できる。' },
       { title: 'カーネルがソケットへ振り分ける', text: '届いたパケットは、カーネルが 5 つ組でソケットの表を引き、合ったソケットの受信キューにつなぐ（第9章）。YouTube の QUIC のソケットは、ブラウザのネットワークサービスが持つ。合うソケットが無ければ、TCP は RST で断り、UDP は捨てて ICMP の「ポートに届かない」を返す（第18章）。' }
     ],
     setup(ctx) {
@@ -338,7 +344,7 @@
       S.line(36, 278, 632, 278, { cls: 's-soft w1' }, gp);
       const rows = [
         ['UDP', '192.168.1.10:', '51234', '142.250.196.110:443', 'ブラウザ fd 23'],
-        ['TCP', '192.168.1.10:', '51234', '142.250.196.110:443', 'ブラウザ fd 27'],
+        ['TCP', '192.168.1.10:', '51235', '142.250.196.110:443', 'ブラウザ fd 27'],
         ['UDP', '192.168.1.10:', '51236', '198.51.100.80:443', 'ブラウザ fd 31'],
         ['UDP', '192.168.1.10:', '51600', '192.168.1.1:53', 'スタブリゾルバ fd 9']
       ];
@@ -407,7 +413,7 @@
       /* 振り分けを見せるパケット（段階5） */
       st.flow = [
         { from: 0, row: 0, chip: 0, text: 'UDP 443→51234' },
-        { from: 0, row: 1, chip: 1, text: 'TCP 443→51234' },
+        { from: 0, row: 1, chip: 1, text: 'TCP 443→51235' },
         { from: 1, row: 2, chip: 2, text: 'UDP 443→51236' },
         { from: 2, row: 3, chip: 3, text: 'UDP 53→51600' }
       ].map((f) => {
@@ -507,7 +513,7 @@
       const mk = st.mk = S.markers(svg);
       const XA = 230, XB = 730;
       /* 両端 */
-      box(svg, 140, 12, 180, 46, 'PC', '192.168.1.10:51234');
+      box(svg, 140, 12, 180, 46, 'PC', '192.168.1.10:51235');
       box(svg, 640, 12, 180, 46, 'YouTube のサーバー', '142.250.196.110:443');
       const gk = S.g({}, svg);
       S.rect(352, 14, 256, 42, { rx: 5, cls: 'f-in s-rule w1' }, gk);
@@ -660,7 +666,7 @@
       st.plans = [0, 1, 2, 3, 4, 5].map(plan3);
       /* 送り手と受け手の枠 */
       S.text(100, 30, '送り手：YouTube のサーバー（送信バッファ、1 個 1,460 バイト）', { cls: 't-xs t-b' }, svg);
-      S.text(100, 476, '受け手：PC 192.168.1.10:51234（受信バッファ）', { cls: 't-xs t-b' }, svg);
+      S.text(100, 476, '受け手：PC 192.168.1.10:51235（受信バッファ）', { cls: 't-xs t-b' }, svg);
       const slot = (k, y) => {
         const g = S.g({}, svg);
         g.r = S.rect(segX(k), y, 102, 44, { rx: 5, cls: 'f-sf s-rule w15' }, g);
@@ -1189,7 +1195,7 @@
       { title: 'ストリームが独立：先頭の詰まりが無い', text: 'TCP は 1 本のバイト列なので、1 個失われると、後ろに続く別の要求のデータまで並べ直し待ちで止まる（head-of-line blocking）。QUIC は 1 つの接続の中に独立した**ストリーム**を何本も持ち、データの位置もストリームごとに数える。止まるのは失われたストリームだけ。使い方は第21章。' },
       { title: '接続 ID：回線が替わっても続く', text: 'TCP の接続は 5 つ組そのものなので、PC の IP やポートが変わると相手は別の通信と見なし、接続は切れる。QUIC の接続は**接続 ID** で見分けるので、Wi-Fi からテザリングに替わっても同じ接続と分かる。新しい道では前もって受け取った別の ID に替え、道を確かめてから続ける。' },
       { title: 'ヘッダの大半も暗号化', text: 'TCP のシーケンス番号・ACK・ウィンドウは平文で、途中の機器が読み、書き換えることもある。QUIC で途中から読めるのは、接続の確立後は IP と UDP のヘッダ、先頭 1 バイトの一部、宛先の接続 ID だけ。パケット番号も ACK も暗号の中にあるので、途中の機器が仕組みを前提にできず、改良を続けやすい。' },
-      { title: 'YouTube では QUIC、通らなければ TCP', text: 'Chrome は Alt-Svc や HTTPS レコード（第21章）で HTTP/3 を知った相手には、QUIC と TCP＋TLS を並べて試し、先に使えた方で話す。UDP 443 が通らなければ TCP で続け、その失敗をしばらく覚える。DevTools の Protocol 列に h3 か h2 と出る。' }
+      { title: 'YouTube では QUIC、通らなければ TCP', text: 'Chrome は Alt-Svc（第21章）や HTTPS レコード（第17章）で HTTP/3 を知った相手には、QUIC と TCP＋TLS を並べて試し、先に使えた方で話す。UDP 443 が通らなければ TCP で続け、失敗をしばらく覚える。DevTools の Protocol 列に h3 か h2 と出る。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -1521,7 +1527,7 @@
       title: 'TCP・UDP・QUIC',
       home: '../index.html',
       prev: { href: '18-ip.html', title: 'IP' },
-      next: { href: '20-tls.html', title: 'TLS' },
+      next: { href: '20-tls.html', title: 'TLS', lead: '接続が開いたら（第19章）、HTTP の要求を送る前に、その接続を暗号で守る。' },
       legend: [{ c: 'd', label: 'データ・パケット' }, { c: 'x', label: '注目・損失' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

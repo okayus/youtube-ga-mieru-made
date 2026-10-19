@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>Wi-Fi — YouTubeが見えるまで</title>
+<meta name="description" content="パソコンの Wi-Fi カード（第7章）から出た 0 と 1 の列は、アンテナの中の電子の往復で電波になり、空気中を進んでルーターに届く。">
+<meta property="og:title" content="Wi-Fi — YouTubeが見えるまで">
+<meta property="og:description" content="パソコンの Wi-Fi カード（第7章）から出た 0 と 1 の列は、アンテナの中の電子の往復で電波になり、空気中を進んでルーターに届く。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">Wi-Fi</h1>
     <p class="standfirst">パソコンの Wi-Fi カード（<a class="xref" href="07-shuuhen.html#s6">第7章</a>）から出た 0 と 1 の列は、アンテナの中の電子の往復で電波になり、空気中を進んでルーターに届く。この章では電波とは何かから始めて、ビットを波に乗せる変調、多数の搬送波で並列に送る OFDM、順番を譲り合う CSMA/CA、接続と暗号化（WPA2／WPA3）、そして同じ Wi-Fi でも速さが変わる理由までを追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。波の速さや本数は見やすいように誇張してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -56,7 +62,7 @@
     <p class="prose a-lead">Wi-Fi カードの出口はアンテナ。そこで<span class="tag e">電子</span>を高速に往復させると、まわりの電場と磁場の変化が光速で広がる。それが<span class="tag r">電波</span>で、光と同じ電磁波の仲間である。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">日本の割り当て（2026 年時点）は、2.4 GHz 帯が 2.400〜2.4835 GHz、5 GHz 帯が 5.15〜5.35 GHz と 5.47〜5.73 GHz、6 GHz 帯（Wi-Fi 6E 以降）が 5.925〜6.425 GHz。電子レンジも 2.45 GHz を使う。</p>
+      <p class="note">日本の割り当て（2026 年時点）は、2.4 GHz 帯が 2.400〜2.4835 GHz、5 GHz 帯が 5.15〜5.35 と 5.47〜5.73 GHz、6 GHz 帯（Wi-Fi 6E 以降）が 5.925〜6.425 GHz。電子レンジも 2.45 GHz を使う。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -113,7 +119,7 @@
     <p class="prose a-lead">同じチャネルの端末は同じ空気を共有する。誰かが送っている間は他の全員が待ち、空いたら乱数で順番をずらして送る。届いたかどうかは ACK で確かめる。これが CSMA/CA。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">時間の値は 5 GHz 帯のもの。スロット 9 µs、SIFS 16 µs、DIFS ＝ SIFS ＋ 2 スロット ＝ 34 µs。いまの Wi-Fi（WMM）は DIFS の代わりに通信の種類ごとの AIFS を使い、ふつうのデータでは SIFS ＋ 3 スロット ＝ 43 µs。</p>
+      <p class="note">値は 5 GHz 帯のもの。スロット 9 µs、SIFS 16 µs、DIFS ＝ SIFS ＋ 2 スロット ＝ 34 µs。いまの Wi-Fi（WMM）は DIFS の代わりに通信の種類ごとの AIFS を使い、ふつうのデータは SIFS ＋ 3 スロット ＝ 43 µs。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -761,7 +767,7 @@
   };
   const s4 = {
     steps: [
-      { title: '802.11 フレーム', text: '上位層のパケットに MAC ヘッダと FCS（CRC-32）を付け、先頭に同期用の既知パターン（プリアンブル）を付けて電波に乗せる。アドレスが 3 つあるのは、AP が受け取ったフレームを有線側へ中継するため（第13章）。これが 1 回の送信の単位。' },
+      { title: '802.11 フレーム', text: '上位層のパケットに MAC ヘッダと FCS（CRC-32）を付け、先頭に同期用の既知パターン（プリアンブル）を付けて電波に乗せる。アドレスが 3 つあるのは、AP が受け取ったフレームを有線側へ中継するため（第13章）。これが 1 回の送信の単位で、第8章の画のフレームとは別の語。' },
       { title: '空気は 1 本の共有線', text: '同じチャネルの端末は全員が同じ空間を使う。2 台が同時に送ると受信側で混ざり、両方壊れる（衝突）。送信中は自分の電波が強すぎて他を聞けないので、昔の共有型 Ethernet（CSMA/CD）のように衝突を検出できない。だから「衝突を避ける」仕組みが要る。' },
       { title: '聞いてから送る', text: '送りたい端末はまずチャネルを聞く（キャリアセンス）。空きが DIFS（5 GHz で 34 µs）続いたら、さらに 0〜15 スロット（1 スロット 9 µs）の乱数ぶん待ち、まだ空いていれば送る。乱数で待ち時間がばらけるので、同時に送り始めにくい。' },
       { title: 'ACK と再送', text: '無線は壊れやすいので、受信側は正しく受け取れたフレームに SIFS（16 µs）後に ACK を返す。ACK が来なければ送信側は壊れたと判断して再送し、乱数の幅（CW）を 15 → 31 → 63 と倍にして譲る。有線 Ethernet に ACK はない。' },
@@ -1265,7 +1271,7 @@
       title: 'Wi-Fi',
       home: '../index.html',
       prev: { href: '11-sou.html', title: 'ネットワークの層' },
-      next: { href: '13-ethernet.html', title: 'Ethernet とスイッチ' },
+      next: { href: '13-ethernet.html', title: 'Ethernet とスイッチ', lead: 'Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。' },
       legend: [{ c: 'r', label: '電波' }, { c: 'e', label: '電子・電流' }, { c: 'd', label: 'ビット列・データ' }, { c: 'x', label: '注目・衝突' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

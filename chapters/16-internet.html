@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>インターネットの骨格 — YouTubeが見えるまで</title>
+<meta name="description" content="家を出たパケットは、約 8 万の独立した網（AS）がつながったインターネットの中を、ルーターからルーターへ渡されていく。この章では、AS どうしが BGP で経路を教え合い、IX で直接つながり、海底ケーブルの光で大陸どうしを結ぶ仕組みと、各ルーターがロンゲストマッチで出口を決める手順を見る。">
+<meta property="og:title" content="インターネットの骨格 — YouTubeが見えるまで">
+<meta property="og:description" content="家を出たパケットは、約 8 万の独立した網（AS）がつながったインターネットの中を、ルーターからルーターへ渡されていく。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">インターネットの骨格</h1>
     <p class="standfirst">家を出たパケットは、約 8 万の独立した網（AS）がつながったインターネットの中を、ルーターからルーターへ渡されていく。この章では、AS どうしが BGP で経路を教え合い、IX で直接つながり、海底ケーブルの光で大陸どうしを結ぶ仕組みと、各ルーターがロンゲストマッチで出口を決める手順を見る。最後に、YouTube へのパケットが ISP の中や国内の拠点でどう Google に届くかを追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の距離・台数・速さは見やすいように誇張・省略してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -132,7 +138,7 @@
     <p class="prose a-lead">ISP とインターネットのルーターも、第14章のホームルーターと同じ手順でパケットを 1 個ずつ送る（NAT は除く）。違いは経路表の大きさと、宛先に合う行が複数あるときの規則で、範囲がいちばん狭い行を使う。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">IPv6 の経路も同じ規則で選ぶ。ISP の基幹の中では、入口のルーターが付けた短いラベルで中継する MPLS を使うこともある。公開の Looking Glass で、外の AS のルーターが持つ経路を調べられる。CIDR の計算は<a class="xref" href="18-ip.html#s2">第18章 場面2</a>、traceroute は<a class="xref" href="18-ip.html#s6">場面6</a>。</p>
+      <p class="note">IPv6 の経路も同じ規則で選ぶ。ISP の基幹では、入口のルーターが付けた短いラベルで中継する MPLS を使うこともある。公開の Looking Glass で、外の AS のルーターの経路を調べられる。CIDR の計算は<a class="xref" href="18-ip.html#s2">第18章 場面2</a>、traceroute は<a class="xref" href="18-ip.html#s6">場面6</a>。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -1300,7 +1306,7 @@
       title: 'インターネットの骨格',
       home: '../index.html',
       prev: { href: '15-hikari.html', title: '光回線' },
-      next: { href: '17-dns.html', title: 'DNS' },
+      next: { href: '17-dns.html', title: 'DNS', lead: 'ブラウザが YouTube に接続するには、まず www.youtube.com という名前を、IP パケットの宛先に書ける番号（IP アドレス）に変えなければならない。' },
       legend: [{ c: 'd', label: 'パケット・経路の広告' }, { c: 'p', label: '光' }, { c: 'e', label: '電流（給電）' }, { c: 'x', label: '注目・選んだ道' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

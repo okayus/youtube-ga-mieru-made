@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>用語索引 — YouTubeが見えるまで</title>
+<meta name="description" content="教材「YouTubeが見えるまで」全 25 章の用語表を 1 か所に集めた索引。部ごとの一覧、検索、同じ語の別の意味。">
+<meta property="og:title" content="用語索引 — YouTubeが見えるまで">
+<meta property="og:description" content="全 25 章の用語表を 1 か所に集めた索引。">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="assets/base.css">
+<script src="assets/engine.js"></script>
+<script src="assets/glossary-data.js"></script>
+<style>
+  /* 用語索引だけのスタイル */
+  .sc-gl { grid-template-areas: "sh" "tbl" "text"; }
+  .fit .sc-gl { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "sh" "tbl" "text"; }   /* 定義の箱は一覧のすぐ下 */
+  .parts { display: grid; grid-template-columns: 1fr; gap: 0.9rem; align-content: start; }
+  .fit .parts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 20px; }
+  .part-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem 0.9rem 0.75rem; display: grid; gap: 0.45rem; align-content: start; }
+  .part-card h3 { font-family: var(--display); font-weight: 700; font-size: 1rem; line-height: 1.4; display: flex; align-items: baseline; gap: 0.6rem; }
+  .part-card h3 .n { font-size: 0.7rem; letter-spacing: 0.06em; }
+  .part-card h3 a { color: inherit; text-decoration: none; }
+  .part-card h3 a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .terms { display: flex; flex-wrap: wrap; gap: 0.35rem 0.4rem; }
+  .term {
+    font-family: var(--sans); font-size: 0.84rem; line-height: 1.5; color: var(--fg);
+    background: var(--inset); border: 1px solid transparent; border-radius: 4px; padding: 0.1rem 0.5rem; cursor: pointer; text-align: left;
+  }
+  .term:hover { border-color: var(--fg-dim); }
+  .term[aria-pressed="true"] { background: var(--fg); color: var(--surface); }
+  .term .sw { margin-right: 0.3rem; vertical-align: 0; }
+  .defbox { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 0.7rem 1rem; font-size: 0.9rem; line-height: 1.75; min-height: 3.6rem; display: grid; gap: 0.15rem; }
+  .defbox .t { font-weight: 600; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
+  .defbox .t small { font-weight: 400; font-size: 0.78rem; color: var(--fg-dim); }
+  .defbox .d { color: var(--fg-mid); }
+  .defbox .d a { color: inherit; }
+  .defbox .empty { color: var(--fg-dim); }
+  .fit .defbox { min-height: 4.6rem; }
+
+  .search { display: grid; gap: 0.8rem; align-content: start; }
+  .search input {
+    font-family: var(--sans); font-size: 1.05rem; line-height: 1.5; color: var(--fg); background: var(--surface);
+    border: 1px solid var(--rule); border-radius: 6px; padding: 0.55rem 0.9rem; width: 100%; max-width: 36rem;
+  }
+  .search input:focus { outline: 2px solid var(--c-e); outline-offset: 1px; }
+  .search .count { font-family: var(--mono); font-size: 0.78rem; color: var(--fg-dim); }
+  .results { display: grid; grid-template-columns: 1fr; gap: 0.5rem 1.4rem; list-style: none; margin: 0; padding: 0; }
+  .fit .results { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .results li { border-top: 1px solid var(--rule-soft); padding-top: 0.45rem; font-size: 0.88rem; line-height: 1.7; }
+  .results b { font-weight: 600; }
+  .results small { font-size: 0.76rem; color: var(--fg-dim); margin-left: 0.5rem; white-space: nowrap; }
+  .results .d { color: var(--fg-mid); }
+  .results a { color: inherit; }
+  .results mark { background: color-mix(in srgb, var(--c-p) 35%, transparent); color: inherit; border-radius: 2px; }
+
+  .sc-homo { grid-template-areas: "sh" "text" "tbl"; }
+  .fit .sc-homo { grid-template-columns: 30fr 70fr; grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh sh" "text tbl"; }
+  .homo th, .homo td:first-child { white-space: nowrap; }
+  .homo td b { font-weight: 600; }
+  .homo small { color: var(--fg-dim); }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">用語索引 ／ 全25章の用語表から</p>
+    <h1 id="h-s0">用語索引</h1>
+    <p class="standfirst">各章のまとめにある用語表を 1 か所に集めた。用語を押すと定義が出て、その章のまとめへ飛べる。「探す」では全章から部分一致で引ける。「同じ語」には、章によって別の物を指す語（断片・TTL・フレーム・ポートなど）を並べた。定義は章の用語表と同じ文で、章を直せば <code>node tools/build-glossary.mjs</code> で作り直す。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only">上のタブで部を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>（または右上の <kbd>‹</kbd><kbd>›</kbd>）で場面を移る。用語の色は章の凡例と同じ意味。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol id="cover-toc"></ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" aria-label="移動"><a class="next" href="#s1" data-go="1">探す ›</a><a href="index.html">目次</a><a href="chapters/01-denshi.html">第1章から読む</a></nav>
+    <p id="built-note"></p>
+  </footer>
+</section>
+
+<!-- ================= 1 探す ================= -->
+<section class="scene sc-gl" id="s1" data-tab="探す" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>探す — 用語と定義の部分一致</h2>
+    <p class="sh-meta"><span class="chip">全章</span><span class="chip">大文字小文字は区別しない</span></p>
+  </header>
+  <div class="search a-tbl">
+    <input type="search" id="q" placeholder="例: TTL、断片、輻輳、Anycast" aria-label="用語を探す" autocomplete="off">
+    <p class="count" id="q-count"></p>
+    <ol class="results" id="q-results"></ol>
+  </div>
+  <p class="note a-text" id="q-note">用語名の一致を先に、定義の中の一致を後に出す。1画面版では 24 件まで出すので、多いときは語を足して絞る。</p>
+</section>
+
+<!-- ================= 2〜7 部ごとの一覧（script が作る） ================= -->
+<section class="scene sc-gl" id="s2" data-tab="I 電気" aria-labelledby="h-s2" data-part="I"><header class="sh a-sh"><h2 id="h-s2"><span class="n">2</span>第I部 電気（第1〜3章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s3" data-tab="II 計算機" aria-labelledby="h-s3" data-part="II"><header class="sh a-sh"><h2 id="h-s3"><span class="n">3</span>第II部 計算機（第4〜8章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s4" data-tab="III ソフト" aria-labelledby="h-s4" data-part="III"><header class="sh a-sh"><h2 id="h-s4"><span class="n">4</span>第III部 ソフトウェア（第9〜10章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s5" data-tab="IV つながる" aria-labelledby="h-s5" data-part="IV"><header class="sh a-sh"><h2 id="h-s5"><span class="n">5</span>第IV部 つながる（第11〜16章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s6" data-tab="V 約束ごと" aria-labelledby="h-s6" data-part="V"><header class="sh a-sh"><h2 id="h-s6"><span class="n">6</span>第V部 約束ごと（第17〜21章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s7" data-tab="VI YouTube" aria-labelledby="h-s7" data-part="VI"><header class="sh a-sh"><h2 id="h-s7"><span class="n">7</span>第VI部 YouTube（第22〜25章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+
+<!-- ================= 8 同じ語の別の意味 ================= -->
+<section class="scene sc-homo" id="s8" data-tab="同じ語" aria-labelledby="h-s8">
+  <header class="sh a-sh">
+    <h2 id="h-s8"><span class="n">8</span>同じ語の別の意味</h2>
+  </header>
+  <div class="prose a-text">
+    <p>この教材は定着した用語をそのまま使うので、章によって同じ語が別の物を指すことがある。読んでいて意味が合わないと感じたら、ここで章を確かめる。各章の本文では、初出の所に「〜とは別」と添えてある。</p>
+    <p class="note">「断片」は、この教材では動画の断片（DASH のセグメント）に当てた。TCP の送る単位は「セグメント」、Colossus の保存の単位は「チャンク」、IP の分割は「断片（IP のフラグメント）」と書き分けている。</p>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="plain homo">
+      <thead><tr><th>語</th><th>意味とその章</th></tr></thead>
+      <tbody>
+        <tr><td>断片</td><td><b>動画の断片</b>（DASH のセグメント。数秒ぶんの映像や音声）<small> 第11・21〜25章</small> ／ <b>IP の断片</b>（フラグメント。MTU より大きいパケットを切ったもの）<small> 第18章 場面5</small> ／ 保存の単位は<b>チャンク</b><small> 第22章 場面2</small></td></tr>
+        <tr><td>TTL</td><td><b>IP ヘッダの残りホップ数</b>（ルーターを 1 台通るごとに 1 減り、0 で捨てる）<small> 第14章 場面6・第18章 場面4</small> ／ <b>DNS の答えを使い回してよい秒数</b><small> 第17章 場面4</small></td></tr>
+        <tr><td>フレーム</td><td><b>映像の 1 枚の画</b><small> 第8・23・24章</small> ／ <b>Ethernet・Wi-Fi が送る単位</b>（宛先 MAC・送信元 MAC・中身・FCS）<small> 第12・13章</small> ／ <b>フレームバッファ</b>（画面 1 枚ぶんの画素の数値が入ったメモリ）<small> 第8章 場面1</small></td></tr>
+        <tr><td>ポート</td><td><b>スイッチやルーターの差し込み口</b><small> 第13・14章</small> ／ <b>TCP・UDP・QUIC の 16 ビットの番号</b>（機器の中のどのプログラム宛てか）<small> 第19章 場面1</small></td></tr>
+        <tr><td>セグメント</td><td><b>TCP の送る単位</b><small> 第7・19章</small> ／ <b>DASH の動画の断片</b>（この教材では「断片」）<small> 第11・24章</small></td></tr>
+        <tr><td>キャッシュ</td><td>どれも「手元に写しを置いて次を速くする」。<b>CPU の SRAM</b><small> 第5・6章</small> ／ <b>DNS の答えの表</b><small> 第17章 場面4</small> ／ <b>HTTP の応答の保存</b><small> 第21章 場面5</small> ／ <b>ISP の中の動画の写し（GGC）</b><small> 第16・22章</small></td></tr>
+        <tr><td>ウィンドウ</td><td><b>TCP で確認を待たずに送ってよい量</b><small> 第19章 場面4</small> ／ <b>画面の窓</b><small> 第7・8・10章</small></td></tr>
+        <tr><td>ストリーム</td><td><b>Wi-Fi の MIMO の空間ストリーム</b>（アンテナごとの別の流れ）<small> 第12章 場面6</small> ／ <b>HTTP/2・QUIC の多重化の 1 本</b><small> 第19・21章</small></td></tr>
+        <tr><td>チャネル</td><td><b>MOSFET の電子の通り道</b>（反転層）<small> 第3章 場面2</small> ／ <b>Wi-Fi の周波数の区切り</b><small> 第12章</small></td></tr>
+        <tr><td>ゲート</td><td><b>MOSFET の端子</b>（電圧でチャネルを開閉する）<small> 第3章</small> ／ <b>論理ゲート</b>（NAND・NOR など、入力の組み合わせで出力が決まる回路）<small> 第4章</small>。「ゲートウェイ」（第14章）は別の語</td></tr>
+        <tr><td>ブロック</td><td><b>NAND フラッシュの消去の単位</b><small> 第5章 場面6</small> ／ <b>共通鍵暗号の処理の単位</b>（AES は 16 バイト）<small> 第20章 場面2</small> ／ <b>画像の 8×8 などの区画</b><small> 第23章 場面2</small></td></tr>
+        <tr><td>符号化</td><td><b>ビットを電圧や光の形にする</b>（PAM-5、4B5B）<small> 第13章 場面2・第15章 場面2</small> ／ <b>映像・音声を圧縮して記号の列にする</b><small> 第22・23章</small></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const G = window.YT_GLOSSARY || { chapters: [], total: 0, built: '' };
+  const esc = YT.esc;
+  const partOrder = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const chapterOf = new Map(G.chapters.map((c) => [c.n, c]));
+  const summaryHref = (c) => 'chapters/' + c.file + '#s7';
+
+  /* 表紙の構成 */
+  const toc = document.getElementById('cover-toc');
+  const partTitle = { I: '電気', II: '計算機', III: 'ソフトウェア', IV: 'つながる', V: '約束ごと', VI: 'YouTube' };
+  const items = [['探す', '全章の用語と定義を部分一致で引く。', 1]];
+  partOrder.forEach((p, i) => {
+    const cs = G.chapters.filter((c) => c.part === p);
+    const n = cs.reduce((a, c) => a + c.terms.length, 0);
+    items.push([`第${p}部 ${partTitle[p]}`, `第${cs[0] ? cs[0].n : '?'}〜${cs.length ? cs[cs.length - 1].n : '?'}章の用語 ${n} 件。`, i + 2]);
+  });
+  items.push(['同じ語の別の意味', '断片・TTL・フレーム・ポートなど、章によって別の物を指す語。', 8]);
+  toc.innerHTML = items.map(([t, d, go], i) => `<li><a href="#s${go}" data-go="${go}"><span class="n">${i + 1}</span>${esc(t)}</a><p>${esc(d)}</p></li>`).join('');
+  document.getElementById('built-note').textContent = `用語 ${G.total} 件（${G.built} に全章の用語表から作成）。定義は各章のまとめの用語表と同じ。`;
+
+  /* 部ごとの一覧 */
+  const defboxes = new Map();
+  const showDef = (scene, c, term, btn) => {
+    const box = defboxes.get(scene);
+    if (!box) return;
+    scene.querySelectorAll('.term[aria-pressed="true"]').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    if (btn) btn.setAttribute('aria-pressed', 'true');
+    box.innerHTML = `<p class="t">${term.c ? `<i class="sw ${esc(term.c)}"></i>` : ''}${term.t}<small>第${c.n}章 ${esc(c.title)}</small><small><a href="${summaryHref(c)}">この章のまとめで見る →</a></small></p><p class="d">${term.d}</p>`;
+  };
+  document.querySelectorAll('section[data-part]').forEach((scene) => {
+    const part = scene.dataset.part;
+    const grid = scene.querySelector('.parts');
+    const box = scene.querySelector('.defbox');
+    defboxes.set(scene, box);
+    box.innerHTML = '<p class="empty">用語を押すと、ここに定義が出る。</p>';
+    G.chapters.filter((c) => c.part === part).forEach((c) => {
+      const card = document.createElement('section');
+      card.className = 'part-card';
+      card.innerHTML = `<h3><span class="n">第${c.n}章</span><a href="chapters/${esc(c.file)}">${esc(c.title)}</a></h3><div class="terms"></div>`;
+      const terms = card.querySelector('.terms');
+      c.terms.forEach((t) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'term';
+        b.setAttribute('aria-pressed', 'false');
+        b.title = YT.esc ? t.k : t.k;
+        b.innerHTML = (t.c ? `<i class="sw ${esc(t.c)}"></i>` : '') + t.t;
+        b.addEventListener('click', () => showDef(scene, c, t, b));
+        terms.appendChild(b);
+      });
+      grid.appendChild(card);
+    });
+  });
+
+  /* 探す */
+  const q = document.getElementById('q'), out = document.getElementById('q-results'), cnt = document.getElementById('q-count');
+  const all = [];
+  G.chapters.forEach((c) => c.terms.forEach((t) => all.push({ c, t, k: t.k.toLowerCase(), d: t.d.replace(/<[^>]+>/g, '').toLowerCase() })));
+  const mark = (html, needle) => {
+    if (!needle) return html;
+    // タグの外の文字だけに印を付ける
+    return html.split(/(<[^>]+>)/).map((part) => part.startsWith('<') ? part : part.replace(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), (m) => `<mark>${m}</mark>`)).join('');
+  };
+  const render = () => {
+    const needle = q.value.trim().toLowerCase();
+    if (!needle) { out.innerHTML = ''; cnt.textContent = `用語 ${G.total} 件から探す`; return; }
+    const first = all.filter((x) => x.k.includes(needle));
+    const rest = all.filter((x) => !x.k.includes(needle) && x.d.includes(needle));
+    const hits = first.concat(rest);
+    const limit = document.documentElement.classList.contains('fit') ? 24 : 80;
+    cnt.textContent = hits.length ? `${hits.length} 件${hits.length > limit ? `（先頭の ${limit} 件を表示）` : ''}` : '見つからない';
+    out.innerHTML = hits.slice(0, limit).map(({ c, t }) => `<li><b>${mark(t.t, q.value.trim())}</b><small><a href="${summaryHref(c)}">第${c.n}章 ${esc(c.title)}</a></small><div class="d">${mark(t.d, q.value.trim())}</div></li>`).join('');
+  };
+  q.addEventListener('input', render);
+  render();
+
+  YT.chapter({
+    meta: {
+      eyebrow: '用語索引',
+      title: '用語索引',
+      home: 'index.html',
+      legend: [{ c: 'e', label: '電子・電気信号' }, { c: 'h', label: '＋の電荷' }, { c: 'p', label: '光' }, { c: 'r', label: '電波' }, { c: 'd', label: 'データ' }, { c: 'x', label: '注目' }]
+    },
+    scenes: {
+      s1: { enterScene() { if (document.documentElement.classList.contains('fit')) setTimeout(() => q.focus({ preventScroll: true }), 50); } }
+    }
+  });
+})();
+</script>
+</body>
+</html>

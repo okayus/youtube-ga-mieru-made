@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>TLS — YouTubeが見えるまで</title>
+<meta name="description" content="接続が開いたら（第19章）、HTTP の要求を送る前に、その接続を暗号で守る。それが TLS で、HTTPS の S にあたる。">
+<meta property="og:title" content="TLS — YouTubeが見えるまで">
+<meta property="og:description" content="接続が開いたら（第19章）、HTTP の要求を送る前に、その接続を暗号で守る。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -27,7 +33,7 @@
     <h1 id="h-s0">TLS</h1>
     <p class="standfirst">接続が開いたら（第19章）、HTTP の要求を送る前に、その接続を暗号で守る。それが TLS で、HTTPS の S にあたる。この章では、TLS が防ぐ 3 つの危険から始めて、データを混ぜる共通鍵暗号、鍵を送らずに鍵をそろえる鍵交換、相手が本物かを確かめる証明書、それらを 1 往復にまとめた TLS 1.3 のハンドシェイク、暗号化されたレコードまでを、www.youtube.com への実際の接続で測った値とともに追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中のメッセージの動きは、見やすいように実際よりずっと遅くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -182,12 +188,12 @@
         <tr><th>TLS・HTTPS</th><td>TCP の上で（QUIC では QUIC に組み込まれて）暗号化・改ざん検出・認証を行う約束。TLS 1.3 は RFC 8446（2018 年）。HTTPS は HTTP を TLS で包んだもので、ポート 443。</td></tr>
         <tr><th>共通鍵暗号・AES</th><td>同じ鍵で暗号化と復号をする方式。AES はブロック 128 ビット、鍵 128／192／256 ビット、ラウンド 10／12／14。FIPS 197（2001 年）。</td></tr>
         <tr><th><i class="sw d"></i>AEAD（AES-GCM）</th><td>暗号化と改ざん検出を一度に行う方式。ノンス 12 バイト、タグ 16 バイト。TLS 1.3 では ChaCha20-Poly1305 も使える。</td></tr>
-        <tr><th>鍵交換（ECDHE）・X25519</th><td>秘密の数から作った公開値だけを見せ合い、両端で同じ値を計算する。X25519 は秘密も公開値も 32 バイト（RFC 7748）。</td></tr>
+        <tr><th>鍵交換（ECDHE）・X25519</th><td>秘密の数から作った公開値だけを見せ合い、両端で同じ値を計算する。X25519 は秘密も公開値も 32 バイト。</td></tr>
         <tr><th>前方秘匿性</th><td>長く使う鍵が後で漏れても、記録された過去の通信を解けない性質。接続ごとの一時鍵を捨てることで得る。</td></tr>
         <tr><th>ML-KEM・X25519MLKEM768</th><td>格子の問題に基づくポスト量子の鍵カプセル化（FIPS 203、2024 年）と、X25519 を組み合わせた鍵交換。key_share はブラウザ 1,216 B、サーバー 1,120 B。</td></tr>
-        <tr><th>証明書・認証局（CA）</th><td>名前と公開鍵の結びつきに CA が署名した文書（X.509）。公開の証明書の有効期間の上限は 2026 年 3 月から 200 日、2029 年 3 月から 47 日。</td></tr>
+        <tr><th>証明書・認証局（CA）</th><td>名前と公開鍵の結びつきに CA が署名した文書（X.509）。公開の証明書の有効期間の上限は 2026 年 3 月から 200 日、2027 年 3 月から 100 日、2029 年 3 月から 47 日。</td></tr>
         <tr><th>ルートストア</th><td>ブラウザや OS が最初から信じるルート証明書の一覧。Chrome は約 100 個（2026 年 10 月）。</td></tr>
-        <tr><th>Certificate Transparency</th><td>発行した証明書を公開の追記専用ログに記録する仕組み。証明書に受領印（SCT）を入れる。</td></tr>
+        <tr><th>Certificate Transparency</th><td>発行した証明書を公開の追記専用ログに記録する仕組み。証明書に受領印（SCT）を入れる。SCT を示せない公開の証明書を Chrome は拒む。</td></tr>
         <tr><th>SNI・ALPN・ECH</th><td>ClientHello で伝える接続先の名前と、使う HTTP の版（h2・h3）。ECH は ClientHello を暗号化して名前を隠す（RFC 9849、2026 年）。</td></tr>
       </tbody>
     </table>
@@ -521,7 +527,7 @@
       { title: '16 バイトのブロックを鍵で写す', text: 'AES は 128 ビット（16 バイト）の**ブロック**を、鍵で決まる別の 128 ビットへ写す。同じ鍵があれば逆向きに計算して戻せる（復号）。鍵の長さは 128・192・256 ビットで、TLS 1.3 は 128 か 256 を使う。2001 年に米国の標準（FIPS 197）になった。' },
       { title: '1 ラウンドは 4 つの操作', text: 'S-box で 1 バイトずつ置き換え（SubBytes）、行を 0〜3 バイト回し（ShiftRows）、列ごとに 4 バイトを混ぜ（MixColumns）、ラウンド鍵と XOR する（AddRoundKey）。AES-128 はこれを 10 回くり返す（最後は MixColumns なし）。' },
       { title: '1 ビットの違いが全体に広がる', text: `平文の最後の文字を \`w\` から \`v\` に変える（1 ビットの違い）。違いは 1 ラウンド目で 1 列の 4 バイトに、2 ラウンド目で 16 バイト全部に広がり、暗号文は 128 ビット中 ${EX.bits} ビットが変わった。暗号文から平文の手がかりを拾えないよう、こう設計されている。` },
-      { title: 'GCM：カウンタを暗号化して XOR', text: 'ブラウザの TLS では AES を **GCM** で使う。データを直接 AES に通さず、ノンスと番号を並べたカウンタを暗号化して鍵の流れを作り、平文と XOR する。最後に GHASH（GF(2¹²⁸) の掛け算）で 16 バイトのタグを作り、改ざんを見つける（[[6|暗号化された通信]]）。' },
+      { title: 'GCM：カウンタを暗号化して XOR', text: 'ブラウザの TLS では AES を **GCM** で使う。データを直接 AES に通さず、ノンス（一度しか使わない値）と番号を並べたカウンタを暗号化して鍵の流れを作り、平文と XOR する。最後に GHASH（GF(2¹²⁸) の掛け算）で 16 バイトのタグを作り、改ざんを見つける（[[6|暗号化された通信]]）。' },
       { title: 'CPU の専用命令', text: 'x86-64 の AES-NI（2010 年〜）は AES の 1 ラウンドを 1 命令で、ARMv8 の暗号拡張は 2 命令で行い、GHASH の掛け算用の命令もある。AES の命令が無い CPU では、足し算・回転・XOR だけで回る ChaCha20 を使う ChaCha20-Poly1305 がよく選ばれる。' },
       { title: '残る問題：鍵をどうそろえるか', text: '共通鍵暗号は、両端が**同じ鍵**を持っていなければ使えない。その鍵を平文で送れば途中で読まれ、暗号化して送るにはまた別の鍵が要る。初めて話す相手と、どうやって鍵をそろえるか。これを解くのが[[3|鍵交換]]。' }
     ],
@@ -944,12 +950,12 @@
   ];
   const s4 = {
     steps: [
-      { title: '間に立つ第三者', text: '第三者がブラウザとサーバーの間に立ち、両方と別々に鍵交換すれば、どちらの暗号も正しく動く。第三者は受け取った中身を復号して読み、暗号化し直して渡せる。防ぐには、鍵交換の相手が本物の www.youtube.com だと確かめる手段が要る。' },
+      { title: '間に立つ第三者', text: '第三者がブラウザとサーバーの間に立ち、両方と別々に鍵交換すれば、どちらの暗号も正しく動く。第三者は受け取った中身を復号して読み、暗号化し直して渡せる。防ぐには、鍵交換の相手が本物の www.youtube.com だと確かめる手段が要る。その手段が**署名**で、秘密鍵でしか作れず、対の公開鍵で誰でも確かめられる値。' },
       { title: '証明書の中身', text: 'サーバーの**証明書**（X.509 形式）には、名前・公開鍵・有効期間・発行者が書かれ、発行者である**認証局**（CA）の署名が付く。www.youtube.com が送ってきた証明書は名前が `*.google.com` で、別名の欄に `*.youtube.com` を含む 65 個の名前を持っていた。' },
       { title: '署名の連鎖', text: 'この証明書には中間の認証局 WE2 が署名し、WE2 の証明書にはルートの GTS Root R4 が署名している。ブラウザは下から順に、1 つ上の証明書の公開鍵で署名を確かめる。サーバーは自分の証明書と WE2 の証明書を送り、古い機器向けに別のルートへの橋渡しも添える。' },
       { title: 'ルートストア', text: '連鎖の最後のルートは、送られてきたから信じるのではない。ブラウザや OS が最初から持つ**ルートストア**に入っているから信じる。入れるかどうかはブラウザや OS の作り手が審査して決め、2026 年 10 月の Chrome では約 100 個、この PC の OS（Ubuntu）では 121 個だった。' },
       { title: '名前・期限・持ち主の確認', text: '証明書は公開の文書なので、第三者も同じものを送れる。そこでサーバーは、ハンドシェイクの内容に証明書の秘密鍵で署名して送る（CertificateVerify、[[5|ハンドシェイク]]）。ブラウザは名前・有効期間と、証明書の公開鍵でこの署名を確かめ、どれかが合わなければ接続をやめる。' },
-      { title: '短い有効期間と CT', text: 'この証明書の有効期間は 84 日。業界の取り決め（CA/Browser Forum）で、上限は 2026 年 3 月から 200 日、2029 年 3 月から 47 日へ縮む。発行した証明書は公開の **CT ログ**に載せ、受領印（SCT）を証明書に入れる。SCT を示せない公開の証明書を Chrome は拒む。' }
+      { title: '短い有効期間と CT', text: 'この証明書の有効期間は 84 日。業界の取り決め（CA/Browser Forum）で、上限は 2026 年 3 月に 200 日になり、2027 年 3 月に 100 日、2029 年 3 月に 47 日へ縮む。発行した証明書は公開の **CT ログ**に載せ、受領印（SCT）を証明書に入れる。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -1343,7 +1349,7 @@
       title: 'TLS',
       home: '../index.html',
       prev: { href: '19-tcp.html', title: 'TCP・UDP・QUIC' },
-      next: { href: '21-http.html', title: 'HTTP' },
+      next: { href: '21-http.html', title: 'HTTP', lead: 'DNS で番号を引き、QUIC か TCP で接続し、TLS で暗号化した通り道ができると、ブラウザはその中で HTTP の要求を送り、サーバーは応答を返す。' },
       legend: [{ c: 'd', label: 'データ・暗号文' }, { c: 'x', label: '注目・第三者' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

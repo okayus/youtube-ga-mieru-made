@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>光回線 — YouTubeが見えるまで</title>
+<meta name="description" content="ホームルーターを出たパケットは、ONU で光の点滅に変わり、髪の毛ほどの太さのガラスの糸を通って数 km 先の局舎へ向かう。">
+<meta property="og:title" content="光回線 — YouTubeが見えるまで">
+<meta property="og:description" content="ホームルーターを出たパケットは、ONU で光の点滅に変わり、髪の毛ほどの太さのガラスの糸を通って数 km 先の局舎へ向かう。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -27,7 +33,7 @@
     <h1 id="h-s0">光回線</h1>
     <p class="standfirst">ホームルーターを出たパケットは、ONU で光の点滅に変わり、髪の毛ほどの太さのガラスの糸を通って数 km 先の局舎へ向かう。この章では、光がガラスの芯に閉じ込められる理由、レーザーとフォトダイオードによる 1 と 0 の変換、ONU の仕事、32 軒で 1 本を分け合う PON の約束、局舎から ISP へのつなぎ方（PPPoE と IPoE）を順に見て、最後に光と電気の違いを減衰と遅延で比べる。例には日本の FTTH（NTT 東西のフレッツ光）を使う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。光の角度・点滅の速さ・距離は見やすいように誇張してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -54,7 +60,7 @@
     <p class="sh-meta"><span class="chip">石英ガラス</span><span class="chip">コア 約 9 µm ／ クラッド 125 µm</span><span class="chip">全反射</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">光ファイバーは石英ガラスの細い糸で、中心の<b>コア</b>の屈折率がまわりの<b>クラッド</b>よりわずかに高い。この差によって、境目に浅い角度で当たった光はすべて跳ね返り（全反射）、糸が曲がっていても数十 km 先まで進む。</p>
+    <p class="prose a-lead">ルーターの WAN ポートを出たフレームは ONU（<a class="xref" href="#s3" data-go="3">場面3</a>）で光になり、石英ガラスの細い糸を進む。中心の<b>コア</b>の屈折率は<b>クラッド</b>よりわずかに高く、境目に浅い角度で当たった光は全反射し、曲がっていても数十 km 先まで進む。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">光が 1 km 進むあいだに失われる割合は、波長 1310 nm で約 8%（0.35 dB）、1550 nm で約 5%（0.2 dB）。1970 年に損失 20 dB/km を下回るガラスが作られて、光通信が実用に向かった。波長と損失の関係は<a class="xref" href="#s6" data-go="6">6「光と電気の違い」</a>で見る。</p>
@@ -73,7 +79,7 @@
     <p class="sh-meta"><span class="chip">LD 1310 / 1490 nm</span><span class="chip">PD InGaAs</span><span class="chip">8B/10B 1.25 G ボー</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">送り手はレーザーダイオード（LD）に流す電流を切り替えて光を強弱させ、受け手はフォトダイオード（PD）で光を電流に戻す。<a class="xref" href="02-handoutai.html#s6">第2章</a>の pn 接合が、GE-PON では 1 秒に 12.5 億回の点滅を担う。</p>
+    <p class="prose a-lead">送り手はレーザーダイオード（LD）に流す電流を切り替えて光を強弱させ、受け手はフォトダイオード（PD）で光を電流に戻す。<a class="xref" href="02-handoutai.html#s6">第2章</a>の pn 接合が、この点滅を担う。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">10G-EPON（フレッツ 光クロスなど）は 64B/66B 符号で 1 秒に約 103 億回点滅する。速いほど 1 ビットあたりの光子が減って読み違えが増えるので、誤り訂正符号 RS(255,223) を必ず付けて送る。</p>
@@ -133,7 +139,7 @@
     <p class="prose a-lead">OLT から先は NTT 東西の網（NGN）で、ISP へのつなぎ方は 2 つある。家のルーターが網の出口までトンネルを張る <b>PPPoE</b> と、IPv6 のまま網を通り抜ける <b>IPoE</b>。方式で、通る装置と混み方が変わる。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">YouTube のサーバーは IPv6 にも対応しているので、IPoE の家ではブラウザは多くの場合 IPv6 で接続する（両方使えるときは IPv6 を先に試す）。この教材の例は IPv4 で追うが、IPv6 でも道筋は同じで、違いは NAT が無いこと。</p>
+      <p class="note">ルーターが 203.0.113.5 を持ち自分で NAT をする第14章の例は、PPPoE か MAP-E に当たる。DS-Lite では NAT は VNE 側の装置が行う。YouTube は IPv6 にも対応し、IPoE の家ではブラウザは多くの場合 IPv6 で接続する。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -467,7 +473,7 @@
   const CODE = [1, 0, 0, 1, 1, 1, 0, 1, 0, 0];
   const s2 = {
     steps: [
-      { title: '電流で光の強さを変える', text: 'LD は流す電流がしきい値を超えるとレーザー発振を始め、その先は電流にほぼ比例して強く光る。ドライバ回路は 1 のときに電流を増やし、0 のときに減らす（直接変調）。GE-PON では ONU が上りを 1310 nm で、OLT が下りを 1490 nm で送る。' },
+      { title: '電流で光の強さを変える', text: 'LD は流す電流がしきい値を超えるとレーザー発振を始め、その先は電流にほぼ比例して強く光る。ドライバ回路は 1 のときに電流を増やし、0 のときに減らす（直接変調）。GE-PON では ONU が上りを 1310 nm で、局舎側の終端装置 OLT が下りを 1490 nm で送る。' },
       { title: '0 でも消し切らない', text: '0 のときも電流をしきい値より少し上に保ち、弱く光らせておく。一度消すと、次の 1 で発振が始まるまでに遅れが出て、点滅の形が崩れるため。受け手が区別するのは「光っているか」ではなく「{p|強いか弱いか}」になる。' },
       { title: '8 ビットを 10 ビットにして送る', text: '同じ値が長く続くと、受け手は拍（クロック）を見失う。GE-PON は 8 ビットごとに 10 ビットの符号へ置き換え（**8B/10B**）、同じ値が 6 個以上続かないようにする。第13章の 4B5B と同じ考えで、1 Gbps のデータは 1 秒に 12.5 億回の点滅になる。' },
       { title: '光子が電子正孔対になる', text: '受け手に届く光は数〜数十 µW で、1 ビットの間に届く光子は数万個。InGaAs の層に吸収された光子 1 個が{e|電子}と{h|正孔}の対を 1 組作り、数〜数十 µA の電流になる（第2章）。シリコンは約 1,100 nm より長い波長を吸収しないので、ここでは使えない。' },
@@ -1370,7 +1376,7 @@
      ================================================================ */
   const s6 = {
     steps: [
-      { title: '速さはどちらも光速の約 3 分の 2', text: 'ガラスの中の光は屈折率の分だけ遅く、秒速約 20 万 km（1 km を約 5 µs）で進む。LAN ケーブルの電気信号も真空の光速の 6〜7 割で、1 m あたり約 5 ns（第1章）。同じ距離なら、光にしても届くまでの時間はほとんど変わらない。' },
+      { title: '速さはどちらも光速の約 3 分の 2', text: 'ガラスの中の光は屈折率の分だけ遅く、秒速約 20 万 km（1 km を約 5 µs）で進む。LAN ケーブルの電気信号も真空の光速の 6〜7 割で、1 m あたり約 5 ns（電場が光速近くで広がることは第1章）。同じ距離なら、光にしても届くまでの時間はほとんど変わらない。' },
       { title: '違うのは弱まり方', text: '1000BASE-T の信号は、主な周波数の数十 MHz で銅線 100 m を通ると 10〜20 dB（1/10〜1/100）弱まる。光ファイバーは 1550 nm で 1 km あたり約 0.2 dB なので、20 dB 弱まるのは 100 km 先。同じだけ弱まる距離が約 1000 倍違う。' },
       { title: 'なぜ光は弱まりにくいか', text: 'ガラスの中の損失は、密度の細かい揺らぎによる散乱（短い波長ほど大きい）と、長い波長での赤外吸収でほぼ決まり、その谷が 1550 nm 付近にある。銅線は周波数が高いほど大きく弱まるが、光の損失は点滅の速さではなく波長で決まる。' },
       { title: '距離の遅延は縮められない', text: '家から局舎まで 2 km なら片道約 10 µs、東京〜大阪をファイバーで約 500 km（直線では約 400 km）とすれば約 2.5 ms。距離による遅延は光の速さで決まり、回線の bps を上げても縮まない。近くのサーバーほど早く応答が返るのはこのため（第16章）。' },
@@ -1523,7 +1529,7 @@
       title: '光回線',
       home: '../index.html',
       prev: { href: '14-router.html', title: 'ホームルーター' },
-      next: { href: '16-internet.html', title: 'インターネットの骨格' },
+      next: { href: '16-internet.html', title: 'インターネットの骨格', lead: '家を出たパケットは、約 8 万の独立した網（AS）がつながったインターネットの中を、ルーターからルーターへ渡されていく。' },
       legend: [{ c: 'p', label: '光' }, { c: 'e', label: '電子・電気信号' }, { c: 'h', label: '正孔' }, { c: 'd', label: 'データ・フレーム' }, { c: 'x', label: '注目・変わった所' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

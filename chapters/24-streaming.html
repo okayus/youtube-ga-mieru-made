@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>ストリーミングと再生 — YouTubeが見えるまで</title>
+<meta name="description" content="動画は 1 本のファイルとして丸ごと届くのではない。プレーヤーは同じ動画の何十通りもの形式の一覧を受け取り、数秒ずつに切った断片を先回りして取り、回線の速さに合わせて次の断片の画質を選び直す。">
+<meta property="og:title" content="ストリーミングと再生 — YouTubeが見えるまで">
+<meta property="og:description" content="動画は 1 本のファイルとして丸ごと届くのではない。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -27,7 +33,7 @@
     <h1 id="h-s0">ストリーミングと再生</h1>
     <p class="standfirst">動画は 1 本のファイルとして丸ごと届くのではない。プレーヤーは同じ動画の何十通りもの形式の一覧を受け取り、数秒ずつに切った断片を先回りして取り、回線の速さに合わせて次の断片の画質を選び直す。届いた断片は GPU の回路で YUV の画に戻され、RGB に変換され、音声の時計に合わせて画面の書き換えごとに出る。この章では、実際の再生を測った値でその流れを追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の時間の流れは、測った記録を見やすい速さに縮めて再生している。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -183,7 +189,7 @@
         <tr><th><i class="sw d"></i>断片（セグメント）</th><td>形式を時間で切った数秒分の映像か音声。先頭はキーフレーム。例の動画の映像は 3.4〜7.0 秒、音声は 10 秒ずつ。</td></tr>
         <tr><th>SourceBuffer</th><td>MSE で断片を入れる口。appendBuffer で入れ、buffered で溜めた区間を読む。Chrome のデスクトップ版の上限は映像 150 MiB・音声 12 MiB。</td></tr>
         <tr><th>ABR</th><td>帯域の見積もり（応答ごとの速さの指数移動平均）と残りの秒数から、次の断片の画質を選ぶこと。Shaka Player の平均の半減期は 2 秒と 5 秒。</td></tr>
-        <tr><th>SABR</th><td>YouTube のウェブ版の取り方。POST でプレーヤーの大きさ・帯域の見積もり・溜めた区間を送り、画質が自動なら送る形式はサーバーが決める。欄の意味は第三者の解析による。</td></tr>
+        <tr><th>SABR</th><td>YouTube のウェブ版の取り方。POST でプレーヤーの大きさ・帯域の見積もり・溜めた区間を送り、形式は配信元が決める（第22章）。欄の意味は第三者の解析による。</td></tr>
         <tr><th>ハードウェアデコーダ</th><td>GPU の中の動画を解く専用回路。AV1 用は 2020 年ごろから。無い形式は CPU のソフトウェア（Chrome では dav1d・libvpx・FFmpeg）で解く。</td></tr>
         <tr><th>MediaCapabilities</th><td>decodingInfo で、形式ごとに扱えるか・滑らかに解けるか（smooth）・省電力か（powerEfficient）をブラウザに尋ねる API。</td></tr>
         <tr><th>YUV → RGB（BT.709）</th><td>R = 1.164(Y'−16) + 1.793(Cr−128) などの式で画素ごとに戻す。Y' は 16〜235、Cb・Cr は 16〜240 の範囲で記録する。</td></tr>
@@ -253,7 +259,7 @@
       { title: 'マニフェストに書いてあること', text: 'DASH（ISO/IEC 23009-1、初版 2012 年）のマニフェストは MPD という XML。映像・音声の組（AdaptationSet）の中に、形式（Representation）ごとの帯域・コーデック・幅と高さと、断片の場所が並ぶ。Apple の HLS では m3u8 という一覧が同じ役目をする。' },
       { title: '時間で切った断片', text: '各形式は数秒ずつの断片に切ってあり、断片はキーフレーム（第23章）から始まるので、どの断片からでも復号を始められる。この動画の映像の断片は 3.4〜7.0 秒とまちまちだが、境目の時刻はどの画質でも同じ。音声の断片は 10 秒ずつ。' },
       { title: '断片の位置は索引で分かる', text: '1 つの形式は 1 本のファイルで、先頭に復号の設定（初期化部分、0〜699 バイト目）、続いて各断片の時刻とバイト位置の索引（700〜1,187 バイト目。MP4 の sidx、WebM の Cues）がある。索引を読めば、何秒目の断片が何バイト目から始まるかが分かる。' },
-      { title: 'YouTube のウェブ版の形式の一覧', text: '再生情報の `streamingData` に、形式ごとの itag・コーデック・ビットレート・大きさ・初期化部分と索引の位置が並ぶ。形式ごとの URL は無く、配信元の URL が 1 つ（`serverAbrStreamingUrl`）だけある。断片はそこへの POST で取る（場面2・3）。' }
+      { title: 'YouTube のウェブ版の形式の一覧', text: '再生情報の `streamingData` に、形式ごとの itag・コーデック・ビットレート・大きさ・初期化部分と索引の位置が並ぶ。形式ごとの URL は無く、配信元の URL が 1 つだけ（第22章 場面5）。断片はそこへの POST で取る（場面2・3）。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -620,7 +626,7 @@
       { title: '残りの秒数でも決める', text: '見本だけで選ぶと、揺れのたびに画質が上下する。そこで溜めた残りも使う（Netflix の BBA、2014 年。dash.js の BOLA）。回 A は残りが約 70 秒あるときに 0.3 Mbps に 50 秒絞った。見積もりは回 D と同じ 0.15 Mbps まで下がったが、720p のまま止まらなかった。' },
       { title: '残りが少ないときに帯域が落ちると', text: '回 D は残り 18 秒で絞った。6 秒あまり終わらない要求は 2 回打ち切られ、残りは約 31 秒で尽きた。Chrome は映像だけが尽きても最大 3 秒は音声を進め、この回は 2.8 秒進んでから全体が {x|1.5 秒}止まった。再開した画は 144p で、遅れた約 3 秒分のフレームは表示されずに捨てられた。' },
       { title: '切り替えは断片の境目で', text: '下げたのは断片 8（36.16 秒）、戻したのは断片 29（153.20 秒）から。どの画質も境目の時刻が同じで、断片はキーフレームから始まる（[[1:2|マニフェスト]]）。プレーヤーは新しい形式の初期化部分 700 バイトを先に入れてから断片を入れた。戻した時点で溜まっていた 144p は取り直さなかった。' },
-      { title: 'YouTube では、送る形式をサーバーが決める', text: 'YouTube のウェブ版の POST は、画質が自動なら次の断片の形式を指定しない。本文に入るのは、プレーヤーの大きさ、帯域の見積もり（詳細統計情報の値と一致）、再生位置、手元の形式と溜めた区間。送る形式はサーバーが決め、回 D の下げと戻しもそう起きた。欄の意味は第三者の解析と値の一致による推定で、選び方は非公開。' }
+      { title: 'YouTube では、送る形式をサーバーが決める', text: 'YouTube のウェブ版の POST は、画質が自動なら次の断片の形式を指定しない。本文に入るのは、プレーヤーの大きさ、帯域の見積もり（詳細統計情報の値と一致）、再生位置、手元の形式と溜めた区間。送る形式はサーバーが決め、回 D の下げと戻しもそう起きた。欄の意味は第三者の解析と値の一致による推定。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -1410,7 +1416,7 @@
       title: 'ストリーミングと再生',
       home: '../index.html',
       prev: { href: '23-codec.html', title: '動画の圧縮' },
-      next: { href: '25-tooshi.html', title: '通しで見る' },
+      next: { href: '25-tooshi.html', title: '通しで見る', lead: '動画へのリンクをクリックしてから最初の画が出るまで、手元の計測では約 2.4 秒だった。' },
       legend: [{ c: 'd', label: 'データ・断片・バッファの中身' }, { c: 'x', label: '注目・変化' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

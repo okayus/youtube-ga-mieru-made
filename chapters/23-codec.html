@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>動画の圧縮 — YouTubeが見えるまで</title>
+<meta name="description" content="フル HD・30 fps の映像を圧縮せずに送ると毎秒 750 Mbit〜1.5 Gbit になるが、YouTube が届けるのは 1080p でも数 Mbps 以下で、数百分の 1 にしてある。">
+<meta property="og:title" content="動画の圧縮 — YouTubeが見えるまで">
+<meta property="og:description" content="フル HD・30 fps の映像を圧縮せずに送ると毎秒 750 Mbit〜1.5 Gbit になるが、YouTube が届けるのは 1080p でも数 Mbps 以下で、数百分の 1 にしてある。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -40,7 +46,7 @@
     <h1 id="h-s0">動画の圧縮</h1>
     <p class="standfirst">フル HD・30 fps の映像を圧縮せずに送ると毎秒 750 Mbit〜1.5 Gbit になるが、YouTube が届けるのは 1080p でも数 Mbps 以下で、数百分の 1 にしてある。この章では、色を明るさと色差に分けて色を間引き、8×8 のブロックを周波数の係数に変えて細かい成分を粗くし、よく出る値を短い符号にし、前のフレームとの差だけを送る、という手順を、図の中で実際に計算しながら追う。最後に方式の世代とビットレート、音声の圧縮、映像と音声を入れる箱（コンテナ）を見る。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の画像は計算のために作った小さな合成画像で、画素を大きく拡大して描いてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -67,7 +73,7 @@
     <p class="sh-meta"><span class="chip">Y'CbCr（BT.709）</span><span class="chip">4:2:0</span><span class="chip">約 750 Mbps</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">動画の圧縮は、画素の色の表し方を変えることから始まる。R・G・B の 3 つの数値を、明るさ Y' と 2 つの色差 Cb・Cr（まとめて YUV と呼ぶことが多い）に分けると、人の目が鈍い色差の側を間引ける。</p>
+    <p class="prose a-lead">第22章 場面1 の変換の中身を追う。動画の圧縮は、画素の色の表し方を変えることから始まる。R・G・B を明るさ Y' と 2 つの色差 Cb・Cr（通称 YUV）に分けると、人の目が鈍い色差の側を間引ける。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">係数は HD の規格 BT.709 のもの（SD の BT.601 は 0.299・0.587・0.114）。8 ビットの動画では Y' を 16〜235、Cb・Cr を 16〜240 に収めて記録するのが普通で、図は簡単のため 0〜255 のまま計算した。</p>
@@ -1088,17 +1094,19 @@
     return { sc, bits, mse, psnr: 10 * Math.log10(255 * 255 / mse), img };
   });
   const RD5_1 = RD5[SC5.indexOf(1)], RD5_2 = RD5[SC5.indexOf(2)];
+  const B5_1 = U.fmt(RD5_1.bits), B5_2 = U.fmt(RD5_2.bits);   // 幅 1 倍・2 倍のビット数（本文に出す）
   // YouTube の例の動画 dQw4w9WgXcQ（25 fps）の配信形式の平均ビットレート（Mbps）。2026-10-12 に視聴ページの形式一覧で確かめた
   const YT5 = [['2160p', null, 13.47, 9.02], ['1440p', null, 5.67, 4.59], ['1080p', 3.04, 1.16, 1.14], ['720p', 0.99, 0.66, 0.66],
     ['480p', 0.53, 0.35, 0.37], ['360p', 0.32, 0.23, 0.21], ['240p', 0.16, 0.10, 0.12], ['144p', 0.08, 0.06, 0.06]];
   const RAW5 = 1920 * 1080 * 1.5 * 8 * 25 / 1e6;   // 1080p・25 fps・4:2:0・8 ビットの圧縮前（Mbps）
+  const RAW5S = rnd(RAW5), RATIO5 = rnd(RAW5 / 1.16 / 10) * 10;   // 本文と図に出す値：圧縮前の Mbps と、VP9 の 1.16 Mbps に対する比（10 の倍数に丸める）
 
   const s5 = {
     steps: [
-      { title: '粗くするほどビットは減り、画質は落ちる', text: `場面2・3 の手順を画像全体（45 ブロック）にかけ、量子化の幅を 1/4 倍から 8 倍まで変えてビット数と元とのずれを測った。幅を 1 倍から 2 倍にするとビットは ${U.fmt(RD5_1.bits)} から ${U.fmt(RD5_2.bits)} に減る。粗くすると、ブロックの境目が見え始める（ブロックノイズ）。` },
+      { title: '粗くするほどビットは減り、画質は落ちる', text: `場面2・3 の手順を画像全体にかけ、量子化の幅を 1/4〜8 倍に変えてビット数と元とのずれを測った。幅を 2 倍にするとビットは ${B5_1} から ${B5_2} に減る。粗くするとブロックの境目が見え始める（ブロックノイズ）。実際の方式は、復号の最後に境目をならすループフィルタ（デブロッキング）をかける。` },
       { title: '画質を数で測る', text: 'PSNR は、元との差の 2 乗の平均（MSE）から 10·log10(255² ÷ MSE) で求める dB の値で、計算は簡単だが目の感じ方とずれることがある。SSIM は明るさ・コントラスト・構造の似かたを比べる。Netflix の VMAF は複数の指標を機械学習で組み合わせ、0〜100 の点にする。' },
       { title: '新しい方式ほど同じ画質のビットが少ない', text: 'ブロックの分け方・予測・変換・符号の道具が世代ごとに増え、同じ画質に要るビットが減ってきた。Facebook の 2018 年の測定では、AV1 は x264（H.264）より約 46%、libvpx（VP9）より約 34% 少なかった。Google は、VP9 で既存の方式より最大 50% 減らせるとしている。' },
-      { title: 'YouTube の解像度ごとのビットレート', text: `例の動画（25 fps）の 1080p は、2026 年 10 月の時点で H.264 が 3.04、VP9 が 1.16、AV1 が 1.14 Mbps で、VP9 は圧縮前（約 ${rnd(RAW5)} Mbps）の約 ${rnd(RAW5 / 1.16 / 10) * 10} 分の 1 だった。60 fps の動画では、同じ 1080p でもふつうは高くなる。` },
+      { title: 'YouTube の解像度ごとのビットレート', text: `例の動画（25 fps）の 1080p は、2026 年 10 月の時点で H.264 が 3.04、VP9 が 1.16、AV1 が 1.14 Mbps で、VP9 は圧縮前（約 ${RAW5S} Mbps）の約 ${RATIO5} 分の 1。60 fps の動画では、同じ 1080p でもふつうは高くなる。` },
       { title: '符号化は重く、復号は軽く', text: '符号化側は、ブロックの分け方・予測の向き・ベクトル・変換の組み合わせを試し、ビットと画質の釣り合いが最もよいものを選ぶ。新しい方式ほど候補が多く、計算が増える。復号側は選ばれたとおりに組み立てるだけで軽い。符号化は 1 回、復号は視聴のたびなので、符号化に計算をかけても見合う。' }
     ],
     setup(ctx) {
@@ -1166,8 +1174,8 @@
         else S.line(RX, y + 26, RX + 446, y + 26, { cls: 's-soft w1' }, st.gYT);
         row.forEach((v, k) => S.text(RX + 14 + k * 108, y + 18, k === 0 ? v : v === null ? '—' : v.toFixed(2), { cls: 't-sm t-mono' + (row[0] === '1080p' ? ' t-b' : '') + (k && v !== null ? ' t-d' : '') + (v === null ? ' t-dim' : '') }, st.gYT));
       });
-      S.text(RX, 340, `1080p・25 fps・4:2:0 の圧縮前：1920×1080×1.5×8×25 ≈ ${rnd(RAW5)} Mbps`, { cls: 't-sm t-mono' }, st.gYT);
-      S.text(RX, 362, `VP9 の 1.16 Mbps はその約 ${rnd(RAW5 / 1.16 / 10) * 10} 分の 1`, { cls: 't-sm t-mono t-x t-b' }, st.gYT);
+      S.text(RX, 340, `1080p・25 fps・4:2:0 の圧縮前：1920×1080×1.5×8×25 ≈ ${RAW5S} Mbps`, { cls: 't-sm t-mono' }, st.gYT);
+      S.text(RX, 362, `VP9 の 1.16 Mbps はその約 ${RATIO5} 分の 1`, { cls: 't-sm t-mono t-x t-b' }, st.gYT);
       S.text(RX, 390, '音声は別のファイルで、AAC 約 130 kbps、Opus 約 50〜130 kbps（場面6）', { cls: 't-sm t-dim' }, st.gYT);
       S.text(RX, 410, 'H.264 は 1080p まで。2160p・1440p は VP9 と AV1 だけ', { cls: 't-sm t-dim' }, st.gYT);
       // 段階5：符号化と復号
@@ -1276,6 +1284,7 @@
     const pcm = Array.from(x.slice(N6 / 2, N6 / 2 + N6), (v) => Math.round(v * 32767));   // 表示する 20 ms（16 ビットの整数）
     return { bands, bits, nz: bands.reduce((a, t) => a + t.nz, 0), drop: bands.filter((t) => !t.nz).length, pcm, kbps: bits * 50 / 1000 };
   })();
+  const AUD6S = U.fmt(AUD6.bits), AUD6R = Math.round(15360 / AUD6.bits);   // 本文と図に出す値：20 ms のビット数と、PCM（15,360 ビット）に対する比
   // 例の動画のファイルの先頭から読んだ最初の 200 ms（大きさはバイト）。WebM の木の大きさは要素全体（ID・大きさ・中身）なので、
   // Opus のパケットは SimpleBlock から ID 1 バイト・大きさ 2 バイト・ブロックの見出し 4 バイトを除いた残り
   // （要素全体であることは、形式の一覧の大きさ 3,433,755 ＝ EBML 36 ＋ Segment 3,433,719 と、索引の位置 259〜629 ＝ Cues 371 で確かめた）
@@ -1323,7 +1332,7 @@
   const s6 = {
     steps: [
       { title: '音声も周波数に分けてから粗くする', dur: 15, text: `音声の符号化も、MDCT で周波数の係数に変えてから量子化する（[[2|空間の冗長]]の DCT と同じ考え）。区間を少しずつ重ねて変換するので、区間の境目に段差が出にくい。Opus は 0〜20 kHz の係数を 21 の帯域に分ける。帯域の幅は耳が周波数を聞き分ける細かさ（臨界帯域）に近く、高い所ほど広い。` },
-      { title: '聞こえない成分を捨て、誤差を隠す', dur: 19, text: `耳には周波数ごとに聞こえる最小の大きさ（最小可聴値）があり、大きな音の近くではそれが上がる（マスキング）。符号器はこれを模型で見積もり、しきい値より下の帯域は 0 にし、残りも誤差がしきい値に収まる粗さで丸める。図の模型の見積もりでは {x|${U.fmt(AUD6.bits)} ビット}で、PCM の約 ${Math.round(15360 / AUD6.bits)} 分の 1。` },
+      { title: '聞こえない成分を捨て、誤差を隠す', dur: 19, text: `耳には周波数ごとに聞こえる最小の大きさ（最小可聴値）があり、大きな音の近くではそれが上がる（マスキング）。符号器はこれを模型で見積もり、しきい値より下の帯域は 0 にし、残りも誤差がしきい値に収まる粗さで丸める。図の模型の見積もりでは {x|${AUD6S} ビット}で、PCM の約 ${AUD6R} 分の 1。` },
       { title: 'AAC と Opus', text: 'AAC も Opus の CELT も、MDCT の係数を聞こえ方に合わせて粗くする。YouTube は両方の形を用意し、計測した再生では Opus の 129 kbps（251）が選ばれた。AAC の 44.1 kHz は CD と同じで、出力の装置と周波数が違えば、再生のときにブラウザか OS が変換する。' },
       { title: 'MP4：大きさと種類で始まる box の入れ子', text: '符号にした映像や音声は、コンテナと呼ぶ形式のファイルに入れる。MP4 は「大きさ 4 バイト＋種類 4 文字」で始まる box の入れ子で、大きさを足せば次の box の位置が分かる。moov に方式・画面の大きさ・時刻の単位を、mdat に符号そのものを入れる。図は例の動画の 720p の AV1 のファイル。' },
       { title: '断片に分けた MP4 と WebM', text: '配信用の MP4（fMP4）は、数秒ごとの moof と mdat の組に分け、moof に断片の始まりの時刻とフレームごとの大きさを書く。WebM は Matroska を元にした形式で、要素は「ID・大きさ・中身」の入れ子。Cluster が時刻を持ち、パケットを 1 個ずつ SimpleBlock に入れる。' },
@@ -1567,7 +1576,7 @@
              `帯域 ${b}：${hz6(t.f0)}〜${hz6(t.f1)} Hz`, `係数 ${t.n} 個、大きさ ${U.fmt(t.L, 1)} dB`, '']
           : [`帯域 ${b}：${hz6(t.f0)}〜${hz6(t.f1)} Hz、係数 ${t.n} 個`, `大きさ ${U.fmt(t.L, 1)} dB、しきい値 ${U.fmt(t.T, 1)} dB`,
              t.nz ? `→ 0 でない係数 ${t.nz} 個、約 ${Math.round(t.bits)} ビット` : '→ 係数はすべて 0（送らない）',
-             `合計 ${U.fmt(AUD6.bits)} ビット（PCM の約 ${Math.round(15360 / AUD6.bits)} 分の 1）`, `0 でない係数 ${AUD6.nz} / 800 個、0 の帯域 ${AUD6.drop} 個`,
+             `合計 ${AUD6S} ビット（PCM の約 ${AUD6R} 分の 1）`, `0 でない係数 ${AUD6.nz} / 800 個、0 の帯域 ${AUD6.drop} 個`,
              `1 秒 50 フレームで約 ${Math.round(AUD6.kbps)} kbps（1 チャンネル）`];
         st.cL.forEach((tx, k) => {
           tx.textContent = L[k];
@@ -1611,7 +1620,7 @@
       title: '動画の圧縮',
       home: '../index.html',
       prev: { href: '22-server.html', title: 'YouTube のサーバー側' },
-      next: { href: '24-streaming.html', title: 'ストリーミングと再生' },
+      next: { href: '24-streaming.html', title: 'ストリーミングと再生', lead: '動画は 1 本のファイルとして丸ごと届くのではない。' },
       legend: [{ c: 'd', label: 'ビット列・係数・符号' }, { c: 'x', label: '注目・変化' }, { c: 'dim', label: '0・捨てる成分' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

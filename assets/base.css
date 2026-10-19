@@ -360,8 +360,7 @@ svg text { font-family: var(--sans); font-size: 12.5px; fill: var(--fg); }
 .narr h3 { font-size: 1.04rem; font-weight: 600; line-height: 1.6; margin-bottom: 0.3rem; }
 .narr .txt { color: var(--fg-mid); }
 
-.ctrls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; padding: 0.55rem 0.8rem; }
-.ctrls .btn, .ctrls .counter { display: none; }   /* 縦読み版では下端の .mbar で操作する */
+.ctrls { display: none; }   /* 縦読み版では下端の .mbar で操作する（「右上の ›」の案内も縦読み版には当てはまらないので、欄ごと出さない） */
 .hint { font-size: 0.74rem; color: var(--fg-dim); line-height: 1.6; }
 
 .btn {
@@ -443,6 +442,19 @@ table.gloss th { text-align: left; vertical-align: top; width: 11rem; padding: 0
 table.gloss td { padding: 0.5rem 0.8rem 0.5rem 0; vertical-align: top; color: var(--fg-mid); border-top: 1px solid var(--rule-soft); }
 table.gloss tr:first-child > * { border-top: 0; }
 table.gloss th .sw { margin-right: 0.4rem; }
+
+/* まとめの下に出す、次の章の導入（engine.js が meta.next.lead から作る。通しで進むときは表紙を飛ばすため、ここで章の境目をつなぐ） */
+.next-lead { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.15rem 0.6rem; align-items: baseline; font-size: 0.9rem; line-height: 1.7; color: var(--fg-mid); margin-bottom: 0.6rem; }
+.next-lead small { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.08em; color: var(--fg-dim); }
+.next-lead b { font-weight: 600; color: var(--fg); }
+.next-lead .lead-text { grid-column: 2; }
+.next-lead .go { display: none; grid-column: 2; font-size: 0.78rem; color: var(--fg-dim); }
+/* 1画面版は 1〜2 行の流し組みにして、まとめの高さを食わない（用語表が長い章は余りが数 px しかない） */
+.fit .next-lead { display: block; margin-bottom: 0.4rem; font-size: 0.88rem; line-height: 1.6; }
+.fit .next-lead small { margin-right: 0.5rem; }
+.fit .next-lead b { margin-right: 0.6rem; }
+.fit .next-lead .lead-text { display: inline; }
+.fit .next-lead .go { display: inline; margin-left: 0.8rem; white-space: nowrap; }
 
 /* 要点の箇条書き（まとめ） */
 .keypoints { display: grid; gap: 0.6rem; padding-left: 0; list-style: none; counter-reset: kp; }
@@ -649,7 +661,7 @@ table.gloss th .sw { margin-right: 0.4rem; }
 }
 .fit .sc-wrap { grid-template-rows: auto minmax(0, 1fr) auto; grid-template-areas: "sh sh" "text tbl" "after after"; }
 
-.fit .ctrls { flex-wrap: nowrap; }
+.fit .ctrls { display: flex; flex-wrap: nowrap; align-items: center; gap: 0.4rem 0.5rem; padding: 0.55rem 0.8rem; }
 .fit .ctrls .btn, .fit .ctrls .counter { display: inline-block; flex: none; }
 /* 1画面版の移動は上部バー右上の ‹ › に集める。説明欄の「前へ」「次へ」と、章の表紙・まとめの「次の章」は出さない
    （「次へ」は検証ツールが押して全段階を測るので、要素は残す） */

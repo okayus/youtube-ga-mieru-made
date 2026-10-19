@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>YouTube のサーバー側 — YouTubeが見えるまで</title>
+<meta name="description" content="ここから第VI部「YouTube」に入り、要求の行き着く先から映像が画面に映るまでを、サーバー側 → 動画の圧縮 → ストリーミングと再生 → 通しで見る、の順に追う。">
+<meta property="og:title" content="YouTube のサーバー側 — YouTubeが見えるまで">
+<meta property="og:description" content="ここから第VI部「YouTube」に入り、要求の行き着く先から映像が画面に映るまでを、サーバー側 → 動画の圧縮 → ストリーミングと再生 → 通しで見る、の順に追う。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">YouTube のサーバー側</h1>
     <p class="standfirst">ここから第VI部「YouTube」に入り、要求の行き着く先から映像が画面に映るまでを、サーバー側 → 動画の圧縮 → ストリーミングと再生 → 通しで見る、の順に追う。この章はその最初で、アップロードされた動画が何通りもの形式に作り直され、分散ストレージに冗長に置かれ、世界の拠点と ISP の中のキャッシュから配られるまでと、再生の要求を受けたサーバーの中で起きることを見る。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の台数・距離・速さは見やすいように省略・誇張してある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -53,10 +59,10 @@
     <p class="sh-meta"><span class="chip">H.264・VP9・AV1</span><span class="chip">Argos（VCU）</span><span class="chip">例の動画 2026-10</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">YouTube に上げた動画は、元のファイルのままでは配らない。データセンターで、解像度・コーデック・ビットレートの違う何通りもの形式に作り直してから保存する。この作り直しを<b>トランスコード</b>（変換）と呼ぶ。</p>
+    <p class="prose a-lead">第21章の要求が行き着く Google のデータセンターは、上げられた動画を元のファイルのままでは配らない。解像度・コーデック・ビットレートの違う何通りもの形式に作り直して保存する。この作り直しが<b>トランスコード</b>（変換）。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">変換の中身（復号・縮小・符号化）は<a class="xref" href="23-codec.html">第23章</a>。例の動画の形式と平均ビットレートは、2026 年 10 月 12 日に視聴ページの再生の情報から読んだ値で、ほかに音声付きの 360p が 1 通りあった。形式の数は元の画質や時期で変わる。</p>
+      <p class="note">復号と符号化の中身は<a class="xref" href="23-codec.html">第23章</a>、縮小は<a class="xref" href="24-streaming.html#s5">第24章 場面5</a>の拡大と同じ考えの補間。例の動画の形式と平均ビットレートは、2026 年 10 月 12 日に視聴ページの再生の情報から読んだ値で、ほかに音声付きの 360p が 1 通りあった。形式の数は元の画質や時期で変わる。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -68,19 +74,19 @@
 <!-- ================= 2 分散ストレージ ================= -->
 <section class="scene sc-anim" id="s2" data-tab="保存" aria-labelledby="h-s2">
   <header class="sh a-sh">
-    <h2 id="h-s2"><span class="n">2</span>分散ストレージ — 断片に分けて散らして持つ</h2>
+    <h2 id="h-s2"><span class="n">2</span>分散ストレージ — チャンクに分けて散らして持つ</h2>
     <p class="sh-meta"><span class="chip">Colossus</span><span class="chip">Reed–Solomon 符号</span><span class="chip">ラックをまたぐ配置</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">できた形式のファイルは、Google の分散ファイルシステム Colossus に置く。場所の記録と中身は別の機械が持ち、中身は断片に分けて冗長にし、ラックをまたいで散らす。どこかの機械が常に壊れている前提の作り。</p>
+    <p class="prose a-lead">できた形式のファイルは、Google の分散ファイルシステム Colossus に置く。場所の記録と中身は別の機械が持ち、中身はチャンクに分けて冗長にし、ラックをまたいで散らす。どこかの機械が常に壊れている前提の作り。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">Colossus はフラッシュとハードディスクを混ぜて使い、よく読まれるデータをフラッシュに、古くなって読まれなくなったデータを大容量のディスクに置く（2021 年のブログ）。人気の動画は、さらに利用者の近くのキャッシュにも置く（<a class="xref" href="#s4" data-go="4">4「エッジと GGC」</a>）。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
-    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="Colossus の構成（読み書きする機械、Curator、Bigtable、Custodian）と、中身を持つ 10 台のラック、1 つのファイルの断片の組がラックをまたいで置かれる様子"></svg></div>
-    <figcaption>図2　上の段が読み書きする機械と Colossus の制御、中の段が中身を持つ D ファイルサーバーのラック 10 台（台数は省略）。下の段は断片の組と、ほかの置き場。</figcaption>
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="Colossus の構成（読み書きする機械、Curator、Bigtable、Custodian）と、中身を持つ 10 台のラック、1 つのファイルのチャンクの組がラックをまたいで置かれる様子"></svg></div>
+    <figcaption>図2　上の段が読み書きする機械と Colossus の制御、中の段が中身を持つ D ファイルサーバーのラック 10 台（台数は省略）。下の段はチャンクの組と、ほかの置き場。</figcaption>
   </figure>
 </section>
 
@@ -169,7 +175,7 @@
     <ol class="keypoints">
       <li>元のファイルは塊に分けて多くの機械で並行に変換し、解像度とコーデック（H.264・VP9・AV1）の組の形式に作り直す。重い符号化には専用チップ Argos を使う（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
       <li>ファイルは Colossus に置く。場所の記録と中身は別の機械が持ち、中身は Reed–Solomon 符号などで冗長にして、ラックをまたいで散らす（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
-      <li>同じ番号を多くの拠点が広告し（Anycast）、拠点の中では Maglev が接続ごとに GFE を選び、GFE が暗号をほどいて奥のサービスへ渡す（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>同じ番号を多くの拠点が広告し（Anycast と推定）、拠点の中では Maglev が接続ごとに GFE を選び、GFE が暗号をほどいて奥のサービスへ渡す（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
       <li>断片は ISP の中の GGC、IX か直結の先のエッジ、データセンターの順に近い。無ければ上流から取り寄せて残し、再生の偏りでキャッシュが効く（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
       <li>視聴ページが配信元の URL（期限と署名付き）を渡し、断片は再生の状態を送る POST で取る。何を返すかは配信元の側でも決める（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
       <li>機械はラックに積まれ、Jupiter の網でつながる。電力の大半は計算に使われ、Google の PUE は 1.09（2025 年）（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
@@ -498,14 +504,14 @@
      ================================================================ */
   const RX = (k) => 20 + k * 93;                 // ラック k の左端
   const MYR = (j) => 174 + j * 49;               // ラックの中の j 段目の機械の上端
-  const CHUNK_ROW = [1, 3, 0, 2, 1, 3, 0, 2, 1];  // 断片 k を置く機械の段（ラック k に 1 個ずつ）
+  const CHUNK_ROW = [1, 3, 0, 2, 1, 3, 0, 2, 1];  // チャンク k を置く機械の段（ラック k に 1 個ずつ）
   const chunkAt = (k, j) => ({ x: RX(k) + 59, y: MYR(j) + 21 });
   const s2 = {
     steps: [
       { title: 'Colossus：建物ごとのファイルシステム', text: 'Colossus は Google のクラスタ単位のファイルシステムで、GFS（2003 年の論文）の後継。2021 年の Google のブログによれば、1 つのクラスタをエクサバイト級・数万台の機械まで広げられ、YouTube・Gmail・Drive が同じ仕組みを共有する。YouTube の配信の機械も読む。' },
-      { title: '場所の記録と中身は別の機械', text: 'ファイルの名前と、どの断片がどの機械にあるか（{x|メタデータ}）は、Curator と呼ぶサーバー群が Bigtable（Google の表のデータベース）に記録する。中身は D ファイルサーバーと呼ぶディスクの機械が持つ。読み手は Curator に場所を聞き、中身は D から直接受け取る。' },
-      { title: '断片の組で冗長に持つ', text: '中身は決まった大きさの断片（チャンク）の組で持つ。2010 年の Google の論文によれば、同じ断片を 3 個置く（R=3）か、データ n 個に訂正用の m 個を足し、どの n 個からでも戻せる Reed–Solomon 符号を使う。RS(6,3) なら容量は 1.5 倍で、3 個置くより安い。' },
-      { title: '同じ組を同じラックに置かない', text: 'ラックの電源やスイッチが止まると、数十台が同時に消える。そこで同じ組の断片は別々のラックに置く（2010 年の論文）。図でラック 4 が止まっても、残る 8 個のうち 6 個から元に戻せる。消えた断片は Custodian と呼ぶ裏方が別のラックに作り直す（2021 年のブログ）。' },
+      { title: '場所の記録と中身は別の機械', text: 'ファイルの名前と、どのチャンクがどの機械にあるか（{x|メタデータ}）は、Curator と呼ぶサーバー群が Bigtable（Google の表のデータベース）に記録する。中身は D ファイルサーバーと呼ぶディスクの機械が持つ。読み手は Curator に場所を聞き、中身は D から直接受け取る。' },
+      { title: 'チャンクの組で冗長に持つ', text: '中身は決まった大きさに切ったチャンクの組で持つ。2010 年の Google の論文によれば、同じチャンクを 3 個置く（R=3）か、データ n 個に訂正用の m 個を足し、どの n 個からでも戻せる Reed–Solomon 符号を使う。RS(6,3) なら容量は 1.5 倍で、3 個置くより安い。' },
+      { title: '同じ組を同じラックに置かない', text: 'ラックの電源やスイッチが止まると、数十台が同時に消える。そこで同じ組のチャンクは別々のラックに置く（2010 年の論文）。図でラック 4 が止まっても、残る 8 個のうち 6 個から元に戻せる。消えたチャンクは Custodian と呼ぶ裏方が別のラックに作り直す（2021 年のブログ）。' },
       { title: '別のデータセンターにも置く', text: '2010 年の論文は、組をまるごと別のセル（ファイルシステムのまとまり）にも置く方式を扱い、セルは別のデータセンターや別の大陸に置けると書く。こうすると建物ごと止まっても読める。YouTube の動画をいくつ、どこに置いているかは公開されていない。' },
       { title: '動画の情報は別のデータベースに', text: '題名・説明・コメントなどの動画の情報は、映像のファイルとは別のデータベースに入る。YouTube は 2010 年、この情報を入れた MySQL を分割して束ねる Vitess を作り、のちに公開した（いまの置き場は公表されていない）。視聴ページはここの情報から作る（[[5|再生要求のサーバー側]]）。' }
     ],
@@ -543,7 +549,7 @@
         st.racks.push({ g, rect, cross });
       }
       st.rackLbl = S.text(620, 140, '中身を持つ D ファイルサーバー（1 台にディスクが何台も入る）', { cls: 't-c t-xs t-dim' }, svg);
-      // 断片の組（データ 6 ＋ 訂正用 3）をラック 1〜9 に 1 個ずつ置く
+      // チャンクの組（データ 6 ＋ 訂正用 3）をラック 1〜9 に 1 個ずつ置く
       const name = (k) => (k < 6 ? String(k + 1) : 'P' + (k - 5));
       const ccls = (k) => (k < 6 ? 'f-d s-d w1' : 'f-d-soft s-d w1');
       const tcls = (k) => 't-c t-xs t-b t-mono' + (k < 6 ? ' t-sf' : '');
@@ -556,14 +562,14 @@
         S.text(p.x, p.y + 4, name(k), { cls: tcls(k) }, g);
         st.chunkEls.push(g);
       }
-      // ラック 10 に作り直した断片（段階4）
+      // ラック 10 に作り直したチャンク（段階4）
       const pr = chunkAt(9, 2);
       st.rebuilt = S.g({ style: { opacity: 0 } }, svg);   // 段階4 の作り直しの後だけ見せる（frame が決める）
       S.rect(pr.x - 10, pr.y - 10, 20, 20, { rx: 3, cls: 'f-d s-x w2' }, st.rebuilt);
       S.text(pr.x, pr.y + 4, '4', { cls: 't-c t-xs t-b t-mono t-sf' }, st.rebuilt);
-      // ---- 下の段：断片の組と、3 個置く方式の比べ（段階3〜）
+      // ---- 下の段：チャンクの組と、3 個置く方式の比べ（段階3〜）
       st.stripe = S.g({ cls: 'fade hide' }, svg);
-      S.text(20, 420, '1 つのファイルの断片の組（1 組を拡大）', { cls: 't-xs t-b' }, st.stripe);
+      S.text(20, 420, '1 つのファイルのチャンクの組（1 組を拡大）', { cls: 't-xs t-b' }, st.stripe);
       S.text(20, 446, 'RS(6,3)', { cls: 't-xs t-b t-mono' }, st.stripe);
       st.stripeEls = [];
       for (let k = 0; k < 9; k++) {
@@ -578,7 +584,7 @@
       S.text(20, 486, 'R=3', { cls: 't-xs t-b t-mono' }, st.rep);
       for (let k = 0; k < 18; k++) S.rect(74 + k * 16 + Math.floor(k / 6) * 6, 472, 14, 22, { rx: 2, cls: 'f-d s-d w1' }, st.rep);
       S.text(388, 486, '18 個 ＝ 3 倍', { cls: 't-xs t-mono' }, st.rep);
-      S.text(20, 516, 'どちらも、どの断片が消えても読める。数字はデータ 6 個分を 1 とした容量', { cls: 't-xs t-dim' }, st.rep);
+      S.text(20, 516, 'どちらも、どのチャンクが消えても読める。数字はデータ 6 個分を 1 とした容量', { cls: 't-xs t-dim' }, st.rep);
       // ---- 下の段：別のデータセンター（段階5）
       st.otherDC = S.g({ cls: 'fade hide' }, svg);
       S.path('M585,380 V404', { cls: 'f-none s-d w15', 'marker-end': mk('d') }, st.otherDC);
@@ -649,7 +655,7 @@
         if (q.i === 2) st.rRead.forEach((r, k) => dot(st.dots[k], r, U.ease.inOut(q.f)));
       }
       if (i === 2) {
-        // 断片の組がラック 1〜9 に 1 個ずつ書かれる
+        // チャンクの組がラック 1〜9 に 1 個ずつ書かれる
         const q = U.seq(ts + 1.0, [2.0, 1.0], true);
         if (q.i === 0) st.rWrite.forEach((r, k) => dot(st.dots[k], r, U.ease.inOut(q.f)));
       }
@@ -995,7 +1001,7 @@
       { title: '配信元の URL を書いて渡す', text: '再生の情報の形式の一覧では、音声付きの 360p を除く 26 通りが 1 つの URL から取る形だった（2026 年 10 月）。名前の rr1---sn-xxxxxxxx は、利用者の番号に合わせて選んだ配信元を指す。URL の期限（約 6 時間後）・発行先の番号・{x|署名}は、使い回しを防ぐためと考えられる。' },
       { title: '名前を引いて配信元へつなぐ', text: 'PC はこの名前を DNS で引く（第17章）。GGC のある ISP なら、198.51.100.80（例）のような ISP の中の番号が返る。2026 年 10 月の確かめでは Google の番号（逆引きの名前は東京を示す nrt）で、往復は約 7 ms。接続は最初から HTTP/3 だった（第21章）。' },
       { title: '断片は POST で頼む', text: 'プレーヤーは /videoplayback?…&sabr=1 へ POST を送り、本文（protobuf）に再生の位置と手元に溜めた区間を入れる（第21章の計測）。応答は application/vnd.yt-ump という YouTube 独自の形式で、音声と映像の断片をまとめて返した。' },
-      { title: 'どれを返すかはサーバーも決める', text: '形式ごとの URL は無く、どの画質の断片をどこまで返すかは、送られた状態をもとに配信元の側でも決める。この方式は SABR と呼ばれ、ページの中の名前も serverAbrStreamingUrl。選び方の規則は公開されておらず、仕組みの説明は第三者の解析による（詳しくは第24章）。' },
+      { title: 'どれを返すかはサーバーも決める', text: '形式ごとの URL は無く、どの画質の断片をどこまで返すかは、送られた状態をもとに配信元の側でも決める。この方式は SABR と呼ばれ、ページの中の名前も serverAbrStreamingUrl。選び方の規則は公開されておらず、仕組みの説明は第三者の解析による。プレーヤーが本文に入れる欄は第24章 場面3。' },
       { title: '届いてから返すまで', text: '配信元は QUIC と TLS をほどき、URL の期限と署名を確かめ、返す形式と時間の範囲を決め、手元のキャッシュを探す。あればすぐ返し、無ければ上流から取り寄せながら返す（[[4|エッジと GGC]]）。この段取りは、公開の資料と観察からの推定を含む。' }
     ],
     setup(ctx) {
@@ -1274,7 +1280,7 @@
       title: 'YouTube のサーバー側',
       home: '../index.html',
       prev: { href: '21-http.html', title: 'HTTP' },
-      next: { href: '23-codec.html', title: '動画の圧縮' },
+      next: { href: '23-codec.html', title: '動画の圧縮', lead: 'フル HD・30 fps の映像を圧縮せずに送ると毎秒 750 Mbit〜1.5 Gbit になるが、YouTube が届けるのは 1080p でも数 Mbps 以下で、数百分の 1 にしてある。' },
       legend: [{ c: 'd', label: 'データ・要求・映像の断片' }, { c: 'e', label: '電力（電流）' }, { c: 'p', label: '光・熱' }, { c: 'x', label: '注目・変化' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

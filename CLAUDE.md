@@ -9,5 +9,6 @@
 - 共通ファイル: `assets/base.css`（配色・レイアウト・SVG 用クラス）、`assets/engine.js`（場面・段階・動きの時計・SVG 部品）。章の都合で変えない。変えるときは全章に影響することを確認する。
 - 検証: `node tools/verify.mjs [--shots DIR --all-steps] chapters/NN-*.html`（ヘッドレス Chrome で JS エラー・はみ出し・横スクロール・リンク切れ・時刻送りの例外・未定義のクラスを測る。`--nav` で段階の行き来も比べる。`--overlap` で止まっている文字どうしの重なりも調べる）。章を直したら必ず走らせる。
 - 時刻を指定した写真: `node tools/shot.mjs chapters/NN-*.html --scene N --step K --at 0,1.5,3 --out DIR [--dark]`（動く札の止まる位置や、途中で書き換わる文字・色を確かめる）。
+- 用語索引: `glossary.html` が `assets/glossary-data.js` を読む。章の用語表を直したら `node tools/build-glossary.mjs` で作り直す。
 - 配信: `tools/serve.sh` で http://127.0.0.1:8766/ 。止めるのは `tools/serve.sh stop`（pkill は使わない）。
 - 表示方針は one-screen-artifact スキルに従う（デスクトップは場面ごとに1画面、スマートフォンは縦読み）。

@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>HTTP — YouTubeが見えるまで</title>
+<meta name="description" content="DNS で番号を引き、QUIC か TCP で接続し、TLS で暗号化した通り道ができると、ブラウザはその中で HTTP の要求を送り、サーバーは応答を返す。">
+<meta property="og:title" content="HTTP — YouTubeが見えるまで">
+<meta property="og:description" content="DNS で番号を引き、QUIC か TCP で接続し、TLS で暗号化した通り道ができると、ブラウザはその中で HTTP の要求を送り、サーバーは応答を返す。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -27,7 +33,7 @@
     <h1 id="h-s0">HTTP</h1>
     <p class="standfirst">DNS で番号を引き、QUIC か TCP で接続し、TLS で暗号化した通り道ができると、ブラウザはその中で HTTP の要求を送り、サーバーは応答を返す。この章では、要求と応答の形、メソッドと状態コード、1 本の接続に多くの要求を通す HTTP/2 と HTTP/3、キャッシュと Cookie を順に見る。最後に、YouTube の視聴ページを開いたときに実際に流れる約 200 個の要求を、順番と大きさで追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の中の要求と応答の動きは、見やすいように実際よりずっと遅くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -522,7 +528,7 @@
       { title: '安全と冪等', text: '`GET` は**安全**（サーバーの状態を変えない）で**冪等**（何度送っても効果が 1 回と同じ）なので、ブラウザは失敗した要求を黙って送り直せる。`POST` はどちらでもないので、フォームを送り直す前にブラウザが確かめる。`PUT` と `DELETE` は冪等だが安全ではない。' },
       { title: '2xx：成功', text: '`200 OK` は本文付きの成功。`204 No Content` は本文の無い成功で、再生中に 10 秒ごとに POST する視聴時間の統計には、これが返っていた。`206 Partial Content` は、範囲を指定した要求に、その部分だけを返す成功。' },
       { title: '範囲を指定して取る（206）', text: '要求に `Range` で範囲を書くと、サーバーはその部分だけを `206 Partial Content` で返し、`Content-Range` に範囲と全体のバイト数を書く。図2 の上の帯は base.js の先頭 1,024 バイトを頼んだ例。`<video src>` や `<audio>` は、この形で少しずつ取る。' },
-      { title: 'YouTube の断片は POST で', text: '2026 年 10 月の計測では、動画と音声の断片を、範囲を指定した GET ではなく `/videoplayback` への POST で取っていた。本文（約 1.4 KB）で再生位置と手元に溜めた区間を伝え、どの断片を返すかは配信元の側でも決める。SABR と呼ばれる方式で、細部は公開されていない（第24章）。' },
+      { title: 'YouTube の断片は POST で', text: '2026 年 10 月の計測では、動画と音声の断片を、範囲を指定した GET ではなく `/videoplayback` への POST で取っていた。本文（約 1.4 KB）で再生位置と手元に溜めた区間を伝え、どの断片を返すかは配信元の側でも決める（SABR。第22章 場面5・第24章 場面3）。' },
       { title: '3xx は転送、4xx・5xx は誤り', text: '`301` は恒久の移転で、`https://youtube.com/` は `www.youtube.com` へ移る。`youtu.be/…` は `303` で視聴ページへ。`304` は場面5。`404` は無い、`403` は許されない、`429` は送りすぎ。5xx はサーバー側の失敗で、`503` は一時的に応じられない。' }
     ],
     setup(ctx) {
@@ -1452,7 +1458,7 @@
       title: 'HTTP',
       home: '../index.html',
       prev: { href: '20-tls.html', title: 'TLS' },
-      next: { href: '22-server.html', title: 'YouTube のサーバー側' },
+      next: { href: '22-server.html', title: 'YouTube のサーバー側', lead: 'ここから第VI部「YouTube」に入り、要求の行き着く先から映像が画面に映るまでを、サーバー側 → 動画の圧縮 → ストリーミングと再生 → 通しで見る、の順に追う。' },
       legend: [{ c: 'd', label: '要求・応答・データ' }, { c: 'x', label: '注目・変化' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

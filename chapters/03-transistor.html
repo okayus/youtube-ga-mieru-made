@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>トランジスタ — YouTubeが見えるまで</title>
+<meta name="description" content="前の章の n 型・p 型・pn 接合を使って、「電圧で動くスイッチ」を作る。">
+<meta property="og:title" content="トランジスタ — YouTubeが見えるまで">
+<meta property="og:description" content="前の章の n 型・p 型・pn 接合を使って、「電圧で動くスイッチ」を作る。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">トランジスタ</h1>
     <p class="standfirst">前の章の n 型・p 型・pn 接合を使って、「電圧で動くスイッチ」を作る。MOSFET の4つの端子と断面、ゲートの電圧で表面に電子の層（チャネル）ができる仕組み、スイッチとしてのオン・オフ、nMOS と pMOS を組み合わせた CMOS インバータ、止まっているときは電流がほぼ流れないのに動かすと熱くなる理由、そして数 nm の大きさで数百億個を1枚に作る製造まで見る。この章の終わりで、第1章の手で押すスイッチが、電気で動くスイッチに置き換わる。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。断面図の厚さの比は実際とは違う（酸化膜は実際には原子十数個分）。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -53,7 +59,7 @@
     <p class="sh-meta"><span class="chip">nMOS</span><span class="chip">断面図</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">MOSFET は、p 型シリコンの表面に n 型の島を2つ作り、その間の表面を薄い絶縁膜ごしに<b>ゲート</b>電極で覆った部品。電流が通るのは島と島の間で、ゲートはその通り道を電圧で開け閉めする。</p>
+    <p class="prose a-lead">第1章の手で押すスイッチを、前の章の n 型・p 型で作り直す。MOSFET は p 型シリコンに n 型の島を2つ作り、島の間の表面を薄い絶縁膜ごしに<b>ゲート</b>電極で覆った部品。ゲートがこの通り道を電圧で開け閉めする。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">名前は Metal-Oxide-Semiconductor Field-Effect Transistor（金属・酸化膜・半導体 電界効果トランジスタ）。現在の CPU のトランジスタはほぼすべてこの型で、1 チップに数十億〜数百億個入っている。</p>
@@ -75,7 +81,7 @@
     <p class="prose a-lead">ゲートの電圧を 0 V から上げていくと、酸化膜の下の表面で起きることが3段階に変わる。正孔が退き、空になり、しきい値を超えると電子の層ができる。この層が<b>チャネル</b>で、できた瞬間に S と D がつながる。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">反転層の厚さは数 nm。しきい値電圧 V_th は現在の CPU 向けで約 0.3〜0.5 V、電源電圧は約 0.7〜1.1 V。ゲートの酸化膜は 1〜3 nm（原子十数個分）で、ここが薄いほど小さいゲート電圧で強いチャネルができる。</p>
+      <p class="note">ゲートの酸化膜が薄いほど、同じゲート電圧でも表面に強い電場がかかり、少ない電圧で濃いチャネルができる。ただし薄すぎると電子がトンネル効果で漏れるので、2007 年ごろから SiO₂ の代わりに誘電率の高い HfO₂ を使い、同じ効きで物理的な厚さを稼いでいる。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -88,7 +94,7 @@
 <section class="scene sc-anim" id="s3" data-tab="スイッチ" aria-labelledby="h-s3">
   <header class="sh a-sh">
     <h2 id="h-s3"><span class="n">3</span>スイッチとして使う</h2>
-    <p class="sh-meta"><span class="chip">V_DD = 1 V</span><span class="chip">記号</span></p>
+    <p class="sh-meta"><span class="chip">VDD = 1 V</span><span class="chip">記号</span></p>
   </header>
   <div class="col a-left">
     <p class="prose a-lead">第1章の回路で、手で押していたスイッチの場所にトランジスタを置く。ゲートに 1 V をかければ流れ、0 V なら止まる。手の代わりに<b>電圧</b>が押すスイッチなので、別の回路の出力でこのスイッチを動かせる。</p>
@@ -110,7 +116,7 @@
     <p class="sh-meta"><span class="chip">NOT</span><span class="chip">相補型</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">nMOS を下、pMOS を上に重ね、ゲートどうし・ドレインどうしをつなぐ。入力が 0 なら上だけ、1 なら下だけがオンになるので、出力は入力の反対になる。どちらの状態でも電源から GND へ貫通する道がない。これが<b>CMOS</b>（相補型 MOS）。</p>
+    <p class="prose a-lead">pMOS を上、nMOS を下に重ね、ゲート同士・ドレイン同士をつなぐ。入力 0 なら上だけ、1 なら下だけがオンになり、出力は入力の逆。どちらでも電源から GND への貫通路はない。これが<b>CMOS</b>（相補型 MOS）。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">CMOS の前（1970 年代の nMOS 論理）は片側が抵抗で、出力 0 の間ずっと電流が流れて熱くなった。CMOS は止まっている間の電流が漏れ分だけなので、1 チップに数百億個入れても動かせる。コンピューターの論理回路のほぼ全部がこの形。</p>
@@ -129,10 +135,10 @@
     <p class="sh-meta"><span class="chip">P = αCV²f</span><span class="chip">漏れ電流</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">CMOS が電力を使うのは、出力につながる容量 C を充電・放電する瞬間だけ。1 回あたり C·V² のエネルギーが pMOS と nMOS の抵抗で熱になる。だから発熱は「切り替えの回数 × 電圧の二乗」で決まり、CPU は電圧を下げ、不要な回路を止める。</p>
+    <p class="prose a-lead">CMOS が電力を使うのは、出力の容量 C を充放電する瞬間だけ。1 回に C·V² のエネルギーがトランジスタの抵抗で熱になる。発熱は切り替え回数 × 電圧の二乗で決まるので、CPU は電圧を下げ、不要な回路を止める。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">式の α（活性率）は 1 クロックのうち実際に切り替わるゲートの割合で、0.1 前後。2005 年ごろ、クロックを上げると発熱が冷却の限界を超えるようになり（電力の壁）、以後クロックは 3〜5 GHz で頭打ちになった。代わりにコア数と並列性が増えた（第6章）。</p>
+      <p class="note">この電力はすべて熱になる。CPU の仕様にある TDP（熱設計電力。例: 65 W・125 W）は、冷却器が持続的に逃がすべき発熱の目安で、短時間ならこれを超えて動く設定（ターボ）もある。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -180,7 +186,7 @@
       <tbody>
         <tr><th>MOSFET</th><td>金属・酸化膜・半導体の電界効果トランジスタ。端子はソース S・ゲート G・ドレイン D・ボディ B。</td></tr>
         <tr><th>nMOS ／ pMOS</th><td>電子が流れる型（ゲートが高いとオン）／正孔が流れる型（ゲートが低いとオン）。記号ではゲートの丸印が pMOS。</td></tr>
-        <tr><th><i class="sw h"></i>しきい値電圧 V_th</th><td>チャネルができ始めるゲート電圧。CPU 向けで約 0.3〜0.5 V。電源電圧 V_DD は約 0.7〜1.1 V。</td></tr>
+        <tr><th><i class="sw h"></i>しきい値電圧 V_th</th><td>チャネルができ始めるゲート電圧。CPU 向けで約 0.3〜0.5 V。電源電圧 VDD は約 0.7〜1.1 V。</td></tr>
         <tr><th><i class="sw e"></i>反転層（チャネル）</th><td>ゲート直下の表面に集まった電子の層。厚さ数 nm。空乏層は正孔も電子もない層。</td></tr>
         <tr><th>ゲート酸化膜</th><td>ゲートとシリコンを隔てる絶縁膜。厚さ 1〜3 nm。SiO₂ または高誘電率材料（HfO₂）。</td></tr>
         <tr><th>CMOS インバータ</th><td>pMOS と nMOS を直列に重ねた NOT 回路。静止時に貫通電流が流れない。</td></tr>
@@ -421,7 +427,7 @@
       { title: 'V_G = 0 V：表面は p 型のまま', text: 'ゲートに電圧がないと、酸化膜の下の表面にも正孔が多数いる。S と D の n 型は p 型にはさまれたままで、場面1の背中合わせの接合のとおり電流は流れない。これがオフの状態で、以後の変化はすべてこの表面の薄い層で起きる。' },
       { title: '少し上げる（0 < V_G < V_th）：空乏層', text: 'ゲートを＋にすると、ゲートの＋電荷が表面の正孔を電気的に押し下げる。表面の下に正孔も電子もない**空乏層**ができる。まだ電子はいないので S–D 間はつながらない。ゲートには電荷が置かれただけで、電流は流れ込んでいない。' },
       { title: 'しきい値を超える（V_G > V_th）：反転層', text: 'さらに上げると、S と D の n 型から電子が表面に引き寄せられ、酸化膜の直下に厚さ数 nm の電子の層ができる。p 型の表面が n 型に「反転」したので**反転層**と呼ぶ。この層が S と D を n 型でつなぐ通り道＝**チャネル**。しきい値 V_th は約 0.3〜0.5 V。' },
-      { title: 'もっと上げる：チャネルが濃くなる', text: 'V_G − V_th が大きいほど表面に集まる電子が増え、チャネルの抵抗が下がって流せる電流が増える。電流は V_G で連続的に変えられるので、アンプとしても使える。コンピューターでは 0 V と V_DD（約 1 V）の 2 点だけを使い、スイッチとして扱う。' },
+      { title: 'もっと上げる：チャネルが濃くなる', text: 'V_G − V_th が大きいほど表面に集まる電子が増え、チャネルの抵抗が下がって流せる電流が増える。電流は V_G で連続的に変えられるので、アンプとしても使える。コンピューターでは 0 V と VDD（約 1 V）の 2 点だけを使い、スイッチとして扱う。' },
       { title: 'ゲートには電流が流れない', text: '一連の変化はゲートに電荷を置いただけで起きた。コンデンサの充電と同じで、電圧を保っている間は電流が流れない。電力が要るのは V_G を変える瞬間だけ。これが場面5の「切り替えのときだけ電力を使う」の根拠になる。' }
     ],
     setup(ctx) {
@@ -521,7 +527,7 @@
       S.text(60, 196, '＋', { cls: 't-h t-b t-lg', 'text-anchor': 'end' }, g);
       S.text(60, 266, '−', { cls: 't-e t-b t-lg', 'text-anchor': 'end' }, g);
       S.text(90, 228, '電源', { cls: 't-sm t-dim', 'text-anchor': 'end' }, g);
-      S.text(90, 244, 'V_DD = 1 V', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, g);
+      S.text(90, 244, 'VDD = 1 V', { cls: 't-xs t-dim t-mono', 'text-anchor': 'end' }, g);
       // 電球（上辺）
       S.rect(190, 60, 60, 40, { cls: 'f-bg' }, g);
       st.lamp = lamp(g, 220, 80, 22);
@@ -569,7 +575,7 @@
         S.rect(cx - 8, cy - 150, 16, 50, { cls: 'f-in s-fg w1' }, st.gChain);   // 抵抗
         S.text(cx + 14, cy - 120, 'R', { cls: 't-xs t-dim' }, st.gChain);
         S.line(cx, cy - 150, cx, cy - 170, { cls: 's-fg w2' }, st.gChain);
-        S.text(cx, cy - 178, 'V_DD', { cls: 't-c t-xs t-mono t-dim' }, st.gChain);
+        S.text(cx, cy - 178, 'VDD', { cls: 't-c t-xs t-mono t-dim' }, st.gChain);
         const sym = mosSym(st.gChain, cx, cy, false);
         S.line(cx, cy + 44, cx, cy + 60, { cls: 's-fg w2' }, st.gChain);
         ground(st.gChain, cx, cy + 60);
@@ -682,11 +688,11 @@
      ================================================================ */
   const s4 = {
     steps: [
-      { title: '構成：pMOS を上、nMOS を下', text: 'pMOS のソースを電源 V_DD に、nMOS のソースを GND につなぎ、ドレインどうしを結んだ点が出力。ゲートは 2 つとも入力につなぐ。出力には次の段のゲート（＝コンデンサ C）がぶら下がる。部品は 2 個だけで、抵抗は使わない。' },
-      { title: '入力 0 V → 出力 1 V', text: 'ゲートが 0 V なので nMOS はオフ、pMOS はオン（ゲートが低いとオン）。出力は pMOS を通して V_DD につながり、C に電荷が入って 1 V になる。GND への道は nMOS が切っているので、充電が終われば電流は止まる。' },
-      { title: '入力 1 V → 出力 0 V', text: '今度は nMOS がオン、pMOS がオフ。出力は nMOS を通して GND につながり、C の電荷が抜けて 0 V になる。V_DD への道は pMOS が切っている。入力の 0 と 1 がそのまま出力の 1 と 0 に対応する。' },
-      { title: 'どちらの状態でも貫通する道がない', text: '入力が 0 でも 1 でも、オンなのは上か下の片方だけ。電源から GND へ流れ続ける道が存在しないので、止まっている間の電流は漏れ分だけになる。右の目盛りが、入力が変わる瞬間以外は振れないことを確かめてほしい。' },
-      { title: '切り替わる瞬間だけ電流が流れる', text: '入力が 0 から 1 へ移る途中、両方が中途半端にオンになる短い時間があり（貫通電流）、同時に C の電荷が nMOS を通って GND へ抜ける。1 から 0 へ戻るときは C を V_DD から充電する。電力を使うのはこの 2 つの瞬間だけ。' },
+      { title: '構成：pMOS を上、nMOS を下', text: 'pMOS のソースを電源 VDD に、nMOS のソースを GND につなぎ、ドレインどうしを結んだ点が出力。ゲートは 2 つとも入力につなぐ。出力には次の段のゲート（＝コンデンサ C）がぶら下がる。部品は 2 個だけで、抵抗は使わない。' },
+      { title: '入力 0 V → 出力 1 V', text: 'ゲートが 0 V なので nMOS はオフ、pMOS はオン（ゲートが低いとオン）。出力は pMOS を通して VDD につながり、C に電荷が入って 1 V になる。GND への道は nMOS が切っているので、充電が終われば電流は止まる。' },
+      { title: '入力 1 V → 出力 0 V', text: '今度は nMOS がオン、pMOS がオフ。出力は nMOS を通して GND につながり、C の電荷が抜けて 0 V になる。VDD への道は pMOS が切っている。入力の 0 と 1 がそのまま出力の 1 と 0 に対応する。' },
+      { title: 'どちらの状態でも貫通する道がない', text: '入力が 0 でも 1 でも、オンなのは上か下の片方だけ。電源から GND へ流れ続ける道が存在しないので、止まっている間の電流は漏れ分だけになる。電源電流 I_DD の目盛りが、入力が変わる瞬間以外は振れないことを確かめてほしい。' },
+      { title: '切り替わる瞬間だけ電流が流れる', text: '入力が 0 から 1 へ移る途中、両方が中途半端にオンになる短い時間があり（貫通電流）、同時に C の電荷が nMOS を通って GND へ抜ける。1 から 0 へ戻るときは C を VDD から充電する。電力を使うのはこの 2 つの瞬間だけ。' },
       { title: 'これが NOT ゲート', text: '入力の 0/1 を反転する回路を NOT（インバータ）と呼ぶ。トランジスタ 2 個で、出力は次の段を十分に押せる強さの電圧になる。第4章では nMOS を直列・並列に増やして NAND と NOR を作り、そこからあらゆる論理を組む。' }
     ],
     setup(ctx) {
@@ -694,7 +700,7 @@
       const g = S.g({}, svg);
       // 配線
       S.line(300, 60, 420, 60, { cls: 's-fg w2' }, g);
-      S.text(300, 50, 'V_DD = 1 V', { cls: 't-xs t-mono t-dim' }, g);
+      S.text(300, 50, 'VDD = 1 V', { cls: 't-xs t-mono t-dim' }, g);
       S.line(360, 60, 360, 96, { cls: 's-fg w2' }, g);
       st.pm = mosSym(g, 360, 140, true);
       S.line(360, 184, 360, 276, { cls: 's-fg w2' }, g);
@@ -724,7 +730,7 @@
       st.nTxt = S.text(360 + 50, 320, 'nMOS', { cls: 't-sm t-b' }, g);
       st.pState = S.text(360 + 50, 156, '', { cls: 't-xs t-dim' }, g);
       st.nState = S.text(360 + 50, 336, '', { cls: 't-xs t-dim' }, g);
-      // 電子の流れ（充電: C → 出力 → pMOS → V_DD、放電: GND → nMOS → 出力 → C）
+      // 電子の流れ（充電: C → 出力 → pMOS → VDD、放電: GND → nMOS → 出力 → C）
       st.pathUp = S.path('M600,252 V230 H360 V60', { cls: 'f-none s-none' }, g);
       st.pathDn = S.path('M360,400 V230 H600 V252', { cls: 'f-none s-none' }, g);
       st.fUp = A.flow(st.pathUp, { count: 14, speed: 160, r: 3.5, parent: g, fade: true });
@@ -814,11 +820,11 @@
   const s5 = {
     steps: [
       { title: '1 回の充放電で C·V² が熱になる', text: 'C を V まで充電すると電源は C·V² のエネルギーを出し、半分は pMOS の抵抗で熱になり、半分が C に溜まる。放電ではその半分が nMOS で熱になる。差し引き、0→1→0 の 1 往復で C·V² がすべて熱。C = 1 fF、V = 1 V なら 10⁻¹⁵ J。' },
-      { title: '回数を掛ける：P = αCV²f', text: '1 秒に f 回切り替えれば電力は C·V²·f。1 fF・1 V・3 GHz で 1 ゲート 3 µW。これが 100 億個あると 30 kW になってしまうので、実際には同時に切り替わるのは一部（活性率 α ≒ 0.1）で、CPU 全体で数十〜200 W に収める。' },
+      { title: '回数を掛ける：P = αCV²f', text: '1 秒に f 回切り替えれば電力は C·V²·f。1 fJ × 3 GHz で 1 ゲート 3 µW、100 億個が毎回なら 30 kW。実際は、トランジスタの多くはめったに切り替わらないキャッシュの SRAM で、論理ゲートも毎クロック切り替わるのは 1 割前後（活性率 α）。だから数十〜200 W に収まる。' },
       { title: '電圧は二乗で効く', text: '同じ回数でも、V を半分にすれば電力は 4 分の 1。1990 年代の 5 V から現在の約 1 V まで下げたことで、同じ発熱で 25 倍の切り替えができるようになった。しきい値 V_th より下げられないので、ここ 15 年ほど 1 V 前後で止まっている。' },
       { title: '止まっていても漏れる', text: '微細化でゲートが短く・酸化膜が薄くなると、オフでも電子がわずかに通り抜ける（サブスレッショルド電流、ゲートのトンネル電流）。1 個は小さくても数百億個分で数 W〜数十 W。使っていない回路の電源そのものを切る（パワーゲーティング）のはこのため。' },
       { title: '熱の行き先', text: '発生した熱はシリコン → ヒートスプレッダ → グリス → ヒートシンク → ファンの風へと伝わる。温度が上がると漏れ電流が増えてさらに発熱する悪循環があるので、限界に近づくと CPU は自分でクロックを下げる（サーマルスロットリング）。' },
-      { title: '電力の壁', text: 'クロックを上げるほど f と必要な V が上がり、発熱は f の 3 乗近くで増える。2005 年ごろに空冷の限界（100〜200 W）に達し、以後クロックは 3〜5 GHz で頭打ち。性能は代わりにコア数と 1 クロックあたりの仕事量で伸ばしている（第6章）。' }
+      { title: '電力の壁', text: 'クロックを上げるほど f と必要な V が上がり、発熱は f の 3 乗近くで増える。2004 年ごろ（Pentium 4 の 3.8 GHz）に空冷の限界（100〜200 W）に達し、以後クロックは 3〜5 GHz で頭打ち。性能は代わりにコア数と 1 クロックあたりの仕事量で伸ばしている（第6章）。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -850,7 +856,7 @@
       for (let k = 0; k < 8; k++) st.cq.push(S.circle(361 + k * 5.4, 286, 2.6, { cls: 'f-e', style: { opacity: 0 } }, g));
       ground(g, 220, 350);
       S.line(220, 170, 220, 150, { cls: 's-fg w2' }, g);
-      st.vddTxt = S.text(220, 142, 'V_DD = 1 V', { cls: 't-c t-xs t-mono t-dim' }, g);
+      st.vddTxt = S.text(220, 142, 'VDD = 1 V', { cls: 't-c t-xs t-mono t-dim' }, g);
       st.heat = heatSrc(g, 40);
       st.heat.origin = { x: 205, y: 372, w: 130 };
       st.heatLbl = S.text(205, 404, '熱', { cls: 't-c t-xs t-p t-b' }, g);
@@ -891,15 +897,15 @@
       S.fade(st.gHeat, i === 4);
       const cfg = [
         { f: 1, V: 1, title: '1 往復のエネルギー', lines: ['E = C · V²', '  = 1 fF × (1 V)²', '  = 1 × 10⁻¹⁵ J', '充電で半分、放電で半分が熱'], bars: [['充電（pMOS で熱）', '½ C V²', 0.5, '0.5 fJ'], ['放電（nMOS で熱）', '½ C V²', 0.5, '0.5 fJ'], ['合計 1 往復', 'C V²', 1, '1 fJ']], note: '1 fJ = 10⁻¹⁵ J。1 個では見えない量' },
-        { f: 3, V: 1, title: 'P = α · C · V² · f', lines: ['1 ゲート：1 fF × 1 V² × 3 GHz', '  = 3 µW', '100 億個 × α 0.1', '  ≒ 3 kW → 実際は電圧・α・f を抑えて 数十〜200 W'], bars: [['1 GHz', 'f を 1/3 に', 0.33, '1 µW'], ['3 GHz', '', 1, '3 µW'], ['5 GHz', '（限界付近）', 1.67, '5 µW']], note: '棒は 1 ゲートあたりの動的電力' },
+        { f: 3, V: 1, title: 'P = α · C · V² · f', lines: ['1 ゲート：1 fF × 1 V² × 3 GHz = 3 µW', '100 億個が毎回 → 30 kW', '多くは SRAM・1 ゲート＝数個・α 0.1', '  → CPU 全体で 数十〜200 W'], bars: [['1 GHz', 'f を 1/3 に', 0.33, '1 µW'], ['3 GHz', '', 1, '3 µW'], ['5 GHz', '（限界付近）', 1.67, '5 µW']], note: '棒は 1 ゲートあたりの動的電力' },
         { f: 3, V: 2, title: 'V は二乗で効く', lines: ['P ∝ V²', '5 V (1990 年代) → 1 V (現在)', '  = 1/25 の電力で同じ回数', 'V_th (0.3〜0.5 V) より下げられない'], bars: [['V = 0.7 V', '', 0.49, '×0.49'], ['V = 1 V', '基準', 1, '×1'], ['V = 2 V', '', 4, '×4（図は切り詰め）']], note: '同じ C・f で比べた相対値' },
         { f: 0, V: 1, title: '漏れ電流（静的電力）', lines: ['オフでも流れる：', '  サブスレッショルド電流（チャネル下を通る）', '  ゲートトンネル電流（酸化膜を通り抜ける）', '数百億個分で 数 W〜数十 W'], bars: [['動的（切り替え）', 'クロックを止めれば 0', 1, '例 100 W'], ['漏れ（静的）', '止めても残る', 0.3, '例 30 W'], ['電源を切った回路', 'パワーゲーティング', 0.02, '≒ 0']], note: '図のインバータはクロックを止めた状態' },
         { f: 3, V: 1 },
-        { f: 5, V: 1.2, title: '電力の壁', lines: ['f を上げるには V も上げる必要がある', '  → P ∝ V² f ∝ f³ 近く', '2005 年ごろ 空冷の限界 100〜200 W', '  → 以後クロックは 3〜5 GHz で頭打ち'], bars: [['2 GHz', '', 0.3, ''], ['3.5 GHz', '現在の多くの CPU', 1, ''], ['5 GHz', '一部のコアだけ短時間', 2.5, '']], note: '性能はコア数と 1 クロックの仕事量で伸ばす（第6章）' }
+        { f: 5, V: 1.2, title: '電力の壁', lines: ['f を上げるには V も上げる必要がある', '  → P ∝ V² f ∝ f³ 近く', '2004 年ごろ 空冷の限界 100〜200 W', '  → 以後クロックは 3〜5 GHz で頭打ち'], bars: [['2 GHz', '', 0.3, ''], ['3.5 GHz', '現在の多くの CPU', 1, ''], ['5 GHz', '一部のコアだけ短時間', 2.5, '']], note: '性能はコア数と 1 クロックの仕事量で伸ばす（第6章）' }
       ][i];
       st.cfg = cfg;
       st.fTxt.textContent = cfg.f ? `f = ${cfg.f} GHz（図では 1 秒に ${cfg.f} 回）` : 'クロック停止（f = 0）';
-      st.vddTxt.textContent = `V_DD = ${cfg.V} V`;
+      st.vddTxt.textContent = `VDD = ${cfg.V} V`;
       if (cfg.title) {
         st.pTitle.textContent = cfg.title;
         st.pLines.forEach((l, k) => { l.textContent = cfg.lines[k] || ''; });
@@ -954,7 +960,7 @@
       { title: '層を重ねる', text: 'トランジスタの層の上に、絶縁膜と銅の配線層を 10〜18 層積む。層ごとに露光と加工を繰り返し、工程は 1,000 を超え、1 枚のウェハが完成するまで 2〜3 か月かかる。配線の総延長は 1 チップで数十 km。' },
       { title: '細かさの限界は光の波長', text: '描ける最小の幅は波長に比例する。長く 193 nm の ArF レーザー（水を挟む液浸で実効 134 nm）を使い、1 層を何回かに分けて露光していたが、2019 年から波長 13.5 nm の EUV が量産に入った。EUV 装置は 1 台数百億円で、作れるのは ASML 1 社。' },
       { title: '形の変遷：平面 → FinFET → GAA', text: '短くなるとゲートがチャネルを抑えきれず漏れが増える。そこでチャネルを板状に立ててゲートで 3 方向から囲み（FinFET、2011 年〜）、さらに薄いシートを重ねて全周を囲む（GAA、2022 年〜）。原理は同じで、ゲートの「握り」を強くしている。' },
-      { title: '次へ：スイッチから論理へ', text: 'ここまでで、電圧 1 V を加えると 1 ピコ秒台で開閉し、数百億個を一度に作れるスイッチが手に入った。第4章では、このスイッチを nMOS・pMOS の組で並べて NAND と NOR を作り、そこから加算器まで組み立てる。' }
+      { title: '次へ：スイッチから論理へ', text: 'ここまでで、電圧 1 V を加えると数十ピコ秒で開閉し、数百億個を一度に作れるスイッチが手に入った。第4章では、このスイッチを nMOS・pMOS の組で並べて NAND と NOR を作り、そこから加算器まで組み立てる。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -1165,7 +1171,7 @@
       title: 'トランジスタ',
       home: '../index.html',
       prev: { href: '02-handoutai.html', title: '半導体とダイオード' },
-      next: { href: '04-ronri.html', title: '論理ゲートと2進数' },
+      next: { href: '04-ronri.html', title: '論理ゲートと2進数', lead: '前の章で手に入れた「電圧で動くスイッチ」を4個つなぐと、入力の組み合わせで出力が決まる部品（NAND ゲート）ができる。' },
       legend: [{ c: 'e', label: '電子・チャネル' }, { c: 'h', label: '正孔・＋の電荷・1（高い電位）' }, { c: 'dim', label: '0（低い電圧）' }, { c: 'p', label: '光・熱' }, { c: 'x', label: '注目' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

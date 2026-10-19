@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>OS — YouTubeが見えるまで</title>
+<meta name="description" content="CPU・メモリ・NIC・GPU は、そのままでは1つのプログラムしか相手にできない。OS のカーネルが、それらを数百のプロセスに貸し出し、互いを隔て、装置の違いを隠す。">
+<meta property="og:title" content="OS — YouTubeが見えるまで">
+<meta property="og:description" content="CPU・メモリ・NIC・GPU は、そのままでは1つのプログラムしか相手にできない。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -29,7 +35,7 @@
     <h1 id="h-s0">OS</h1>
     <p class="standfirst">CPU・メモリ・NIC・GPU は、そのままでは1つのプログラムしか相手にできない。OS のカーネルが、それらを数百のプロセスに貸し出し、互いを隔て、装置の違いを隠す。この章では、カーネルとユーザー空間の境界、プロセスとスレッド、システムコールで境界を越える手順、仮想メモリ、スケジューラ、そしてネットワークのパケットがソケットに届くまでを追う。ブラウザ（第10章）はこの章のソケット API を呼び、パケット（第11章以降）はその下で作られる。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図は Linux と x86-64 を例にした模式図。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -38,7 +44,7 @@
       <li><a href="#s2" data-go="2"><span class="n">2</span>プロセスとスレッド</a><p>ブラウザは複数のプロセスでできている。アドレス空間、状態、プロセス間通信。</p></li>
       <li><a href="#s3" data-go="3"><span class="n">3</span>システムコール</a><p><code>recvfrom()</code> 1回の往復を、レジスタと CPU のモードの切り替えで追う。</p></li>
       <li><a href="#s4" data-go="4"><span class="n">4</span>仮想メモリ</a><p>4段のページテーブル、TLB、ページフォールト、共有メモリ、ページキャッシュ。</p></li>
-      <li><a href="#s5" data-go="5"><span class="n">5</span>スケジューラ</a><p>タイマー割り込み、コンテキストスイッチ、vruntime、待ちと起床、アイドル。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>スケジューラ</a><p>タイマ割り込み、コンテキストスイッチ、vruntime、待ちと起床、アイドル。</p></li>
       <li><a href="#s6" data-go="6"><span class="n">6</span>ドライバとネットワークスタック</a><p>NIC の受信リングから IP・UDP を上がってソケットへ。送信はその逆。</p></li>
       <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（ブラウザ）へ。</p></li>
     </ol>
@@ -56,10 +62,10 @@
     <p class="sh-meta"><span class="chip">ring 0 / ring 3</span><span class="chip">システムコール・割り込み・例外</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">プログラムは装置に直接触れない。CPU のモードで区切られた<b>カーネル空間</b>だけが装置と全メモリを扱え、ブラウザなどの<b>ユーザー空間</b>は決まった入口からカーネルに頼む。</p>
+    <p class="prose a-lead">CPU・メモリ・NIC・GPU は、そのままでは 1 つのプログラムしか相手にできない。そこで CPU のモードで区切られた<b>カーネル空間</b>だけが装置と全メモリを扱い、ブラウザなどの<b>ユーザー空間</b>は決まった入口から頼む。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">Linux のカーネルは1つの大きなプログラム（モノリシックカーネル）で、ドライバもネットワークスタックも同じ特権で動く。macOS の XNU や Windows NT も、構成は違うがモードの境界と3つの入口の考え方は同じ。</p>
+      <p class="note">ユーザー空間のプログラムは装置に直接触れない。Linux のカーネルは1つの大きなプログラム（モノリシックカーネル）で、ドライバもネットワークスタックも同じ特権で動く。macOS の XNU や Windows NT も、構成は違うがモードの境界と3つの入口の考え方は同じ。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -132,7 +138,7 @@
     <p class="sh-meta"><span class="chip">HZ=1000</span><span class="chip">CFS / EEVDF</span><span class="chip">コンテキストスイッチ</span></p>
   </header>
   <div class="col a-left">
-    <p class="prose a-lead">コアの数より多いタスクを、タイマー割り込みの刻みで交代させる。<b>スケジューラ</b>は次に走るタスクを選び、<b>コンテキストスイッチ</b>でレジスタを入れ替える。再生中のブラウザは、ほとんどの時間を待ちで過ごす。</p>
+    <p class="prose a-lead">コアの数より多いタスクを、タイマ割り込みの刻みで交代させる。<b>スケジューラ</b>は次に走るタスクを選び、<b>コンテキストスイッチ</b>でレジスタを入れ替える。再生中のブラウザは、ほとんどの時間を待ちで過ごす。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
       <p class="note">図の時間軸は実時間の 500 分の 1。実際の 1 ms の刻みは、図では 0.5 秒。<code>top</code> の <code>%us</code>・<code>%sy</code>・<code>%id</code>、<code>/proc/sched_debug</code>、<code>perf sched</code> で、取り分と切り替えの実測が見える。</p>
@@ -154,7 +160,7 @@
     <p class="prose a-lead">動画のデータは、NIC が DMA でメモリに置いたフレームとして始まり、ドライバ・IP・UDP の各層でヘッダを外されてソケットに届き、待っていたブラウザのプロセスを起こす。この道の上端が<b>ソケット API</b>。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">1080p（約 5 Mbps）では 1 秒に約 400〜600 パケット、4K では数千パケットがこの道を通る。<code>ethtool -S</code> でリングの統計、<code>ss -tunp</code> でソケットとプロセスの対応、<code>/proc/interrupts</code> で割り込みの回数が見える。</p>
+      <p class="note"><code>ethtool -S</code> でリングの統計、<code>ss -tunp</code> でソケットとプロセスの対応、<code>/proc/interrupts</code> で割り込みの回数が見える。QUIC は UDP なので、カーネルはデータグラムを届けるだけで、順序の組み立てと再送はブラウザが行う（TCP ならカーネルの仕事）。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
@@ -174,7 +180,7 @@
       <li>ブラウザは役割ごとの複数のプロセスでできている。プロセスはアドレス空間と資源の単位、スレッドは実行の流れの単位（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
       <li>システムコールは番号と引数をレジスタに置いて <code>syscall</code>。入口でモードを切り替え、表を引いて処理し、<code>sysret</code> で戻る（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
       <li>仮想アドレスは4段の表で物理アドレスに変換され、TLB が控える。対応が無ければページフォールトでカーネルが割り当てる（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
-      <li>タイマー割り込みの刻みで vruntime の小さいタスクを選び、レジスタを入れ替える。待つタスクは CPU を使わず、届いたら起きる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>タイマ割り込みの刻みで vruntime の小さいタスクを選び、レジスタを入れ替える。待つタスクは CPU を使わず、届いたら起きる（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
       <li>パケットは NIC の DMA から層を上がってソケットに届き、プロセスを起こす。ユーザー空間から見える境界はソケット API だけ（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
     </ol>
   </div>
@@ -182,14 +188,14 @@
     <table class="gloss">
       <tbody>
         <tr><th>カーネル／ユーザー空間</th><td>特権モード（ring 0 / EL1）で動く OS の中核と、制限モード（ring 3 / EL0）で動くプログラムの領域。</td></tr>
-        <tr><th>システムコール</th><td>番号で頼むカーネルの入口。x86-64 Linux では read=0、write=1、socket=41、sendto=44、recvfrom=45、epoll_wait=232。往復 0.1〜0.5 µs 程度。</td></tr>
+        <tr><th>システムコール</th><td>番号で頼むカーネルの入口（x86-64 Linux では read=0、recvfrom=45、epoll_wait=232 など）。<code>syscall</code> 命令で入り、<code>sysret</code> で戻る。往復 0.1〜0.5 µs 程度。</td></tr>
         <tr><th>割り込み・例外</th><td>装置からの通知と、CPU が検出した異常（ページフォールトなど）。どちらも決まったハンドラへ飛ぶ。</td></tr>
         <tr><th>プロセス／スレッド</th><td>アドレス空間・fd 表・権限の単位と、その中の実行の流れ。Linux ではどちらも task_struct。</td></tr>
         <tr><th>ページ・ページテーブル・TLB</th><td>4 KiB の単位、仮想→物理の4段の対応表（根は CR3）、その控え（数十〜数千エントリ）。</td></tr>
         <tr><th>ページフォールト</th><td>対応の無いページへのアクセスで起きる例外。デマンドページングの要。不正なら SIGSEGV。</td></tr>
         <tr><th>スケジューラ・vruntime</th><td>次に走るタスクを選ぶ仕組み。CFS は重み付き実行時間が最小のものを選ぶ。Linux 6.6 から EEVDF。</td></tr>
         <tr><th>コンテキストスイッチ</th><td>レジスタと CR3 の入れ替え。直接の費用は数 µs。</td></tr>
-        <tr><th>受信リング・DMA・NAPI</th><td>NIC が直接書き込む記述子の環、CPU を介さない転送、割り込みを抑えてまとめて処理する方式。</td></tr>
+        <tr><th>受信リング・DMA・NAPI</th><td>NIC が直接書き込むディスクリプタ（第7章）の環、CPU を介さない転送、割り込みを抑えてまとめて処理する方式。</td></tr>
         <tr><th>ソケット</th><td>プロセスとネットワークスタックの接点。socket / connect / sendto / recvfrom / epoll で操作する。</td></tr>
       </tbody>
     </table>
@@ -245,9 +251,9 @@
   const s1 = {
     steps: [
       { title: 'OS の中核がカーネル', text: '一台の機械を多数のプログラムで分け合わせ、装置の違いを隠し、プログラムどうしを守るのが OS の仕事。その中核が**カーネル**で、起動時に最初にメモリへ読み込まれ、電源を切るまで常駐する。Linux のカーネル本体は圧縮して約 10 MB。' },
-      { title: 'CPU には2つのモードがある', text: 'x86 では ring 0 と ring 3、Arm では EL1 と EL0。カーネルモードでだけ、装置のレジスタの読み書き、ページテーブルの変更、割り込みの禁止といった特権命令が使える。ユーザーモードで特権命令を実行すると CPU が例外を起こし、制御はカーネルへ移る。' },
+      { title: 'CPU には2つのモードがある', text: 'x86 では ring 0 と ring 3、ARM では EL1 と EL0。カーネルモードでだけ、装置のレジスタの読み書き、ページテーブルの変更、割り込みの禁止といった特権命令が使える。ユーザーモードで特権命令を実行すると CPU が例外を起こし、制御はカーネルへ移る。' },
       { title: '境界を越える入口は3つ', text: 'プログラムが自分から頼む**システムコール**、装置が知らせる**割り込み**、不正な操作やページフォールトで起きる**例外**。どれも CPU がモードを切り替え、あらかじめ登録された決まった入口へ飛ぶ。ユーザー空間から好きな番地でカーネルに入る道はない。' },
-      { title: 'カーネルの中の分担', text: 'プロセス管理とスケジューラ（[[2|プロセス]]・[[5|スケジューラ]]）、メモリ管理（[[4|仮想メモリ]]）、ファイルシステム、ネットワークスタックとドライバ（[[6|ネットワーク]]）。ブラウザが YouTube を開いている間、この5つ全部が働く。' },
+      { title: 'カーネルの中の分担', text: 'プロセス管理とスケジューラ（[[2|プロセス]]・[[5|スケジューラ]]）、メモリ管理（[[4|仮想メモリ]]）、ファイルシステム、ネットワークスタック、ドライバ（どちらも [[6|ネットワーク]]）。ブラウザが YouTube を開いている間、この 5 つ全部が働く。' },
       { title: 'ユーザー空間の側', text: 'ブラウザは libc の関数を通してシステムコールを呼ぶ。libc もデスクトップ環境も systemd のようなサービスも、すべてユーザー空間のプロセス。カーネルは画面に文字を描かず、ネットワークの中身も解釈しない。装置と資源を貸し出すことに徹する。' }
     ],
     setup(ctx) {
@@ -423,7 +429,7 @@
         [4133, 'chrome（ネットワーク）', 'S', 'epoll_wait で待ち'],
         [4150, 'chrome（GPU）', 'R', '合成中'],
         [4188, 'chrome（レンダラ）', 'S', 'データ待ち'],
-        [4201, 'chrome（音声）', 'S', 'タイマー待ち'],
+        [4201, 'chrome（音声）', 'S', 'タイマ待ち'],
         [612, 'kworker/u8:2', 'S', 'カーネルスレッド'],
         [15, 'ksoftirqd/0', 'S', 'ソフト割り込み']
       ];
@@ -538,11 +544,11 @@
      ================================================================ */
   const s3 = {
     steps: [
-      { title: '頼み方は番号で決まっている', text: 'プログラムは装置にもカーネルのメモリにも触れないので、番号で頼む。Linux x86-64 では read が 0、write が 1、socket が 41、sendto が 44、recvfrom が 45、epoll_wait が 232。libc が番号を rax に、引数を rdi・rsi・rdx… に入れて `syscall` 命令を実行する。' },
+      { title: '頼み方は番号で決まっている', text: 'プログラムは装置にもカーネルのメモリにも触れないので、番号で頼む。Linux x86-64 では read が 0、socket が 41、recvfrom が 45、epoll_wait が 232。libc が番号を rax に、引数を rdi・rsi・rdx… に入れて `syscall` 命令を実行する。' },
       { title: '境界を越える瞬間', text: '`syscall` 命令で CPU はカーネルモードに切り替わり、MSR LSTAR に登録された入口へ飛ぶ。入口でユーザーのレジスタをカーネルのスタックに保存する。ここまでハードウェアと入口の処理で 0.1〜0.5 µs ほど（CPU の世代と脆弱性対策で変わる）。' },
       { title: 'カーネルの中で何をするか', text: '番号でシステムコール表を引き `sys_recvfrom` へ。fd 23 からソケットのオブジェクトをたどり、受信キューにあるデータを `copy_to_user` でユーザーのバッファへ写す。データがまだ無ければプロセスを待ち（S）にして別のタスクへ交代し、届いたら続きから再開する。' },
       { title: '戻る', text: '戻り値（写したバイト数、失敗なら −errno）を rax に入れ、保存したレジスタを戻し、`sysret` でユーザーモードへ。libc は負の値なら errno を設定して −1 を返す。呼んだ側からは、ただの関数呼び出しに見える。' },
-      { title: 'YouTube を見ているときのシステムコール', text: '`socket()`→`connect()`→`sendto()`／`recvfrom()` の繰り返し、`epoll_wait()` で多数のソケットをまとめて待つ、`mmap()` でメモリを確保、`ioctl()` で GPU やデコーダに命令、`write()` で音声装置へ。1 秒に数千回。`strace -p <pid>` で全部観察できる。' }
+      { title: 'YouTube を見ているときのシステムコール', text: '`socket()`→`connect()`→`sendto()`／`recvfrom()` の繰り返し、`epoll_wait()` でまとめて待つ、`mmap()` でメモリを確保、`ioctl()` で GPU・デコーダに命令、音声はソケットで音声サーバー（PipeWire 等）へ。毎秒数千回。`strace -p <pid>` で観察できる。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -613,7 +619,7 @@
       // 右端: 費用 or strace
       st.gCost = panel(svg, 690, 20, 264, 466, 'この往復の費用の目安');
       ['入口と出口（モード切替・保存）', '　約 0.1〜0.5 µs', 'copy_to_user 1452 バイト', '　約 0.1 µs', '1 秒に数千回 → CPU 時間の数 %', '', '減らす工夫', '・64 KiB の大きなバッファで受ける', '・epoll_wait で多数をまとめて待つ', '・io_uring で複数の要求を一度に', '・GSO/GRO でパケットをまとめる'].forEach((s, k) => S.text(14, 46 + k * 22, s, { cls: s.startsWith('　') ? 'code' : (s === '減らす工夫' ? 't-sm t-b' : 't-xs') }, st.gCost));
-      st.gTrace = panel(svg, 690, 20, 264, 466, 'strace -p 4133 の一部（再生中）');
+      st.gTrace = panel(svg, 690, 20, 264, 466, 'strace の一部（再生中の Chrome）');
       st.gTrace.classList.add('fade', 'hide');
       S.rect(8, 30, 248, 428, { rx: 4, cls: 'f-in' }, st.gTrace);
       st.traceLines = [];
@@ -628,7 +634,7 @@
         'epoll_wait(5, […], 64, -1) = 1',
         'recvfrom(23, …, 65536, 0, …) = 1452',
         'recvfrom(23, …, 65536, 0, …) = 1200',
-        'write(31, …, 4096) = 4096 ← 音声',
+        'recvfrom(23, …, 65536, 0, …) = 1452',
         'ioctl(17, DRM_IOCTL_…, …) = 0 ← GPU',
         'mmap(NULL, 2097152, …) = 0x7f3a2c400000',
         'epoll_wait(5, […], 64, -1) = 1',
@@ -640,7 +646,7 @@
         'clock_gettime(CLOCK_MONOTONIC, …) = 0',
         'recvfrom(23, …, 65536, 0, …) = 1452',
         'recvfrom(23, …, 65536, 0, …) = 1452',
-        'write(31, …, 4096) = 4096'
+        'epoll_wait(5, […], 64, -1) = 1'
       ];
       // 制御の点
       st.stagePts = [[26, 110], [26, 134], [22, 296], [162, 376], [284, 369], [22, 352], [26, 168]];   // 文字の左の余白・箱の左端に止まる
@@ -918,8 +924,8 @@
   const s5 = {
     steps: [
       { title: 'CPU より多いタスクを順番に回す', text: '4 コアに数百のタスク。実行可能なタスクはコアごとの**ランキュー**に並び、スケジューラが次を選ぶ。1 回に走るのは数 ms（取り分は負荷で変わる）。人間には全部が同時に動いて見える。図は実時間の 500 分の 1 に遅くしてある。' },
-      { title: 'タイマー割り込みが交代の合図', text: 'タイマーが一定間隔（HZ=250〜1000、1〜4 ms）で割り込みを出す。カーネルは走っているタスクの消費時間を更新し、取り分を使い切っていれば交代を予約する。割り込みが無ければ、無限ループのプログラムが CPU を独占してしまう。' },
-      { title: 'コンテキストスイッチ', text: '走っていたタスクのレジスタ（命令ポインタ・スタックポインタ・汎用レジスタ）を task_struct に保存し、次のタスクの分を読み込む。別プロセスなら CR3 も切り替える。直接の費用は 1 回数 µs。TLB やキャッシュが冷える間接の費用も付く。' },
+      { title: 'タイマ割り込みが交代の合図', text: 'タイマが一定間隔（HZ=250〜1000、1〜4 ms）で割り込みを出す。カーネルは走っているタスクの消費時間を更新し、取り分を使い切っていれば交代を予約する。割り込みが無ければ、無限ループのプログラムが CPU を独占してしまう。' },
+      { title: 'コンテキストスイッチ', text: '走っていたタスクのレジスタ（命令ポインタ＝第6章の PC・スタックポインタ・汎用レジスタ）を task_struct に保存し、次のタスクの分を読み込む。別プロセスなら CR3 も切り替える。直接の費用は 1 回数 µs。TLB やキャッシュが冷える間接の費用も付く。' },
       { title: '次を選ぶ規則', text: 'Linux の CFS は、重み付きの実行時間 **vruntime** が最小のタスクを赤黒木から選ぶ。nice 値が低いほど重みが大きく、同じ時間走っても vruntime が増えにくい。6.6 以降の EEVDF は、これに「いつまでに走りたいか」の締め切りを加えて遅延も抑える。' },
       { title: '待ちと起床', text: 'ネットワークの応答を待つタスクはランキューから外れ、CPU を使わない。パケットが届くと割り込み→ドライバ→ソケット（[[6|ネットワーク]]）の順に処理され、待っていたタスクを実行可能に戻す。起きたタスクは vruntime が小さいので、すぐに選ばれる。' },
       { title: '複数コアとアイドル', text: 'コアごとにランキューがあり、偏りは定期的に均す（ロードバランス）。走るものが無いコアはアイドルタスクで省電力状態（C ステート）に入り、割り込みで起きる。動画再生中、CPU の大半はアイドルで、復号は回路がある形式なら GPU のハードウェアが担う（第24章）。' }
@@ -954,7 +960,7 @@
       });
       S.line(st.X1, 40, st.X1, 160, { cls: 's-x w2' }, svg);
       st.bolt = S.text(st.X1 - 8, 170, '⚡', { cls: 't-sm' }, svg);
-      st.boltLbl = S.text(st.X1 - 20, 172, 'タイマー割り込み', { cls: 't-xs t-e t-b fade hide', 'text-anchor': 'end' }, svg);
+      st.boltLbl = S.text(st.X1 - 20, 172, 'タイマ割り込み', { cls: 't-xs t-e t-b fade hide', 'text-anchor': 'end' }, svg);
       // ランキュー
       st.gq = panel(svg, 20, 190, 280, 350, 'コア 0 のランキュー（実行可能なタスク）');
       S.text(14, 42, '並び順: vruntime の小さい順（赤黒木）', { cls: 't-xs t-dim' }, st.gq);
@@ -1058,7 +1064,7 @@
       const st = ctx.state, i = ctx.step;
       const u = t * 2;  // ms（図の時間）
       const toX = (ms) => st.X1 - (u - ms) * st.PX;
-      // 時間軸の目盛り（タイマー割り込み）
+      // 時間軸の目盛り（タイマ割り込み）
       S.clear(st.ticks);
       for (let k = Math.ceil(u - st.WIN); k <= u; k++) {
         const x = toX(k);
@@ -1145,12 +1151,12 @@
      ================================================================ */
   const s6 = {
     steps: [
-      { title: 'ドライバが装置の言葉を話す', text: '装置ごとにレジスタの配置も手順も違う。ドライバがそれを隠し、カーネル共通の形 `net_device`（open・start_xmit・poll …）に合わせる。Wi-Fi カードでも有線 NIC でも USB テザリングでも、上の層からは同じ装置に見える。' },
-      { title: '受信リングと DMA', text: 'ドライバは空のバッファを**受信リング**（記述子の環）に並べておく。NIC は届いたフレームを DMA で直接そのバッファへ書き、割り込みで知らせる。カーネルは NAPI で割り込みを止め、溜まった分をまとめて取り出す。1 回の割り込みで数十フレーム処理することもある。' },
+      { title: 'ドライバが装置の言葉を話す', text: '装置ごとにレジスタの配置も手順も違う。ドライバがそれを隠し、カーネル共通の形 `net_device` と NAPI（open・start_xmit／poll …）に合わせる。Wi-Fi カードでも有線 NIC でも USB テザリングでも、上の層からは同じ装置に見える。' },
+      { title: '受信リングと DMA', text: 'ドライバは空のバッファを**受信リング**（ディスクリプタの環、第7章）に並べておく。NIC は届いたフレームを DMA で直接そのバッファへ書き、割り込みで知らせる。カーネルは NAPI で割り込みを止め、溜まった分をまとめて取り出す。1 回の割り込みで数十フレーム処理することもある。' },
       { title: '層を上がる', text: 'Ethernet／Wi-Fi のヘッダを外し、IP 層で宛先が自分か確かめ、プロトコル番号（17=UDP、6=TCP）で振り分け、ポート番号でソケットを探して受信キューにつなぐ。データは `sk_buff` 1 つのまま、ヘッダの先頭を指すポインタを進めるだけで層を通る。' },
       { title: '待っているプロセスを起こす', text: '受信キューにデータが入ると、`epoll_wait()` で待っていたネットワークサービスを実行可能にする（[[5|スケジューラ]]）。走り出したプロセスは `recvfrom()` でユーザー空間のバッファへ写す。YouTube の既定の QUIC では、TLS の復号とストリームの組み立てはここから先、ブラウザの中で行う。' },
       { title: '送信の道', text: '逆向き。`sendto()`→ソケット→UDP がヘッダを付ける→IP が経路表を引いて次の送り先と出口の装置を決め、ヘッダを付ける→キュー（qdisc）で順番と速度を整える→ドライバが送信リングに載せ、NIC が電線や電波へ。送信完了も割り込みで知り、バッファを回収する。' },
-      { title: 'ここが上と下のつなぎ目', text: 'ユーザー空間から見える境界は**ソケット API**（socket・connect・sendto・recvfrom・epoll）だけ。[[3|システムコール]]の形で呼ばれ、その下でパケットが作られる。第10章のブラウザはこの API を呼び、第11章以降はこの下の道を追う。1080p の再生で、1 秒に約 400〜600 パケットが通る。' }
+      { title: 'ここが上と下のつなぎ目', text: 'ユーザー空間から見える境界は**ソケット API**（socket・connect・sendto・recvfrom・epoll）だけ。[[3|システムコール]]として呼ばれ、その下でパケットが作られる。第10章のブラウザはこの API を呼び、第11章以降はこの下の道を追う。1080p の再生で毎秒約 400〜600 パケットが通る。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -1195,7 +1201,7 @@
       st.devChips.forEach((c) => c.classList.add('fade', 'hide'));
       const gr = S.g({}, svg);
       S.rect(220, 460, 300, 72, { rx: 6, cls: 'f-sf s-rule w1' }, gr);
-      S.text(232, 476, 'DRAM：受信リング（記述子 ×8）', { cls: 't-xs t-b' }, gr);
+      S.text(232, 476, 'DRAM：受信リング（ディスクリプタ ×8）', { cls: 't-xs t-b' }, gr);
       st.rx = [];
       for (let k = 0; k < 8; k++) st.rx.push(S.rect(232 + k * 34, 482, 28, 18, { rx: 2, cls: 'f-sf s-rule w1' }, gr));
       S.text(232, 516, '送信リング', { cls: 't-xs t-b' }, gr);
@@ -1257,11 +1263,11 @@
       ['ここから先は QUIC：TLS 1.3 の復号と', 'ストリームの組み立ては', 'ブラウザ（ユーザー空間）の仕事'].forEach((x, k) => { st.quicTxt[k].textContent = i === 3 ? x : ''; });
       setCls(st.apiLbl, i === 5 ? 't-sm t-x t-b' : 't-xs t-x t-b');
       const sides = [
-        ['ドライバの共通の形 net_device', ['■ カーネルが呼ぶ入口（ops）', 'ndo_open   装置を使い始める', 'ndo_start_xmit  1 フレーム送る', 'napi poll  届いた分を取り出す', 'ndo_set_rx_mode  受信の条件', '', '■ 装置ごとの違いはドライバの中', 'iwlwifi（Intel の Wi-Fi）', 'r8169 / igc（有線 NIC）', 'rndis_host（USB テザリング）', '', '■ 上の層が見るもの', 'wlan0 / eth0 という名前', 'MTU 1500、MAC アドレス', '統計（ip -s link）']],
-        ['受信リングと NAPI', ['■ 受信リング', '記述子 = バッファの番地 + 長さ + 状態', '環状。NIC が書く位置と', 'ドライバが読む位置が追いかける', '典型は 256〜4096 個', '', '■ DMA', 'NIC が DRAM に直接書く。CPU は使わない', '書き終えたら記述子に「済」を立てる', '', '■ 割り込みと NAPI', '最初の 1 個で割り込み →', '割り込みを止めて poll で取り出す', '（予算 64 個）→ 空になったら再び許可', '毎パケット割り込むより CPU が空く']],
+        ['ドライバの共通の形 net_device', ['■ カーネルが呼ぶ入口（ops と NAPI）', 'ndo_open   装置を使い始める', 'ndo_start_xmit  1 フレーム送る', 'napi poll  届いた分を取り出す', 'ndo_set_rx_mode  受信の条件', '', '■ 装置ごとの違いはドライバの中', 'iwlwifi（Intel の Wi-Fi）', 'r8169 / igc（有線 NIC）', 'rndis_host（USB テザリング）', '', '■ 上の層が見るもの', 'wlan0 / eth0 という名前', 'MTU 1500、MAC アドレス', '統計（ip -s link）']],
+        ['受信リングと NAPI', ['■ 受信リング', 'ディスクリプタ = 番地 + 長さ + 状態', '環状。NIC が書く位置と', 'ドライバが読む位置が追いかける', '典型は 256〜4096 個', '', '■ DMA', 'NIC が DRAM に直接書く。CPU は使わない', '書き終えたらディスクリプタに「済」を立てる', '', '■ 割り込みと NAPI', '最初の 1 個で割り込み →', '割り込みを止めて poll で取り出す', '（予算 64 個）→ 空になったら再び許可', '毎パケット割り込むより CPU が空く']],
         ['sk_buff：1 つの入れ物で層を通る', ['■ ヘッダを外す = ポインタを進める', 'head / data / tail / end の 4 つ', 'data を 14 進めると Ethernet を外した', 'さらに 20 で IP、8 で UDP', 'コピーは起きない', '', '■ 各層で見る所', 'Ethernet: 宛先 MAC は自分か', 'IP: 宛先 IP、プロトコル番号、', '   チェックサム（NIC が計算済み）', 'UDP: 宛先ポート → ソケットを探す', '', '（下の図：data ポインタの位置）']],
         ['起床と copy', ['■ 受信キューに入ったとき', 'sock_def_readable() →', '待ち行列のタスクを wake_up', 'epoll なら準備完了リストに追加', '', '■ プロセス側', 'epoll_wait が戻る（fd 23 が読める）', 'recvfrom(23, buf, 65536) →', 'skb から copy_to_user', '戻り値 1,350 バイト', '', '■ QUIC の場合（YouTube）', 'UDP の中身は暗号文のまま届く', '復号・順序づけ・再送はブラウザ', 'カーネルは UDP までしか見ない']],
-        ['送信の道', ['① sendto(23, buf, 1250)', '   ユーザーのバッファ → skb に copy', '② UDP: 送信元/宛先ポート + 長さ', '③ IP: 経路表（ip route）を引く', '   → 次の送り先 192.168.1.1', '   → 出口 wlan0、宛先 MAC は ARP 表', '④ qdisc（fq_codel など）に並ぶ', '   順番・公平さ・速度の調整', '⑤ ドライバ ndo_start_xmit', '   送信リングの記述子に載せる', '⑥ NIC が DMA で読み、電波へ', '⑦ 送信完了の割り込み → skb を回収']],
+        ['送信の道', ['① sendto(23, buf, 1250)', '   ユーザーのバッファ → skb に copy', '② UDP: 送信元/宛先ポート + 長さ', '③ IP: 経路表（ip route）を引く', '   → 次の送り先 192.168.1.1', '   → 出口 wlan0、宛先 MAC は ARP 表', '④ qdisc（fq_codel など）に並ぶ', '   順番・公平さ・速度の調整', '⑤ ドライバ ndo_start_xmit', '   送信リングのディスクリプタに載せる', '⑥ NIC が DMA で読み、電波へ', '⑦ 送信完了の割り込み → skb を回収']],
         ['つなぎ目の API と量', ['■ ユーザー空間が呼ぶもの', 'socket(AF_INET6, SOCK_DGRAM) = 23', 'connect(23, youtube の IP:443)', 'sendto / recvfrom（または sendmsg）', 'epoll_ctl / epoll_wait', 'setsockopt（バッファ大きさなど）', '', '■ 量の目安', '1080p 約 5 Mbps → 1 秒に', '約 430 パケット（1,452 B）', '4K 約 20 Mbps → 約 1,700', '1 パケットあたりカーネルの処理', '数 µs → CPU の数 %', '', '■ 次の章', '10 ブラウザ：この API を呼ぶ側', '11〜：この下のパケットの道']]
       ][i];
       this.side(st, sides[0], sides[1]);
@@ -1360,7 +1366,7 @@
       title: 'OS',
       home: '../index.html',
       prev: { href: '08-display.html', title: '画面と音' },
-      next: { href: '10-browser.html', title: 'ブラウザ' },
+      next: { href: '10-browser.html', title: 'ブラウザ', lead: 'アドレスバーに URL を打ってから動画が映るまでに、ブラウザは文字列を分解し、別プロセスに通信を頼み、届いた HTML を木（DOM）にし、CSS で大きさと位置を決め、画素に塗って GPU で重ねる。' },
       legend: [{ c: 'd', label: 'データ・パケット' }, { c: 'e', label: '割り込み' }, { c: 'r', label: '電波' }, { c: 'x', label: '注目・実行中' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

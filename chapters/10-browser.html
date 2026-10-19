@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>ブラウザ — YouTubeが見えるまで</title>
+<meta name="description" content="アドレスバーに URL を打ってから動画が映るまでに、ブラウザは文字列を分解し、別プロセスに通信を頼み、届いた HTML を木（DOM）にし、CSS で大きさと位置を決め、画素に塗って GPU で重ねる。">
+<meta property="og:title" content="ブラウザ — YouTubeが見えるまで">
+<meta property="og:description" content="アドレスバーに URL を打ってから動画が映るまでに、ブラウザは文字列を分解し、別プロセスに通信を頼み、届いた HTML を木（DOM）にし、CSS で大きさと位置を決め、画素に塗って GPU で重ねる。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -28,7 +34,7 @@
     <h1 id="h-s0">ブラウザ</h1>
     <p class="standfirst">アドレスバーに URL を打ってから動画が映るまでに、ブラウザは文字列を分解し、別プロセスに通信を頼み、届いた HTML を木（DOM）にし、CSS で大きさと位置を決め、画素に塗って GPU で重ねる。再生ボタンを押すと JavaScript がイベントループの上で動き、<code>&lt;video&gt;</code> と Media Source Extensions を通して動画の断片をデコーダに流し込む。この章は、第9章の OS の上で動くこの一連の処理を、Chromium の構成で追う。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。図の HTML・CSS・JS は説明用に短くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -58,11 +64,11 @@
     <p class="prose a-lead">アドレスバーの文字列は、まず部品に分解され、送る前に <code>https</code> に直され、通信専用のプロセスに渡される。描画を担当するプロセスは、ネットワークにも UI にも直接触れない。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">デスクトップ版 Chromium の主なプロセスは、ブラウザ・ネットワーク（第9章のネットワークサービス）・GPU が1つずつと、サイトごとのレンダラ。レンダラが落ちても巻き込むのはそのサイトのタブだけで、乗っ取られても他サイトのデータには届きにくい（サイト分離）。</p>
+      <p class="note">デスクトップ版 Chromium の主なプロセスは、ブラウザ・ネットワークサービス（第9章）・GPU が1つずつと、サイトごとのレンダラ。レンダラが落ちても巻き込むのはそのサイトのタブだけで、乗っ取られても他サイトのデータには届きにくい（サイト分離）。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">
-    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="アドレスバーに URL を打ち、部品に分け、ブラウザプロセスからネットワークプロセス、OS、インターネットへ要求が渡り、応答がレンダラプロセスに届く図"></svg></div>
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="アドレスバーに URL を打ち、部品に分け、ブラウザプロセスからネットワークサービス、OS、インターネットへ要求が渡り、応答がレンダラプロセスに届く図"></svg></div>
     <figcaption>図1　上はアドレスバーと URL の部品。下は Chromium のプロセスで、要求はブラウザ→ネットワーク→OS→外へ、応答はネットワークからレンダラへ流れる。</figcaption>
   </figure>
 </section>
@@ -169,7 +175,7 @@
   </header>
   <div class="prose a-text">
     <ol class="keypoints">
-      <li>URL はスキーム・ホスト・パス・クエリに分かれ、HSTS で送信前に https に直り、ブラウザプロセスからネットワークプロセスへ IPC で渡る。描画担当のレンダラは通信に直接触れない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>URL はスキーム・ホスト・パス・クエリに分かれ、HSTS で送信前に https に直り、ブラウザプロセスからネットワークサービスへ IPC で渡る。描画担当のレンダラは通信に直接触れない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
       <li>HTML はバイト列 → 文字 → トークン → 木（DOM）。同期の <code>&lt;script&gt;</code> でパーサは止まり、プリロードスキャナが先読みする（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
       <li>CSS を CSSOM にし、カスケードと継承で計算済みスタイルを作り、レイアウトで px の矩形を決める。動画の箱 1280×720 はここで決まる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
       <li>ペイントで描画命令を作り、レイヤーに分け、タイルを GPU で画素にし、コンポジタが 16.7 ms ごとに1枚に重ねる。動画は専用レイヤー（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
@@ -187,7 +193,7 @@
         <tr><th>レイアウト</th><td>各ボックスの位置と大きさを px で決める処理。幅は親から、高さは中身から。変更部分だけやり直す。</td></tr>
         <tr><th>レイヤー・合成</th><td>別々に動く部分を別の層に描き、コンポジタが重ねて1枚にする。スクロール、動画、transform・opacity のアニメーションは合成だけで動く。</td></tr>
         <tr><th>イベントループ</th><td>タスクを1つ実行 → マイクロタスクを全部 → 必要なら描画、の繰り返し。メインスレッド1本で回る。</td></tr>
-        <tr><th>V8・JIT</th><td>Chromium の JS エンジン。バイトコード（Ignition）で始め、よく走る関数ほど段階的に機械語にする（Sparkplug → Maglev → TurboFan）。</td></tr>
+        <tr><th>V8・JIT</th><td>Chromium の JS エンジン。バイトコード（Ignition）で始め、よく走る関数ほど段階的に機械語にする（Sparkplug → Maglev → TurboFan。2026 年時点の名前）。</td></tr>
         <tr><th>MSE・SourceBuffer</th><td>Media Source Extensions。JS が <code>appendBuffer</code> で動画・音声のバイト列を入れる口。<code>buffered</code> に再生可能な区間が増える。</td></tr>
         <tr><th>PTS</th><td>Presentation Time Stamp。各フレームの表示時刻。<code>currentTime</code>（音声の時計）が追いついたフレームを合成に出す。</td></tr>
       </tbody>
@@ -243,7 +249,7 @@
       { title: 'アドレスバーに打つ', text: '文字はブラウザプロセスの UI スレッドが受け取る。1文字打つごとに履歴・ブックマークを照合し、既定の設定では検索エンジンにも候補を問い合わせる。ページの要求はまだ送っていない。Enter で「URL か検索語か」を判定する。' },
       { title: 'URL の部品に分ける', text: 'URL はスキーム `https`、ホスト `www.youtube.com`、パス `/watch`、クエリ `?v=…` に分かれる。ホストは第17章の DNS で番号（IP アドレス）に変わり、パスとクエリは第21章の HTTP の要求に入る。' },
       { title: 'HSTS：送る前に https に直す', text: 'youtube.com は HSTS プリロードリストに入っているので、`http://` と打っても送信前に `https://` に書き換える。平文で1回も送らないため、途中で書き換えられる余地がない（第20章）。' },
-      { title: 'ネットワークプロセスに依頼する', text: 'ブラウザプロセスは IPC（Chromium では Mojo）で要求をネットワークプロセスへ渡す。そこが DNS・接続・TLS・HTTP を担当し、OS のソケット（第9章）を呼ぶ。描画担当のプロセスにはネットワークを直接触らせない。' },
+      { title: 'ネットワークサービスに依頼する', text: 'ブラウザプロセスは IPC（Chromium では Mojo）で要求を**ネットワークサービス**（別プロセスで動く）へ渡す。そこが DNS・接続・TLS・HTTP を担当し、OS のソケット（第9章）を呼ぶ。描画担当のプロセスにはネットワークを直接触らせない。' },
       { title: '応答が来たらレンダラを用意する', text: '応答の先頭が届くと、ブラウザプロセスは youtube.com 専用のレンダラプロセス（サイト分離）を起動または再利用し、本文のバイト列をデータパイプで流し込む。ここでアドレスバーの表示が確定（コミット）する。' }
     ],
     setup(ctx) {
@@ -292,7 +298,7 @@
       const gp = st.procs = S.g({ cls: 'fade hide' }, svg);
       S.text(40, 300, 'Chromium のプロセス', { cls: 't-b t-md' }, gp);
       st.bBrowser = box(gp, 60, 316, 240, 84, 'ブラウザプロセス', 'UI・アドレスバー・タブの管理');
-      st.bNet = box(gp, 360, 316, 240, 84, 'ネットワークプロセス', 'DNS・接続・TLS・HTTP');
+      st.bNet = box(gp, 360, 316, 240, 84, 'ネットワークサービス', 'DNS・接続・TLS・HTTP');
       st.bRend = box(gp, 660, 316, 240, 84, 'レンダラプロセス', 'youtube.com のタブ：DOM・JS・描画');
       st.bOs = box(gp, 360, 452, 240, 64, 'OS カーネル', 'ソケット・NIC（第9章・第7章）', 'f-in s-rule w1');
       st.bWorld = box(gp, 660, 452, 240, 64, 'インターネット', 'Wi-Fi・光回線・ISP・Google（第11章〜）', 'f-in s-rule w1');
@@ -379,7 +385,7 @@
   };
   const s2 = {
     steps: [
-      { title: 'バイト列を文字にする', text: '届くのは UTF-8 のバイト列。レンダラは `3C 21 64 6F …` を文字 `<!do…` に戻し、届いた分から順にパーサへ渡す。全部そろうのを待たないので、長いページでも先頭から組み立てが始まる。' },
+      { title: 'バイト列を文字にする', text: '届くのは UTF-8 のバイト列。圧縮（Brotli／gzip）の展開はネットワークサービスが済ませ、レンダラには展開後が届く（例の HTML は 163 KB → 1.4 MB、第21章）。レンダラは `3C 21 64 6F …` を文字 `<!do…` に戻し、届いた分から順にパーサへ渡す。全部そろうのを待たない。' },
       { title: 'トークンに切る', text: 'トークナイザは文字を1つずつ読み、状態機械で「開始タグ（名前・属性）」「文字」「終了タグ」「コメント」に切る。`<div id="player">` は、名前 div・属性 id=player の開始タグトークン1個になる。' },
       { title: '木を組み立てる', text: 'ツリー構築器は、開いている要素のスタックで親子を決める。開始タグで子を作って積み、終了タグで降ろす。閉じ忘れや順序違いも仕様どおりに修復するので、壊れた HTML でも必ず木ができる。' },
       { title: '<script> で止まる', text:'同期の `<script>` に出会うとパーサは止まり、取得して実行し終えるまで進まない。スクリプトが DOM を書き換えうるからだ。`defer`・`async` なら止まらない。並行して**プリロードスキャナ**が先を読み、CSS や画像の取得を先に始める。' },
@@ -636,7 +642,7 @@
     steps: [
       { title: 'ペイント：描画命令のリストにする', text: 'レイアウトの箱を「矩形を塗れ」「文字を描け」「画像を貼れ」という描画命令の列（表示リスト）に変える。順番は重なり順（スタッキング文脈、`z-index`）で、まだ画素にはしない。' },
       { title: 'レイヤーに分ける', text: '動画、スクロールする本文、重ねる操作パネルのように別々に動く部分は別の合成層にする。動画は毎秒 24〜60 回変わるが本文は変わらない。層を分ければ、変わった層だけ描き直して重ねるだけで済む。' },
-      { title: 'ラスタライズ：タイルを画素にする', text: '各層を 256 × 256 画素などのタイルに分け、描画命令を GPU（Skia）で画素にする。見えている範囲とその周辺のタイルを優先する。ここで初めて、画素ごとの数値（RGB、第8章）ができる。' },
+      { title: 'ラスタライズ：タイルを画素にする', text: '各層を 256 × 256 画素などのタイルに分け、描画ライブラリ Skia が描画命令を GPU で画素にする。見えている範囲とその周辺のタイルを優先する。ここで初めて、画素ごとの数値（RGB、第8章）ができる。' },
       { title: '合成：1枚に重ねる', text: 'コンポジタスレッドが各層のタイルを位置・透明度・変形に従って重ね、1枚のフレームにする。スクロールや transform・opacity の CSS アニメーションは、JS を待たずにこの段階だけで動く。メインスレッドが忙しくてもスクロールが止まりにくい理由。' },
       { title: '画面へ', text: 'GPU プロセスが完成したフレームを OS のウィンドウ合成（第8章）へ渡し、垂直同期（60 Hz なら 16.7 ms ごと）に合わせて表示する。動画層にはデコーダが出した映像フレームのテクスチャが直接貼られる（第24章）。' }
     ],
@@ -728,11 +734,11 @@
      ================================================================ */
   const s5 = {
     steps: [
-      { title: 'JS が届いて機械語になる', text: 'プレーヤーの JS は数 MB ある。V8 は解析してバイトコード（Ignition）にし、まずインタプリタで実行する。何度も走る関数は Sparkplug がそのまま機械語（第6章）にし、さらに型の統計を使って Maglev・TurboFan が最適化する。' },
+      { title: 'JS が届いて機械語になる', text: 'プレーヤーの JS は数 MB ある。V8 は解析してバイトコード（Ignition）にし、まずインタプリタで実行する。何度も走る関数は Sparkplug がそのまま機械語（第6章）にし、さらに型の統計を使って Maglev・TurboFan が最適化する（段の名前は 2026 年時点）。' },
       { title: 'メインスレッドは1本', text: 'レンダラのメインスレッドは、JS の実行・スタイル計算・レイアウト・ペイントを1本で順番に行う。JS が1つのタスクで長く走れば、その間フレームは出ない。メインスレッドで動かすものを 60 Hz で滑らかに見せるには、JS と描画を合わせて 16.7 ms に収める。' },
       { title: 'イベントループ', text: 'タスクキュー（クリック、タイマー、ネットワーク応答）から1つ取って実行し、終わったらマイクロタスク（Promise の続き）を全部片付け、描画が必要なら rAF → スタイル → レイアウト → ペイントを1回行い、次のタスクへ。' },
       { title: 'クリックが届くまで', text: '第7章の USB → OS → ブラウザプロセス → IPC → レンダラ。入力はタスクとしてキューに入り、順番が来るとメインスレッドがヒットテストで押された要素を決め、`click` のハンドラを呼ぶ。これでプレーヤーの「再生」が始まる。' },
-      { title: 'fetch は依頼して待つ', text: '`fetch()` は IPC でネットワークプロセスに依頼してすぐ戻り、応答はストリームで戻ってくる。Promise の解決はマイクロタスクとして続きを走らせる。プレーヤーはこれで動画の断片を取りに行く（次の場面）。' },
+      { title: 'fetch は依頼して待つ', text: '`fetch()` は IPC でネットワークサービスに依頼してすぐ戻り、応答はストリームで戻ってくる。Promise の解決はマイクロタスクとして続きを走らせる。プレーヤーはこれで動画の断片を取りに行く（次の場面）。' },
       { title: 'Web Worker で逃がす', text: '重い計算は Web Worker（別スレッド）に送り、`postMessage` で結果だけ受け取る。Worker から DOM には触れないが、メインスレッドの 16.7 ms を空けられる。解析・圧縮・暗号のような重い処理は、この形で逃がせる。' }
     ],
     setup(ctx) {
@@ -800,7 +806,7 @@
       // 段階5: fetch
       const gf = st.gFetch = S.g({ cls: 'fade hide' }, svg);
       S.text(620, 200, 'fetch(segmentUrl)', { cls: 't-sm t-b t-mono' }, gf);
-      box(gf, 620, 216, 300, 50, 'ネットワークプロセス', 'DNS と接続は初回だけ。HTTP の要求（第17〜21章）', 'f-sf s-rule w1', 't-sm');
+      box(gf, 620, 216, 300, 50, 'ネットワークサービス', 'DNS と接続はホストごと初回だけ（第17〜21章）', 'f-sf s-rule w1', 't-sm');
       box(gf, 620, 300, 300, 50, '応答のストリーム', '届いた分から読める（ReadableStream）', 'f-sf s-rule w1', 't-sm');
       box(gf, 620, 384, 300, 50, 'Promise の解決 → then()', 'マイクロタスクで続きが走る', 'f-d-soft s-d w1', 't-sm');
       S.path('M770,266 V296', { cls: 'f-none s-dim w2', 'marker-end': mk('dim') }, gf);
@@ -900,7 +906,7 @@
       { title: '断片を取って入れる', text: 'プレーヤー JS が `fetch` で数秒分の断片（セグメント、第24章）を取り、`appendBuffer` で SourceBuffer に渡す。`buffered` に再生できる区間が増える。YouTube では映像と音声が 1 つの応答で届き、JS が分けて 2 本の SourceBuffer に入れる（第21章）。' },
       { title: '容器を解いて復号する', text: 'ブラウザは WebM・MP4 の容器を解き（デマルチプレクス）、映像は対応していればハードウェアデコーダ（GPU 内）へ、音声はソフトウェアデコーダへ渡す。復号した映像フレームは合成層にテクスチャとして直接貼られる（第8章）。' },
       { title: '再生の時計', text: '`currentTime` は音声の時計に合わせて進む。各映像フレームは自分の表示時刻（PTS）が来たら合成に出す。`buffered` の先端に追いつくと再生は止まる（バッファリング）。JS は先端との差を見て次の断片を急ぐ。' },
-      { title: 'ここから先の道', text: 'どの画質の断片を、いつ取るかを決めるのが ABR（第24章）。`fetch` の要求は HTTP として QUIC・TLS に包まれ（第19〜21章）、Wi-Fi・ルーター・光回線・ISP（第12〜16章）を通ってサーバーと往復する。DNS と接続の確立（第17・19・20章）は最初の1回だけ。' }
+      { title: 'ここから先の道', text: 'どの画質をいつ取るかを決めるのが ABR（第24章）。`fetch` の要求は HTTP として QUIC・TLS に包まれ（第19〜21章）、Wi-Fi・ルーター・光回線・ISP（第12〜16章）を通って往復する。DNS と接続の確立（第17・19・20章）はホストごとに初回だけ（ページと動画の配信元で 2 回）。' }
     ],
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
@@ -951,7 +957,7 @@
       st.stateSub = S.text(506, 440, '', { cls: 't-c t-xs t-dim' }, gm);
       // 右: パイプライン
       const gr = st.gr = S.g({}, svg);
-      st.pFetch = box(gr, 670, 56, 260, 48, 'fetch（ネットワークプロセス）', '第11〜21章の道を往復', 'f-sf s-rule w1', 't-sm');
+      st.pFetch = box(gr, 670, 56, 260, 48, 'fetch（ネットワークサービス）', '第11〜21章の道を往復', 'f-sf s-rule w1', 't-sm');
       st.pAppend = box(gr, 670, 132, 260, 44, 'appendBuffer(bytes)', 'JS → SourceBuffer', 'f-d-soft s-d w1', 't-sm');
       st.pDemux = box(gr, 670, 204, 260, 44, 'デマルチプレクサ', 'WebM / MP4 の容器を解く', 'f-sf s-rule w1', 't-sm');
       st.pDecV = box(gr, 670, 276, 124, 54, '映像デコーダ', 'GPU 内（対応時）', 'f-sf s-rule w1', 't-xs');
@@ -1043,7 +1049,7 @@
       title: 'ブラウザ',
       home: '../index.html',
       prev: { href: '09-os.html', title: 'OS' },
-      next: { href: '11-sou.html', title: 'ネットワークの層' },
+      next: { href: '11-sou.html', title: 'ネットワークの層', lead: 'パソコンを出た要求は、電波・銅線・光と信号の形を変えながら家を出て、ISP を抜け、YouTube のサーバーへ届く。' },
       legend: [{ c: 'd', label: 'データ・DOM・断片・フレーム' }, { c: 'x', label: '注目・停止' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

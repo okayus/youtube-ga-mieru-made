@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>IP — YouTubeが見えるまで</title>
+<meta name="description" content="DNS が番号を返すと、ブラウザの最初のパケットは宛先 142.250.196.110 を書いた IP ヘッダを付けて家を出る。IP は、宛先の番号だけを頼りにルーターからルーターへパケットを 1 個ずつ渡す約束ごとで、届くことも順番も保証しない。">
+<meta property="og:title" content="IP — YouTubeが見えるまで">
+<meta property="og:description" content="DNS が番号を返すと、ブラウザの最初のパケットは宛先 142.250.196.110 を書いた IP ヘッダを付けて家を出る。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
@@ -26,7 +32,7 @@
     <h1 id="h-s0">IP</h1>
     <p class="standfirst">DNS が番号を返すと、ブラウザの最初のパケットは宛先 142.250.196.110 を書いた IP ヘッダを付けて家を出る。IP は、宛先の番号だけを頼りにルーターからルーターへパケットを 1 個ずつ渡す約束ごとで、届くことも順番も保証しない。この章では、IPv4 ヘッダの 20 バイト、番号の範囲の書き方と配り方、128 ビットの IPv6、ホップごとに変わる欄と変わらない欄、区間ごとの大きさの上限（MTU）、そして ping と traceroute を支える ICMP を順に見る。</p>
     <p class="legend" data-auto></p>
-    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>で場面を移り、段階のある場面では<kbd>←</kbd><kbd>→</kbd>で一歩ずつ進める。<kbd>スペース</kbd>で動きを止める。パケットの動きは、見やすいように実際よりずっと遅くしてある。</p>
+    <p class="keys fit-only" data-auto></p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
@@ -865,7 +871,7 @@
   const s5 = {
     steps: [
       { title: '区間ごとに上限が違う', text: 'Ethernet と Wi-Fi の区間は 1,500 バイト（第13章）。PPPoE は 8 バイトのヘッダの分だけ小さい 1,492、IPv4 を IPv6 に包んで運ぶ区間（第15章）は 40 バイト小さい 1,460。道全体で通せる大きさは、最も小さい区間で決まる（**経路 MTU**）。' },
-      { title: 'IPv4 はルーターが分ける', text: 'DF が 0 のパケットが次の区間の MTU より大きければ、ルーターは中身を 8 バイトの倍数で切り、同じ識別子を付けた**断片**にする。組み立て直すのは宛先だけで、途中の 1 個を失えば全部が無駄になる。ルーターの手間も増えるので、今は分けずに済ませるのが基本。' },
+      { title: 'IPv4 はルーターが分ける', text: 'DF が 0 のパケットが次の区間の MTU より大きければ、ルーターは中身を 8 バイトの倍数で切り、同じ識別子を付けた**断片**（IP のフラグメント。動画の断片とは別）にする。組み立て直すのは宛先だけで、途中の 1 個を失えば全部が無駄になる。ルーターの手間も増えるので、今は分けずに済ませるのが基本。' },
       { title: 'DF なら捨てて知らせる', text: 'DF が 1 なら、ルーターはパケットを捨て、ICMP の「分割が必要」（タイプ 3・コード 4）に次の区間の MTU を書いて送り主へ返す。送り主はそれより小さくして送り直す（経路 MTU 探索、RFC 1191）。この ICMP を途中で止めると、大きいパケットだけが消え続ける。' },
       { title: 'IPv6 は送り主だけが分ける', text: 'IPv6 のルーターはパケットを分けない。大きすぎれば捨てて、ICMPv6 の Packet Too Big（タイプ 2）で MTU を知らせる。分けてよいのは送り主だけで、断片の情報は 8 バイトの断片ヘッダに入れる。どの区間も 1,280 バイトは通せることが前提。' },
       { title: 'TCP は MSS で大きさを決める', text: 'TCP は接続の最初に、受け取れる中身の最大（**MSS**）を伝え合う。MTU 1,500 から IPv4 と TCP のヘッダ 40 バイトを引いて 1,460。PPPoE を使う家のルーターの多くは、通る SYN の MSS を 1,452 などに書き換え、分割を防ぐ（MSS クランプ、TCP は第19章）。' },
@@ -1199,7 +1205,7 @@
       title: 'IP',
       home: '../index.html',
       prev: { href: '17-dns.html', title: 'DNS' },
-      next: { href: '19-tcp.html', title: 'TCP・UDP・QUIC' },
+      next: { href: '19-tcp.html', title: 'TCP・UDP・QUIC', lead: 'IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（第18章）。' },
       legend: [{ c: 'd', label: 'IP パケット・ヘッダの値' }, { c: 'x', label: '注目・変わる値' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }
