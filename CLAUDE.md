@@ -11,4 +11,5 @@
 - 時刻を指定した写真: `node tools/shot.mjs chapters/NN-*.html --scene N --step K --at 0,1.5,3 --out DIR [--dark]`（動く札の止まる位置や、途中で書き換わる文字・色を確かめる）。
 - 用語索引: `glossary.html` が `assets/glossary-data.js` を読む。章の用語表を直したら `node tools/build-glossary.mjs` で作り直す。
 - 配信: `tools/serve.sh` で http://127.0.0.1:8766/ 。止めるのは `tools/serve.sh stop`（pkill は使わない）。
+- 公開: GitHub Pages（https://okayus.github.io/youtube-ga-mieru-made/）。main の root をそのまま配る（`.nojekyll` で Jekyll を止めている）。main に push すると公開サイトも変わる。
 - 表示方針は one-screen-artifact スキルに従う（デスクトップは場面ごとに1画面、スマートフォンは縦読み）。

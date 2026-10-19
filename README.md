@@ -5,6 +5,8 @@
 
 ## 開き方
 
+公開版は https://okayus.github.io/youtube-ga-mieru-made/ （GitHub Pages）。手元では次のように配信する。
+
 ```bash
 tools/serve.sh            # http://127.0.0.1:8766/ で配信
 # ブラウザで http://127.0.0.1:8766/index.html を開く
