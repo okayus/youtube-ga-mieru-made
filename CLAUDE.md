@@ -13,3 +13,4 @@
 - 配信: `tools/serve.sh` で http://127.0.0.1:8766/ 。止めるのは `tools/serve.sh stop`（pkill は使わない）。
 - 公開: GitHub Pages（https://okayus.github.io/youtube-ga-mieru-made/）。main の root をそのまま配る（`.nojekyll` で Jekyll を止めている）。main に push すると公開サイトも変わる。
 - 表示方針は one-screen-artifact スキルに従う（デスクトップは場面ごとに1画面、スマートフォンは縦読み）。
+- ニュースの学習: `news/`（tech ニュースを調べ、この教材のどの層＝章・場面の話かに結びつけたノート。一覧と書き方は `news/README.md`）。
