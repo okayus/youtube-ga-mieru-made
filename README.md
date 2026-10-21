@@ -29,6 +29,8 @@ docs/authoring.md     章の書き方（エンジンの API、場面の型、高
 tools/verify.mjs      ヘッドレス Chrome で JS エラー・はみ出し・リンク切れを測る
 tools/shot.mjs        場面・段階・時刻を指定して写真を撮る（動く札の止まる位置の確認）
 tools/build-glossary.mjs  用語索引のデータを作り直す（章の用語表を直したら走らせる）
+news/                 ニュースから層へ。tech ニュースを章・場面に結びつけたノート（*.md が元、*.html と index.html は作ったもの）
+tools/build-news.mjs  news/*.md からページと一覧を作る（ノートを足したり直したりしたら走らせる）
 tools/lencheck.mjs    本文の字数の目安（段階 160・リード 110・補足 140）を超える所を出す
 tools/sync-lead.mjs   各章の meta.next.lead（次の章の導入）を表紙のリードから作り直す
 tools/serve.sh        ローカル配信

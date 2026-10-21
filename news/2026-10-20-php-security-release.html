@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<!-- このページは tools/build-news.mjs が news/ の Markdown から作る（手で直さない） -->
+<title>PHP の重大なセキュリティリリース予告 — ニュースから層へ</title>
+<meta name="description" content="サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。">
+<meta property="og:title" content="PHP の重大なセキュリティリリース予告 — ニュースから層へ">
+<meta property="og:description" content="サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* ニュースのページだけのスタイル（tools/build-news.mjs が書く） */
+  .sc-nw { grid-template-areas: "sh" "text"; }
+  .fit .sc-nw { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh" "text"; }
+  .nw-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.15rem; align-content: start; }
+  .fit .nw-body { grid-template-columns: var(--cols, minmax(0, 1fr)); column-gap: 40px; }
+  .fit .nw-body.nw-narrow { max-width: 60em; }
+  .nw-body h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; line-height: 1.5; }
+  .nw-body h4 { font-weight: 600; font-size: 0.95rem; }
+  .nw-body ul, .nw-body ol { padding-left: 1.3em; display: grid; gap: 0.35rem; }
+  .nw-body li > ul, .nw-body li > ol { margin-top: 0.3rem; }
+  .nw-body blockquote { border-left: 3px solid var(--rule); padding-left: 0.9rem; color: var(--fg-mid); }
+  .nw-body pre { background: var(--inset); border-radius: 4px; padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.8rem; }
+  .nw-tbl b { font-weight: 600; }
+  table.nw-tbl td[data-label]::before { border-left: 0; padding-left: 0; }   /* 縦読み版の見出しの色見本（章の表で使う）は出さない */
+  a.nw-ch { white-space: nowrap; text-decoration: underline dotted; text-decoration-color: var(--fg-dim); text-underline-offset: 0.22em; }
+  a.nw-ch:hover { text-decoration-style: solid; text-decoration-color: var(--fg); }
+  .nw-meta { list-style: none; padding: 0; margin-top: 1rem; display: grid; gap: 0.2rem; font-size: 0.84rem; line-height: 1.7; color: var(--fg-mid); }
+  .fit .nw-meta { margin-top: 18px; }
+  .nw-meta li { padding-left: 1em; text-indent: -1em; }
+  .nw-meta li::before { content: "・"; }
+
+  /* 25 章の帯 */
+  .nw-strip { display: flex; flex-wrap: wrap; gap: 6px 6px; margin-top: 1rem; }
+  .nw-grp { flex: var(--n) 1 calc(var(--n) * 17px); min-width: 0; display: grid; gap: 2px; }
+  .nw-part { font-size: 0.68rem; line-height: 1.5; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid var(--rule); padding-left: 3px; }
+  .nw-cells { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 2px; }
+  .nw-cell { font-family: var(--mono); font-size: 0.68rem; line-height: 1.75rem; text-align: center; border-radius: 3px; background: var(--inset); color: var(--fg-dim); text-decoration: none; }
+  a.nw-cell.on { background: var(--fg); color: var(--surface); font-weight: 600; }
+  a.nw-cell.on:hover { outline: 2px solid var(--fg-dim); outline-offset: 1px; }
+
+  /* 一覧 */
+  .sc-nwlist { grid-template-areas: "sh" "tbl"; }
+  .fit .sc-nwlist { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh" "tbl"; }
+  .nw-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; align-content: start; }
+  .fit .nw-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+  .nw-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem 0.95rem 0.8rem; display: grid; gap: 0.35rem; align-content: start; }
+  .nw-card .nw-date { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; color: var(--fg-dim); }
+  .nw-card h3 { font-family: var(--display); font-weight: 700; font-size: 1.02rem; line-height: 1.5; }
+  .nw-card h3 a { text-decoration: none; }
+  .nw-card h3 a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .nw-card .nw-lead { font-size: 0.86rem; line-height: 1.7; color: var(--fg-mid); }
+  .nw-card .nw-strip { margin-top: 0.35rem; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">ニュースから層へ ／ 2026-10-20</p>
+    <h1 id="h-s0">PHP の重大なセキュリティリリース予告</h1>
+    <p class="standfirst">サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。層でいうと、HTTP の要求（第21章）を受け取ったサーバー（第22章）の中で、OS（第9章）の上のユーザー空間で動く。CVSS v4.0 で 9.2 の欠陥が 2 件あり、修正版が 2026-10-21 23:00 JST（14:00 UTC）に出る予定である。watchTowr の言うとおりリモートからのコード実行（RCE）なら、攻撃者はネットワーク越しに PHP のプロセスを乗っ取り、そのプロセスの権限で動ける。欠陥の種類・場所・影響を受ける版は、まだ公式には出ていない。</p>
+    <ul class="nw-meta"><li>出典: <a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">Upcoming Critical PHP Security Release</a>（php.net、2026-10-20）</li><li>調べた時点: 2026-10-21 17:30 JST（08:30 UTC）。修正版が出る 23:00 JST より前なので、出たら追記する。</li><li>報道での呼び名: php2shell（公式の名ではない）</li></ul>
+    <div class="nw-strip" role="group" aria-label="このノートがリンクしている章: 第6章 CPU、第9章 OS、第11章 ネットワークの層、第14章 ホームルーター、第20章 TLS、第21章 HTTP、第22章 YouTube のサーバー側"><div class="nw-grp" style="--n:3"><span class="nw-part">I 電気</span><div class="nw-cells"><span class="nw-cell" title="第1章 電子と電流">1</span><span class="nw-cell" title="第2章 半導体とダイオード">2</span><span class="nw-cell" title="第3章 トランジスタ">3</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">II 計算機</span><div class="nw-cells"><span class="nw-cell" title="第4章 論理ゲートと2進数">4</span><span class="nw-cell" title="第5章 記憶">5</span><a class="nw-cell on" href="../chapters/06-cpu.html" title="第6章 CPU">6</a><span class="nw-cell" title="第7章 入出力と周辺機器">7</span><span class="nw-cell" title="第8章 画面と音">8</span></div></div><div class="nw-grp" style="--n:2"><span class="nw-part">III ソフト</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/09-os.html" title="第9章 OS">9</a><span class="nw-cell" title="第10章 ブラウザ">10</span></div></div><div class="nw-grp" style="--n:6"><span class="nw-part">IV つながる</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/11-sou.html" title="第11章 ネットワークの層">11</a><span class="nw-cell" title="第12章 Wi-Fi">12</span><span class="nw-cell" title="第13章 Ethernet とスイッチ">13</span><a class="nw-cell on" href="../chapters/14-router.html" title="第14章 ホームルーター">14</a><span class="nw-cell" title="第15章 光回線">15</span><span class="nw-cell" title="第16章 インターネットの骨格">16</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">V 約束ごと</span><div class="nw-cells"><span class="nw-cell" title="第17章 DNS">17</span><span class="nw-cell" title="第18章 IP">18</span><span class="nw-cell" title="第19章 TCP・UDP・QUIC">19</span><a class="nw-cell on" href="../chapters/20-tls.html" title="第20章 TLS">20</a><a class="nw-cell on" href="../chapters/21-http.html" title="第21章 HTTP">21</a></div></div><div class="nw-grp" style="--n:4"><span class="nw-part">VI YouTube</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/22-server.html" title="第22章 YouTube のサーバー側">22</a><span class="nw-cell" title="第23章 動画の圧縮">23</span><span class="nw-cell" title="第24章 ストリーミングと再生">24</span><span class="nw-cell" title="第25章 通しで見る">25</span></div></div></div>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>（または右上の <kbd>‹</kbd><kbd>›</kbd>）で場面を移る。帯の塗りつぶした番号は、このノートがリンクしている章。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>確かなことと、確かでないこと</a></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>どの層の話か</a></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>PHP 本体の層について</a></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>層ごとの守り</a></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>CVSS と前例</a></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>影響と、追って確かめること</a></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>出典</a></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" aria-label="移動"><a class="next" href="#s1" data-go="1">読む ›</a><a href="index.html">ニュースの一覧</a><a href="../index.html">目次</a><a href="../glossary.html">用語索引</a></nav>
+    <p>元のノート: <a href="https://github.com/okayus/youtube-ga-mieru-made/blob/main/news/2026-10-20-php-security-release.md" target="_blank" rel="noopener">news/2026-10-20-php-security-release.md</a>（このページは <code>node tools/build-news.mjs</code> で作る）</p>
+  </footer>
+</section>
+
+<!-- ================= 1 確かなことと、確かでないこと ================= -->
+<section class="scene sc-nw" id="s1" data-tab="確かさ" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>確かなことと、確かでないこと</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>項目</th><th>内容</th><th>出どころ</th><th>確かさ</th></tr></thead><tbody>
+<tr><td data-label="項目">公開の日時</td><td data-label="内容">2026-10-21 14:00 UTC。詳細が漏れるか悪用が見つかれば早める</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">件数と点数</td><td data-label="内容">2 件。どちらも CVSS v4.0 で 9.2（Critical）</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">詳細・影響を受ける版・直った版</td><td data-label="内容">修正版と同時に出す</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式。今は不明</td></tr>
+<tr><td data-label="項目">CVE 番号</td><td data-label="内容">CVE-2026-109618、CVE-2026-109619</td><td data-label="出どころ">watchTowr、CERT-EU</td><td data-label="確かさ">未確認。CVE の API では 2 件とも RESERVED で、中身は無い。PHP は番号を出していない</td></tr>
+<tr><td data-label="項目">種類</td><td data-label="内容">2 件とも RCE。CVE-2026-109618 は再現した</td><td data-label="出どころ">watchTowr（BleepingComputer の取材）</td><td data-label="確かさ">研究者の報告</td></tr>
+<tr><td data-label="項目">影響を受ける版</td><td data-label="内容">PHP 5 以降のすべて</td><td data-label="出どころ">watchTowr（BleepingComputer の取材）、CERT-EU（SNS の投稿を引用）</td><td data-label="確かさ">未確認</td></tr>
+<tr><td data-label="項目">欠陥の場所</td><td data-label="内容">アップロードの進み具合をセッションに書く処理（<code>session.upload_progress</code>）と、<code>multipart/form-data</code> の解析での use-after-free</td><td data-label="出どころ">個人の分析と、出回った PoC</td><td data-label="確かさ">未確認。同じ研究者の投稿と分析で、2 件目の場所が食い違う</td></tr>
+<tr><td data-label="項目">悪用</td><td data-label="内容">見つかっていない</td><td data-label="出どころ">watchTowr、Huntress（10-20〜21 時点）</td><td data-label="確かさ">研究者の報告</td></tr>
+<tr><td data-label="項目">経緯</td><td data-label="内容">10-20 15:20 UTC に Hacker News へ予告の投稿（削除済み）。当初は 10-22（木）に公開する予定だった</td><td data-label="出どころ">Sansec、BleepingComputer</td><td data-label="確かさ">報告。Huntress によれば、PHP の予告はこの後で、公開を 1 日早めた</td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 2 どの層の話か ================= -->
+<section class="scene sc-nw" id="s2" data-tab="層" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>どの層の話か</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><p>報道どおり攻撃が HTTP の要求で届くとして、届く順に下の層から並べる。欠陥があるのは太字の層。</p>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>層</th><th>このニュースで起きること</th><th>章・場面</th></tr></thead><tbody>
+<tr><td data-label="層">電波・光・IP・TCP・QUIC</td><td data-label="このニュースで起きること">攻撃の要求も、ふつうの要求と同じように運ぶ。途中の機器は自分の層のヘッダまでしか読まない</td><td data-label="章・場面"><a href="../chapters/11-sou.html#s3" class="nw-ch">11章 場面3</a>、<a href="../chapters/11-sou.html#s6" class="nw-ch">11章 場面6</a></td></tr>
+<tr><td data-label="層">TLS</td><td data-label="このニュースで起きること">途中の機器から中身を隠すが、送り手が悪意ある中身を送ることは止めない。サーバーは復号した要求をそのまま受け取る</td><td data-label="章・場面"><a href="../chapters/20-tls.html#s1" class="nw-ch">20章 場面1</a>、<a href="../chapters/20-tls.html#s6" class="nw-ch">20章 場面6</a></td></tr>
+<tr><td data-label="層">HTTP</td><td data-label="このニュースで起きること">入口は HTTP の要求。報道が疑う場所が正しければ、ファイルを送る POST の本文（<code>multipart/form-data</code>）</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a>、<a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a></td></tr>
+<tr><td data-label="層">Web サーバー</td><td data-label="このニュースで起きること">nginx や Apache が要求を受け、PHP へ渡す</td><td data-label="章・場面"><a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a>（GFE が暗号をほどいて奥のサービスへ渡す所）</td></tr>
+<tr><td data-label="層"><b>PHP 本体</b></td><td data-label="このニュースで起きること">C で書かれた言語処理系。要求を解析し、アプリの PHP スクリプト（WordPress など）を実行する</td><td data-label="章・場面">教材に無い。<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a> の「奥のサービス」にあたる</td></tr>
+<tr><td data-label="層">OS</td><td data-label="このニュースで起きること">乗っ取られるのは、ユーザー空間で PHP を実行しているプロセス（PHP-FPM のワーカーや、mod_php を組み込んだ Apache）。その利用者（<code>www-data</code> など）の権限で、ファイルを書き換えたり、システムコールでシェルを起動したりできる</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a>、<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a>、<a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td></tr>
+<tr><td data-label="層">メモリと CPU</td><td data-label="このニュースで起きること">欠陥が use-after-free のようなメモリの誤りなら、仮想メモリ上の関数の番地などを書き換え、PC（次に実行する番地）を攻撃者の選んだ命令へ向ける。6章の CPU は、PC が指す命令が正規の流れかどうかを区別せずに実行する</td><td data-label="章・場面"><a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a>、<a href="../chapters/06-cpu.html#s1" class="nw-ch">6章 場面1</a>、<a href="../chapters/06-cpu.html#s4" class="nw-ch">6章 場面4</a></td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 3 PHP 本体の層について ================= -->
+<section class="scene sc-nw" id="s3" data-tab="PHP 本体" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>PHP 本体の層について</h2>
+  </header>
+  <div class="nw-body a-text nw-narrow">
+<div class="col"><p>PHP 本体は、アプリのスクリプトが 1 行も動く前に、要求の本文を解析して <code>$_POST</code> と <code>$_FILES</code> を作る。<code>multipart/form-data</code> の本文は <code>main/rfc1867.c</code> の <code>rfc1867_post_handler</code> が部品に分ける。session 拡張は起動時に、その途中で呼ばれる関数を <code>ext/session/session.c</code> の <code>php_session_rfc1867_callback</code> に差し替えており、要求に <code>PHP_SESSION_UPLOAD_PROGRESS</code> の欄とセッション ID があれば、進み具合をセッションに書く。欄もセッション ID（Cookie）も、送る側が要求に付けられる。ファイルの受け取り（<code>file_uploads</code>）、本文の読み込み（<code>enable_post_data_reading</code>）、進み具合の記録（<code>session.upload_progress.enabled</code>）は、どれも既定で有効である（php-src の PHP-8.5 ブランチで確認）。したがって、この経路に欠陥があれば、アプリが何であっても、PHP のファイルへ POST を 1 つ送るだけで届く。「既定の設定のまま、すべての PHP サイト」という報道は、この構造からは筋が通る（欠陥がこの経路にあるかは未確認）。</p>
+<p>PHP の中の制限（<code>disable_functions</code>、<code>open_basedir</code>）は、PHP の関数を呼ぶ所で調べる仕組みなので、PHP 本体のメモリの誤りから機械語を実行された場合は効かない。効くのは OS の層の制限（プロセスの利用者の権限、コンテナ、seccomp）である。Chrome がレンダラを、乗っ取られる前提でファイルにもネットワークにも触れないサンドボックスに入れるのも、同じ考え方である（<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a>）。ただし PHP のワーカーは仕事のためにファイル・データベース・ネットワークに触れるので、レンダラほど狭くは閉じ込められない。</p></div>
+  </div>
+</section>
+
+<!-- ================= 4 層ごとの守り ================= -->
+<section class="scene sc-nw" id="s4" data-tab="守り" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>層ごとの守り</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>守り</th><th>層</th><th>章・場面</th><th>出どころと注意</th></tr></thead><tbody>
+<tr><td data-label="守り">修正版に上げる</td><td data-label="層">PHP 本体</td><td data-label="章・場面">—</td><td data-label="出どころと注意">公式。サポート中は 8.2〜8.5（8.2 は 2026-12-31 まで）。8.1 以前（7 系・5 系を含む）はサポートが終わっており、方針どおりなら公式の修正は出ない。Linux のディストリビューションは、版番号を変えずに修正を取り込むことがある</td></tr>
+<tr><td data-label="守り"><code>session.upload_progress.enabled = Off</code></td><td data-label="層">PHP 本体の機能を止める</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a></td><td data-label="出どころと注意">解説記事の暫定策。報道が疑う場所が正しいときだけ効き、2 件のうち 1 件にしか効かないという主張もある。<code>ini_set()</code> では変えられず、php.ini などに書く</td></tr>
+<tr><td data-label="守り">アップロードを受けない URL への <code>multipart/form-data</code> の POST を、WAF やリバースプロキシで止める</td><td data-label="層">HTTP（TLS をほどいた後）</td><td data-label="章・場面"><a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a>、<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a></td><td data-label="出どころと注意">解説記事の暫定策。欠陥の場所が分かるまで、効くかは分からない</td></tr>
+<tr><td data-label="守り">インターネットに面したアプリを公衆網から切り離す</td><td data-label="層">IP・ポート</td><td data-label="章・場面"><a href="../chapters/14-router.html#s5" class="nw-ch">14章 場面5</a>（外から始まる通信を止める）</td><td data-label="出どころと注意">CERT-EU が、すぐ修正できない場合に検討するよう勧めた</td></tr>
+<tr><td data-label="守り">PHP のプロセスがシェルや <code>curl</code> を起動したら気づく</td><td data-label="層">OS（システムコール）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td><td data-label="出どころと注意">Huntress（Florian Roth の見解）。親が <code>php-fpm</code>・<code>apache2</code>、子が <code>sh</code>・<code>bash</code>・<code>curl</code>・<code>wget</code> の組を見張る</td></tr>
+<tr><td data-label="守り">PHP を実行するプロセスの権限を絞る</td><td data-label="層">OS（プロセスと利用者）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a>、<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a></td><td data-label="出どころと注意">一般論。乗っ取られた後の被害の範囲を狭める</td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 5 CVSS と前例 ================= -->
+<section class="scene sc-nw" id="s5" data-tab="CVSS・前例" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>CVSS と前例</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 3fr">
+<div class="col"><h3>CVSS 9.2 から読めること</h3>
+<ul><li>9.2 になる CVSS v4.0 の基本ベクトルは、全 104,976 通りのうち 699 通りある。点数だけではベクトルは決まらない（Python の <code>cvss</code> 3.6 で全通りを計算した）。</li><li>「ネットワーク越しに（AV:N）、認証なしで（PR:N）、利用者の操作なしに（UI:N）、そのシステムの機密性・完全性・可用性をすべて失い（VC/VI/VA:H）、ほかのシステムには及ばない（SC/SI/SA:N）」は 9.3 になる。これが 9.2 になるのは、AC:H（ASLR などの防御を回避する必要がある）か AT:P（競合状態に勝つ、特定の設定があるなどの前提が要る）が付く 3 通りだけである。</li><li>ASLR は、<a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a> の仮想アドレスの配置を起動ごとに変える仕組みである。メモリの誤りから RCE に進むには、たいていこの配置を知る必要がある。</li><li>リークの「CVSS 10」は版が書かれていない。v4.0 では、ほかのシステムへの影響（SC/SI/SA）が無いと 9.3 が上限で、10.0 にならない。v3.1 では S:C（スコープの変更）で 10.0 になる。</li></ul></div>
+<div class="col"><h3>過去の PHP 本体の RCE</h3>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>CVE</th><th>公開</th><th>何が起きたか</th><th>層</th><th>悪用</th></tr></thead><tbody>
+<tr><td data-label="CVE">CVE-2019-11043</td><td data-label="公開">2019-10</td><td data-label="何が起きたか">特定の nginx の設定で、細工した URL により PHP-FPM が確保した領域の外へ書き込む</td><td data-label="層">PHP 本体（FastCGI の受け口）のメモリの誤り</td><td data-label="悪用">2022-03-25 に CISA KEV へ載った</td></tr>
+<tr><td data-label="CVE">CVE-2024-4577</td><td data-label="公開">2024-06</td><td data-label="何が起きたか">Windows の文字の置き換え（Best-Fit）で、URL の文字が php-cgi のオプションとして解釈される</td><td data-label="層">PHP 本体と OS の境目（コマンドラインの引数）</td><td data-label="悪用">2024-06-12 に CISA KEV へ載った</td></tr>
+</tbody></table></div>
+<p>PHP 本体の RCE には、メモリの誤りの例も、入力が命令として解釈される例もある。今回がどちらかは公表されていない。</p></div>
+  </div>
+</section>
+
+<!-- ================= 6 影響と、追って確かめること ================= -->
+<section class="scene sc-nw" id="s6" data-tab="影響と今後" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>影響と、追って確かめること</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>影響の大きさ</h3>
+<ul><li>W3Techs（2026-10-21）では、サーバー側の言語が分かるサイトの 69.3% が PHP を使う。PHP のサイトの 34.8% は PHP 7 以前で、サポートが終わっている（8.0・8.1 も終わっているが、W3Techs の表に内訳は無い）。</li><li>修正の前に存在が漏れた。Sansec は、修正版の公開から 15 分以内に大規模な攻撃が始まると予想している。</li></ul></div>
+<div class="col"><h3>公開後に確かめること</h3>
+<ul><li>CVE 番号、種類、欠陥の場所（ファイル・関数）、影響を受ける版、直った版、CVSS のベクトル。</li><li>「どの層の話か」の PHP 本体・OS・メモリと CPU の行を、公式の説明と php-src の差分で確定させる。</li><li>「層ごとの守り」の暫定策が効くかどうか。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 7 出典 ================= -->
+<section class="scene sc-nw" id="s7" data-tab="出典" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>出典</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>公式とデータ</h3>
+<ul><li><a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">php.net の告知（2026-10-20）</a>、<a href="https://www.php.net/supported-versions.php" target="_blank" rel="noopener">サポート中の版</a>、<a href="https://www.php.net/manual/en/session.upload-progress.php" target="_blank" rel="noopener">Session Upload Progress（マニュアル）</a></li><li>php-src の PHP-8.5 ブランチ: <a href="https://github.com/php/php-src/blob/PHP-8.5/main/rfc1867.c" target="_blank" rel="noopener">main/rfc1867.c</a>、<a href="https://github.com/php/php-src/blob/PHP-8.5/ext/session/session.c" target="_blank" rel="noopener">ext/session/session.c</a>、<a href="https://github.com/php/php-src/blob/PHP-8.5/main/main.c" target="_blank" rel="noopener">main/main.c</a></li><li><a href="https://cveawg.mitre.org/api/cve-id/CVE-2026-109618" target="_blank" rel="noopener">CVE の API（CVE-2026-109618）</a>、<a href="https://cveawg.mitre.org/api/cve-id/CVE-2026-109619" target="_blank" rel="noopener">CVE の API（CVE-2026-109619）</a></li><li>NVD: <a href="https://nvd.nist.gov/vuln/detail/CVE-2019-11043" target="_blank" rel="noopener">CVE-2019-11043</a>、<a href="https://nvd.nist.gov/vuln/detail/CVE-2024-4577" target="_blank" rel="noopener">CVE-2024-4577</a></li><li><a href="https://w3techs.com/technologies/details/pl-php" target="_blank" rel="noopener">W3Techs: PHP</a></li></ul></div>
+<div class="col"><h3>研究者と報道</h3>
+<ul><li><a href="https://www.bleepingcomputer.com/news/security/php-warns-admins-of-two-critical-flaws-emergency-patches-coming-tomorrow/" target="_blank" rel="noopener">BleepingComputer（2026-10-20）</a>: watchTowr の発言、リークの経緯</li><li><a href="https://watchtowr.com/intelligence/php-cve-2026-109618-faq/" target="_blank" rel="noopener">watchTowr の FAQ</a></li><li><a href="https://cert.europa.eu/publications/security-advisories/2026-018/" target="_blank" rel="noopener">CERT-EU 2026-018</a></li><li><a href="https://www.huntress.com/blog/php2shell-leaked-critical-php-vulnerabilities" target="_blank" rel="noopener">Huntress</a>: 経緯、検知</li><li><a href="https://sansec.io/research/php2shell" target="_blank" rel="noopener">Sansec</a>: 時系列、攻撃の予想</li><li><a href="https://phoenix.security/php-core-rce-cve-2026-109618-109619-critical-remote-code-execution/" target="_blank" rel="noopener">Phoenix Security</a>: 欠陥の場所の主張、暫定策</li><li><a href="https://lilting.ch/en/articles/php2shell-session-upload-progress-uaf" target="_blank" rel="noopener">lilting.ch</a>: <code>session.upload_progress</code> の主張の出どころの整理</li></ul></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+YT.chapter({ meta: {"eyebrow":"ニュースから層へ ／ 2026-10-20","title":"PHP の重大なセキュリティリリース予告","home":"index.html","actions":[{"href":"index.html","label":"ニュースの一覧"}]} });
+</script>
+</body>
+</html>
