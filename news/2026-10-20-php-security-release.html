@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <!-- このページは tools/build-news.mjs が news/ の Markdown から作る（手で直さない） -->
-<title>PHP の重大なセキュリティリリース予告 — ニュースから層へ</title>
+<title>PHP の重大なセキュリティリリース — ニュースから層へ</title>
 <meta name="description" content="サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。">
-<meta property="og:title" content="PHP の重大なセキュリティリリース予告 — ニュースから層へ">
+<meta property="og:title" content="PHP の重大なセキュリティリリース — ニュースから層へ">
 <meta property="og:description" content="サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。">
 <meta property="og:type" content="article">
 <meta property="og:locale" content="ja_JP">
@@ -70,9 +70,9 @@
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
     <p class="eyebrow">ニュースから層へ ／ 2026-10-20</p>
-    <h1 id="h-s0">PHP の重大なセキュリティリリース予告</h1>
-    <p class="standfirst">サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。層でいうと、HTTP の要求（第21章）を受け取ったサーバー（第22章）の中で、OS（第9章）の上のユーザー空間で動く。CVSS v4.0 で 9.2 の欠陥が 2 件あり、修正版が 2026-10-21 23:00 JST（14:00 UTC）に出る予定である。watchTowr の言うとおりリモートからのコード実行（RCE）なら、攻撃者はネットワーク越しに PHP のプロセスを乗っ取り、そのプロセスの権限で動ける。欠陥の種類・場所・影響を受ける版は、まだ公式には出ていない。</p>
-    <ul class="nw-meta"><li>出典: <a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">Upcoming Critical PHP Security Release</a>（php.net、2026-10-20）</li><li>調べた時点: 2026-10-21 17:30 JST（08:30 UTC）。修正版が出る 23:00 JST より前なので、出たら追記する。</li><li>報道での呼び名: php2shell（公式の名ではない）</li></ul>
+    <h1 id="h-s0">PHP の重大なセキュリティリリース</h1>
+    <p class="standfirst">サーバーの上で HTTP の要求を処理する言語処理系、PHP 本体の欠陥の話である。2 件とも、メモリの不足（OOM）などの致命的エラーで処理を打ち切ったときに、作りかけのデータや、解放したメモリを指す大域の状態が残り、後片付けや次の要求がそれを正しい値として読む。攻撃者は既定の設定のまま、アプリより前に走る本文の解析で OOM を起こせ、Apache の mod_php ではリモートからのコード実行（RCE）が実証された。修正版は 2026-10-21 の 8.2.35・8.3.36・8.4.27・8.5.12 で、攻撃の試みは公開の 4 日前から観測されている。</p>
+    <ul class="nw-meta"><li>出典: php.net の<a href="https://www.php.net/archive/2026.php#2026-10-21-5" target="_blank" rel="noopener">告知</a>（2026-10-21）と前日の<a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">予告</a>。技術的な詳細は GitHub の勧告 <a href="https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w" target="_blank" rel="noopener">GHSA-w8hw-w9fx-j79w</a>・<a href="https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp" target="_blank" rel="noopener">GHSA-6wmf-4rv5-p3rp</a></li><li>調べた時点: 予告の時点（2026-10-21 17:30 JST）に書き、修正版が出た後の 2026-10-22 22:30 JST に書き直した。仕組みと直し方は、勧告と修正のコミットの差分から読んだ。</li><li>手元で確かめたこと: この PC の Docker で、修正前の 8.5.11 と修正後の 8.5.12 がメモリの上限でどう止まるかを比べた（場面「この PC」）。攻撃は再現していない。</li><li>報道での呼び名: php2shell（公式の名ではない）</li></ul>
     <div class="nw-strip" role="group" aria-label="このノートがリンクしている章: 第6章 CPU、第9章 OS、第11章 ネットワークの層、第14章 ホームルーター、第20章 TLS、第21章 HTTP、第22章 YouTube のサーバー側"><div class="nw-grp" style="--n:3"><span class="nw-part">I 電気</span><div class="nw-cells"><span class="nw-cell" title="第1章 電子と電流">1</span><span class="nw-cell" title="第2章 半導体とダイオード">2</span><span class="nw-cell" title="第3章 トランジスタ">3</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">II 計算機</span><div class="nw-cells"><span class="nw-cell" title="第4章 論理ゲートと2進数">4</span><span class="nw-cell" title="第5章 記憶">5</span><a class="nw-cell on" href="../chapters/06-cpu.html" title="第6章 CPU">6</a><span class="nw-cell" title="第7章 入出力と周辺機器">7</span><span class="nw-cell" title="第8章 画面と音">8</span></div></div><div class="nw-grp" style="--n:2"><span class="nw-part">III ソフト</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/09-os.html" title="第9章 OS">9</a><span class="nw-cell" title="第10章 ブラウザ">10</span></div></div><div class="nw-grp" style="--n:6"><span class="nw-part">IV つながる</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/11-sou.html" title="第11章 ネットワークの層">11</a><span class="nw-cell" title="第12章 Wi-Fi">12</span><span class="nw-cell" title="第13章 Ethernet とスイッチ">13</span><a class="nw-cell on" href="../chapters/14-router.html" title="第14章 ホームルーター">14</a><span class="nw-cell" title="第15章 光回線">15</span><span class="nw-cell" title="第16章 インターネットの骨格">16</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">V 約束ごと</span><div class="nw-cells"><span class="nw-cell" title="第17章 DNS">17</span><span class="nw-cell" title="第18章 IP">18</span><span class="nw-cell" title="第19章 TCP・UDP・QUIC">19</span><a class="nw-cell on" href="../chapters/20-tls.html" title="第20章 TLS">20</a><a class="nw-cell on" href="../chapters/21-http.html" title="第21章 HTTP">21</a></div></div><div class="nw-grp" style="--n:4"><span class="nw-part">VI YouTube</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/22-server.html" title="第22章 YouTube のサーバー側">22</a><span class="nw-cell" title="第23章 動画の圧縮">23</span><span class="nw-cell" title="第24章 ストリーミングと再生">24</span><span class="nw-cell" title="第25章 通しで見る">25</span></div></div></div>
     <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>（または右上の <kbd>‹</kbd><kbd>›</kbd>）で場面を移る。帯の塗りつぶした番号は、このノートがリンクしている章。</p>
   </div>
@@ -81,11 +81,14 @@
     <ol>
       <li><a href="#s1" data-go="1"><span class="n">1</span>確かなことと、確かでないこと</a></li>
       <li><a href="#s2" data-go="2"><span class="n">2</span>どの層の話か</a></li>
-      <li><a href="#s3" data-go="3"><span class="n">3</span>PHP 本体の層について</a></li>
-      <li><a href="#s4" data-go="4"><span class="n">4</span>層ごとの守り</a></li>
-      <li><a href="#s5" data-go="5"><span class="n">5</span>CVSS と前例</a></li>
-      <li><a href="#s6" data-go="6"><span class="n">6</span>影響と、追って確かめること</a></li>
-      <li><a href="#s7" data-go="7"><span class="n">7</span>出典</a></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>作りかけの表を後片付けが読む（CVE-2026-109618）</a></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>要求をまたいで残る古い状態（CVE-2026-109619）</a></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>直し方 — 作りかけのまま抜けない</a></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>層ごとの守り</a></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>CVSS と前例</a></li>
+      <li><a href="#s8" data-go="8"><span class="n">8</span>この PC で確かめたこと</a></li>
+      <li><a href="#s9" data-go="9"><span class="n">9</span>影響と、追って確かめること</a></li>
+      <li><a href="#s10" data-go="10"><span class="n">10</span>出典</a></li>
     </ol>
   </nav>
   <footer class="cover-foot a-foot">
@@ -101,15 +104,14 @@
   </header>
   <div class="nw-body a-text">
 <div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>項目</th><th>内容</th><th>出どころ</th><th>確かさ</th></tr></thead><tbody>
-<tr><td data-label="項目">公開の日時</td><td data-label="内容">2026-10-21 14:00 UTC。詳細が漏れるか悪用が見つかれば早める</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式</td></tr>
-<tr><td data-label="項目">件数と点数</td><td data-label="内容">2 件。どちらも CVSS v4.0 で 9.2（Critical）</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式</td></tr>
-<tr><td data-label="項目">詳細・影響を受ける版・直った版</td><td data-label="内容">修正版と同時に出す</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式。今は不明</td></tr>
-<tr><td data-label="項目">CVE 番号</td><td data-label="内容">CVE-2026-109618、CVE-2026-109619</td><td data-label="出どころ">watchTowr、CERT-EU</td><td data-label="確かさ">未確認。CVE の API では 2 件とも RESERVED で、中身は無い。PHP は番号を出していない</td></tr>
-<tr><td data-label="項目">種類</td><td data-label="内容">2 件とも RCE。CVE-2026-109618 は再現した</td><td data-label="出どころ">watchTowr（BleepingComputer の取材）</td><td data-label="確かさ">研究者の報告</td></tr>
-<tr><td data-label="項目">影響を受ける版</td><td data-label="内容">PHP 5 以降のすべて</td><td data-label="出どころ">watchTowr（BleepingComputer の取材）、CERT-EU（SNS の投稿を引用）</td><td data-label="確かさ">未確認</td></tr>
-<tr><td data-label="項目">欠陥の場所</td><td data-label="内容">アップロードの進み具合をセッションに書く処理（<code>session.upload_progress</code>）と、<code>multipart/form-data</code> の解析での use-after-free</td><td data-label="出どころ">個人の分析と、出回った PoC</td><td data-label="確かさ">未確認。同じ研究者の投稿と分析で、2 件目の場所が食い違う</td></tr>
-<tr><td data-label="項目">悪用</td><td data-label="内容">見つかっていない</td><td data-label="出どころ">watchTowr、Huntress（10-20〜21 時点）</td><td data-label="確かさ">研究者の報告</td></tr>
-<tr><td data-label="項目">経緯</td><td data-label="内容">10-20 15:20 UTC に Hacker News へ予告の投稿（削除済み）。当初は 10-22（木）に公開する予定だった</td><td data-label="出どころ">Sansec、BleepingComputer</td><td data-label="確かさ">報告。Huntress によれば、PHP の予告はこの後で、公開を 1 日早めた</td></tr>
+<tr><td data-label="項目">公開の日時と経緯</td><td data-label="内容">2026-10-21 14:00 UTC（23:00 JST）。当初は 10-22 の予定だったが、10-20 15:00 UTC 頃に CVE 番号と誤った点数（10.0）が漏れ、1 日早めた。技術的な詳細は漏れていない。漏れた直後に出さなかったのは、配布元が修正を梱包する時間を残すため</td><td data-label="出どころ">php.net、PHP Foundation</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">CVE と点数</td><td data-label="内容">CVE-2026-109618（OOM による状態の破壊）と CVE-2026-109619（古い大域の状態）。どちらも CVSS v4.0 で 9.2</td><td data-label="出どころ">GitHub の勧告、CVE の記録</td><td data-label="確かさ">公式。予告の時点で報道が出していた番号は正しかった</td></tr>
+<tr><td data-label="項目">欠陥の場所</td><td data-label="内容">要求のメモリの管理と、エラーで処理を打ち切る仕組み。入口は <code>multipart/form-data</code> の解析と、アップロードの進み具合をセッションに書く処理（session upload progress）</td><td data-label="出どころ">勧告、修正のコミット</td><td data-label="確かさ">公式。予告の時点で報道が疑っていた 2 つの場所は、どちらも入口として当たっていた</td></tr>
+<tr><td data-label="項目">影響を受ける版</td><td data-label="内容">5.4.0 以降のほぼすべて。勧告と CVE の記録は、サポート中の 8.2〜8.5 の範囲だけを書く</td><td data-label="出どころ">発見者の Calif、Wiz</td><td data-label="確かさ">研究者の報告。PHP がサポートの終わった 7.4 にも修正を移したことと合う</td></tr>
+<tr><td data-label="項目">直った版</td><td data-label="内容">8.2.35・8.3.36・8.4.27・8.5.12。サポートの終わった 7.4・8.0・8.1 には、ソースからビルドする人向けの最小限の修正だけを出した。7.3 以前には出ていない</td><td data-label="出どころ">php.net</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">影響を受ける SAPI</td><td data-label="内容">Web の要求を処理するものすべて（PHP-FPM、Apache の mod_php、php-cgi、FrankenPHP、LiteSpeed）。最も危ないのは mod_php で、認証の無い要求 1 つで、アプリのコードが動く前に攻撃が始まる</td><td data-label="出どころ">php.net、勧告</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">悪用</td><td data-label="内容">AWS のハニーポット（MadPot）に 10-17 から試みが届き、公開の日には複数の攻撃者が来た。watchTowr・Cloudflare も攻撃を観測した。実際のシステムで成功したかは、AWS も分からないと書く</td><td data-label="出どころ">AWS、watchTowr、Cloudflare</td><td data-label="確かさ">研究者の報告。CISA の KEV には 10-22 22:30 JST の時点で載っていない</td></tr>
+<tr><td data-label="項目">修正が不完全という指摘</td><td data-label="内容">公開の直後に SNS で「8.5.12 の修正は不完全」という投稿が出た。Canonical の問い合わせに、PHP は「無関係で、実在の問題ではない」と答えた</td><td data-label="出どころ">oss-security</td><td data-label="確かさ">公式の回答の又聞き（Matrix での会話の報告）。PHP のリスト上の確認は無い</td></tr>
 </tbody></table></div></div>
   </div>
 </section>
@@ -120,87 +122,140 @@
     <h2 id="h-s2"><span class="n">2</span>どの層の話か</h2>
   </header>
   <div class="nw-body a-text">
-<div class="col"><p>報道どおり攻撃が HTTP の要求で届くとして、届く順に下の層から並べる。欠陥があるのは太字の層。</p>
+<div class="col"><p>攻撃の要求が届く順に、下の層から並べる。欠陥があったのは太字の層。</p>
 <div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>層</th><th>このニュースで起きること</th><th>章・場面</th></tr></thead><tbody>
 <tr><td data-label="層">電波・光・IP・TCP・QUIC</td><td data-label="このニュースで起きること">攻撃の要求も、ふつうの要求と同じように運ぶ。途中の機器は自分の層のヘッダまでしか読まない</td><td data-label="章・場面"><a href="../chapters/11-sou.html#s3" class="nw-ch">11章 場面3</a>、<a href="../chapters/11-sou.html#s6" class="nw-ch">11章 場面6</a></td></tr>
-<tr><td data-label="層">TLS</td><td data-label="このニュースで起きること">途中の機器から中身を隠すが、送り手が悪意ある中身を送ることは止めない。サーバーは復号した要求をそのまま受け取る</td><td data-label="章・場面"><a href="../chapters/20-tls.html#s1" class="nw-ch">20章 場面1</a>、<a href="../chapters/20-tls.html#s6" class="nw-ch">20章 場面6</a></td></tr>
-<tr><td data-label="層">HTTP</td><td data-label="このニュースで起きること">入口は HTTP の要求。報道が疑う場所が正しければ、ファイルを送る POST の本文（<code>multipart/form-data</code>）</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a>、<a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a></td></tr>
-<tr><td data-label="層">Web サーバー</td><td data-label="このニュースで起きること">nginx や Apache が要求を受け、PHP へ渡す</td><td data-label="章・場面"><a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a>（GFE が暗号をほどいて奥のサービスへ渡す所）</td></tr>
-<tr><td data-label="層"><b>PHP 本体</b></td><td data-label="このニュースで起きること">C で書かれた言語処理系。要求を解析し、アプリの PHP スクリプト（WordPress など）を実行する</td><td data-label="章・場面">教材に無い。<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a> の「奥のサービス」にあたる</td></tr>
-<tr><td data-label="層">OS</td><td data-label="このニュースで起きること">乗っ取られるのは、ユーザー空間で PHP を実行しているプロセス（PHP-FPM のワーカーや、mod_php を組み込んだ Apache）。その利用者（<code>www-data</code> など）の権限で、ファイルを書き換えたり、システムコールでシェルを起動したりできる</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a>、<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a>、<a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td></tr>
-<tr><td data-label="層">メモリと CPU</td><td data-label="このニュースで起きること">欠陥が use-after-free のようなメモリの誤りなら、仮想メモリ上の関数の番地などを書き換え、PC（次に実行する番地）を攻撃者の選んだ命令へ向ける。6章の CPU は、PC が指す命令が正規の流れかどうかを区別せずに実行する</td><td data-label="章・場面"><a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a>、<a href="../chapters/06-cpu.html#s1" class="nw-ch">6章 場面1</a>、<a href="../chapters/06-cpu.html#s4" class="nw-ch">6章 場面4</a></td></tr>
+<tr><td data-label="層">TLS</td><td data-label="このニュースで起きること">途中の機器から中身を隠すが、送り手が悪意ある中身を送ることは止めない。中身を調べられるのは、TLS をほどく CDN やサーバーから先である</td><td data-label="章・場面"><a href="../chapters/20-tls.html#s1" class="nw-ch">20章 場面1</a> の段階5、<a href="../chapters/20-tls.html#s6" class="nw-ch">20章 場面6</a></td></tr>
+<tr><td data-label="層">HTTP</td><td data-label="このニュースで起きること">入口は POST の本文。名前を入れ子にした欄や空のファイル欄を大量に並べ、解析だけで PHP のメモリを使い切らせる。本文の終わりを <code>Content-Length</code> ではなく chunked で示すと、PHP の大きさの確認を越えられた</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a> の段階3、<a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a> の段階1</td></tr>
+<tr><td data-label="層">Web サーバー</td><td data-label="このニュースで起きること">Apache の mod_php は、Apache の子プロセスの中で PHP を動かす。PHP-FPM は、nginx などから FastCGI で要求を受ける別のプロセスである</td><td data-label="章・場面"><a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a> の段階4（GFE が暗号をほどいて奥のサービスへ渡す所）</td></tr>
+<tr><td data-label="層"><b>PHP 本体</b></td><td data-label="このニュースで起きること">C で書かれた言語処理系。メモリの上限を越えると <code>longjmp()</code> で要求の処理から抜けるが、作りかけの表や、解放したメモリを指す大域の状態が残り、後片付けと次の要求がそれを読んだ</td><td data-label="章・場面">教材に無い。<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a> の「奥のサービス」にあたる</td></tr>
+<tr><td data-label="層">OS</td><td data-label="このニュースで起きること">乗っ取られるのは PHP を実行するプロセス（mod_php を組み込んだ Apache の子、PHP-FPM のワーカー）。その利用者（<code>www-data</code> など）の権限で、ファイルを書き換えたり、システムコールでシェルを起動したりできる</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a>、<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a>、<a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td></tr>
+<tr><td data-label="層">メモリと CPU</td><td data-label="このニュースで起きること">後片付けは、作りかけの要素に残った前のバイトを値として読む。攻撃者はヒープの配置を整えてそれを偽の配列に見せ、配列を壊すときに呼ぶ関数の番地を <code>system()</code> に向ける。CPU は、PC が指す命令が正規の流れかどうかを区別せずに実行する</td><td data-label="章・場面"><a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a>、<a href="../chapters/06-cpu.html#s1" class="nw-ch">6章 場面1</a> の段階2、<a href="../chapters/06-cpu.html#s4" class="nw-ch">6章 場面4</a> の段階3</td></tr>
 </tbody></table></div></div>
   </div>
 </section>
 
-<!-- ================= 3 PHP 本体の層について ================= -->
-<section class="scene sc-nw" id="s3" data-tab="PHP 本体" aria-labelledby="h-s3">
+<!-- ================= 3 作りかけの表を後片付けが読む（CVE-2026-109618） ================= -->
+<section class="scene sc-nw" id="s3" data-tab="作りかけ" aria-labelledby="h-s3">
   <header class="sh a-sh">
-    <h2 id="h-s3"><span class="n">3</span>PHP 本体の層について</h2>
+    <h2 id="h-s3"><span class="n">3</span>作りかけの表を後片付けが読む（CVE-2026-109618）</h2>
   </header>
-  <div class="nw-body a-text nw-narrow">
-<div class="col"><p>PHP 本体は、アプリのスクリプトが 1 行も動く前に、要求の本文を解析して <code>$_POST</code> と <code>$_FILES</code> を作る。<code>multipart/form-data</code> の本文は <code>main/rfc1867.c</code> の <code>rfc1867_post_handler</code> が部品に分ける。session 拡張は起動時に、その途中で呼ばれる関数を <code>ext/session/session.c</code> の <code>php_session_rfc1867_callback</code> に差し替えており、要求に <code>PHP_SESSION_UPLOAD_PROGRESS</code> の欄とセッション ID があれば、進み具合をセッションに書く。欄もセッション ID（Cookie）も、送る側が要求に付けられる。ファイルの受け取り（<code>file_uploads</code>）、本文の読み込み（<code>enable_post_data_reading</code>）、進み具合の記録（<code>session.upload_progress.enabled</code>）は、どれも既定で有効である（php-src の PHP-8.5 ブランチで確認）。したがって、この経路に欠陥があれば、アプリが何であっても、PHP のファイルへ POST を 1 つ送るだけで届く。「既定の設定のまま、すべての PHP サイト」という報道は、この構造からは筋が通る（欠陥がこの経路にあるかは未確認）。</p>
-<p>PHP の中の制限（<code>disable_functions</code>、<code>open_basedir</code>）は、PHP の関数を呼ぶ所で調べる仕組みなので、PHP 本体のメモリの誤りから機械語を実行された場合は効かない。効くのは OS の層の制限（プロセスの利用者の権限、コンテナ、seccomp）である。Chrome がレンダラを、乗っ取られる前提でファイルにもネットワークにも触れないサンドボックスに入れるのも、同じ考え方である（<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a>）。ただし PHP のワーカーは仕事のためにファイル・データベース・ネットワークに触れるので、レンダラほど狭くは閉じ込められない。</p></div>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>数に入った作りかけの要素</h3>
+<ul><li>PHP は、要求ごとのメモリが <code>memory_limit</code> を越えると致命的エラーを出し、<code>longjmp()</code> で要求の処理から抜ける。抜けた先では、要求の後片付け（request shutdown）が、そのとき見えるデータを解放する。</li><li>勧告によれば、要求のメモリには、初期化し終える前にほかの処理から見える所がある。そこでどれかの確保が失敗すると、作りかけのまま後片付けに渡る。失敗する確保は、作りかけのデータと無関係でもよい。</li><li>発見者の Calif と、独自に再現した Datadog が示したのは、ハッシュ表に要素を足す <code>_zend_hash_str_add_or_update_i()</code>（<code>Zend/zend_hash.c</code>）である。要素の数を先に増やし、その後でキーの文字列を確保する。キーの確保で上限を越えると、数に入った要素の中身は、前にそのメモリを使ったデータのバイトのまま残る。</li><li>後片付けは、数に入った要素をすべて PHP の値として読む。Datadog は 8.5.11 で、残ったバイトを偽の配列を指す値に見せ、その配列を壊すときに呼ぶ関数を C の <code>system()</code> にして、コマンドを実行させた。狙ったバイトは、前もって同じ大きさの区画に並べておく（ヒープグルーミング）。</li></ul></div>
+<div class="col"><h3>既定の設定で OOM に届く</h3>
+<ul><li>本文の解析は、アプリのスクリプトより前に走る。URL エンコードの POST（<code>a[x]=v</code>）も、ファイルの送信（<code>multipart/form-data</code>）も、<code>$_POST</code>・<code>$_FILES</code> を作るときに同じ関数を通る（<a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a> の段階1）。</li><li>空のファイル欄（<code>filename=&quot;&quot;</code>）は <code>max_file_uploads</code>（既定 20）に数えられないのに、<code>$_FILES</code> に 6 つの要素（name・full_path・type・tmp_name・error・size）を作る。名前を <code>f[a][b][c]…</code> と入れ子にすると、作る表と文字列が増える。Calif によれば、数百並べると、本文は <code>post_max_size</code>（既定 8 MiB）以下のまま <code>memory_limit</code>（既定 128 MiB）を越える。</li><li>multipart の本文の大きさは、宣言の <code>Content-Length</code> とだけ比べていた。chunked の HTTP/1.1（<a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a> の段階3）や、長さを書かない HTTP/2 には宣言が無く、確認を越えて本文を送り続けられた。部品ごとのヘッダの数にも上限が無かった。</li><li>Apache の mod_php は、要求の初めの処理が失敗しても後片付けを必ず走らせるので、アプリのコードが 1 行も動く前に作りかけの表を読む。PHP-FPM はこの場合ワーカーを終わらせるので、読まない。勧告は、FPM でもアプリの処理の中で OOM に届けば起きうるが、実証は無いと書く。</li></ul></div>
   </div>
 </section>
 
-<!-- ================= 4 層ごとの守り ================= -->
-<section class="scene sc-nw" id="s4" data-tab="守り" aria-labelledby="h-s4">
+<!-- ================= 4 要求をまたいで残る古い状態（CVE-2026-109619） ================= -->
+<section class="scene sc-nw" id="s4" data-tab="古い状態" aria-labelledby="h-s4">
   <header class="sh a-sh">
-    <h2 id="h-s4"><span class="n">4</span>層ごとの守り</h2>
+    <h2 id="h-s4"><span class="n">4</span>要求をまたいで残る古い状態（CVE-2026-109619）</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>作り手と使い手が同じワーカーに当たる</h3>
+<ul><li>PHP のワーカーは要求をまたいで生き続け、エラー・セッション・オブジェクト・拡張の大域の状態を持つ。その中には、1 つの要求のメモリを指すものがある。要求のメモリを解放する前に、それらを必ず戻さなければならない。</li><li>致命的エラー（OOM を含む）が戻す処理より前に処理を捨てると、大域は解放したメモリを指したまま残る。後片付けで消したエラーの状態を、後から出た警告が書き戻すこともある。</li><li>次の要求で、通常の初期化より前に走る処理がその値を読むと、解放した後のメモリを使う（use-after-free）。勧告は、古い状態を残す処理を「作り手」、読む処理を「使い手」と呼ぶ。2 つは別の要求で、同じワーカーに当たる必要がある。</li></ul></div>
+<div class="col"><h3>確かめられた経路</h3>
+<ul><li>8.5 の <code>fatal_error_backtraces</code>（既定で有効）: 致命的エラーの報告がバックトレースを要求のメモリに残し、後片付けはそれを必ず戻し忘れた。次の要求で、初期化より前に出る警告（<code>.htaccess</code> などで渡した無効な INI の設定）が古い値に触れる。mod_php での RCE の土台で、Wiz は Drupal で示した。</li><li>session upload progress: アップロードを受けると、通常のセッションの初期化より前にセッションの状態を作る。既定で有効で、アプリが <code>session_start()</code> を呼ばなくても動く。mod_php と FPM の両方で RCE が確かめられた。</li><li>Wiz は、解放したメモリを指したまま残ったセッション ID を、次の要求が応答の <code>Set-Cookie: PHPSESSID=…</code> に URL エンコードして書き出す例も示した（<a href="../chapters/21-http.html#s5" class="nw-ch">21章 場面5</a> の段階5）。ヒープの中身が漏れるので、番地を知る手段になりうる。</li><li>Wiz は、OPcache の共有のスロットを別のワーカーが別の型で使う欠陥（WordPress で RCE）も挙げる。Wiz の記事は 4 つの欠陥と 2 つの CVE の対応を勧告と違えて書いており、このノートは勧告の分け方に従う。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 5 直し方 — 作りかけのまま抜けない ================= -->
+<section class="scene sc-nw" id="s5" data-tab="直し方" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>直し方 — 作りかけのまま抜けない</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr 2fr">
+<div class="col"><h3>8.2〜8.5: 作り終えてから止める</h3>
+<ul><li>修正は「Avoid state corruption via bailout」という 1 つのコミットで、サポート中の 4 つの系列に同じ題で入った。8.5 では 423 ファイル、+11,556 −1,017 行で、うち 295 本が試験（<code>.phpt</code>）である。</li><li>確保が <code>memory_limit</code>（soft）を越えても、その場で <code>longjmp()</code> しない。エラーを取っておき、VM に割り込みの印を立てて、確保は通す。次の VM の安全点（<code>zend_handle_delayed_oom()</code>）で、スクリプトの中なら終わらせる例外（<code>UnwindExit</code>）を投げ、そうでなければ打ち切る。作りかけのデータは、止まる前に作り終わる。</li><li>2 つ目の上限（hard）を足した。これを越える確保は、後片付けをせずに <code>_exit(137)</code> でプロセスを終える。既定は soft の 2 倍（soft が 1 GiB を超えるときは +1 GiB）で、新しい INI の <code>memory_hard_limit_percent</code> で変えられる。</li><li>要求の解析は、失敗してよい確保（<code>femalloc()</code> など）を使う形に書き直した。この確保は soft を越えると NULL を返し、呼んだ側が自分で畳む。multipart の本文は実際に読んだバイトも <code>post_max_size</code> と比べ、部品のヘッダは <code>Content-Disposition</code> と <code>Content-Type</code> だけを残す。</li></ul></div>
+<div class="col"><h3>大域の状態を戻す</h3>
+<ul><li>要求の終わりと次の要求の初めに、エラー・例外・バックトレース（8.5）・ユーザーのエラーハンドラ・オブジェクトの表・<code>$_POST</code> などの大域を戻す。7.4〜8.1 の最小限の修正にも同じ処理が入った。</li><li>8.2〜8.5 は、session upload progress を残したまま直した。初期化より前には、ユーザーのコードを呼ばない形（autoload も <code>__wakeup()</code> も呼ばない）でセッションを読み書きし、使うシリアライズの状態も要求の初めの早い所で戻す。</li><li>OPcache は、クラスのキャッシュのスロットを、全ワーカーで共有する番号の上限（<code>ZCSG(map_ptr_last)</code>）を進めた後で公開する。途中で止まっても、別のワーカーが別の用途に使いうるスロットを残さない。7.4〜8.1 にも入った。</li></ul></div>
+<div class="col"><h3>7.4・8.0・8.1: 後片付けをせずに止める</h3>
+<ul><li>最小限の修正（8.1 は 23 ファイル、+311 −73 行）は、遅らせる仕組みを入れない。上限を越えたらエラーを stderr に書き、<code>_exit(1)</code> でプロセスを終える。<code>longjmp()</code> も後片付けもしない。</li><li>session upload progress は、安全に直せないので丸ごと止めた（<code>if (!PS(rfc1867_enabled) || true)</code>）。本文の実際の大きさの確認は入っていない。</li><li>ハッシュ表の「数を先に増やし、キーを後で確保する」順序は、8.5.12 でも同じである（修正の前後のソースで確かめた）。どちらの修正も順序は変えず、作りかけの間に <code>longjmp()</code> で抜ける道を無くした。Datadog は、同じ型の欠陥がこれからも見つかると見ている。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 6 層ごとの守り ================= -->
+<section class="scene sc-nw" id="s6" data-tab="守り" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>層ごとの守り</h2>
   </header>
   <div class="nw-body a-text">
 <div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>守り</th><th>層</th><th>章・場面</th><th>出どころと注意</th></tr></thead><tbody>
-<tr><td data-label="守り">修正版に上げる</td><td data-label="層">PHP 本体</td><td data-label="章・場面">—</td><td data-label="出どころと注意">公式。サポート中は 8.2〜8.5（8.2 は 2026-12-31 まで）。8.1 以前（7 系・5 系を含む）はサポートが終わっており、方針どおりなら公式の修正は出ない。Linux のディストリビューションは、版番号を変えずに修正を取り込むことがある</td></tr>
-<tr><td data-label="守り"><code>session.upload_progress.enabled = Off</code></td><td data-label="層">PHP 本体の機能を止める</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a></td><td data-label="出どころと注意">解説記事の暫定策。報道が疑う場所が正しいときだけ効き、2 件のうち 1 件にしか効かないという主張もある。<code>ini_set()</code> では変えられず、php.ini などに書く</td></tr>
-<tr><td data-label="守り">アップロードを受けない URL への <code>multipart/form-data</code> の POST を、WAF やリバースプロキシで止める</td><td data-label="層">HTTP（TLS をほどいた後）</td><td data-label="章・場面"><a href="../chapters/21-http.html#s2" class="nw-ch">21章 場面2</a>、<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a></td><td data-label="出どころと注意">解説記事の暫定策。欠陥の場所が分かるまで、効くかは分からない</td></tr>
+<tr><td data-label="守り">修正版に上げる</td><td data-label="層">PHP 本体</td><td data-label="章・場面">—</td><td data-label="出どころと注意">公式。勧告は、完全な対策はこれだけと書く。7.4・8.0・8.1 は最小限の修正をソースからビルドする。7.3 以前には修正が出ない。Ubuntu と Debian は 10-21 に更新を配った（Ubuntu は ESM で 5.5 まで）</td></tr>
+<tr><td data-label="守り"><code>session.upload_progress.enabled = 0</code>。8.5 では <code>fatal_error_backtraces = 0</code> も</td><td data-label="層">PHP 本体の機能を止める</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a></td><td data-label="出どころと注意">公式の暫定策（109619）。確かめられた経路だけを塞ぐ。php.ini・FPM の pool・サーバーの設定に書き、ワーカーを再起動する。<code>ini_set()</code> と <code>.user.ini</code> では遅い</td></tr>
+<tr><td data-label="守り"><code>memory_limit = -1</code> を、アプリが戻せない形で設定する。<code>post_max_size</code> を小さく（アップロードが無ければ 8M、あれば 32M）</td><td data-label="層">PHP 本体</td><td data-label="章・場面">—</td><td data-label="出どころと注意">公式の暫定策（109618）。狙って起こせる OOM は無くなるが、<code>mmap()</code> などの下の確保が失敗すると、同じ道に入る</td></tr>
+<tr><td data-label="守り">展開した後の本文の大きさ・欄の数・部品の数・ヘッダの数・名前の入れ子の深さを、Web サーバーやプロキシで制限する</td><td data-label="層">HTTP（TLS をほどいた後）</td><td data-label="章・場面"><a href="../chapters/21-http.html#s1" class="nw-ch">21章 場面1</a> の段階3、<a href="../chapters/22-server.html#s3" class="nw-ch">22章 場面3</a> の段階4</td><td data-label="出どころと注意">公式の暫定策。<code>Content-Length</code> の無い要求も対象にする。Cloudflare は 10-21 03:02 UTC から全プランの WAF で止め、要求と応答を組で見る検知を初めて使った。WAF は修正の代わりにならない</td></tr>
+<tr><td data-label="守り">cgroup の <code>memory.max</code> でワーカーのメモリを絞る</td><td data-label="層">OS（プロセスの資源）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a></td><td data-label="出どころと注意">公式の暫定策（109618）。ワーカーごとの組にしないと、親と全ワーカーが一緒に殺される。<code>RLIMIT_AS</code>・<code>RLIMIT_DATA</code> は使わない（<code>mmap()</code> の失敗が同じ道に入る）</td></tr>
+<tr><td data-label="守り">FPM の <code>pm.max_requests = 1</code></td><td data-label="層">OS（プロセス）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a></td><td data-label="出どころと注意">公式の暫定策（109619）。要求ごとにワーカーを作り直すので、古い状態が次の要求に残らない。遅くなる</td></tr>
 <tr><td data-label="守り">インターネットに面したアプリを公衆網から切り離す</td><td data-label="層">IP・ポート</td><td data-label="章・場面"><a href="../chapters/14-router.html#s5" class="nw-ch">14章 場面5</a>（外から始まる通信を止める）</td><td data-label="出どころと注意">CERT-EU が、すぐ修正できない場合に検討するよう勧めた</td></tr>
-<tr><td data-label="守り">PHP のプロセスがシェルや <code>curl</code> を起動したら気づく</td><td data-label="層">OS（システムコール）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td><td data-label="出どころと注意">Huntress（Florian Roth の見解）。親が <code>php-fpm</code>・<code>apache2</code>、子が <code>sh</code>・<code>bash</code>・<code>curl</code>・<code>wget</code> の組を見張る</td></tr>
+<tr><td data-label="守り">PHP のプロセスがシェルを起動したら気づく</td><td data-label="層">OS（システムコール）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s3" class="nw-ch">9章 場面3</a></td><td data-label="出どころと注意">Huntress、Datadog。親が <code>apache2</code>・<code>php-fpm</code>、子が <code>sh</code>・<code>bash</code>・<code>curl</code> の組を見張る。Datadog は、作りの良い攻撃は HTTP 200 を返し、ワーカーも落ちないので、エラーとクラッシュのログには頼れないと書く</td></tr>
 <tr><td data-label="守り">PHP を実行するプロセスの権限を絞る</td><td data-label="層">OS（プロセスと利用者）</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a>、<a href="../chapters/09-os.html#s2" class="nw-ch">9章 場面2</a></td><td data-label="出どころと注意">一般論。乗っ取られた後の被害の範囲を狭める</td></tr>
+<tr><td data-label="守り"><code>disable_functions</code>・<code>open_basedir</code> で PHP の関数を絞る</td><td data-label="層">PHP 本体</td><td data-label="章・場面">—</td><td data-label="出どころと注意">一般論。効かない。PHP の関数を呼ぶ所で調べる仕組みで、メモリの誤りから C の関数（Datadog の例では <code>system()</code>）を直に呼ばれると素通りする</td></tr>
 </tbody></table></div></div>
   </div>
 </section>
 
-<!-- ================= 5 CVSS と前例 ================= -->
-<section class="scene sc-nw" id="s5" data-tab="CVSS・前例" aria-labelledby="h-s5">
+<!-- ================= 7 CVSS と前例 ================= -->
+<section class="scene sc-nw" id="s7" data-tab="CVSS・前例" aria-labelledby="h-s7">
   <header class="sh a-sh">
-    <h2 id="h-s5"><span class="n">5</span>CVSS と前例</h2>
+    <h2 id="h-s7"><span class="n">7</span>CVSS と前例</h2>
   </header>
   <div class="nw-body a-text" style="--cols: 2fr 3fr">
 <div class="col"><h3>CVSS 9.2 から読めること</h3>
-<ul><li>9.2 になる CVSS v4.0 の基本ベクトルは、全 104,976 通りのうち 699 通りある。点数だけではベクトルは決まらない（Python の <code>cvss</code> 3.6 で全通りを計算した）。</li><li>「ネットワーク越しに（AV:N）、認証なしで（PR:N）、利用者の操作なしに（UI:N）、そのシステムの機密性・完全性・可用性をすべて失い（VC/VI/VA:H）、ほかのシステムには及ばない（SC/SI/SA:N）」は 9.3 になる。これが 9.2 になるのは、AC:H（ASLR などの防御を回避する必要がある）か AT:P（競合状態に勝つ、特定の設定があるなどの前提が要る）が付く 3 通りだけである。</li><li>ASLR は、<a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a> の仮想アドレスの配置を起動ごとに変える仕組みである。メモリの誤りから RCE に進むには、たいていこの配置を知る必要がある。</li><li>リークの「CVSS 10」は版が書かれていない。v4.0 では、ほかのシステムへの影響（SC/SI/SA）が無いと 9.3 が上限で、10.0 にならない。v3.1 では S:C（スコープの変更）で 10.0 になる。</li></ul></div>
+<ul><li>2 件とも、ベクトルは <code>CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N</code> で 9.2 である。</li><li>9.2 になる CVSS v4.0 の基本ベクトルは、全 104,976 通りのうち 699 通りある。点数だけではベクトルは決まらない（Python の <code>cvss</code> 3.6 で全通りを計算した）。</li><li>ネットワーク越しに（AV:N）、認証なしで（PR:N）、利用者の操作なしに（UI:N）、そのシステムの機密性・完全性・可用性をすべて失い（VC/VI/VA:H）、ほかのシステムには及ばない（SC/SI/SA:N）とき、AC:L・AT:N なら 9.3 になる。9.2 になるのは AC:H と AT:P の少なくとも一方が付く 3 通りで、実際は両方が付いていた。</li><li>AC:H は、ASLR などの防御を越える必要があることを示す。ASLR は <a href="../chapters/09-os.html#s4" class="nw-ch">9章 場面4</a> の仮想アドレスの配置を起動ごとに変える仕組みで、攻撃者は番地を知る必要がある。AT:P は、攻撃に前提が要ることを示す。勧告は、成功の確かさがビルド・拡張・フロント・ヒープの配置で変わり、109619 では 2 つの要求が同じワーカーに当たる必要があると書く。</li><li>予告の前に漏れた「CVSS 10」は誤りだった。v4.0 では、ほかのシステムへの影響（SC/SI/SA）が無いと 9.3 が上限で、10.0 にならない。</li></ul></div>
 <div class="col"><h3>過去の PHP 本体の RCE</h3>
 <div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>CVE</th><th>公開</th><th>何が起きたか</th><th>層</th><th>悪用</th></tr></thead><tbody>
+<tr><td data-label="CVE">CVE-2004-0594</td><td data-label="公開">2004-07</td><td data-label="何が起きたか"><code>memory_limit</code> による打ち切りを <code>zend_hash_init()</code> の途中で起こし、初期化を終える前のハッシュ表のデストラクタの番地を書き換える</td><td data-label="層">PHP 本体のメモリ管理とエラー処理</td><td data-label="悪用">—</td></tr>
 <tr><td data-label="CVE">CVE-2019-11043</td><td data-label="公開">2019-10</td><td data-label="何が起きたか">特定の nginx の設定で、細工した URL により PHP-FPM が確保した領域の外へ書き込む</td><td data-label="層">PHP 本体（FastCGI の受け口）のメモリの誤り</td><td data-label="悪用">2022-03-25 に CISA KEV へ載った</td></tr>
 <tr><td data-label="CVE">CVE-2024-4577</td><td data-label="公開">2024-06</td><td data-label="何が起きたか">Windows の文字の置き換え（Best-Fit）で、URL の文字が php-cgi のオプションとして解釈される</td><td data-label="層">PHP 本体と OS の境目（コマンドラインの引数）</td><td data-label="悪用">2024-06-12 に CISA KEV へ載った</td></tr>
 </tbody></table></div>
-<p>PHP 本体の RCE には、メモリの誤りの例も、入力が命令として解釈される例もある。今回がどちらかは公表されていない。</p></div>
+<ul><li>PHP 本体の RCE には、メモリの誤りの例も、入力が命令として解釈される例もある。今回はメモリの誤りで、22 年前の CVE-2004-0594 と同じく、打ち切りが初期化の途中に割り込む型だった。</li><li>発見者の Calif は、今回の型の始まりを 2004 年の Stefan Esser の研究に置く。同じ OOM は 2020 年の bug #78876 でも報告され、2024 年の監査（Quarkslab、OSTIF の主催）でも見つかったが、悪用を示せず直らなかった。</li></ul></div>
   </div>
 </section>
 
-<!-- ================= 6 影響と、追って確かめること ================= -->
-<section class="scene sc-nw" id="s6" data-tab="影響と今後" aria-labelledby="h-s6">
+<!-- ================= 8 この PC で確かめたこと ================= -->
+<section class="scene sc-nw" id="s8" data-tab="この PC" aria-labelledby="h-s8">
   <header class="sh a-sh">
-    <h2 id="h-s6"><span class="n">6</span>影響と、追って確かめること</h2>
+    <h2 id="h-s8"><span class="n">8</span>この PC で確かめたこと</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 3fr 2fr">
+<div class="col"><h3>修正前の 8.5.11 と修正後の 8.5.12</h3>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>試したこと</th><th>8.5.11（修正前）</th><th>8.5.12（修正後）</th></tr></thead><tbody>
+<tr><td data-label="試したこと">既定の INI（php.ini なし）</td><td data-label="8.5.11（修正前）"><code>memory_limit</code> 128M、<code>post_max_size</code> 8M、<code>max_file_uploads</code> 20。<code>session.upload_progress.enabled</code> と <code>fatal_error_backtraces</code> は有効</td><td data-label="8.5.12（修正後）">同じ。新しい <code>memory_hard_limit_percent</code> は空で、hard は soft の 2 倍になる</td></tr>
+<tr><td data-label="試したこと"><code>memory_limit=32M</code> で、配列に整数を足し続ける</td><td data-label="8.5.11（修正前）">要素が 1,048,576 個になった所で、配列を 32 MiB に広げる確保を断り、その場で致命的エラーにした。OS から取ったメモリの最大は 26.0 MiB</td><td data-label="8.5.12（修正後）">同じ確保を通して 1 つ足し（1,048,577 個）、次の安全点で同じ致命的エラーにした。最大は 34.0 MiB で、上限の 32 MiB を越えた</td></tr>
+<tr><td data-label="試したこと">同じことを <code>memory_hard_limit_percent=100</code>（hard = soft）で</td><td data-label="8.5.11（修正前）">この INI は無く、<code>memory_limit=32M</code> だけのときと同じ</td><td data-label="8.5.12（修正後）"><code>Hard memory limit of 33554432 bytes exhausted …</code> の 1 行だけを出し、終了コード 137。shutdown 関数もスタックトレースも出ない</td></tr>
+<tr><td data-label="試したこと">同じことを <code>memory_hard_limit_percent=150</code> で</td><td data-label="8.5.11（修正前）">—</td><td data-label="8.5.12（修正後）">hard が 48 MiB になり、<code>memory_limit=32M</code> だけのときと同じ致命的エラー</td></tr>
+</tbody></table></div></div>
+<div class="col"><h3>読み取れること</h3>
+<ul><li>8.5.12 は、soft を越えた確保をその場で失敗させず、区切りの所まで進めてから止める。作りかけの表が残らない代わりに、上限を少し越えて使う。</li><li>hard を越えると、shutdown 関数も後片付けも走らない。壊れているかもしれない状態を誰にも読ませない代わりに、要求の終わりの処理（shutdown 関数でのログの書き出しなど）も失われる。</li><li>soft で止まったとき（既定の hard と <code>=150</code>）は、どちらも終了コード 255 で、shutdown 関数が動いた。CLI では常にスクリプトの中なので、soft の超過は <code>UnwindExit</code> を通る。</li><li>試したのは CLI だけで、Web の要求の解析（本文の大きさの確認、session upload progress）は試していない。イメージは Docker の公式の <code>php:8.5.11-cli</code>（<code>sha256:8e5d746f8765…</code>）と <code>php:8.5.12-cli</code>（<code>sha256:595a7cbb1e05…</code>）で、ネットワークを切って動かした。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 9 影響と、追って確かめること ================= -->
+<section class="scene sc-nw" id="s9" data-tab="影響と今後" aria-labelledby="h-s9">
+  <header class="sh a-sh">
+    <h2 id="h-s9"><span class="n">9</span>影響と、追って確かめること</h2>
   </header>
   <div class="nw-body a-text" style="--cols: 2fr 2fr">
 <div class="col"><h3>影響の大きさ</h3>
-<ul><li>W3Techs（2026-10-21）では、サーバー側の言語が分かるサイトの 69.3% が PHP を使う。PHP のサイトの 34.8% は PHP 7 以前で、サポートが終わっている（8.0・8.1 も終わっているが、W3Techs の表に内訳は無い）。</li><li>修正の前に存在が漏れた。Sansec は、修正版の公開から 15 分以内に大規模な攻撃が始まると予想している。</li></ul></div>
-<div class="col"><h3>公開後に確かめること</h3>
-<ul><li>CVE 番号、種類、欠陥の場所（ファイル・関数）、影響を受ける版、直った版、CVSS のベクトル。</li><li>「どの層の話か」の PHP 本体・OS・メモリと CPU の行を、公式の説明と php-src の差分で確定させる。</li><li>「層ごとの守り」の暫定策が効くかどうか。</li></ul></div>
+<ul><li>W3Techs（2026-10-21）では、サーバー側の言語が分かるサイトの 69.3% が PHP を使う。PHP のサイトの 34.8% は PHP 7 以前で、サポートが終わっている（8.0・8.1 も終わっているが、W3Techs の表に内訳は無い）。</li><li>配布元は事前に修正を受け取っており、Ubuntu と Debian は公開の日に更新を配った。Ubuntu は 26.10・26.04・24.04・22.04 を直し、ESM（Ubuntu Pro）で 20.04 の 7.4 から 14.04 の 5.5 までを直した。Debian は 12 の 8.2 と 13 の 8.4 を直した。PHP は、ボランティアが保守する rpms.remirepo.net にはこの日の更新が出ないと名指しした。</li><li>報告者には Calif・Wiz・OpenAI（Codex Security）が含まれる。Calif と Wiz は、AI のモデルを使って見つけたと書く。Wiz は、Heartbleed（2014）・Log4Shell（2021）に並ぶ転機になりうると書く。Calif は、簡単な指示で「すべてのバグ」を掘り出せるモデルは今のところ無いと書く。</li></ul></div>
+<div class="col"><h3>追って確かめること</h3>
+<ul><li>CISA の KEV に載るか。実際のシステムへの侵入が確かめられるか。</li><li>7.3 以前と、ディストリビューションの外で配られる PHP（コンテナのイメージ、組み込み機器、ホスティングの管理画面など）がどれだけ直るか。</li><li>同じ型の欠陥（作りかけの間に抜ける道）が、ほかの所でも見つかるか。</li></ul></div>
   </div>
 </section>
 
-<!-- ================= 7 出典 ================= -->
-<section class="scene sc-nw" id="s7" data-tab="出典" aria-labelledby="h-s7">
+<!-- ================= 10 出典 ================= -->
+<section class="scene sc-nw" id="s10" data-tab="出典" aria-labelledby="h-s10">
   <header class="sh a-sh">
-    <h2 id="h-s7"><span class="n">7</span>出典</h2>
+    <h2 id="h-s10"><span class="n">10</span>出典</h2>
   </header>
   <div class="nw-body a-text" style="--cols: 2fr 2fr">
 <div class="col"><h3>公式とデータ</h3>
-<ul><li><a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">php.net の告知（2026-10-20）</a>、<a href="https://www.php.net/supported-versions.php" target="_blank" rel="noopener">サポート中の版</a>、<a href="https://www.php.net/manual/en/session.upload-progress.php" target="_blank" rel="noopener">Session Upload Progress（マニュアル）</a></li><li>php-src の PHP-8.5 ブランチ: <a href="https://github.com/php/php-src/blob/PHP-8.5/main/rfc1867.c" target="_blank" rel="noopener">main/rfc1867.c</a>、<a href="https://github.com/php/php-src/blob/PHP-8.5/ext/session/session.c" target="_blank" rel="noopener">ext/session/session.c</a>、<a href="https://github.com/php/php-src/blob/PHP-8.5/main/main.c" target="_blank" rel="noopener">main/main.c</a></li><li><a href="https://cveawg.mitre.org/api/cve-id/CVE-2026-109618" target="_blank" rel="noopener">CVE の API（CVE-2026-109618）</a>、<a href="https://cveawg.mitre.org/api/cve-id/CVE-2026-109619" target="_blank" rel="noopener">CVE の API（CVE-2026-109619）</a></li><li>NVD: <a href="https://nvd.nist.gov/vuln/detail/CVE-2019-11043" target="_blank" rel="noopener">CVE-2019-11043</a>、<a href="https://nvd.nist.gov/vuln/detail/CVE-2024-4577" target="_blank" rel="noopener">CVE-2024-4577</a></li><li><a href="https://w3techs.com/technologies/details/pl-php" target="_blank" rel="noopener">W3Techs: PHP</a></li></ul></div>
+<ul><li>php.net: <a href="https://www.php.net/archive/2026.php#2026-10-21-5" target="_blank" rel="noopener">告知（10-21）</a>、<a href="https://www.php.net/archive/2026.php#2026-10-20-1" target="_blank" rel="noopener">予告（10-20）</a>、<a href="https://www.php.net/supported-versions.php" target="_blank" rel="noopener">サポート中の版</a>、<a href="https://www.php.net/manual/en/session.upload-progress.php" target="_blank" rel="noopener">Session Upload Progress（マニュアル）</a></li><li>GitHub の勧告: <a href="https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w" target="_blank" rel="noopener">GHSA-w8hw-w9fx-j79w</a>（CVE-2026-109618）、<a href="https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp" target="_blank" rel="noopener">GHSA-6wmf-4rv5-p3rp</a>（CVE-2026-109619）。CVE の記録: <a href="https://cveawg.mitre.org/api/cve/CVE-2026-109618" target="_blank" rel="noopener">CVE-2026-109618</a>、<a href="https://cveawg.mitre.org/api/cve/CVE-2026-109619" target="_blank" rel="noopener">CVE-2026-109619</a></li><li>修正のコミット: <a href="https://github.com/php/php-src/commit/31c0ea7d7ff1" target="_blank" rel="noopener">8.5 31c0ea7d7f</a>、<a href="https://github.com/php/php-src/commit/506e87fa7dcd" target="_blank" rel="noopener">8.4 506e87fa7d</a>、<a href="https://github.com/php/php-src/commit/3c832b523ee1" target="_blank" rel="noopener">8.3 3c832b523e</a>、<a href="https://github.com/php/php-src/commit/01a40e89fbfc" target="_blank" rel="noopener">8.2 01a40e89fb</a>、<a href="https://github.com/php/php-src/commit/1d7dec178a09" target="_blank" rel="noopener">8.1 1d7dec178a</a>（最小限）。7.4・8.0 の最小限の修正は <a href="https://github.com/php/php-src/tree/PHP-7.4-CVE-2026-109618-109619" target="_blank" rel="noopener">PHP-7.4</a>・<a href="https://github.com/php/php-src/tree/PHP-8.0-CVE-2026-109618-109619" target="_blank" rel="noopener">PHP-8.0</a> のブランチ</li><li>配布元: <a href="https://ubuntu.com/security/CVE-2026-109618" target="_blank" rel="noopener">Ubuntu</a>、<a href="https://security-tracker.debian.org/tracker/CVE-2026-109618" target="_blank" rel="noopener">Debian</a>。oss-security の <a href="https://www.openwall.com/lists/oss-security/2026/10/21/6" target="_blank" rel="noopener">109618</a>・<a href="https://www.openwall.com/lists/oss-security/2026/10/21/7" target="_blank" rel="noopener">109619</a> の投稿と、修正が不完全という指摘への<a href="https://www.openwall.com/lists/oss-security/2026/10/21/23" target="_blank" rel="noopener">返信</a></li><li>NVD: <a href="https://nvd.nist.gov/vuln/detail/CVE-2004-0594" target="_blank" rel="noopener">CVE-2004-0594</a>、<a href="https://nvd.nist.gov/vuln/detail/CVE-2019-11043" target="_blank" rel="noopener">CVE-2019-11043</a>、<a href="https://nvd.nist.gov/vuln/detail/CVE-2024-4577" target="_blank" rel="noopener">CVE-2024-4577</a>。<a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA KEV</a>、<a href="https://w3techs.com/technologies/details/pl-php" target="_blank" rel="noopener">W3Techs: PHP</a></li></ul></div>
 <div class="col"><h3>研究者と報道</h3>
-<ul><li><a href="https://www.bleepingcomputer.com/news/security/php-warns-admins-of-two-critical-flaws-emergency-patches-coming-tomorrow/" target="_blank" rel="noopener">BleepingComputer（2026-10-20）</a>: watchTowr の発言、リークの経緯</li><li><a href="https://watchtowr.com/intelligence/php-cve-2026-109618-faq/" target="_blank" rel="noopener">watchTowr の FAQ</a></li><li><a href="https://cert.europa.eu/publications/security-advisories/2026-018/" target="_blank" rel="noopener">CERT-EU 2026-018</a></li><li><a href="https://www.huntress.com/blog/php2shell-leaked-critical-php-vulnerabilities" target="_blank" rel="noopener">Huntress</a>: 経緯、検知</li><li><a href="https://sansec.io/research/php2shell" target="_blank" rel="noopener">Sansec</a>: 時系列、攻撃の予想</li><li><a href="https://phoenix.security/php-core-rce-cve-2026-109618-109619-critical-remote-code-execution/" target="_blank" rel="noopener">Phoenix Security</a>: 欠陥の場所の主張、暫定策</li><li><a href="https://lilting.ch/en/articles/php2shell-session-upload-progress-uaf" target="_blank" rel="noopener">lilting.ch</a>: <code>session.upload_progress</code> の主張の出どころの整理</li></ul></div>
+<ul><li>発見者と PHP: <a href="https://calif.io/php2shell/" target="_blank" rel="noopener">Calif</a>（仕組み、経緯）、<a href="https://thephp.foundation/blog/2026/10/21/todays-php-security-release-and-how-were-strengthening-php-security/" target="_blank" rel="noopener">PHP Foundation</a>（経緯、漏れ）、<a href="https://www.wiz.io/blog/php2shell-php-rce" target="_blank" rel="noopener">Wiz</a>（4 つの欠陥）</li><li>再現と悪用: <a href="https://securitylabs.datadoghq.com/articles/php2shell-critical-vulnerabilities-in-php/" target="_blank" rel="noopener">Datadog</a>（独自の再現、検知）、<a href="https://aws.amazon.com/blogs/security/amazon-threat-intelligence-identifies-php2shell-exploitation-prior-to-public-disclosure-in-madpot/" target="_blank" rel="noopener">AWS</a>（公開前の試み）、<a href="https://blog.cloudflare.com/php-vulnerabilities-waf-protection/" target="_blank" rel="noopener">Cloudflare</a>（WAF）、<a href="https://watchtowr.com/intelligence/php-cve-2026-109618-faq/" target="_blank" rel="noopener">watchTowr の FAQ</a></li><li>予告の時点: <a href="https://www.bleepingcomputer.com/news/security/php-warns-admins-of-two-critical-flaws-emergency-patches-coming-tomorrow/" target="_blank" rel="noopener">BleepingComputer（2026-10-20）</a>、<a href="https://cert.europa.eu/publications/security-advisories/2026-018/" target="_blank" rel="noopener">CERT-EU 2026-018</a>、<a href="https://www.huntress.com/blog/php2shell-leaked-critical-php-vulnerabilities" target="_blank" rel="noopener">Huntress</a>、<a href="https://sansec.io/research/php2shell" target="_blank" rel="noopener">Sansec</a>、<a href="https://phoenix.security/php-core-rce-cve-2026-109618-109619-critical-remote-code-execution/" target="_blank" rel="noopener">Phoenix Security</a>、<a href="https://lilting.ch/en/articles/php2shell-session-upload-progress-uaf" target="_blank" rel="noopener">lilting.ch</a></li></ul></div>
   </div>
 </section>
 
@@ -208,7 +263,7 @@
 </div>
 
 <script>
-YT.chapter({ meta: {"eyebrow":"ニュースから層へ ／ 2026-10-20","title":"PHP の重大なセキュリティリリース予告","home":"index.html","actions":[{"href":"index.html","label":"ニュースの一覧"}]} });
+YT.chapter({ meta: {"eyebrow":"ニュースから層へ ／ 2026-10-20","title":"PHP の重大なセキュリティリリース","home":"index.html","actions":[{"href":"index.html","label":"ニュースの一覧"}]} });
 </script>
 </body>
 </html>
