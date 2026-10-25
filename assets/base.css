@@ -349,6 +349,9 @@ svg text { font-family: var(--sans); font-size: 12.5px; fill: var(--fg); }
 .fade { transition: opacity 0.35s ease; }
 .hide { opacity: 0; pointer-events: none; }
 .glow { filter: drop-shadow(0 0 4px var(--glow)); }
+/* ズームの板（YT.zoom.title）から元の章へ戻るリンク（図の中の <a>） */
+svg a.zlink text { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+svg a.zlink:hover text { fill: var(--fg); }
 
 /* ---------- 段階を追う図の説明欄と操作（engine.js が .narr-slot に組み立てる） ---------- */
 

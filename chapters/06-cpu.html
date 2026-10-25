@@ -19,9 +19,6 @@
 <style>
   /* この章だけのスタイル */
   .isa { font-family: var(--mono); font-size: 0.8rem; }
-  /* ズームの板から元の章へ戻るリンク（図の中の <a>） */
-  svg a.zlink text { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-  svg a.zlink:hover text { fill: var(--fg); }
 </style>
 </head>
 <body>
@@ -395,71 +392,12 @@
      動きを止めている人には、最初から開き切って計算の終わった姿を出す。
      配線の色は第4・5章と同じ: 1 は h（高い電圧）の太線、0 は灰色
      ================================================================ */
-  const ZP = { x: 30, y: 56, w: 900, h: 478 };
+  const ZP = YT.zoom.PANEL;   // 板の大きさ（エンジンと共通）
   const SRC = { pc: { x: 300, y: 100, w: 130, h: 44 }, a: { x: 300, y: 232, w: 160, h: 44 }, alu: { x: 330, y: 330, w: 230, h: 90 }, ctrl: { x: 48, y: 100, w: 230, h: 176 } };
   const lvl = (el, v, w) => el.setAttribute('class', 'f-none round ' + (v ? 's-h ' : 's-dim ') + (w || 'w2'));
   const valTxt = (el, v, size) => { el.textContent = v ? '1' : '0'; el.setAttribute('class', 't-c t-mono t-b ' + size + (v ? ' t-h' : ' t-dim')); };
-  /* 値の箱。set(v) で 0 / 1 / '?' */
-  function bit(parent, x, y, w, h, fs) {
-    const g = S.g({ transform: `translate(${x},${y})` }, parent);
-    const r = S.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: 'f-in s-rule w1' }, g);
-    const t = S.text(0, Math.round(fs * 0.36), '0', { cls: 't-c t-mono t-b t-dim', style: { fontSize: fs + 'px' } }, g);
-    const api = { g, v: 0, set(v) { api.v = v; t.textContent = String(v); const q = v === '?' ? ['f-x-soft s-x w1', 't-x'] : (v === 1 ? ['f-h-soft s-h w15', 't-h'] : ['f-in s-rule w1', 't-dim']); r.setAttribute('class', q[0]); t.setAttribute('class', 't-c t-mono t-b ' + q[1]); return api; } };
-    return api;
-  }
-  /* 板の見出し（題・説明・元の章へのリンク） */
-  function zTitle(g, title, sub, href, linkText) {
-    const t = S.text(46, 82, title, { cls: 't-b t-lg' }, g);
-    const s = S.text(46, 100, sub, { cls: 't-xs t-dim' }, g);
-    const a = S.el('a', { href, cls: 'zlink' }, g);
-    S.text(914, 82, linkText + ' を開く ↗', { cls: 't-end t-xs t-dim' }, a);
-    return { t, s };
-  }
-  /* 板の置き場。add(name, build) で板を作り、apply(z) で開閉を描く。base は開いている間に消す図の部品 */
-  function makeZoom(svg, base) {
-    const cue = S.rect(0, 0, 10, 10, { rx: 8, cls: 'f-none s-x w2', style: { display: 'none' } }, svg);
-    const layer = S.g({ style: { display: 'none' } }, svg);
-    const panels = {};
-    const cx0 = ZP.x + ZP.w / 2, cy0 = ZP.y + ZP.h / 2;
-    return {
-      add(name, build) {
-        const g = S.g({ style: { display: 'none' } }, layer);
-        S.rect(ZP.x, ZP.y, ZP.w, ZP.h, { rx: 10, cls: 'f-sf s-x w15' }, g);
-        panels[name] = { g, api: build(g) };
-        return panels[name].api;
-      },
-      panel(name) { return panels[name].api; },
-      /* z が無いか z.f = 0 なら閉じる（z.src があれば出どころの箱に合図の枠を出す）。0 < f ≤ 1 で箱から板へ広がる */
-      apply(z) {
-        if (!z || z.f <= 0) {
-          layer.style.display = 'none';
-          base.forEach((n) => { n.style.opacity = ''; });
-          if (z && z.src) {
-            const p = 3 + 3 * U.pulse(z.t || 0, 0.8);
-            cue.style.display = '';
-            S.attrs(cue, { x: z.src.x - p, y: z.src.y - p, width: z.src.w + 2 * p, height: z.src.h + 2 * p });
-          } else cue.style.display = 'none';
-          return;
-        }
-        cue.style.display = 'none';
-        layer.style.display = '';
-        const f = Math.min(1, z.f), src = z.src;
-        for (const k in panels) panels[k].g.style.display = k === z.name ? '' : 'none';
-        const P = panels[z.name].g;
-        const s = U.lerp(Math.min(src.w / ZP.w, src.h / ZP.h), 1, f);
-        const cx = U.lerp(src.x + src.w / 2, cx0, f), cy = U.lerp(src.y + src.h / 2, cy0, f);
-        P.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${s.toFixed(4)}) translate(${-cx0},${-cy0})`);
-        P.style.opacity = f < 1 ? (0.25 + 0.75 * f).toFixed(3) : '';
-        base.forEach((n) => { n.style.opacity = f >= 1 ? '0' : (1 - f).toFixed(3); });
-      }
-    };
-  }
-  /* 段階に入って t0 秒後に開く板。動きを止めているときは、最初から開き切った姿 */
-  function zoomOne(ctx, name, src, t0) {
-    if (!YT.motion.playing) return { name, src, f: 1, u: 99, settled: true };
-    return { name, src, f: U.ease.out(U.prog(ctx.ts, t0, 0.7)), u: Math.max(0, ctx.ts - t0 - 0.7), settled: false, t: ctx.ts };
-  }
-  function runZoom(Z, z) { Z.apply(z); if (z && z.f > 0) Z.panel(z.name).frame(z.u, !!z.settled); }
+  /* 板の仕組み（値の箱 bit、見出し zTitle、置き場 makeZoom、開く時刻 zoomOne、毎フレーム runZoom）はエンジンの YT.zoom にある */
+  const bit = YT.zoom.bit, zTitle = YT.zoom.title, makeZoom = YT.zoom.make, zoomOne = YT.zoom.one, runZoom = YT.zoom.run;
 
   /* ---------- 板 1: ALU の中（第4章 場面5・6 の全加算器 × 8 ＋ ゼロ検出） ---------- */
   function buildALU(g) {

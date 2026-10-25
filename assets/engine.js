@@ -822,5 +822,83 @@
     });
   }
 
-  window.YT = { util: util, svg: svg, anim: anim, chapter: chapter, motion: motion, rich: rich, esc: esc };
+  /* ---------------------------------------------------------------
+     ズーム：図の箱の中を、前の章の回路で開く「板」（第6章で始めた型。使い方は docs/authoring.md §4・§5）
+     板は箱の位置から 0.7 秒で図いっぱい（PANEL）に広がる。開いている間は元の図（base）を消し、
+     動きを止めている人には、段階に入った時点で開き切った姿を出す
+     --------------------------------------------------------------- */
+  var PANEL = { x: 30, y: 56, w: 900, h: 478 };
+  var zoom = {
+    PANEL: PANEL,
+    /* 値の箱（0 / 1 / '?'）。set(v) で中身と色が変わる */
+    bit: function (parent, x, y, w, h, fs) {
+      var g = el('g', { transform: 'translate(' + x + ',' + y + ')' }, parent);
+      var r = svg.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      var t = svg.text(0, Math.round(fs * 0.36), '0', { cls: 't-c t-mono t-b t-dim', style: { fontSize: fs + 'px' } }, g);
+      var api = { g: g, v: 0, set: function (v) {
+        api.v = v; t.textContent = String(v);
+        var q = v === '?' ? ['f-x-soft s-x w1', 't-x'] : (v === 1 ? ['f-h-soft s-h w15', 't-h'] : ['f-in s-rule w1', 't-dim']);
+        r.setAttribute('class', q[0]); t.setAttribute('class', 't-c t-mono t-b ' + q[1]); return api;
+      } };
+      return api;
+    },
+    /* 板の見出し（題・説明・元の章へのリンク） */
+    title: function (g, title, sub, href, linkText) {
+      var t = svg.text(46, 82, title, { cls: 't-b t-lg' }, g);
+      var s = svg.text(46, 100, sub, { cls: 't-xs t-dim' }, g);
+      var a = el('a', { href: href, cls: 'zlink' }, g);
+      svg.text(914, 82, linkText + ' を開く ↗', { cls: 't-end t-xs t-dim' }, a);
+      return { t: t, s: s };
+    },
+    /* 板の置き場。add(name, build) で板を作り（build(g) は { frame(u, settled), … } を返す）、apply(z) で開閉を描く。
+       base は開いている間に消す図の部品（.fade を付けた要素は 0.35 秒遅れるので、付けていない親で包む） */
+    make: function (svgEl, base) {
+      var cue = svg.rect(0, 0, 10, 10, { rx: 8, cls: 'f-none s-x w2', style: { display: 'none' } }, svgEl);
+      var layer = el('g', { style: { display: 'none' } }, svgEl);
+      var panels = {};
+      var cx0 = PANEL.x + PANEL.w / 2, cy0 = PANEL.y + PANEL.h / 2;
+      return {
+        add: function (name, build) {
+          var g = el('g', { style: { display: 'none' } }, layer);
+          svg.rect(PANEL.x, PANEL.y, PANEL.w, PANEL.h, { rx: 10, cls: 'f-sf s-x w15' }, g);
+          panels[name] = { g: g, api: build(g) };
+          return panels[name].api;
+        },
+        panel: function (name) { return panels[name].api; },
+        /* z が無いか z.f = 0 なら閉じる（z.src があれば出どころの箱に合図の枠を出す）。0 < f ≤ 1 で箱から板へ広がる */
+        apply: function (z) {
+          var k;
+          if (!z || z.f <= 0) {
+            layer.style.display = 'none';
+            base.forEach(function (n) { n.style.opacity = ''; });
+            if (z && z.src) {
+              var p = 3 + 3 * util.pulse(z.t || 0, 0.8);
+              cue.style.display = '';
+              attrs(cue, { x: z.src.x - p, y: z.src.y - p, width: z.src.w + 2 * p, height: z.src.h + 2 * p });
+            } else cue.style.display = 'none';
+            return;
+          }
+          cue.style.display = 'none';
+          layer.style.display = '';
+          var f = Math.min(1, z.f), src = z.src;
+          for (k in panels) panels[k].g.style.display = k === z.name ? '' : 'none';
+          var P = panels[z.name].g;
+          var s = util.lerp(Math.min(src.w / PANEL.w, src.h / PANEL.h), 1, f);
+          var cx = util.lerp(src.x + src.w / 2, cx0, f), cy = util.lerp(src.y + src.h / 2, cy0, f);
+          P.setAttribute('transform', 'translate(' + cx.toFixed(1) + ',' + cy.toFixed(1) + ') scale(' + s.toFixed(4) + ') translate(' + (-cx0) + ',' + (-cy0) + ')');
+          P.style.opacity = f < 1 ? (0.25 + 0.75 * f).toFixed(3) : '';
+          base.forEach(function (n) { n.style.opacity = f >= 1 ? '0' : (1 - f).toFixed(3); });
+        }
+      };
+    },
+    /* 段階に入って t0 秒後に開く板（0.7 秒で開き切る）。動きを止めているときは、最初から開き切った姿（settled） */
+    one: function (ctx, name, src, t0) {
+      if (!motion.playing) return { name: name, src: src, f: 1, u: 99, settled: true };
+      return { name: name, src: src, f: util.ease.out(util.prog(ctx.ts, t0, 0.7)), u: Math.max(0, ctx.ts - t0 - 0.7), settled: false, t: ctx.ts };
+    },
+    /* 毎フレーム: 開閉を描き、開いていれば板の frame(u, settled) を呼ぶ（u は開き切ってからの秒） */
+    run: function (Z, z) { Z.apply(z); if (z && z.f > 0) Z.panel(z.name).frame(z.u, !!z.settled); }
+  };
+
+  window.YT = { util: util, svg: svg, anim: anim, zoom: zoom, chapter: chapter, motion: motion, rich: rich, esc: esc };
 })();
