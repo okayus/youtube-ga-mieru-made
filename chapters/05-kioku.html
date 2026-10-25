@@ -44,7 +44,7 @@
       <li><a href="#s1" data-go="1"><span class="n">1</span>SR ラッチ</a><p>NAND 2個をたすき掛けにすると、入力を戻しても出力が残る。</p></li>
       <li><a href="#s2" data-go="2"><span class="n">2</span>D フリップフロップとクロック</a><p>筒抜けのラッチの問題と、立ち上がりの瞬間だけ取り込む仕組み。</p></li>
       <li><a href="#s3" data-go="3"><span class="n">3</span>レジスタ</a><p>フリップフロップを 8 個並べ、同じクロックで一度に書く。レジスタファイル。</p></li>
-      <li><a href="#s4" data-go="4"><span class="n">4</span>SRAM セル</a><p>インバータ 2 個の輪にアクセス用トランジスタ 2 個。速いが大きい。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>SRAM セル</a><p>インバータ 2 個の輪にアクセス用トランジスタ 2 個。速いが大きい。箱の中は第3章のトランジスタで拡大して見る。</p></li>
       <li><a href="#s5" data-go="5"><span class="n">5</span>DRAM セル</a><p>コンデンサ 1 個の電荷で 1 ビット。漏れるので 64 ms 以内に書き直す。</p></li>
       <li><a href="#s6" data-go="6"><span class="n">6</span>NAND フラッシュ</a><p>絶縁体に囲んだ浮遊ゲートに電子を閉じ込める。電源なしで残る。</p></li>
       <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>記憶階層の表と用語。次の章（CPU）へ。</p></li>
@@ -128,7 +128,7 @@
   </div>
   <figure class="anim-fig a-fig">
     <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="SRAM の 6 トランジスタセル。インバータ 2 個の輪、ワード線、2 本のビット線、センスアンプ"></svg></div>
-    <figcaption>図4　中央がセル。Q と Q̄ の節点の色が覚えている値。左右の棒はビット線の電圧。段階5は 4×4 の配列。</figcaption>
+    <figcaption>図4　中央がセル。Q と Q̄ の節点の色が覚えている値。左右の棒はビット線の電圧。段階 1〜4 では、インバータとアクセス用トランジスタの中を第3章のトランジスタで拡大する。段階5は 4×4 の配列。</figcaption>
   </figure>
 </section>
 
@@ -662,6 +662,211 @@
   };
 
   /* ================================================================
+     ズーム：SRAM セルの箱の中を、第3章のトランジスタで開く（場面4）
+     板の仕組みはエンジンの YT.zoom（第6章と同じ型）。板は箱の位置から 0.7 秒で図いっぱいに広がり、
+     開いている間は元の図を消す。動きを止めている人には、段階に入った時点で開き切った姿を出す。
+     配線の色はこの章と同じ（1 は h、0 は灰色）。チャネル（オン）は第3章と同じ e の太線
+     ================================================================ */
+  const ZSRC = { cell: { x: 330, y: 180, w: 300, h: 190 }, sw: { x: 282, y: 256, w: 46, h: 38 } };   // 開く箱（元の図の座標）
+  const zTitle = YT.zoom.title, makeZoom = YT.zoom.make, zoomOne = YT.zoom.one, runZoom = YT.zoom.run;
+  /* 決まった位置に散らす（Math.random だと段階の行き来で見た目が変わる） */
+  const hash = (k, s) => U.mod(Math.sin(k * 12.9898 + (s || 0) * 78.233) * 43758.5453, 1);
+  /* 第3章 場面3・4 の回路記号。cx は端子の x、cy は中心。上の端子 (cx, cy-44)、下の端子 (cx, cy+44)、ゲートの端 (cx-62, cy)。
+     p は pMOS（ゲートに丸）。flip で左右を返す（ゲートが右）。rot で 90° 回す（端子が左右 (cx∓44, cy)、ゲートが上 (cx, cy-62)） */
+  function mos(parent, cx, cy, o) {
+    o = o || {};
+    const tr = (o.rot ? `rotate(90,${cx},${cy})` : '') + (o.flip ? ` translate(${2 * cx},0) scale(-1,1)` : '');
+    const g = S.g(tr ? { transform: tr.trim() } : {}, parent);
+    S.path(`M${cx},${cy - 44} V${cy - 22} H${cx - 8}`, { cls: 'f-none s-fg w2' }, g);
+    S.path(`M${cx},${cy + 44} V${cy + 22} H${cx - 8}`, { cls: 'f-none s-fg w2' }, g);
+    const chan = S.line(cx - 8, cy - 24, cx - 8, cy + 24, { cls: 's-dim w3' }, g);
+    S.line(cx - 18, cy - 18, cx - 18, cy + 18, { cls: 's-fg w3' }, g);
+    S.line(cx - (o.p ? 31 : 18), cy, cx - 62, cy, { cls: 's-fg w2' }, g);
+    if (o.p) S.circle(cx - 26, cy, 5, { cls: 'f-sf s-fg w2' }, g);
+    return { g, chan, on(v) { chan.setAttribute('class', v ? 's-e w6' : 's-dim w3'); } };
+  }
+  function ground(parent, x, y) {
+    const g = S.g({}, parent);
+    S.line(x - 16, y, x + 16, y, { cls: 's-fg w2' }, g); S.line(x - 10, y + 6, x + 10, y + 6, { cls: 's-fg w2' }, g); S.line(x - 4, y + 12, x + 4, y + 12, { cls: 's-fg w2' }, g);
+    return g;
+  }
+  /* 1/0 の札（第3章の bitTag と同じ見た目。1 は h、0 は灰色） */
+  function tag(parent, x, y, w) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const r = S.rect(-w / 2, -12, w, 24, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+    const t = S.text(0, 4, '', { cls: 't-c t-b t-mono t-sm' }, g);
+    return { g, set(txt, one) { t.textContent = txt; r.setAttribute('class', one ? 'f-h-soft s-h w15' : 'f-sf s-rule w1'); t.setAttribute('class', 't-c t-b t-mono t-sm' + (one ? ' t-h' : ' t-dim')); } };
+  }
+  /* トランジスタの名前と、オン／オフの文字 */
+  const onOff = (el, on) => { el.textContent = on ? 'オン' : 'オフ'; el.setAttribute('class', el.getAttribute('data-cls') + (on ? ' t-e t-b' : ' t-dim')); };
+
+  /* ---------- 板 1: セルの中（第3章 場面4 の CMOS インバータ × 2 ＋ 場面3 の nMOS × 2） ---------- */
+  function buildCell(g) {
+    zTitle(g, 'セルの中', '第3章 場面4 の CMOS インバータ（pMOS ＋ nMOS）2 個をたすき掛けにし、場面3 の nMOS 2 個でビット線につなぐ。青い太線はチャネル（オン）', '03-transistor.html#s4', '第3章 場面4「CMOS インバータ」');
+    const XL = 400, XR = 560, YP = 214, YN = 386, YQ = 300, YV = 170, YG = 430;
+    // 電源と接地
+    S.line(300, YV, 660, YV, { cls: 's-fg w2' }, g);
+    S.text(282, YV + 4, 'VDD = 1 V', { cls: 't-end t-xs t-mono t-dim' }, g);   // 左のアクセス用のゲート線（x = 290）にかからない所
+    [XL, XR].forEach((x) => { ground(g, x, YG); S.text(x, YG + 28, 'GND 0 V', { cls: 't-c t-xs t-mono t-dim' }, g); });
+    // インバータ 2 個。左は Q を出す（ゲートは右向きで Q̄ を受ける）、右は Q̄ を出す（Q を受ける）
+    const pL = mos(g, XL, YP, { p: true, flip: true }), nL = mos(g, XL, YN, { flip: true });
+    const pR = mos(g, XR, YP, { p: true }), nR = mos(g, XR, YN);
+    const busL = S.path(`M${XL + 62},${YP} V${YN}`, {}, g);   // 左の 2 個のゲートをつなぐ線（Q̄）
+    const busR = S.path(`M${XR - 62},${YP} V${YN}`, {}, g);   // 右の 2 個のゲート（Q）
+    const wQ = S.path(`M${XL},${YP + 44} V${YN - 44}`, {}, g), wQb = S.path(`M${XR},${YP + 44} V${YN - 44}`, {}, g);   // 出力の節点の縦線
+    // たすき掛け（交差は跳ねて越える＝つながっていない）
+    const xQ = S.path(`M${XL},270 H${XL + 54} a8,8 0 0 1 16,0 H${XR - 62}`, {}, g);
+    const xQb = S.path(`M${XR},330 H${XR - 54} a8,8 0 0 0 -16,0 H${XL + 62}`, {}, g);
+    [[XL, 270], [XR - 62, 270], [XR, 330], [XL + 62, 330]].forEach(([x, y]) => S.circle(x, y, 3.5, { cls: 'f-fg' }, g));
+    const nQ = S.circle(XL, YQ, 9, {}, g), nQb = S.circle(XR, YQ, 9, {}, g);
+    const tQ = S.text(430, 326, '', { cls: 't-c t-mono t-b t-sm' }, g), tQb = S.text(530, 262, '', { cls: 't-c t-mono t-b t-sm' }, g);
+    const lab = (x, y, name, end) => { const c = 't-xs' + (end ? ' t-end' : ''); S.text(x, y, name, { cls: 't-sm t-b' + (end ? ' t-end' : '') }, g); return S.text(x, y + 15, '', { cls: c, 'data-cls': c }, g); };
+    const sPL = lab(XL - 12, YP - 4, 'pMOS', true), sNL = lab(XL - 12, YN - 4, 'nMOS', true);
+    const sPR = lab(XR + 12, YP - 4, 'pMOS', false), sNR = lab(XR + 12, YN - 4, 'nMOS', false);
+    // アクセス部（段階 1 の「輪」では出さない）
+    const ga = S.g({}, g);
+    const aL = mos(ga, 290, YQ, { rot: true }), aR = mos(ga, 670, YQ, { rot: true });
+    const wl = S.path('M120,130 H840', {}, ga);
+    S.text(110, 134, 'WL', { cls: 't-end t-b' }, ga); S.text(110, 148, 'ワード線', { cls: 't-end t-xs t-dim' }, ga);
+    const gL = S.path('M290,238 V130', {}, ga), gR = S.path('M670,238 V130', {}, ga);
+    S.path('M200,150 V470', { cls: 'f-none s-dim w3' }, ga); const bl = S.path('M200,150 V470', { cls: 'f-none s-h w3' }, ga);
+    S.path('M760,150 V470', { cls: 'f-none s-dim w3' }, ga); const blb = S.path('M760,150 V470', { cls: 'f-none s-h w3' }, ga);
+    S.text(190, 160, 'BL', { cls: 't-end t-b' }, ga); S.text(770, 160, 'BL̄', { cls: 't-b' }, ga);
+    const vBL = S.text(200, 492, '', { cls: 't-c t-xs t-mono' }, ga), vBLB = S.text(760, 492, '', { cls: 't-c t-xs t-mono' }, ga);
+    const wBL = S.path('M200,300 H246', {}, ga), wBLq = S.path('M334,300 H400', {}, ga), wBLB = S.path('M760,300 H714', {}, ga), wBLBq = S.path('M626,300 H560', {}, ga);
+    const sAL = lab(290, 324, 'アクセス用 nMOS', false), sAR = lab(670, 324, 'アクセス用 nMOS', false);
+    [sAL, sAR].forEach((t) => { t.setAttribute('x', t.getAttribute('x')); });
+    sAL.previousSibling.setAttribute('class', 't-c t-xs t-dim'); sAR.previousSibling.setAttribute('class', 't-c t-xs t-dim');
+    sAL.setAttribute('data-cls', 't-c t-xs'); sAR.setAttribute('data-cls', 't-c t-xs');
+    // 電子の流れ（読む: GND → 右の nMOS → Q̄ → アクセス用 → BL̄。書く: BL → アクセス用 → Q → pMOS → VDD）
+    const mkFlow = (d) => { const p = S.path(d, { cls: 'f-none s-none' }, ga); const f = A.flow(p, { count: 14, speed: 150, r: 3.5, parent: ga, fade: true }); f.g.style.display = 'none'; return f; };
+    const flows = { read: mkFlow(`M${XR},${YG} V${YQ} H760 V170`), w0: mkFlow(`M200,470 V${YQ} H${XL} V${YV}`), w1: mkFlow(`M760,470 V${YQ} H${XR} V${YV}`) };
+    // 輪を一周する合図（Q → 右の nMOS のゲート → Q̄ → 左の pMOS のゲート → Q）
+    const loopPath = S.path(`M${XL},${YQ} V270 H${XR - 62} V${YN} H${XR - 8} V${YQ} H${XR} V330 H${XL + 62} V${YP} H${XL + 8} V${YQ} H${XL}`, { cls: 'f-none s-none' }, g);
+    const pulse = S.circle(0, 0, 6, { cls: 'f-x glow', style: { opacity: 0 } }, g);
+    const status = S.text(480, 506, '', { cls: 't-c t-sm t-b t-x' }, g);
+    const note = S.text(480, 524, '', { cls: 't-c t-xs t-dim' }, g);
+    const TR = [1.2, 1.0, 1.5, 1.3, 1.0], TW = [1.0, 1.0, 1.2, 1.0, 0.8, 1.0, 1.0, 1.2, 1.0, 0.8];   // 元の図と同じ区切り
+    let mode = 'hold', lastU = 0;
+    const api = {
+      mode(m) { mode = m; S.show(ga, m !== 'hold'); return api; },
+      /* u は開き切ってからの秒。settled は動きを止めている人向けの、決まった姿 */
+      frame(u, settled) {
+        const dt = settled ? 0 : Math.max(0, Math.min(0.1, u - lastU)); lastU = u;
+        let q = 1, wl0 = 0, vbl = 1, vblb = 1, flow = null, ph = '', nt = '', pf = -1, stage = 0, side = 'L';
+        if (mode === 'hold') {
+          ph = 'Q = 1 を覚えている：Q̄ = 0 が左の pMOS を、Q = 1 が右の nMOS をオンにし、互いに支える';
+          nt = 'どちらのインバータもオンは片方だけなので、VDD から GND へ抜ける道は無い（流れるのは漏れだけ）';
+          pf = settled ? -1 : U.cycle(u, 3);
+        } else if (mode === 'read') {
+          const s = settled ? { i: 2, f: 1 } : U.seq(u, TR, true);
+          if (s.i === 0) { vbl = vblb = 0.5 + 0.5 * s.f; ph = 'プリチャージ：BL と BL̄ を 1（VDD）にそろえる'; nt = 'WL = 0 なので、アクセス用 nMOS にチャネルは無く、輪はビット線から切れている'; }
+          else if (s.i === 1) { wl0 = 1; ph = 'WL = 1：アクセス用 nMOS にチャネルができ、輪がビット線につながる'; nt = 'Q = 1 側は BL も 1 なので何も流れない'; }
+          else if (s.i === 2) { wl0 = 1; vblb = 1 - 0.15 * s.f; flow = 'read'; ph = 'Q̄ = 0 側：BL̄ → アクセス用 nMOS → 右の nMOS → GND と電子が流れ、BL̄ がわずかに下がる'; nt = 'アクセス用 nMOS は引き下げ側の nMOS より弱く作ってあるので、Q̄ は 0 のまま（輪は崩れない）'; }
+          else if (s.i === 3) { wl0 = 1; vblb = 0.85 - 0.85 * s.f; ph = 'センスアンプが BL − BL̄ の差を 0 と 1 に広げる → 1'; }
+          else { vblb = 0; ph = 'WL = 0：読んでも Q は 1 のまま'; }
+        } else if (mode === 'write') {
+          const s = settled ? { i: 2, f: 1 } : U.seq(u, TW, true);
+          const w0 = s.i < 5, p = s.i % 5, target = w0 ? 0 : 1;
+          q = w0 ? 1 : 0; side = w0 ? 'L' : 'R';   // 書く前の値と、ビット線が押す側
+          vbl = target; vblb = 1 - target;
+          const node = w0 ? 'Q' : 'Q̄', line = w0 ? 'BL' : 'BL̄';
+          if (p === 0) { ph = `${line} = 0 を強く与える（書き込み回路が GND へ引く）。反対側は 1`; nt = 'まだ WL = 0：ビット線はセルに届かない'; }
+          else if (p === 1) { wl0 = 1; ph = 'WL = 1：アクセス用 nMOS がオン'; nt = `${node} = 1（pMOS で VDD につながる）と ${line} = 0 がぶつかる`; }
+          else if (p === 2) {
+            wl0 = 1; stage = s.f < 0.35 ? 1 : s.f < 0.7 ? 2 : 3; flow = stage === 1 ? (w0 ? 'w0' : 'w1') : null;
+            ph = [``, `${line} = 0 がアクセス用 nMOS を通して ${node} を引き下げる（アクセス用は pMOS より強い）`,
+              w0 ? 'Q が下がる → 右の pMOS がオン、nMOS がオフ → Q̄ が 1 へ' : 'Q̄ が下がる → 左の pMOS がオン、nMOS がオフ → Q が 1 へ',
+              w0 ? 'Q̄ = 1 → 左の nMOS がオン、pMOS がオフ → Q は GND へ。輪が倒れた' : 'Q = 1 → 右の nMOS がオン、pMOS がオフ → Q̄ は GND へ。輪が倒れた'][stage];
+            nt = stage === 1 ? '電子は BL からアクセス用 nMOS・pMOS を通って VDD へ' : '';
+          }
+          else if (p === 3) { q = target; ph = 'WL = 0：新しい値で支え合う'; }
+          else { q = target; ph = `書き込み完了：Q = ${target}`; }
+        }
+        // 4 個のトランジスタと節点。stage は倒れる途中（1: 押されている、2: 反対側が返った、3: 自分の側も返った）
+        let qN = q, qbN = 1 - q;
+        let pLon = !qbN, nLon = !!qbN, pRon = !qN, nRon = !!qN;
+        if (stage >= 2) { if (side === 'L') { qN = 0; qbN = 1; pRon = true; nRon = false; } else { qbN = 0; qN = 1; pLon = true; nLon = false; } }
+        if (stage >= 3) { if (side === 'L') { pLon = false; nLon = true; } else { pRon = false; nRon = true; } }
+        pL.on(pLon); nL.on(nLon); pR.on(pRon); nR.on(nRon);
+        onOff(sPL, pLon); onOff(sNL, nLon); onOff(sPR, pRon); onOff(sNR, nRon);
+        lv(wQ, qN, 'w2'); lv(xQ, qN, 'w2'); lv(busR, qN, 'w2'); lv(wQb, qbN, 'w2'); lv(xQb, qbN, 'w2'); lv(busL, qbN, 'w2');
+        nodeLv(nQ, qN); nodeLv(nQb, qbN);
+        tQ.textContent = `Q = ${qN}`; tQb.textContent = `Q̄ = ${qbN}`;
+        tQ.setAttribute('class', 't-c t-mono t-b t-sm ' + (qN ? 't-h' : 't-dim')); tQb.setAttribute('class', 't-c t-mono t-b t-sm ' + (qbN ? 't-h' : 't-dim'));
+        // 押されている節点は注目の色
+        if (stage === 1) (side === 'L' ? nQ : nQb).setAttribute('class', 'f-x s-x w15');
+        // アクセス部（「輪」の段階では隠れているが、段階の行き来で見た目が道に依らないように毎回描く）
+        aL.on(wl0); aR.on(wl0); lv(wl, wl0, 'w2'); lv(gL, wl0, 'w2'); lv(gR, wl0, 'w2');
+        onOff(sAL, wl0); onOff(sAR, wl0);
+        bl.style.opacity = vbl; blb.style.opacity = vblb;
+        vBL.textContent = `BL ${vbl.toFixed(2)} V`; vBLB.textContent = `BL̄ ${vblb.toFixed(2)} V`;
+        lv(wBL, wl0 && vbl > 0.5, 'w2'); lv(wBLq, wl0 && qN, 'w2'); lv(wBLB, wl0 && vblb > 0.5, 'w2'); lv(wBLBq, wl0 && qbN, 'w2');
+        for (const k in flows) { flows[k].g.style.display = k === flow ? '' : 'none'; if (k === flow) flows[k].update(dt); }
+        // 輪を回る合図
+        if (pf >= 0) { S.place(pulse, loopPath, pf); pulse.style.opacity = 1; } else pulse.style.opacity = 0;
+        status.textContent = ph; note.textContent = nt;
+      }
+    };
+    return api;
+  }
+
+  /* ---------- 板 2: アクセス用トランジスタの中（第3章 場面1・2 の nMOS の断面） ---------- */
+  function buildMos(g) {
+    zTitle(g, 'アクセス用トランジスタの中', '第3章 場面2 の nMOS の断面。ゲートがワード線 WL、ソースがビット線 BL、ドレインが節点 Q。WL = 1 のときだけ反転層（チャネル）ができ、BL と Q がつながる', '03-transistor.html#s2', '第3章 場面2「ゲート電圧とチャネル」');
+    S.rect(150, 250, 660, 220, { cls: 'f-h-soft s-rule w1' }, g);
+    S.text(480, 462, 'p 型シリコン（基板）：正孔が多数', { cls: 't-c t-sm t-h' }, g);
+    S.rect(200, 250, 140, 70, { cls: 'f-e-soft s-e w15' }, g); S.rect(620, 250, 140, 70, { cls: 'f-e-soft s-e w15' }, g);
+    S.text(270, 338, 'n 型（電子が多数）', { cls: 't-c t-xs t-e' }, g); S.text(690, 338, 'n 型（電子が多数）', { cls: 't-c t-xs t-e' }, g);
+    // 粒（決まった位置に散らし、わずかに揺らす）
+    const dots = (n, box, cls) => { const ps = []; for (let k = 0; k < n; k++) { const x = box.x + hash(k, box.x) * box.w, y = box.y + hash(k, box.y) * box.h; ps.push({ el: S.circle(x, y, 4, { cls }, g), x, y, ph: hash(k, 7) * TAU }); } return ps; };
+    const eS = dots(12, { x: 212, y: 262, w: 116, h: 46 }, 'f-e'), eD = dots(12, { x: 632, y: 262, w: 116, h: 46 }, 'f-e');
+    const hB = dots(30, { x: 165, y: 354, w: 630, h: 90 }, 'f-h'), hG = dots(8, { x: 352, y: 262, w: 256, h: 60 }, 'f-h');
+    // 空乏層・反転層・ゲートの電荷
+    const dep = S.rect(341, 250, 278, 0, { cls: 'f-bg', style: { opacity: 0.85 } }, g);
+    const depTxt = S.text(480, 0, '空乏層（正孔も電子もない）', { cls: 't-c t-xs t-dim', style: { opacity: 0 } }, g);
+    const chanDots = []; for (let k = 0; k < 24; k++) chanDots.push({ el: S.circle(0, 0, 4, { cls: 'f-e', style: { opacity: 0 } }, g), ph: hash(k, 4) * TAU });
+    const chanTxt = S.text(480, 0, '反転層＝チャネル：電子の層が S と D をつなぐ', { cls: 't-c t-xs t-e t-b', style: { opacity: 0 } }, g);
+    S.rect(340, 240, 280, 10, { cls: 'f-soft s-rule w1' }, g);
+    S.rect(340, 196, 280, 44, { cls: 'f-in s-fg w15' }, g);
+    S.text(480, 213, 'ゲート電極', { cls: 't-c t-sm' }, g);
+    const plus = []; for (let k = 0; k < 14; k++) plus.push(S.text(350 + k * 20, 235, '＋', { cls: 't-c t-h t-b t-sm', style: { opacity: 0 } }, g));
+    // 端子
+    S.rect(230, 228, 80, 22, { cls: 'f-in s-fg w1' }, g); S.rect(650, 228, 80, 22, { cls: 'f-in s-fg w1' }, g);
+    S.line(270, 228, 270, 186, { cls: 's-fg w2' }, g); S.line(690, 228, 690, 186, { cls: 's-fg w2' }, g); S.line(480, 196, 480, 162, { cls: 's-fg w2' }, g);
+    S.text(270, 176, 'S ソース ＝ ビット線 BL', { cls: 't-c t-b t-sm' }, g);
+    S.text(690, 176, 'D ドレイン ＝ 節点 Q', { cls: 't-c t-b t-sm' }, g);
+    const wlTag = tag(g, 480, 150, 124);
+    S.text(480, 496, 'B ボディ（基板の端子、0 V）', { cls: 't-c t-xs t-dim' }, g);
+    const status = S.text(480, 520, '', { cls: 't-c t-sm t-b' }, g);
+    const wig = (ps, u) => ps.forEach((p) => { p.el.setAttribute('cx', (p.x + 3 * Math.sin(u * 1.3 + p.ph)).toFixed(1)); p.el.setAttribute('cy', (p.y + 3 * Math.cos(u * 1.1 + p.ph)).toFixed(1)); });
+    return {
+      /* 6.4 秒で 1 周: WL = 0（2.4 秒）→ 上げる（0.8 秒）→ WL = 1（2.4 秒）→ 下げる（0.8 秒） */
+      frame(u, settled) {
+        const c = settled ? 4 : U.mod(u, 6.4);
+        const VG = c < 2.4 ? 0 : c < 3.2 ? (c - 2.4) / 0.8 : c < 5.6 ? 1 : 1 - (c - 5.6) / 0.8;
+        const depH = VG <= 0 ? 0 : Math.min(40, 18 + 60 * VG);
+        const nE = VG < 0.5 ? 0 : Math.round(U.remap(VG, 0.5, 1, 10, 24));
+        dep.setAttribute('height', depH.toFixed(1));
+        wig(eS, u); wig(eD, u); wig(hB, u); wig(hG, u);
+        hG.forEach((p) => { const y = Number(p.el.getAttribute('cy')); if (y < 250 + depH + 5) p.el.setAttribute('cy', (250 + depH + 5).toFixed(1)); });
+        depTxt.style.opacity = VG > 0 && VG < 0.5 ? 1 : 0; depTxt.setAttribute('y', (250 + depH + 13).toFixed(0));
+        chanTxt.style.opacity = nE > 0 ? 1 : 0; chanTxt.setAttribute('y', (250 + depH + 15).toFixed(0));
+        const speed = nE ? U.remap(VG, 0.5, 1, 20, 45) : 0;
+        chanDots.forEach((d, k) => {
+          d.el.style.opacity = k < nE ? 1 : 0;
+          if (k < nE) { d.el.setAttribute('cx', (345 + U.mod(k * (270 / nE) + u * speed, 270)).toFixed(1)); d.el.setAttribute('cy', (256 + Math.sin(u * 6 + d.ph) * 2).toFixed(1)); }
+        });
+        const nP = Math.round(VG * 14);
+        plus.forEach((p, k) => { p.style.opacity = k < nP ? 1 : 0; });
+        wlTag.set(`WL = ${VG.toFixed(1)} V`, VG > 0.5);
+        status.textContent = nE > 0 ? 'WL = 1：チャネルができ、BL と Q がつながる（読み書きできる）' : VG > 0 ? 'ゲートの＋が表面の正孔を押し下げる（空乏層）。まだつながらない' : 'WL = 0：チャネルが無い。BL と Q は切れていて、輪は値を保つ';
+        status.setAttribute('class', 't-c t-sm t-b ' + (nE > 0 ? 't-e' : 't-dim'));
+      }
+    };
+  }
+
+  /* ================================================================
      場面4 SRAM セル
      ================================================================ */
   const s4 = {
@@ -675,7 +880,8 @@
     setup(ctx) {
       const svg = ctx.svg, st = ctx.state;
       const mk = S.markers(svg);
-      const g = st.g = S.g({}, svg);
+      const gw = st.gw = S.g({}, svg);   // ズームで消す親（.fade を付ける st.g と分ける。付いていると 0.35 秒遅れる）
+      const g = st.g = S.g({}, gw);
       // 電源と接地の目印、インバータ
       const inv = (x, y, right) => {
         const d = right ? `M${x},${y - 26} L${x + 60},${y} L${x},${y + 26} Z` : `M${x},${y - 26} L${x - 60},${y} L${x},${y + 26} Z`;
@@ -755,6 +961,10 @@
       S.text(155, 190, 'アドレス 2 bit → 4 本', { cls: 't-c t-xs t-dim' }, gr);
       st.decLines = [0, 1, 2, 3].map((r) => wire(gr, `M230,${130 + r * 80} H270`, 0, 'w2'));
       st.arrNote = S.text(560, 530, '', { cls: 't-c t-sm t-dim' }, gr);
+      // ズーム: 箱の中を第3章のトランジスタで開く（段階1: 輪の 4 個、段階2: アクセス用 nMOS の断面、段階3・4: 6 個で読む・書く）
+      st.Z = makeZoom(svg, [st.gw, st.cnt]);
+      st.Z.add('cell', buildCell);
+      st.Z.add('mos', buildMos);
     },
     onStep(ctx, i) {
       const st = ctx.state;
@@ -765,9 +975,14 @@
       st.dout.textContent = ''; st.phase.textContent = '';
       st.saTxt.textContent = 'BL − BL̄ の差を見る';   // 段階3・4 は frame が書き直す
       st.pre.classList.toggle('hide', i === 3);
+      st.Z.panel('cell').mode(['hold', 'hold', 'read', 'write', 'hold'][i]);
     },
     frame(ctx, t, dt) {
       const st = ctx.state, i = ctx.step;
+      // 段階3・4 は、元の図の 1 周（読む 6 秒・書く 10 秒）と板の中の 1 周を交互に見せる。Q.i: 0 元の図、1 開く、2 板、3 閉じる
+      const D = i === 2 ? 6.0 : 10.0;
+      const Q = (i === 2 || i === 3) && YT.motion.playing ? U.seq(ctx.ts, [D, 0.7, D, 0.6], true) : null;
+      const tz = Q ? (Q.i === 0 ? Q.t : 0) : ctx.ts;   // 元の図の時計（板が開いている間は最初の姿で止めておく）
       if (i === 4) {
         const k = Math.floor(U.cycle(t, 8) * 4), f = U.cycle(t, 2);
         st.addrTxt.textContent = `アドレス = ${k.toString(2).padStart(2, '0')} → WL${k}`;
@@ -776,11 +991,12 @@
         st.cells.forEach((row, r) => row.forEach((c) => c.rc.setAttribute('class', r === k ? (f < 0.5 ? 'f-h-soft s-h w2' : 'f-sf s-h w2') : 'f-sf s-rule w1')));
         st.saOut.forEach((o, c) => { o.textContent = f > 0.5 ? `→ ${st.mat[k][c]}` : ''; });
         st.arrNote.textContent = f > 0.5 ? `行 ${k} の 4 ビット「${st.mat[k].join('')}」が同時に読めた` : `WL${k} だけを 1 にする`;
+        runZoom(st.Z, null);
         return;
       }
       let wl = 0, vbl = 1, vblb = 1, q = st.q, out = '', ph = '';
       if (i === 2) {
-        const s = U.seq(ctx.ts, [1.2, 1.0, 1.5, 1.3, 1.0], true);
+        const s = U.seq(tz, [1.2, 1.0, 1.5, 1.3, 1.0], true);
         if (s.i === 0) { vbl = vblb = 0.5 + 0.5 * s.f; ph = 'プリチャージ：BL と BL̄ を 1 にそろえる'; }
         else if (s.i === 1) { wl = 1; ph = 'WL = 1：輪がビット線につながる'; }
         else if (s.i === 2) { wl = 1; vblb = 1 - 0.15 * s.f; ph = 'Q̄ = 0 側の BL̄ だけがわずかに下がる'; }
@@ -788,7 +1004,7 @@
         else { vbl = 1; vblb = 0; out = 'Dout = 1'; ph = 'WL = 0：読んでも Q は 1 のまま'; }
         st.saTxt.textContent = s.i >= 3 ? 'BL > BL̄ → 1' : 'BL − BL̄ の差を見る';
       } else if (i === 3) {
-        const s = U.seq(ctx.ts, [1.0, 1.0, 1.2, 1.0, 0.8, 1.0, 1.0, 1.2, 1.0, 0.8], true);
+        const s = U.seq(tz, [1.0, 1.0, 1.2, 1.0, 0.8, 1.0, 1.0, 1.2, 1.0, 0.8], true);
         const writing0 = s.i < 5; const p = s.i % 5;
         const target = writing0 ? 0 : 1;
         q = writing0 ? (p >= 2 && (p > 2 || s.f > 0.5) ? 0 : 1) : (p >= 2 && (p > 2 || s.f > 0.5) ? 1 : 0);
@@ -817,6 +1033,16 @@
         st.dout.textContent = out; st.phase.textContent = ph;
         st.sa.setAttribute('class', out ? 'f-x-soft s-x w15' : 'f-sf s-rule w15');
       }
+      // ズーム。段階1 は輪が 1 周してから、段階2 はアクセス部が出てから開いたまま。段階3・4 は元の図と交互（閉じる 1.5 秒前から箱に合図の枠）
+      let z = null;
+      if (i === 0) z = zoomOne(ctx, 'cell', ZSRC.cell, 3.0);
+      else if (i === 1) z = zoomOne(ctx, 'mos', ZSRC.sw, 1.5);
+      else if (!Q) z = { name: 'cell', src: ZSRC.cell, f: 1, u: 99, settled: true };
+      else if (Q.i === 0) z = Q.t > D - 1.5 ? { src: ZSRC.cell, f: 0, t: ctx.ts } : null;
+      else if (Q.i === 1) z = { name: 'cell', src: ZSRC.cell, f: U.ease.out(Q.f), u: 0 };
+      else if (Q.i === 2) z = { name: 'cell', src: ZSRC.cell, f: 1, u: Q.t };
+      else z = { name: 'cell', src: ZSRC.cell, f: 1 - U.ease.out(Q.f), u: D };
+      runZoom(st.Z, z);
     }
   };
 
