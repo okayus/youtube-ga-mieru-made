@@ -19,6 +19,9 @@
 <style>
   /* この章だけのスタイル */
   .isa { font-family: var(--mono); font-size: 0.8rem; }
+  /* ズームの板から元の章へ戻るリンク（図の中の <a>） */
+  svg a.zlink text { text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  svg a.zlink:hover text { fill: var(--fg); }
 </style>
 </head>
 <body>
@@ -37,9 +40,9 @@
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>
     <ol>
-      <li><a href="#s1" data-go="1"><span class="n">1</span>CPU の中身</a><p>レジスタ（PC・IR・A・Z）、ALU、制御装置、クロック、メモリと結ぶ 3 種類のバス。</p></li>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>CPU の中身</a><p>レジスタ（PC・IR・A・Z）、ALU、制御装置、クロック、メモリと結ぶ 3 種類のバス。箱の中は第4・5章の回路で拡大して見る。</p></li>
       <li><a href="#s2" data-go="2"><span class="n">2</span>命令は数字</a><p>8 ビットの上位 4 ビットが「何を」、下位 4 ビットが「どこ」。6 命令の命令セットと機械語。</p></li>
-      <li><a href="#s3" data-go="3"><span class="n">3</span>フェッチ・デコード・実行</a><p>ADD 11 の 1 命令を 5 拍に分けて、バスを流れる番地と中身を追う。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>フェッチ・デコード・実行</a><p>ADD 11 の 1 命令を 5 拍に分けて、バスを流れる番地と中身を追う。解読と加算は、ゲートと加算器の中まで拡大する。</p></li>
       <li><a href="#s4" data-go="4"><span class="n">4</span>小さなプログラムを動かす</a><p>1 + 2 + 3 を足すループ。22 命令で PC・A・Z・メモリがどう変わるか。</p></li>
       <li><a href="#s5" data-go="5"><span class="n">5</span>クロックとパイプライン</a><p>5 段階を重ねて毎拍 1 命令。ハザード、実際の CPU の数字、発熱の壁。</p></li>
       <li><a href="#s6" data-go="6"><span class="n">6</span>キャッシュ階層</a><p>DRAM は 200 拍遠い。L1・L2・L3 の写し、ヒットとミス、局所性、置き換え。</p></li>
@@ -67,7 +70,7 @@
   </div>
   <figure class="anim-fig a-fig">
     <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="CPU の内部（制御装置、PC、IR、A、Z、ALU、クロック）と、バスで結ばれた 16 番地のメモリ"></svg></div>
-    <figcaption>図1　YT-8 の全体。左が CPU、右がメモリ。メモリには場面 4 で動かすプログラム（番地 0〜7）とデータ（番地 10〜12）が入っている。</figcaption>
+    <figcaption>図1　YT-8 の全体。左が CPU、右がメモリ。メモリには場面 4 で動かすプログラム（番地 0〜7）とデータ（番地 10〜12）が入っている。段階 2・3・5 では、箱の中（A・ALU・制御装置）を第4・5章の回路で拡大する。</figcaption>
   </figure>
 </section>
 
@@ -105,7 +108,7 @@
   </div>
   <figure class="anim-fig a-fig">
     <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ADD 11 の実行中に、PC の番地、メモリの中身、ALU の結果がバスを通って移動する様子"></svg></div>
-    <figcaption>図3　図1 と同じ配置。動く札は、その拍にバスの上を移動している番地や中身。</figcaption>
+    <figcaption>図3　図1 と同じ配置。動く札は、その拍にバスの上を移動している番地や中身。2 拍めは PC + 1 の加算器、3 拍めは制御装置の中、5 拍めは ALU と A の中を拡大し、この命令のビットが回路を通る様子を見る。</figcaption>
   </figure>
 </section>
 
@@ -257,6 +260,7 @@
   function drawCPU(svg) {
     const H = {};
     const g = S.g({}, svg);
+    H.g = g;   // ズームの板を開く間、図全体を消すために使う
     // 配線（箱の下に描く）
     const P = {
       pcAddr: 'M430,122 H656',
@@ -386,6 +390,400 @@
   }
 
   /* ================================================================
+     ズーム：CPU の箱の中を、前の章の回路で開く（場面1・3）
+     板（ZP）は箱の位置から図いっぱいに広がる。開いている間は元の図を消し（板の下の文字と重ならないように）、
+     動きを止めている人には、最初から開き切って計算の終わった姿を出す。
+     配線の色は第4・5章と同じ: 1 は h（高い電圧）の太線、0 は灰色
+     ================================================================ */
+  const ZP = { x: 30, y: 56, w: 900, h: 478 };
+  const SRC = { pc: { x: 300, y: 100, w: 130, h: 44 }, a: { x: 300, y: 232, w: 160, h: 44 }, alu: { x: 330, y: 330, w: 230, h: 90 }, ctrl: { x: 48, y: 100, w: 230, h: 176 } };
+  const lvl = (el, v, w) => el.setAttribute('class', 'f-none round ' + (v ? 's-h ' : 's-dim ') + (w || 'w2'));
+  const valTxt = (el, v, size) => { el.textContent = v ? '1' : '0'; el.setAttribute('class', 't-c t-mono t-b ' + size + (v ? ' t-h' : ' t-dim')); };
+  /* 値の箱。set(v) で 0 / 1 / '?' */
+  function bit(parent, x, y, w, h, fs) {
+    const g = S.g({ transform: `translate(${x},${y})` }, parent);
+    const r = S.rect(-w / 2, -h / 2, w, h, { rx: 4, cls: 'f-in s-rule w1' }, g);
+    const t = S.text(0, Math.round(fs * 0.36), '0', { cls: 't-c t-mono t-b t-dim', style: { fontSize: fs + 'px' } }, g);
+    const api = { g, v: 0, set(v) { api.v = v; t.textContent = String(v); const q = v === '?' ? ['f-x-soft s-x w1', 't-x'] : (v === 1 ? ['f-h-soft s-h w15', 't-h'] : ['f-in s-rule w1', 't-dim']); r.setAttribute('class', q[0]); t.setAttribute('class', 't-c t-mono t-b ' + q[1]); return api; } };
+    return api;
+  }
+  /* 板の見出し（題・説明・元の章へのリンク） */
+  function zTitle(g, title, sub, href, linkText) {
+    const t = S.text(46, 82, title, { cls: 't-b t-lg' }, g);
+    const s = S.text(46, 100, sub, { cls: 't-xs t-dim' }, g);
+    const a = S.el('a', { href, cls: 'zlink' }, g);
+    S.text(914, 82, linkText + ' を開く ↗', { cls: 't-end t-xs t-dim' }, a);
+    return { t, s };
+  }
+  /* 板の置き場。add(name, build) で板を作り、apply(z) で開閉を描く。base は開いている間に消す図の部品 */
+  function makeZoom(svg, base) {
+    const cue = S.rect(0, 0, 10, 10, { rx: 8, cls: 'f-none s-x w2', style: { display: 'none' } }, svg);
+    const layer = S.g({ style: { display: 'none' } }, svg);
+    const panels = {};
+    const cx0 = ZP.x + ZP.w / 2, cy0 = ZP.y + ZP.h / 2;
+    return {
+      add(name, build) {
+        const g = S.g({ style: { display: 'none' } }, layer);
+        S.rect(ZP.x, ZP.y, ZP.w, ZP.h, { rx: 10, cls: 'f-sf s-x w15' }, g);
+        panels[name] = { g, api: build(g) };
+        return panels[name].api;
+      },
+      panel(name) { return panels[name].api; },
+      /* z が無いか z.f = 0 なら閉じる（z.src があれば出どころの箱に合図の枠を出す）。0 < f ≤ 1 で箱から板へ広がる */
+      apply(z) {
+        if (!z || z.f <= 0) {
+          layer.style.display = 'none';
+          base.forEach((n) => { n.style.opacity = ''; });
+          if (z && z.src) {
+            const p = 3 + 3 * U.pulse(z.t || 0, 0.8);
+            cue.style.display = '';
+            S.attrs(cue, { x: z.src.x - p, y: z.src.y - p, width: z.src.w + 2 * p, height: z.src.h + 2 * p });
+          } else cue.style.display = 'none';
+          return;
+        }
+        cue.style.display = 'none';
+        layer.style.display = '';
+        const f = Math.min(1, z.f), src = z.src;
+        for (const k in panels) panels[k].g.style.display = k === z.name ? '' : 'none';
+        const P = panels[z.name].g;
+        const s = U.lerp(Math.min(src.w / ZP.w, src.h / ZP.h), 1, f);
+        const cx = U.lerp(src.x + src.w / 2, cx0, f), cy = U.lerp(src.y + src.h / 2, cy0, f);
+        P.setAttribute('transform', `translate(${cx.toFixed(1)},${cy.toFixed(1)}) scale(${s.toFixed(4)}) translate(${-cx0},${-cy0})`);
+        P.style.opacity = f < 1 ? (0.25 + 0.75 * f).toFixed(3) : '';
+        base.forEach((n) => { n.style.opacity = f >= 1 ? '0' : (1 - f).toFixed(3); });
+      }
+    };
+  }
+  /* 段階に入って t0 秒後に開く板。動きを止めているときは、最初から開き切った姿 */
+  function zoomOne(ctx, name, src, t0) {
+    if (!YT.motion.playing) return { name, src, f: 1, u: 99, settled: true };
+    return { name, src, f: U.ease.out(U.prog(ctx.ts, t0, 0.7)), u: Math.max(0, ctx.ts - t0 - 0.7), settled: false, t: ctx.ts };
+  }
+  function runZoom(Z, z) { Z.apply(z); if (z && z.f > 0) Z.panel(z.name).frame(z.u, !!z.settled); }
+
+  /* ---------- 板 1: ALU の中（第4章 場面5・6 の全加算器 × 8 ＋ ゼロ検出） ---------- */
+  function buildALU(g) {
+    const mk = S.markers(g.ownerSVGElement);
+    const X = (k) => 104 + k * 106;   // k = 0 がビット 7（左端）、k = 7 がビット 0（右端）
+    zTitle(g, 'ALU の中', '第4章 場面5・6 の全加算器を 8 個つないだもの。桁上がりは右（ビット 0）から左へ 1 段ずつ伝わる', '04-ronri.html#s6', '第4章 場面6「4ビット加算器」');
+    const ctl = S.text(914, 100, '', { cls: 't-end t-xs t-e t-b' }, g);
+    S.text(62, 136, 'A', { cls: 't-end t-mono t-b t-sm' }, g);
+    S.text(62, 166, 'M', { cls: 't-end t-mono t-b t-sm' }, g);
+    const A = [], M = [], Sb = [], wA = [], wM = [], wS = [], wZ = [], cAr = [], cVal = [];
+    for (let k = 0; k < 8; k++) {
+      const x = X(k), b = 7 - k;
+      A.push(bit(g, x - 16, 132, 26, 22, 13));
+      M.push(bit(g, x + 16, 162, 26, 22, 13));
+      wA.push(S.path(`M${x - 16},143 V194`, {}, g));
+      wM.push(S.path(`M${x + 16},173 V194`, {}, g));
+      S.rect(x - 36, 194, 72, 60, { rx: 6, cls: 'f-sf s-fg w2' }, g);
+      S.text(x, 216, '全加算器', { cls: 't-c t-xs t-b' }, g);
+      S.text(x, 232, `ビット ${b}`, { cls: 't-c t-xs t-dim' }, g);
+      wS.push(S.path(`M${x},254 V289`, {}, g));
+      Sb.push(bit(g, x, 300, 26, 22, 13));
+      wZ.push(S.path(`M${x},311 V340`, {}, g));
+      // この箱の右の隙間の矢印 ＝ 右隣（ビット b−1）から入る桁上がり。右端は Cin
+      const x1 = k < 7 ? X(k + 1) - 36 : 912, x2 = x + 36;
+      cAr.push(S.path(`M${x1},224 H${x2 + 2}`, { 'marker-end': mk('dim') }, g));
+      cVal.push(S.text((x1 + x2) / 2, 214, '', { cls: 't-c t-mono t-xs t-dim' }, g));
+    }
+    const cOut = S.path('M68,224 H50', { 'marker-end': mk('dim') }, g);
+    S.text(58, 214, 'あふれ', { cls: 't-c t-xs t-dim' }, g);
+    const cOutVal = S.text(58, 240, '', { cls: 't-c t-mono t-xs t-dim' }, g);
+    // ゼロ検出: 和の 8 本を OR → NOT → Z（第4章 場面3 のゲート）
+    S.rect(68, 340, 814, 26, { rx: 5, cls: 'f-sf s-fg w2' }, g);
+    S.text(475, 357, 'OR（8 入力）：和のどれか 1 本でも 1 なら 1', { cls: 't-c t-xs t-b' }, g);
+    const wOr = S.path('M475,366 V376', {}, g);
+    S.path('M467,376 L483,376 L475,392 Z', { cls: 'f-sf s-fg w2' }, g);
+    S.circle(475, 397, 4, { cls: 'f-sf s-fg w2' }, g);
+    S.text(500, 388, 'NOT', { cls: 't-xs t-dim t-mono' }, g);
+    const wNot = S.path('M475,401 V413', {}, g);
+    const Zb = bit(g, 475, 424, 26, 22, 13);
+    S.text(494, 428, 'Z（結果が 0 なら 1）', { cls: 't-xs' }, g);
+    S.text(46, 428, '結果 → A', { cls: 't-sm t-b' }, g);
+    const res = S.text(118, 428, '', { cls: 't-mono t-md t-b' }, g);
+    S.text(46, 468, '全加算器 1 個の中は XOR 2・AND 2・OR 1（第4章 場面5）で、第3章のスイッチ（トランジスタ）約 28 個。SUB は M を反転して Cin = 1（2 の補数、第4章 場面6）', { cls: 't-xs t-dim' }, g);
+    S.text(46, 486, '桁上がりが 8 段伝わり終わるまでが ALU の遅延。実際の CPU は桁上がりを先読みして段数を減らす（第4章 場面6）', { cls: 't-xs t-dim' }, g);
+    const st = { res: [], cy: [], a: 0, m: 0, mm: 0, sub: false, cin0: 0, sum: 0, eq: '' };
+    const carry = (el, v, known) => { el.setAttribute('class', 'f-none round ' + (known && v ? 's-h w3' : 's-dim w2')); el.setAttribute('marker-end', mk(known && v ? 'h' : 'dim')); };
+    const api = {
+      /* o = { a, m, sub } */
+      set(o) {
+        st.a = o.a & 255; st.m = o.m & 255; st.sub = !!o.sub;
+        st.mm = st.sub ? (~st.m) & 255 : st.m;
+        st.cin0 = st.sub ? 1 : 0;
+        let c = st.cin0;
+        for (let b = 0; b < 8; b++) { const x = ((st.a >> b) & 1) + ((st.mm >> b) & 1) + c; st.res[b] = x & 1; st.cy[b] = x >> 1; c = x >> 1; }
+        st.sum = st.res.reduce((acc, v, b) => acc + (v << b), 0);
+        for (let k = 0; k < 8; k++) { const b = 7 - k, av = (st.a >> b) & 1, mv = (st.mm >> b) & 1; A[k].set(av); M[k].set(mv); lvl(wA[k], av); lvl(wM[k], mv); }
+        ctl.textContent = st.sub ? '制御信号：減算（M を反転し、Cin = 1）' : '制御信号：加算（Cin = 0）';
+        st.eq = `${st.a} ${st.sub ? '−' : '+'} ${st.m} = ${st.sum}`;
+        return api;
+      },
+      frame(u, settled) {
+        if (!settled) u = U.mod(u, 10);
+        const t0 = 0.5, dt = 0.45;
+        const n = settled ? 8 : U.clamp(Math.floor((u - t0) / dt), 0, 8);   // 確定した桁の数（ビット 0 から）
+        const zOn = settled || u >= t0 + 8 * dt + 0.5;
+        for (let k = 0; k < 8; k++) {
+          const b = 7 - k, done = b < n;
+          Sb[k].set(done ? st.res[b] : '?');
+          lvl(wS[k], done && st.res[b]);
+          lvl(wZ[k], zOn && st.res[b]);
+          const known = b === 0 || b - 1 < n, v = b === 0 ? st.cin0 : st.cy[b - 1];
+          carry(cAr[k], v, known);
+          cVal[k].textContent = (k === 7 ? 'Cin ' : '') + (known ? String(v) : '?');
+          cVal[k].setAttribute('class', 't-c t-mono t-xs ' + (known ? (v ? 't-h t-b' : 't-dim') : 't-x'));
+        }
+        carry(cOut, st.cy[7], n >= 8);
+        cOutVal.textContent = n >= 8 ? String(st.cy[7]) : '?';
+        cOutVal.setAttribute('class', 't-c t-mono t-xs ' + (n >= 8 ? (st.cy[7] ? 't-h t-b' : 't-dim') : 't-x'));
+        const any = st.res.some((v) => v);
+        lvl(wOr, zOn && any); lvl(wNot, zOn && !any);
+        Zb.set(zOn ? (any ? 0 : 1) : '?');
+        const partial = st.res.map((v, b) => (b < n ? v : '?')).reverse().join('');
+        res.textContent = zOn ? `${fmt8(st.sum)} (${st.sum})　${st.eq}` : (n ? partial.slice(0, 4) + ' ' + partial.slice(4) : '');
+      }
+    };
+    return api;
+  }
+
+  /* ---------- 板 2: レジスタの中（第5章 場面3 の D フリップフロップ × 8） ---------- */
+  function buildREG(g) {
+    const X = (k) => 150 + k * 100;   // k = 0 がビット 7
+    const hdr = zTitle(g, 'レジスタ A の中', '第5章 場面3 と同じ 8 個の D フリップフロップ。Load = 1 の周期の立ち上がりで、8 ビットが同時に D から Q へ移る', '05-kioku.html#s3', '第5章 場面3「レジスタ」');
+    S.rect(126, 110, 758, 24, { rx: 4, cls: 'f-in s-rule w1' }, g);
+    S.text(112, 127, 'D', { cls: 't-end t-mono t-b t-sm' }, g);
+    const dSrc = S.text(890, 127, '', { cls: 't-xs t-dim' }, g);
+    S.text(112, 164, 'Load', { cls: 't-end t-xs t-e t-b' }, g);
+    const loadRail = S.path('M126,160 H884', {}, g);
+    S.text(112, 294, 'CLK', { cls: 't-end t-xs t-e t-b' }, g);
+    S.rect(126, 330, 758, 24, { rx: 4, cls: 'f-in s-rule w1' }, g);
+    S.text(112, 347, 'Q', { cls: 't-end t-mono t-b t-sm' }, g);
+    const qDst = S.text(890, 347, '', { cls: 't-xs t-dim' }, g);
+    const D = [], wD1 = [], wD2 = [], mux = [], ff = [], Q = [], wQ = [], Q2 = [];
+    let clk = 'M126,290';
+    for (let k = 0; k < 8; k++) {
+      const x = X(k);
+      D.push(S.text(x, 127, '0', { cls: 't-c t-mono t-b t-md t-dim' }, g));
+      wD1.push(S.path(`M${x},134 V152`, {}, g));
+      mux.push(S.rect(x - 8, 152, 16, 16, { rx: 3, cls: 'f-sf s-fg w15' }, g));
+      wD2.push(S.path(`M${x},168 V190`, {}, g));
+      ff.push(S.rect(x - 32, 190, 64, 72, { rx: 6, cls: 'f-sf s-fg w2' }, g));
+      S.text(x, 206, `bit ${7 - k}`, { cls: 't-c t-xs t-dim' }, g);
+      Q.push(S.text(x, 246, '0', { cls: 't-c t-mono t-b t-xl t-dim' }, g));
+      S.path(`M${x - 32},246 L${x - 24},251 L${x - 32},256 Z`, { cls: 'f-fg' }, g);   // クロック入力の印（第5章と同じ）
+      S.path(`M${x - 16},290 V262`, { cls: 'f-none s-e w2' }, g);
+      wQ.push(S.path(`M${x + 16},262 V330`, {}, g));
+      clk += ` H${x + 10} M${x + 22},290`;   // Q の線をまたぐ所は切る
+      Q2.push(S.text(x, 347, '0', { cls: 't-c t-mono t-b t-md t-dim' }, g));
+    }
+    S.path(clk + ' H884', { cls: 'f-none s-e w2' }, g);
+    // 下: クロックの波形と、取り込む瞬間
+    S.text(112, 414, 'クロック', { cls: 't-end t-xs t-e t-b' }, g);
+    S.path('M150,424 H265 V396 H380 V424 H495 V396 H610 V424 H725 V396 H840 V424 H850', { cls: 'f-none s-e w2 round' }, g);
+    [265, 495, 725].forEach((x) => { S.path(`M${x},388 V432`, { cls: 'f-none s-x w1 dash2' }, g); S.text(x, 446, '↑ 立ち上がり', { cls: 't-c t-xs t-x' }, g); });
+    const cursor = S.path('M150,386 V434', { cls: 'f-none s-x w15' }, g);
+    const loadTxt = S.text(150, 470, '', { cls: 't-sm' }, g);
+    const qTxt = S.text(850, 470, '', { cls: 't-end t-mono t-sm t-b' }, g);
+    S.text(46, 500, '読み出し（Q）は常に出ていて、ALU はいつでも読める。書き込みは Load = 1 の周期の立ち上がりの瞬間だけ', { cls: 't-xs t-dim' }, g);
+    S.text(46, 518, 'PC・IR・Z も同じ作り。制御装置は「どのレジスタに Load を出すか」で書き込み先を選ぶ（第5章 場面3）', { cls: 't-xs t-dim' }, g);
+    const st = { d: 0, q0: 0 };
+    const api = {
+      /* o = { name, d: 新しい値, q0: 元の値, src, dst } */
+      set(o) { st.d = o.d & 255; st.q0 = o.q0 & 255; hdr.t.textContent = `レジスタ ${o.name || 'A'} の中`; dSrc.textContent = o.src || ''; qDst.textContent = o.dst || ''; return api; },
+      frame(u, settled) {
+        if (!settled) u = U.mod(u, 7.5);
+        const tEdge = 2.957;   // 2 つめの立ち上がり（x = 495）を通る時刻
+        const cx = settled ? 600 : U.lerp(150, 850, U.clamp(u / 6, 0, 1));
+        const load = settled || (u >= 2.0 && u < 4.0);
+        const captured = settled || u >= tEdge;
+        const flash = !settled && u >= tEdge && u < 3.5;
+        const q = captured ? st.d : st.q0;
+        for (let k = 0; k < 8; k++) {
+          const b = 7 - k, dv = (st.d >> b) & 1, qv = (q >> b) & 1;
+          valTxt(D[k], dv, 't-md'); lvl(wD1[k], dv); lvl(wD2[k], load ? dv : qv);
+          mux[k].setAttribute('class', load ? 'f-e-soft s-e w15' : 'f-sf s-fg w15');
+          valTxt(Q[k], qv, 't-xl'); lvl(wQ[k], qv); valTxt(Q2[k], qv, 't-md');
+          ff[k].setAttribute('class', flash ? 'f-x-soft s-x w2' : 'f-sf s-fg w2');
+        }
+        loadRail.setAttribute('class', 'f-none ' + (load ? 's-e w2 dash' : 's-dim w1 dash'));
+        cursor.setAttribute('d', `M${cx.toFixed(1)},386 V434`);
+        loadTxt.textContent = settled || captured && u < 4.0 ? 'Load = 1：立ち上がりの瞬間に D を Q へ取り込んだ' : u < 2.0 ? 'Load = 0：この立ち上がりでは取り込まない（Q を保つ）' : u < tEdge ? 'Load = 1：次の立ち上がりで D を取り込む' : 'Load = 0：D が変わっても Q は保たれる';
+        qTxt.textContent = `Q = ${fmt8(q)} (${q})`;
+      }
+    };
+    return api;
+  }
+
+  /* ---------- 板 3: 制御装置の中（第4章 場面3 の NOT・AND で、オペコードを 1 本の線に変える） ---------- */
+  function buildDEC(g) {
+    const UX = [68, 104, 140, 176], LX = [228, 264, 300, 336];
+    zTitle(g, '制御装置の中（デコーダ）', 'IR の上位 4 ビット（オペコード）を第4章の NOT・AND で 1 本の線に変える。その線が制御信号になる', '04-ronri.html#s3', '第4章 場面3「NAND から全部作る」');
+    const status = S.text(914, 100, '', { cls: 't-end t-xs t-b' }, g);
+    S.text(36, 140, 'IR', { cls: 't-xs t-b' }, g);
+    S.text(122, 114, 'オペコード（何を）', { cls: 't-c t-xs t-d t-b' }, g);
+    S.text(282, 114, 'オペランド（どこ）', { cls: 't-c t-xs t-dim' }, g);
+    const cells = [...UX, ...LX].map((x) => bit(g, x, 136, 32, 28, 15));
+    // オペランドは解読しない: そのまま番地としてアドレスバスへ
+    S.path('M228,150 V162 H336 V150', { cls: 'f-none s-d w2 round' }, g);
+    const bus = S.path('M336,162 H900 V486', { cls: 'f-none s-dim w3 round' }, g);
+    S.rect(604, 486, 312, 40, { rx: 6, cls: 'f-in s-rule w1' }, g);
+    const opTxt = S.text(760, 511, '', { cls: 't-c t-xs' }, g);
+    // 入力の線 b7〜b4 と、NOT で反転した ¬b7〜¬b4
+    const lines = [], nots = [], nlines = [];
+    UX.forEach((x, j) => {
+      const nx = x + 18;
+      lines.push(S.path(`M${x},150 V476`, {}, g));
+      nots.push(S.path(`M${x},170 H${nx} V178`, {}, g));
+      S.circle(x, 170, 3, { cls: 'f-fg' }, g);
+      S.path(`M${nx - 8},178 L${nx + 8},178 L${nx},194 Z`, { cls: 'f-sf s-fg w2' }, g);
+      S.circle(nx, 199, 4, { cls: 'f-sf s-fg w2' }, g);
+      nlines.push(S.path(`M${nx},203 V476`, {}, g));
+      S.text(x, 490, `b${7 - j}`, { cls: 't-c t-mono t-xs t-dim' }, g);
+      S.text(nx, 490, `¬b${7 - j}`, { cls: 't-c t-mono t-xs t-dim' }, g);
+    });
+    // 6 個の AND（1 個が命令 1 種類）と、その命令が出す合図の表
+    const COLS = [440, 490, 540, 590, 640, 690, 740];
+    [['番地 ←', 'IR 下位'], ['メモリ', '読め'], ['ALU', '＋ or −'], ['A ←', 'どこから'], ['メモリ', '← A'], ['PC ←', '番地'], ['停止', '']].forEach(([a, b], c) => {
+      S.text(COLS[c], 180, a, { cls: 't-c t-xs t-dim' }, g);
+      S.text(COLS[c], 196, b, { cls: 't-c t-xs t-dim' }, g);
+    });
+    const SIG = { LOAD: ['●', '●', '', 'メモリ', '', '', ''], ADD: ['●', '●', '＋', 'ALU', '', '', ''], SUB: ['●', '●', '−', 'ALU', '', '', ''], STORE: ['●', '', '', '', '●', '', ''], JNZ: ['', '', '', '', '', '●', ''], HALT: ['', '', '', '', '', '', '●'] };
+    const rows = ISA.map(([p, nm], r) => {
+      const name = nm.replace(/ n$/, ''), cy = 228 + r * 44;
+      const hl = S.rect(284, cy - 21, 486, 42, { rx: 5, cls: 'f-e-soft', style: { opacity: 0 } }, g);
+      const taps = [-15, -5, 5, 15].map((dy, j) => {
+        const on1 = p[j] === '1', lx = on1 ? UX[j] : UX[j] + 18;
+        const el = S.path(`M${lx},${cy + dy} H236`, {}, g);
+        S.circle(lx, cy + dy, 3, { cls: 'f-fg' }, g);
+        return { el, j, on1 };
+      });
+      S.path(`M236,${cy - 20} H256 A20,20 0 0 1 256,${cy + 20} H236 Z`, { cls: 'f-sf s-fg w2' }, g);
+      const out = S.path(`M276,${cy} H284`, {}, g);
+      const nameEl = S.text(290, cy + 4, name, { cls: 't-mono t-sm t-b t-dim' }, g);
+      S.text(348, cy + 4, p, { cls: 't-mono t-xs t-dim' }, g);
+      const toks = SIG[name].map((s, c) => S.text(COLS[c], cy + 4, s, { cls: 't-c t-xs t-dim' }, g));
+      return { p, name, hl, taps, out, nameEl, toks };
+    });
+    S.text(46, 510, 'AND 1 個が命令 1 種類。「理解」ではなく配線で、4 本の入力の 16 通りのうち 6 通りだけに線を引いてある', { cls: 't-xs t-dim' }, g);
+    S.text(46, 526, 'JNZ は Z = 0 のときだけ PC ← 番地（Z の線も AND に入る）。フェッチの合図は全命令で共通', { cls: 't-xs t-dim' }, g);
+    const st = { ir: 0x2B, cycle: null };
+    const api = {
+      /* o = { ir } か { cycle: [IR の値…]（順に巡る） } */
+      set(o) { if (o.ir != null) st.ir = o.ir & 255; st.cycle = o.cycle || null; return api; },
+      frame(u, settled) {
+        let ir = st.ir, uu = u;
+        if (st.cycle) { const per = 4.2, idx = settled ? 1 : Math.floor(u / per) % st.cycle.length; ir = st.cycle[idx]; uu = settled ? 99 : u - Math.floor(u / per) * per; }
+        else if (!settled) uu = U.mod(u, 8);
+        const ph = settled ? 9 : (uu < 0.5 ? 0 : uu < 1.1 ? 1 : uu < 1.7 ? 2 : uu < 2.3 ? 3 : 4);   // 0 ビット → 1 線 → 2 ゲート → 3 合図 → 4 番地
+        const b8 = bits8(ir), op = ir >> 4, n = ir & 15, opName = OPS[op] || '?';
+        cells.forEach((c, k) => c.set(Number(b8[k])));
+        UX.forEach((x, j) => { const v = (op >> (3 - j)) & 1; lvl(lines[j], ph >= 1 && v); lvl(nots[j], ph >= 1 && v); lvl(nlines[j], ph >= 1 && !v); });
+        rows.forEach((row) => {
+          const active = row.p === b8.slice(0, 4);
+          row.taps.forEach((tp) => { const v = (op >> (3 - tp.j)) & 1; lvl(tp.el, ph >= 1 && (tp.on1 ? v : !v)); });
+          lvl(row.out, ph >= 2 && active, 'w3');
+          row.nameEl.setAttribute('class', 't-mono t-sm t-b ' + (ph >= 2 && active ? 't-h' : 't-dim'));
+          row.hl.style.opacity = ph >= 3 && active ? 1 : 0;
+          row.toks.forEach((t) => t.setAttribute('class', 't-c t-xs ' + (ph >= 3 && active ? 't-e t-b' : 't-dim')));
+        });
+        bus.setAttribute('class', 'f-none round ' + (ph >= 4 && op ? 's-d w3' : 's-dim w3'));
+        opTxt.textContent = ph >= 4 ? (op ? `オペランド ${bits4(n)} = ${n} 番地 → そのままアドレスバスへ（解読しない）` : 'HALT はオペランドを使わない') : 'オペランド（下位 4 ビット）→ アドレスバスへ';
+        status.textContent = ph >= 2 ? `IR = ${fmt8(ir)}：${b8.slice(0, 4)} = ${opName}${op ? `、${b8.slice(4)} = ${n} 番地` : ''}` : `IR = ${fmt8(ir)}`;
+      }
+    };
+    return api;
+  }
+
+  /* ---------- 板 4: PC + 1 の回路（第4章 場面5 の半加算器 × 4） ---------- */
+  function buildINC(g) {
+    const mk = S.markers(g.ownerSVGElement);
+    const gAND = (x, y) => { S.path(`M${x},${y - 24} H${x + 24} A24,24 0 0 1 ${x + 24},${y + 24} H${x} Z`, { cls: 'f-sf s-fg w2' }, g); return { in1: { x, y: y - 11 }, in2: { x, y: y + 11 }, out: { x: x + 48, y } }; };
+    const gXOR = (x, y) => { S.path(`M${x},${y - 24} Q${x + 28},${y - 24} ${x + 50},${y} Q${x + 28},${y + 24} ${x},${y + 24} Q${x + 10},${y} ${x},${y - 24} Z`, { cls: 'f-sf s-fg w2' }, g); S.path(`M${x - 6},${y - 24} Q${x + 4},${y} ${x - 6},${y + 24}`, { cls: 'f-none s-fg w2' }, g); return { in1: { x: x - 6, y: y - 11 }, in2: { x: x - 6, y: y + 11 }, out: { x: x + 50, y } }; };
+    zTitle(g, 'PC + 1 の回路', '第4章 場面5 の半加算器（XOR と AND）を 4 個つないだ加算器。PC に 1 を足した答えを常に用意し、2 拍めの立ち上がりで PC に書く', '04-ronri.html#s5', '第4章 場面5「半加算器・全加算器」');
+    // 左: 半加算器 1 個の中（入力 4 通りを巡る）
+    S.text(46, 150, '半加算器 1 個の中（第4章 場面5）', { cls: 't-sm t-b' }, g);
+    const hA = bit(g, 70, 196, 26, 22, 13), hB = bit(g, 70, 266, 26, 22, 13);
+    S.text(70, 178, 'A', { cls: 't-c t-mono t-xs t-dim' }, g);
+    S.text(70, 248, 'B', { cls: 't-c t-mono t-xs t-dim' }, g);
+    const x1 = gXOR(150, 210), a1 = gAND(150, 300);
+    S.text(170, 214, 'XOR', { cls: 't-c t-xs t-dim t-mono' }, g);
+    S.text(168, 304, 'AND', { cls: 't-c t-xs t-dim t-mono' }, g);
+    const hw = {
+      A: [S.path(`M83,196 H120 V${x1.in1.y} H${x1.in1.x}`, {}, g), S.path(`M120,196 V${a1.in1.y} H${a1.in1.x}`, {}, g)],
+      B: [S.path(`M83,266 H110 V${x1.in2.y} H${x1.in2.x}`, {}, g), S.path(`M110,266 V${a1.in2.y} H${a1.in2.x}`, {}, g)],
+      S: [S.path(`M${x1.out.x},210 H227`, {}, g)], C: [S.path(`M${a1.out.x},300 H227`, {}, g)]
+    };
+    [[120, 196], [110, 266]].forEach(([x, y]) => S.circle(x, y, 3, { cls: 'f-fg' }, g));
+    const hS = bit(g, 240, 210, 26, 22, 13), hC = bit(g, 240, 300, 26, 22, 13);
+    S.text(262, 214, 'S（和）= A ⊕ B', { cls: 't-xs' }, g);
+    S.text(262, 304, 'C（桁上がり）= A · B', { cls: 't-xs' }, g);
+    // 右: PC の 4 桁に 1 を足す
+    const X = (k) => 420 + k * 130;   // k = 0 がビット 3（左端）、k = 3 がビット 0（右端）
+    S.text(392, 180, 'PC', { cls: 't-end t-mono t-b t-sm' }, g);
+    S.text(392, 324, 'PC+1', { cls: 't-end t-mono t-b t-sm' }, g);
+    const P = [], wP = [], Sb = [], wS = [], cAr = [], cVal = [];
+    for (let k = 0; k < 4; k++) {
+      const x = X(k), b = 3 - k;
+      P.push(bit(g, x, 176, 26, 22, 13));
+      wP.push(S.path(`M${x},187 V220`, {}, g));
+      S.rect(x - 45, 220, 90, 56, { rx: 6, cls: 'f-sf s-fg w2' }, g);
+      S.text(x, 242, '半加算器', { cls: 't-c t-xs t-b' }, g);
+      S.text(x, 258, `ビット ${b}`, { cls: 't-c t-xs t-dim' }, g);
+      wS.push(S.path(`M${x},276 V309`, {}, g));
+      Sb.push(bit(g, x, 320, 26, 22, 13));
+      const xa = k < 3 ? X(k + 1) - 45 : 879, xb = x + 45;
+      cAr.push(S.path(`M${xa},248 H${xb + 2}`, { 'marker-end': mk('dim') }, g));
+      cVal.push(S.text((xa + xb) / 2, 238, '', { cls: 't-c t-mono t-xs t-dim' }, g));
+    }
+    const one = bit(g, 892, 248, 26, 22, 13); one.set(1);
+    S.text(892, 230, '+1', { cls: 't-c t-mono t-xs t-dim' }, g);
+    const cOut = S.path('M375,248 H352', { 'marker-end': mk('dim') }, g);
+    S.text(362, 238, 'あふれ', { cls: 't-c t-xs t-dim' }, g);
+    const cOutVal = S.text(362, 266, '', { cls: 't-c t-mono t-xs t-dim' }, g);
+    const res = S.text(420, 382, '', { cls: 't-mono t-md t-b' }, g);
+    const res2 = S.text(420, 406, '', { cls: 't-sm' }, g);
+    S.text(46, 468, '半加算器は下の桁からの桁上がりを受けない。ここでは各桁の入力が「PC のビット」と「右隣の桁上がり」の 2 つで済むので、全加算器は要らない', { cls: 't-xs t-dim' }, g);
+    S.text(46, 486, '実際の CPU は PC を命令の長さ（4 バイトなど）ずつ進めるので、足すのは 1 ではなく 4。順番を変えるのは PC を書き換える JNZ だけ（場面 4）', { cls: 't-xs t-dim' }, g);
+    const st = { pc: 1, s: [], c: [] };
+    const carry = (el, v, known) => { el.setAttribute('class', 'f-none round ' + (known && v ? 's-h w3' : 's-dim w2')); el.setAttribute('marker-end', mk(known && v ? 'h' : 'dim')); };
+    const api = {
+      /* o = { pc } */
+      set(o) {
+        st.pc = o.pc & 15;
+        let c = 1;
+        for (let b = 0; b < 4; b++) { const p = (st.pc >> b) & 1; st.s[b] = p ^ c; st.c[b] = p & c; c = p & c; }
+        st.next = (st.pc + 1) & 15;
+        for (let k = 0; k < 4; k++) { const v = (st.pc >> (3 - k)) & 1; P[k].set(v); lvl(wP[k], v); }
+        return api;
+      },
+      frame(u, settled) {
+        if (!settled) u = U.mod(u, 8);
+        const n = settled ? 4 : U.clamp(Math.floor((u - 0.5) / 0.5), 0, 4);   // 確定した桁の数（ビット 0 から）
+        for (let k = 0; k < 4; k++) {
+          const b = 3 - k, done = b < n;
+          Sb[k].set(done ? st.s[b] : '?');
+          lvl(wS[k], done && st.s[b]);
+          const known = b === 0 || b - 1 < n, v = b === 0 ? 1 : st.c[b - 1];
+          carry(cAr[k], v, known);
+          cVal[k].textContent = known ? String(v) : '?';
+          cVal[k].setAttribute('class', 't-c t-mono t-xs ' + (known ? (v ? 't-h t-b' : 't-dim') : 't-x'));
+        }
+        carry(cOut, st.c[3], n >= 4);
+        cOutVal.textContent = n >= 4 ? String(st.c[3]) : '?';
+        res.textContent = n >= 4 ? `PC = ${bits4(st.pc)} (${st.pc}) → PC + 1 = ${bits4(st.next)} (${st.next})` : `PC = ${bits4(st.pc)} (${st.pc}) → PC + 1 = ????`;
+        res2.textContent = n >= 4 ? `2 拍めの立ち上がりで PC ← ${bits4(st.next)}。同じ拍で IR ← メモリの中身` : '右端から順に桁が確定する';
+        // 左の半加算器: 入力 4 通りを巡る
+        const k4 = settled ? 3 : Math.floor(U.mod(u, 5.2) / 1.3), a = k4 >> 1, b = k4 & 1;
+        hA.set(a); hB.set(b); hS.set(a ^ b); hC.set(a & b);
+        hw.A.forEach((w) => lvl(w, a)); hw.B.forEach((w) => lvl(w, b)); hw.S.forEach((w) => lvl(w, a ^ b)); hw.C.forEach((w) => lvl(w, a & b));
+      }
+    };
+    return api;
+  }
+
+  /* ================================================================
      場面1 CPU の中身
      ================================================================ */
   const s1 = {
@@ -403,6 +801,11 @@
       st.pAddr = st.H.pulse('0001', 'f-d');
       st.pData = st.H.pulse('0010 1011', 'f-d');
       st.rdTag = S.label(ctx.svg, 460, 464, '読め', { cls: 't-sm t-b t-sf', box: 'f-e s-e w1', gcls: 'fade hide' });
+      // ズーム: 段階 2・3・5 で、箱の中を前の章の回路で開く（例は A ← 5、5 + 3、プログラムの命令を順に解読）
+      st.Z = makeZoom(ctx.svg, [st.H.g]);
+      st.Z.add('reg', buildREG).set({ name: 'A', d: 0x05, q0: 0x00, src: '← バス', dst: '→ ALU' });
+      st.Z.add('alu', buildALU).set({ a: 0x05, m: 0x03 });
+      st.Z.add('dec', buildDEC).set({ cycle: INIT_MEM.slice(0, 8) });
     },
     onStep(ctx, i) {
       const H = ctx.state.H;
@@ -414,7 +817,7 @@
       if (i === 4) { H.hl(H.ctrl, true, soft); H.hl(H.clk, true, soft); }
       H.ctrlLines.forEach((l) => { l.style.opacity = i === 4 ? 1 : 0.7; l.setAttribute('class', i === 4 ? 'f-none s-e w2 dash2' : 'f-none s-e w1 dash2'); });
       S.fade(ctx.state.rdTag, i === 3);
-      H.note.textContent = ['', 'レジスタは 1 拍で読み書きできる。メモリ（DRAM）はその 100 倍以上遅い（場面 6）', '8 ビット幅なので 0〜255 までしか扱えない。実際の CPU は 64 ビット幅', '番地 1 を出す → 中身 0010 1011 が返る', '破線が制御信号。合図の順番と拍子を制御装置とクロックが決める'][i];
+      H.note.textContent = ['', 'A の中を拡大：第5章 場面3 の 8 ビットレジスタ（D-FF × 8）そのもの。1 拍で読み書きできる', 'ALU の中を拡大：第4章 場面6 の加算器を 8 桁にし、Z（結果が 0）の検出を足した。実際の CPU は 64 桁', '番地 1 を出す → 中身 0010 1011 が返る', '制御装置の中を拡大：第4章 場面3 の AND・NOT が、命令のビット列を 1 本の合図に変える'][i];
     },
     frame(ctx, t) {
       const st = ctx.state, H = st.H, i = ctx.step;
@@ -428,6 +831,8 @@
         H.place(st.pAddr, 'pcAddr', 0, false);
         H.place(st.pData, 'memIR', 0, false);
       }
+      // 箱の中のズーム（1.2 秒後に開く。段階が変われば閉じる）
+      runZoom(st.Z, i === 1 ? zoomOne(ctx, 'reg', SRC.a, 1.2) : i === 2 ? zoomOne(ctx, 'alu', SRC.alu, 1.2) : i === 4 ? zoomOne(ctx, 'dec', SRC.ctrl, 1.2) : null);
     }
   };
 
@@ -595,6 +1000,12 @@
       S.text(344, 220, '0010 = ADD', { cls: 't-c t-mono t-sm t-b t-d' }, st.decTag);
       S.text(468, 220, '1011 = 11 番地', { cls: 't-c t-mono t-sm t-b' }, st.decTag);
       st.beat = S.text(40, 546, '', { cls: 't-mono t-sm t-e t-b' }, ctx.svg);
+      // ズーム: 3 拍め（デコード）は制御装置の中、5 拍めは ALU の中 → A の中を、この命令の実際のビットで開く
+      st.Z = makeZoom(ctx.svg, [st.H.g, st.decTag]);
+      st.Z.add('dec', buildDEC).set({ ir: 0x2B });
+      st.Z.add('alu', buildALU).set({ a: st.base.a, m: st.base.mem[11] });
+      st.Z.add('reg', buildREG).set({ name: 'A', d: st.after.a, q0: st.base.a, src: '← ALU', dst: '→ ALU' });
+      st.Z.add('inc', buildINC).set({ pc: st.base.pc });
     },
     onStep(ctx, i) {
       const st = ctx.state, H = st.H;
@@ -615,12 +1026,11 @@
       H.aluOut.textContent = i === 4 ? '0 + 3 = 3' : (i === 3 ? '加算' : '');
       H.ctrlLines.forEach((l, k) => { l.setAttribute('class', (i === 0 && k === 0) || (i === 1 && k === 1) || (i === 2) || (i === 3 && k === 3) || (i === 4 && k === 2) ? 'f-none s-e w2' : 'f-none s-e w1 dash2'); });
       st.beat.textContent = i < 5 ? `${i + 1} 拍め` : '5 拍で 1 命令';
-      H.note.textContent = ['PC の 0001 がアドレスバスを通る。メモリは 1 番地の行を選ぶ', '0010 1011 がデータバスを通って IR へ。PC は 1 → 2', '制御装置が IR を解読。配線された論理ゲートなので 1 拍で終わる', '1011 がアドレスバスへ → 11 番地の 0000 0011 が ALU の入力 2 へ', 'ALU の結果 3 が A へ。Z = 0（結果は 0 ではない）', 'メモリを待つ拍（1・2・4 拍め）が全体の速さを決める'][i];
+      H.note.textContent = ['PC の 0001 がアドレスバスを通る。メモリは 1 番地の行を選ぶ', 'IR ← 0010 1011。PC の中を拡大：半加算器 4 個が PC + 1 = 0010 を用意し、立ち上がりで PC へ', '制御装置の中を拡大：0010 の線を引いた AND だけが 1 になり、ADD の合図を出す', '1011 がアドレスバスへ → 11 番地の 0000 0011 が ALU の入力 2 へ', 'ALU → A の中を拡大：桁上がりが伝わって 3、Z = 0。立ち上がりで A に入る', 'メモリを待つ拍（1・2・4 拍め）が全体の速さを決める'][i];
     },
     frame(ctx, t) {
       const st = ctx.state, H = st.H, i = ctx.step;
       H.drawClock(t, 1.4);
-      const f = U.ease.inOut(U.cycle(ctx.ts, 2.2));
       const on = U.cycle(ctx.ts, 2.2) < 0.85;
       const ff = U.ease.inOut(Math.min(1, U.cycle(ctx.ts, 2.2) / 0.85));
       H.place(st.pAddr, 'pcAddr', ff, i === 0 && on);
@@ -629,7 +1039,23 @@
       H.place(st.pVal, 'memALU', U.ease.inOut(U.clamp((U.cycle(ctx.ts, 2.2) - 0.42) / 0.43, 0, 1)), i === 3 && U.cycle(ctx.ts, 2.2) >= 0.42 && on);
       H.place(st.pA, 'aALU', ff, i === 3 && on);
       H.place(st.pRes, 'aluA', ff, i === 4 && on);
-      void f;
+      // ズーム。3 拍めは制御装置の中（1 秒後に開いたまま）。5 拍めは ALU の中 → 閉じる → A の中 → 閉じる、を繰り返す
+      let z = null;
+      if (i === 1) z = zoomOne(ctx, 'inc', SRC.pc, 2.4);   // 札が 1 往復してから開く
+      else if (i === 2) z = zoomOne(ctx, 'dec', SRC.ctrl, 1.0);
+      else if (i === 4) {
+        if (!YT.motion.playing) z = { name: 'alu', src: SRC.alu, f: 1, u: 99, settled: true };
+        else {
+          const q = U.seq(ctx.ts, [1.0, 0.7, 6.0, 0.6, 0.6, 0.7, 6.0, 0.6, 1.4], true);
+          const seg = [null, ['alu', 'open'], ['alu', 'hold'], ['alu', 'close'], null, ['reg', 'open'], ['reg', 'hold'], ['reg', 'close'], null][q.i];
+          if (!seg) z = { src: q.i === 4 ? SRC.a : SRC.alu, f: 0, t: ctx.ts };
+          else {
+            const src = seg[0] === 'alu' ? SRC.alu : SRC.a;
+            z = seg[1] === 'open' ? { name: seg[0], src, f: U.ease.out(q.f), u: 0 } : seg[1] === 'hold' ? { name: seg[0], src, f: 1, u: q.t } : { name: seg[0], src, f: 1 - U.ease.out(q.f), u: 6 };
+          }
+        }
+      }
+      runZoom(st.Z, z);
     }
   };
 
@@ -1035,7 +1461,7 @@
       home: '../index.html',
       prev: { href: '05-kioku.html', title: '記憶' },
       next: { href: '07-shuuhen.html', title: '入出力と周辺機器', lead: 'CPU とメモリだけでは、キーを押すことも、画面に出すことも、ネットワークにつなぐこともできない。' },
-      legend: [{ c: 'd', label: 'データ・命令' }, { c: 'e', label: '制御信号・クロック' }, { c: 'x', label: '書き込み・注目' }]
+      legend: [{ c: 'd', label: 'データ・命令' }, { c: 'h', label: '1（高い電圧）' }, { c: 'e', label: '制御信号・クロック' }, { c: 'x', label: '書き込み・注目' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }
   });
