@@ -9,7 +9,7 @@
    ============================================================ */
 import fs from 'node:fs';
 const strip = (h) => h.replace(/<sup>(.*?)<\/sup>/g, '^$1').replace(/<sub>(.*?)<\/sub>/g, '_$1').replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/\s+/g, ' ').trim();
-const plain = (s) => s.replace(/\*\*|`|\{[ehprdx]\|([^}]*)\}/g, '$1').replace(/\[\[\d+(?::\d+)?\|([^\]]+)\]\]/g, '$1');
+const plain = (s) => s.replace(/\*\*|`|\{[ehprdx]\|([^}]*)\}/g, '$1').replace(/\[\[\d+(?::\d+)?\|([^\]]+)\]\]/g, '$1').replace(/\[\[\d\d-[a-z0-9-]+\.html(?:#s\d+(?:\.\d+)?)?\|([^\]]+)\]\]/g, '$1');
 const len = (s) => Array.from(plain(s)).length;
 const key = (line, k) => { const m = new RegExp(k + String.raw`:\s*(['"\x60])((?:\\.|(?!\1).)*)\1`).exec(line); return m ? m[2].replace(/\\'/g, "'") : null; };
 for (const f of process.argv.slice(2)) {

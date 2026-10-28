@@ -462,7 +462,7 @@ async function checkPage(cdp, sid, base, page, report) {
     const rel = path.relative(ROOT, file);
     if (!fs.existsSync(file)) { (/^chapters\/\d\d-[a-z0-9-]+\.html$/.test(rel) ? todo : broken).push(rel + u.hash); continue; }
     if (u.hash.length > 1) {
-      const id = decodeURIComponent(u.hash.slice(1));
+      const id = decodeURIComponent(u.hash.slice(1)).replace(/^(s\d+)\.\d+$/, '$1');   // #s4.2（場面4 の段階2）は場面の id で確かめる
       const found = file === path.join(ROOT, page)
         ? await ev('!!document.getElementById(' + JSON.stringify(id) + ')')
         : fs.readFileSync(file, 'utf8').includes('id="' + id + '"');

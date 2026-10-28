@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>用語索引 — YouTubeが見えるまで</title>
-<meta name="description" content="教材「YouTubeが見えるまで」全 25 章の用語表を 1 か所に集めた索引。部ごとの一覧、検索、同じ語の別の意味。">
+<meta name="description" content="教材「YouTubeが見えるまで」全 27 章の用語表を 1 か所に集めた索引。部ごとの一覧、検索、同じ語の別の意味。">
 <meta property="og:title" content="用語索引 — YouTubeが見えるまで">
-<meta property="og:description" content="全 25 章の用語表を 1 か所に集めた索引。">
+<meta property="og:description" content="全 27 章の用語表を 1 か所に集めた索引。">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:site_name" content="YouTubeが見えるまで">
@@ -65,6 +65,7 @@
   .homo th, .homo td:first-child { white-space: nowrap; }
   .homo td b { font-weight: 600; }
   .homo small { color: var(--fg-dim); }
+  .fit .homo th, .fit .homo td { padding-top: 0.32rem; padding-bottom: 0.32rem; line-height: 1.55; }   /* 15 行を 1 画面に */
 </style>
 </head>
 <body>
@@ -74,7 +75,7 @@
 <!-- ================= 表紙 ================= -->
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
-    <p class="eyebrow">用語索引 ／ 全25章の用語表から</p>
+    <p class="eyebrow">用語索引 ／ 全27章の用語表から</p>
     <h1 id="h-s0">用語索引</h1>
     <p class="standfirst">各章のまとめにある用語表を 1 か所に集めた。用語を押すと定義が出て、その章のまとめへ飛べる。「探す」では全章から部分一致で引ける。「同じ語」には、章によって別の物を指す語（断片・TTL・フレーム・ポートなど）を並べた。定義は章の用語表と同じ文で、章を直せば <code>node tools/build-glossary.mjs</code> で作り直す。</p>
     <p class="legend" data-auto></p>
@@ -104,18 +105,19 @@
   <p class="note a-text" id="q-note">用語名の一致を先に、定義の中の一致を後に出す。1画面版では 24 件まで出すので、多いときは語を足して絞る。</p>
 </section>
 
-<!-- ================= 2〜7 部ごとの一覧（script が作る） ================= -->
+<!-- ================= 2〜8 部ごとの一覧（script が作る） ================= -->
 <section class="scene sc-gl" id="s2" data-tab="I 電気" aria-labelledby="h-s2" data-part="I"><header class="sh a-sh"><h2 id="h-s2"><span class="n">2</span>第I部 電気（第1〜3章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s3" data-tab="II 計算機" aria-labelledby="h-s3" data-part="II"><header class="sh a-sh"><h2 id="h-s3"><span class="n">3</span>第II部 計算機（第4〜8章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s4" data-tab="III ソフト" aria-labelledby="h-s4" data-part="III"><header class="sh a-sh"><h2 id="h-s4"><span class="n">4</span>第III部 ソフトウェア（第9〜10章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s5" data-tab="IV つながる" aria-labelledby="h-s5" data-part="IV"><header class="sh a-sh"><h2 id="h-s5"><span class="n">5</span>第IV部 つながる（第11〜16章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s6" data-tab="V 約束ごと" aria-labelledby="h-s6" data-part="V"><header class="sh a-sh"><h2 id="h-s6"><span class="n">6</span>第V部 約束ごと（第17〜21章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s7" data-tab="VI YouTube" aria-labelledby="h-s7" data-part="VI"><header class="sh a-sh"><h2 id="h-s7"><span class="n">7</span>第VI部 YouTube（第22〜25章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s8" data-tab="VII 横断" aria-labelledby="h-s8" data-part="VII"><header class="sh a-sh"><h2 id="h-s8"><span class="n">8</span>第VII部 横断（第26〜27章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 
-<!-- ================= 8 同じ語の別の意味 ================= -->
-<section class="scene sc-homo" id="s8" data-tab="同じ語" aria-labelledby="h-s8">
+<!-- ================= 9 同じ語の別の意味 ================= -->
+<section class="scene sc-homo" id="s9" data-tab="同じ語" aria-labelledby="h-s9">
   <header class="sh a-sh">
-    <h2 id="h-s8"><span class="n">8</span>同じ語の別の意味</h2>
+    <h2 id="h-s9"><span class="n">9</span>同じ語の別の意味</h2>
   </header>
   <div class="prose a-text">
     <p>この教材は定着した用語をそのまま使うので、章によって同じ語が別の物を指すことがある。読んでいて意味が合わないと感じたら、ここで章を確かめる。各章の本文では、初出の所に「〜とは別」と添えてある。</p>
@@ -136,7 +138,11 @@
         <tr><td>チャネル</td><td><b>MOSFET の電子の通り道</b>（反転層）<small> 第3章 場面2</small> ／ <b>Wi-Fi の周波数の区切り</b><small> 第12章</small></td></tr>
         <tr><td>ゲート</td><td><b>MOSFET の端子</b>（電圧でチャネルを開閉する）<small> 第3章</small> ／ <b>論理ゲート</b>（NAND・NOR など、入力の組み合わせで出力が決まる回路）<small> 第4章</small>。「ゲートウェイ」（第14章）は別の語</td></tr>
         <tr><td>ブロック</td><td><b>NAND フラッシュの消去の単位</b><small> 第5章 場面6</small> ／ <b>共通鍵暗号の処理の単位</b>（AES は 16 バイト）<small> 第20章 場面2</small> ／ <b>画像の 8×8 などの区画</b><small> 第23章 場面2</small></td></tr>
-        <tr><td>符号化</td><td><b>ビットを電圧や光の形にする</b>（PAM-5、4B5B）<small> 第13章 場面2・第15章 場面2</small> ／ <b>映像・音声を圧縮して記号の列にする</b><small> 第22・23章</small></td></tr>
+        <tr><td>符号化</td><td><b>ビットを電圧や光の形にする</b>（PAM-5、4B5B）<small> 第13章 場面2・第15章 場面2</small> ／ <b>映像・音声を圧縮して記号の列にする</b><small> 第22・23章</small>。「符号付き整数」（第26章）の符号は正負の印で、別の語</td></tr>
+        <tr><td>型</td><td><b>半導体の n 型・p 型</b>（不純物で電子や正孔を多くしたもの）<small> 第2・3章</small> ／ <b>プログラムの型</b>（ビットの読み方と置き方の約束）<small> 第26章</small></td></tr>
+        <tr><td>ヒープ</td><td><b>メモリの領域</b>（実行中に確保して使う所）<small> 第9・26章</small> ／ <b>二分ヒープ</b>（値の小さい順に出す木）<small> 第27章 場面5</small></td></tr>
+        <tr><td>スタック</td><td><b>最後に積んだ物から降ろす列</b>（コールスタックなど）<small> 第7・9・10・27章</small> ／ <b>ネットワークスタック</b>（OS の中の IP・TCP などの処理）<small> 第9章 場面6</small></td></tr>
+        <tr><td>ハッシュ</td><td><b>暗号のハッシュ関数</b>（SHA-256。元に戻せない）<small> 第20章</small> ／ <b>ハッシュ表の置き場所の計算</b><small> 第13・22・27章</small></td></tr>
       </tbody>
     </table>
   </div>
@@ -149,20 +155,20 @@
 (() => {
   const G = window.YT_GLOSSARY || { chapters: [], total: 0, built: '' };
   const esc = YT.esc;
-  const partOrder = ['I', 'II', 'III', 'IV', 'V', 'VI'];
+  const partOrder = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
   const chapterOf = new Map(G.chapters.map((c) => [c.n, c]));
   const summaryHref = (c) => 'chapters/' + c.file + '#s7';
 
   /* 表紙の構成 */
   const toc = document.getElementById('cover-toc');
-  const partTitle = { I: '電気', II: '計算機', III: 'ソフトウェア', IV: 'つながる', V: '約束ごと', VI: 'YouTube' };
+  const partTitle = { I: '電気', II: '計算機', III: 'ソフトウェア', IV: 'つながる', V: '約束ごと', VI: 'YouTube', VII: '横断' };
   const items = [['探す', '全章の用語と定義を部分一致で引く。', 1]];
   partOrder.forEach((p, i) => {
     const cs = G.chapters.filter((c) => c.part === p);
     const n = cs.reduce((a, c) => a + c.terms.length, 0);
     items.push([`第${p}部 ${partTitle[p]}`, `第${cs[0] ? cs[0].n : '?'}〜${cs.length ? cs[cs.length - 1].n : '?'}章の用語 ${n} 件。`, i + 2]);
   });
-  items.push(['同じ語の別の意味', '断片・TTL・フレーム・ポートなど、章によって別の物を指す語。', 8]);
+  items.push(['同じ語の別の意味', '断片・TTL・フレーム・ポートなど、章によって別の物を指す語。', 9]);
   toc.innerHTML = items.map(([t, d, go], i) => `<li><a href="#s${go}" data-go="${go}"><span class="n">${i + 1}</span>${esc(t)}</a><p>${esc(d)}</p></li>`).join('');
   document.getElementById('built-note').textContent = `用語 ${G.total} 件（${G.built} に全章の用語表から作成）。定義は各章のまとめの用語表と同じ。`;
 

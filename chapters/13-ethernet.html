@@ -28,7 +28,7 @@
 <!-- ================= 表紙 ================= -->
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
-    <p class="eyebrow">第IV部 つながる ／ 第13章 ／ 全25章</p>
+    <p class="eyebrow">第IV部 つながる ／ 第13章 ／ 全27章</p>
     <h1 id="h-s0">Ethernet とスイッチ</h1>
     <p class="standfirst">Wi-Fi の電波で届いたフレームも、ルーターの中では銅線の信号と同じ形になって ONU へ向かう。この章では、より対線 1 本で 1 Gbps を運ぶ電気的な工夫（差動信号と符号化）、フレームの構造と誤り検出、スイッチが宛先を覚えて配る仕組み、IP アドレスから MAC アドレスを調べる ARP、そして無線と有線を 1 つの LAN にまとめるブリッジまでを見る。</p>
     <p class="legend" data-auto></p>
@@ -119,7 +119,7 @@
     <p class="prose a-lead">スイッチは、届いた<span class="tag d">フレーム</span>の宛先 MAC を見て、必要なポートにだけ送り出す装置。宛先の居場所は誰にも教えられない。届いたフレームの<b>送信元</b>を手がかりに、自分で表を作る。</p>
     <div class="narr-slot a-panel"></div>
     <div class="prose a-after">
-      <p class="note">表の引き方は宛先 MAC の完全一致で、スイッチチップの専用回路（CAM やハッシュ表）がフレームごとに引く。家庭用の 1 Gbps × 4〜5 ポートのスイッチは 1 個のチップで、ルーターの SoC に内蔵されていることも多い。</p>
+      <p class="note">表の引き方は宛先 MAC の完全一致で、スイッチチップの専用回路（CAM やハッシュ表）がフレームごとに引く。家庭用の 1 Gbps × 4〜5 ポートのスイッチは 1 個のチップで、ルーターの SoC に内蔵されていることも多い。ハッシュ表の引き方は<a class="xref" href="27-algorithm.html#s3">第27章 場面3</a>。</p>
     </div>
   </div>
   <figure class="anim-fig a-fig">

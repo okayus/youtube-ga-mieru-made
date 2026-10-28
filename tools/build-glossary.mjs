@@ -2,7 +2,7 @@
 /* ============================================================
    用語索引のデータを作る (tools/build-glossary.mjs)
 
-   全 25 章のまとめの用語表（table.gloss の行）を集めて assets/glossary-data.js に書く。
+   全章のまとめの用語表（table.gloss の行）を集めて assets/glossary-data.js に書く。
    glossary.html がこれを読んで、部ごとの一覧・検索・同じ語の別の意味を出す。
    章の用語表を直したら走らせ直す:  node tools/build-glossary.mjs
    ============================================================ */

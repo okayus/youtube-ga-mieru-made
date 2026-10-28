@@ -1,0 +1,1262 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>データ構造とアルゴリズム — YouTubeが見えるまで</title>
+<meta name="description" content="たくさんの値をメモリにどう並べ、どうたどるかの決め方がデータ構造で、それを使って答えを出す手順がアルゴリズムである。ここまでの章に出てきた表・木・列の多くは、配列・連結リスト・ハッシュ表・木・キュー・スタックのどれかか、それを回路にしたものだった。">
+<meta property="og:title" content="データ構造とアルゴリズム — YouTubeが見えるまで">
+<meta property="og:description" content="たくさんの値をメモリにどう並べ、どうたどるかの決め方がデータ構造で、それを使って答えを出す手順がアルゴリズムである。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg a { cursor: pointer; }
+  svg a .lnk { transition: stroke 0.15s; }
+  svg a:hover .lnk, svg a:focus-visible .lnk { stroke: var(--fg); stroke-width: 2; }
+  svg a:hover text { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VII部 横断 ／ 第27章 ／ 全27章</p>
+    <h1 id="h-s0">データ構造とアルゴリズム</h1>
+    <p class="standfirst">たくさんの値をメモリにどう並べ、どうたどるかの決め方がデータ構造で、それを使って答えを出す手順がアルゴリズムである。ここまでの章に出てきた表・木・列の多くは、配列・連結リスト・ハッシュ表・木・キュー・スタックのどれかか、それを回路にしたものだった。回路からカーネル、網の機器、動画のプレーヤーまで同じ考えが使われ、層によって変わるのは時間とメモリの制約である。この章ではそれぞれの得手不得手を教材の例で確かめ、最後に「データ構造とアルゴリズムはどの層の話か」に答える。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only" data-auto></p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>配列とリスト</a><p>同じ型を隙間なく並べるか、番地でつなぐか。i 番目を読む手間と、キャッシュとの相性。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>探す</a><p>端から順に見るか、並んだ列を半分ずつ絞るか。手間の増え方を O(n)・O(log n) と書く。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>ハッシュ表</a><p>鍵から置き場所を計算して 1 回で引く。ぶつかり、広げ、狙ってぶつける攻撃。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>木構造</a><p>経路表をビットの木にして、いちばん長い一致をたどる。教材の中の木。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>キューとスタック</a><p>来た順に出すリングバッファ、最後に来た順に出すスタック、値の順に出すヒープ。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>層をまたぐ</a><p>回路から動画まで、どの層にも同じ道具があり、層ごとに制約が違う。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。この教材の最後の章。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。機械語は gcc 15.2（x86-64、-O2）の出力で確かめた。場面1 の速さは、この教材の作業に使った PC（AMD Ryzen 7 5700X、Linux）で 2026 年 10 月 28 日に測った値。場面2 の時刻は第24章で調べた例の動画の映像の断片の境目、場面3・4 の MAC と経路は全章で共通の例の値。数値は本文に書いたものだけが実際の値。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 配列とリスト ================= -->
+<section class="scene sc-anim" id="s1" data-tab="配列とリスト" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>配列とリスト — 並べるか、つなぐか</h2>
+    <p class="sh-meta"><span class="chip">int64 × 8</span><span class="chip">64 バイトのライン</span><span class="chip">O(1) と O(n)</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">第26章の型は、1 つの値の読み方と置き方だった。値がたくさんあるときは、それをどう並べるかも決める必要がある。同じ型を隙間なく並べる<b>配列</b>と、番地でつなぐ<b>連結リスト</b>が、その 2 つの基本形である。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Ryzen 7 5700X の PC（gcc 15.2 -O2、2026-10-28）で int64 を 1,000 万個順に足すと、配列は約 4 ms、番地順に置いたリストは約 11 ms、散らしたリストは約 860 ms。どれも O(n) で、差は O が省く定数倍にある。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="メモリの上の配列と連結リスト。配列は 1 本のラインに 8 個が並び、リストのノードは別々のラインに散らばって番地でつながる。下は操作ごとの手間の表"></svg></div>
+    <figcaption>図1　上は配列（1 マス＝8 バイト、太い区切り＝64 バイトのライン）、中はノードが別々のラインに散らばった連結リスト。下の表は、段階ごとに分かった手間を書き足していく。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 探す ================= -->
+<section class="scene sc-anim" id="s2" data-tab="探す" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>探す — 端から見るか、半分に絞るか</h2>
+    <p class="sh-meta"><span class="chip">線形探索</span><span class="chip">二分探索</span><span class="chip">O(log n)</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">探すことは、データ構造の主な使い道の 1 つである。並んでいない列は端から順に比べるしかないが、並んでいれば真ん中と比べて半分を捨てられる。手間が項目の数 n とともにどう増えるかを、<b>計算量</b>として書き分ける。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">比べて並べ替える方法は、最悪の場合も平均も O(n log n) より速くはできない（比較ソートの下限）。値どうしを比べずに桁ごとに振り分ける方法（基数ソート）は、桁数が少なければこの下限より速い。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="映像の断片 38 個の始まりの時刻の索引から、120 秒を含む断片を、端から探す方法と真ん中から絞る方法で探す図と、項目の数と比べる回数の表"></svg></div>
+    <figcaption>図2　第24章の例の動画の 720p の索引（映像の断片 38 個の始まりの時刻）。段階1 は端から、段階2 は真ん中から、120.00 秒を含む断片を探す。下の表は項目の数と比べる回数。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 ハッシュ表 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="ハッシュ表" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>ハッシュ表 — 鍵から置き場所を計算する</h2>
+    <p class="sh-meta"><span class="chip">ハッシュ関数</span><span class="chip">衝突</span><span class="chip">負荷率</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">鍵から値を引くとき、比べる代わりに置き場所を計算するのが<b>ハッシュ表</b>である。鍵をハッシュ関数で番号に変え、配列のその場所だけを見る。第13章のスイッチも、MAC 表をハッシュ表か、全行を同時に比べる回路で引く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">第20章の SHA-256 も「ハッシュ関数」と呼ぶが、目的が違う。表に使うものは速くて鍵がよく散らばればよい。暗号に使うものは、元の値の逆算と、同じ値になる 2 つの入力を探すことを、計算の上で難しくする作りである。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="家の機器の MAC アドレスを例のハッシュ関数で 0〜7 の番号にし、8 個の置き場所に入れる図。同じ番号の鍵はリストでつながる"></svg></div>
+    <figcaption>図3　左の列は鍵（家の機器の MAC）と例のハッシュ関数（末尾のバイトを 8 で割った余り）、右は 8 個の置き場所。同じ番号の鍵はリストでつなぐ。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 木構造 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="木構造" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>木構造 — 分かれ道をたどる</h2>
+    <p class="sh-meta"><span class="chip">二分木</span><span class="chip">トライ</span><span class="chip">ロンゲストマッチ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead"><b>木</b>は、根から分かれ道を選んで葉へ進む形のデータ構造で、1 段進むごとに候補を絞る。第16章のルーターの経路表をビットで分かれる木にすると、「いちばん長い一致」は宛先のビットを先頭からたどるだけで見つかる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">データベースや多くのファイルシステムは、1 つのノードに数百の子を持たせた B 木の仲間を使う。段が 3〜4 で済むので、遅い記憶を読む回数が減る。木の形は、1 段をたどる費用に合わせて選ぶ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="経路表の 5 行を宛先のビットで分かれる木にし、宛先のビットをたどっていちばん長い一致を見つける図"></svg></div>
+    <figcaption>図4　段階2〜4 は経路表の 5 行（第16章 場面5 の例）をビットの 0・1 で分かれる木にしたもので、分かれ目の無い枝は 1 本にまとめて段数を書いた。段階1 は二分木、段階5 は TCAM、段階6 は教材の中の木（札は章へのリンク）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 キューとスタック ================= -->
+<section class="scene sc-anim" id="s5" data-tab="キューとスタック" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>キューとスタック — 来た順か、最後に来た順か</h2>
+    <p class="sh-meta"><span class="chip">FIFO</span><span class="chip">LIFO</span><span class="chip">二分ヒープ</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">値を入れた順に出すか、最後に入れたものから出すかで、使い道は大きく変わる。来た順に出す<b>キュー</b>は速さの違う 2 者の間に置き、最後に来た順に出す<b>スタック</b>は入れ子を処理する。出す順を値で決める列もある。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">教材の中の来た順の列: ソケットの受信キュー（<a class="xref" href="09-os.html#s6">第9章 場面6</a>）、タスクキュー（<a class="xref" href="10-browser.html#s5">第10章 場面5</a>）、ルーターの出口（<a class="xref" href="18-ip.html#s4">第18章 場面4</a>）、再生のバッファ（<a class="xref" href="24-streaming.html#s2">第24章 場面2</a>）。値の順の列はランキュー（<a class="xref" href="09-os.html#s5">第9章 場面5</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="8 個の置き場所を輪にしたリングバッファに NIC がパケットを書き、ドライバが読む図と、HTML を読みながら開いている要素を積むスタックの図"></svg></div>
+    <figcaption>図5　左は 8 個の置き場所を輪にしたリングバッファ（NIC が書き、ドライバが読む）、右は HTML を読みながら開いている要素を積むスタック（段階6 は二分ヒープ）。下は段階ごとの補足。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 層をまたぐ ================= -->
+<section class="scene sc-anim" id="s6" data-tab="層をまたぐ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>層をまたぐ — どの層にも同じ道具</h2>
+    <p class="sh-meta"><span class="chip">第3〜24章</span><span class="chip">制約</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">場面1〜5 の道具を、教材の層ごとに並べ直す。同じ形の表・木・列が、回路から動画までのどの層の中にも現れる。この場面の最後で、「データ構造とアルゴリズムはどの層の話か」という問いに答える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note"><b>答え</b>: データ構造とアルゴリズムは、どこか 1 つの層の部品ではなく、層を横断してどの層の中でも使う道具である。層ごとに違うのは制約で、回路は 1 拍で終わる決まった手順、カーネルは遅れが読めること、アプリは平均の速さとメモリの量を重く見る。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="教材の層を行、データ構造とアルゴリズムの種類を列にした表。札はそれぞれの章の場面へのリンク"></svg></div>
+    <figcaption>図6　行は教材の層、列は道具の種類。札はそれぞれの章の場面へのリンク（右の数字は 章-場面）。段階ごとに、いま見ている層の札を強調する。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — どの層にも同じ道具</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>配列は同じ型を隙間なく並べて i 番目を 1 命令で読み、連結リストは番地でつないで出し入れを軽くする。順に読む速さは、キャッシュの効き方で 100 倍以上違いうる（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>並んでいない列は端から最大 n 回、並んだ列は二分探索で約 log₂ n 回比べれば見つかる。並べる費用と探す回数で選ぶ（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>ハッシュ表は鍵から置き場所を計算して平均 1 回で引く。ぶつかりはつなぎ、詰まれば広げ、読めないハッシュ関数で狙ったぶつけ方を防ぐ（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>木は 1 段ごとに候補を絞る。経路表のトライは宛先のビットをたどり、最後に通った印がいちばん長い一致になる（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>キューは来た順、スタックは最後に来た順、ヒープは値の順に出す。列は速さの差を吸収する代わりに待ち時間を足す（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>データ構造とアルゴリズムは 1 つの層ではなく、層を横断してどの層の中でも使う道具で、層ごとに違うのは制約である（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>配列</th><td>同じ型の値を番地の順に隙間なく並べたもの。i 番目は 先頭 ＋ i × 大きさ で求まる。</td></tr>
+        <tr><th>連結リスト</th><td>値と次のノードの番地を組にしたノードを、番地でつないだもの。64 ビットの CPU で番地 1 つは 8 バイト。</td></tr>
+        <tr><th>計算量（O 記法）</th><td>手間が項目の数 n にどう比例して増えるかを、定数倍を省いて書く。O(1)・O(log n)・O(n)・O(n log n)。</td></tr>
+        <tr><th>二分探索</th><td>並んだ列の真ん中と比べて半分を捨てるのを繰り返す探し方。n 項目で約 log₂ n 回、100 万項目で 20 回。</td></tr>
+        <tr><th>ハッシュ表・負荷率</th><td>鍵から計算した番号で置き場所を決める表。入っている数 ÷ 置き場所の数（負荷率）が目安を超えると広げる。Rust は 7/8、Java は 0.75。</td></tr>
+        <tr><th>トライ</th><td>鍵の先頭から 1 文字（1 ビット）ずつ枝を選ぶ木。IPv4 の経路表なら最大 32 段。</td></tr>
+        <tr><th>キュー・リングバッファ</th><td>入れた順に出す列（FIFO）。リングバッファは決まった大きさの配列を輪にして、書く位置と読む位置だけを進める。</td></tr>
+        <tr><th>スタック</th><td>最後に入れたものから出す列（LIFO）。関数の呼び出しと HTML の開いている要素に使う。</td></tr>
+        <tr><th>二分ヒープ</th><td>親がどの子より小さい（大きい）二分木を配列に詰めたもの。値を入れるのも最小の値を出すのも O(log n)。メモリの領域の「ヒープ」とは別。</td></tr>
+        <tr><th>TCAM</th><td>0・1・どちらでもよい の 3 値の行を、全部の行と同時に比べる記憶。経路表やパケットの振り分けに使う。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <p class="note">この章で教材は終わり。<a class="xref" href="../index.html">目次</a>の地図から気になる層へ戻るか、<a class="xref" href="01-denshi.html">第1章</a>から通して読み直せる。</p>
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg;
+  const moving = () => YT.motion.playing;
+
+  /* ================================================================
+     場面1 配列とリスト
+     ================================================================ */
+  const CW = 24, CH = 36, LW = CW * 8;          // 1 マス＝8 バイト、ライン＝64 バイト
+  const AX = 40, AY = 40;                        // 配列の帯の左上（ライン 3 本）
+  const BX = [110, 314, 518, 722], RY = [166, 244];   // リストのラインの箱（2 段 × 4）
+  // リストのノード（値 1〜8 の順）: [段, 箱, マス]。ノードは値と次の番地の 2 マス。どのノードも別のラインにある
+  const NODE = [[0, 0, 0], [1, 2, 4], [0, 2, 2], [1, 0, 6], [0, 3, 4], [1, 3, 0], [0, 1, 6], [1, 1, 2]];
+  const NEW0 = [1, 0, 0];                        // 段階3で先頭に入れるノード「0」（先頭の箱の真下。つなぎ替えの矢印どうしが交わらない）
+  const RAND1 = [5, 2, 7, 0, 3, 6, 1, 4];        // 段階1で読む i の順（決まった並び）
+  const VALS = [10, 20, 30, 40, 50, 60, 70, 80];  // 配列とリストの中身（添字 0〜7 と紛れない値）
+  const hex = (n) => '0x' + n.toString(16).toUpperCase();
+  // 手間の表（段階ごとに書き足す）。[行, 列（0 配列・1 リスト）, 文字, 出す段階]
+  const COST1 = [
+    [0, 0, '1 命令（O(1)）', 0], [1, 0, '全部を 1 つずつずらす（O(n)）', 1], [2, 0, '平均 O(1)（満杯なら写す）', 1],
+    [0, 1, '先頭から i 回たどる（O(n)）', 2], [1, 1, '番地を 2 つ書く（O(1)）', 2], [2, 1, '末尾の番地を持てば O(1)', 2],
+    [3, 0, 'ミス 1 回（ライン 1 本）', 3], [3, 1, 'ミス 8 回（ノードごと）', 3],
+    [4, 0, '番号で引く・順に読む', 4], [4, 1, '途中の出し入れが多い', 4]
+  ];
+  const s1 = {
+    steps: [
+      { title: '配列：同じ型を隙間なく並べる', text: '配列は同じ型の値を番地の順に隙間なく並べる。i 番目の番地は「先頭 ＋ i × 大きさ」で、大きさが 1・2・4・8 バイトなら、x86-64 の CPU はこの計算と読み出しを 1 命令で行う。何番目でも手間は同じで、計算量では O(1) と書く（書き方は[[2|探す]]）。[[08-display.html#s1.3|第8章 場面1]]のフレームバッファも画素の配列だった。' },
+      { title: '途中に入れるのは重い', text: '先頭に 1 個入れるには、後ろの 8 個を 1 つずつずらす。n 個なら n 回で O(n)。末尾に足すのは軽いが、確保した領域が満杯なら大きな領域（Rust の Vec なら 2 倍）を取り直して全部を写す。写すのはたまにで、末尾に足す 1 回あたりの手間は平均すると一定になる。' },
+      { title: '連結リスト：番地でつなぐ', text: '連結リストのノードは、値と次のノードの番地（8 バイト）を並べた構造体（[[26-kata.html#s2|第26章 場面2]]）。先頭に入れるのは番地を 2 つ書くだけで、ずらさない。代わりに i 番目へは先頭から i 回たどるので O(n)。[[09-os.html#s6.3|第9章 場面6]]のソケットの受信キューは、パケット（sk_buff）をこの形でつなぐ。' },
+      { title: 'キャッシュとの相性', text: 'CPU は 64 バイトのライン単位でメモリを読む（[[06-cpu.html#s6.4|第6章 場面6]]）。配列を順に読むと 8 個で 1 回だけミスし、残りは L1 から 4〜5 拍で読める。別々のラインに散らばったリストは 1 個ごとにミスし、DRAM から 200 拍以上待つことがある。どちらも O(n) だが、速さは 100 倍以上違いうる。' },
+      { title: 'どちらを選ぶか', text: '番号で引く・順に読むことが多いなら配列、途中の出し入れが多く、入れる場所のノードが手元にあるならリストを選ぶ。表は手間の増え方の比べで、実際の速さはキャッシュの効き方で変わるので、迷えば配列が無難なことが多い。Python の list も、中身は番地を並べた配列である。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      // ---- 配列（ライン 3 本: 配列・確保した空き・ほかのデータ）
+      const ga = st.ga = S.g({}, svg);
+      S.text(AX, 28, '配列 a（int64 を 8 個）', { cls: 't-sm t-b' }, ga);
+      st.aCount = S.text(AX + LW * 3, 28, '', { cls: 't-sm t-mono t-end' }, ga);
+      st.aLine = [0, 1, 2].map((L) => S.rect(AX + L * LW, AY, LW, CH, { cls: L === 2 ? 'f-in' : 'f-sf' }, ga));
+      st.aCell = [];
+      for (let k = 0; k < 24; k++) {
+        const x = AX + k * CW;
+        const r = S.rect(x, AY, CW, CH, { cls: 'f-none s-rule w1' }, ga);
+        const t = S.text(x + CW / 2, AY + 23, '', { cls: 't-c t-md t-mono t-b' }, ga);
+        st.aCell.push({ r, t });
+      }
+      for (let L = 0; L <= 3; L++) S.line(AX + L * LW, AY - 5, AX + L * LW, AY + CH + 5, { cls: 's-fg w3' }, ga);
+      st.aEdge = S.rect(AX, AY, LW, CH, { cls: 'f-none s-x w3', style: { display: 'none' } }, ga);   // 段階4: 読み込んだライン
+      S.text(AX + LW * 1.5, AY + 23, '確保した空き', { cls: 't-c t-xs t-dim' }, ga);
+      S.text(AX + LW * 2.5, AY + 23, 'ほかのデータ', { cls: 't-c t-xs t-dim' }, ga);
+      for (let k = 0; k < 8; k++) S.text(AX + k * CW + CW / 2, AY + CH + 15, String(k), { cls: 't-c t-xs t-mono t-dim' }, ga);
+      S.text(AX - 6, AY + CH + 15, 'i', { cls: 't-end t-xs t-mono t-dim' }, ga);
+      [0, 1, 2].forEach((L) => S.text(AX + L * LW + 2, AY + CH + 30, hex(0x1000 + 64 * L), { cls: 't-xs t-mono t-dim' }, ga));
+      st.aMark = S.rect(0, AY - 3, CW, CH + 6, { rx: 3, cls: 'f-none s-x w3', style: { display: 'none' } }, ga);
+      // 番地の計算（右上）
+      const gb = st.gb = S.g({}, svg);
+      S.rect(640, 14, 290, 106, { rx: 6, cls: 'f-sf s-rule w1' }, gb);
+      S.text(654, 36, 'a[i] の番地 ＝ 先頭 ＋ i × 8', { cls: 't-sm t-b' }, gb);
+      st.addr = S.text(654, 58, '', { cls: 't-sm t-mono' }, gb);
+      S.text(654, 82, 'mov rax, QWORD PTR [rdi+rsi*8]', { cls: 't-xs t-mono' }, gb);
+      S.text(654, 98, 'rdi＝先頭、rsi＝i（gcc 15.2、-O2）', { cls: 't-xs t-dim' }, gb);
+      S.text(654, 112, 'リストの次へ: mov rdi, QWORD PTR [rdi+8]', { cls: 't-xs t-mono t-dim' }, gb);
+      // ---- 連結リスト（ラインの箱 8 個。番地は離れている）
+      const gl = st.gl = S.g({}, svg);
+      S.text(AX, 146, '連結リスト（ノード＝値 8 バイト＋次の番地 8 バイト）', { cls: 't-sm t-b' }, gl);
+      st.lCount = S.text(914, 146, '', { cls: 't-sm t-mono t-end' }, gl);
+      st.box = [[], []];
+      for (let r = 0; r < 2; r++) for (let b = 0; b < 4; b++) {
+        const x = BX[b], y = RY[r];
+        const bg = S.rect(x, y, LW, CH, { rx: 2, cls: 'f-sf' }, gl);
+        for (let c = 0; c < 8; c++) S.rect(x + c * CW, y, CW, CH, { cls: 'f-none s-soft w1' }, gl);
+        st.box[r][b] = { bg, edge: S.rect(x, y, LW, CH, { rx: 2, cls: 'f-none s-fg w15' }, gl) };
+      }
+      const cellX = (n, c) => BX[n[1]] + (n[2] + c) * CW;
+      // ノード: 値のマスと次の番地のマス（最後のノードの次は空＝白抜きの丸）
+      const node = (n, v, last, parent) => {
+        const g = S.g({}, parent || gl), y = RY[n[0]];
+        S.rect(cellX(n, 0), y, CW * 2, CH, { cls: 'f-d-soft s-d w15' }, g);
+        S.line(cellX(n, 1), y + 4, cellX(n, 1), y + CH - 4, { cls: 's-d w1' }, g);
+        S.text(cellX(n, 0) + CW / 2, y + 23, String(v), { cls: 't-c t-md t-mono t-b' }, g);
+        S.circle(cellX(n, 1) + CW / 2, y + CH / 2, 3.5, { cls: last ? 'f-none s-d w1' : 'f-d' }, g);
+        return g;
+      };
+      st.nodes = NODE.map((n, k) => node(n, VALS[k], k === 7));
+      // 次を指す矢印（段から段へ）
+      const link = (a, b, cls) => {
+        const x1 = cellX(a, 1) + CW / 2, x2 = cellX(b, 0) + CW / 2;
+        const down = a[0] === 0;
+        const y1 = down ? RY[0] + CH : RY[1], y2 = down ? RY[1] - 2 : RY[0] + CH + 2;
+        return S.path(`M${x1},${y1} L${x2},${y2}`, { cls: 'f-none w15 ' + (cls || 's-mid'), 'marker-end': mk(cls === 's-x' ? 'x' : 'mid') }, gl);
+      };
+      st.links = NODE.slice(0, 7).map((n, k) => link(n, NODE[k + 1]));
+      // 先頭の番地
+      S.rect(40, RY[0], 56, CH, { rx: 4, cls: 'f-sf s-fg w15' }, gl);
+      S.text(62, RY[0] + 22, '先頭', { cls: 't-c t-xs t-b' }, gl);
+      S.circle(86, RY[0] + CH / 2, 3.5, { cls: 'f-fg' }, gl);
+      st.head = S.path(`M90,${RY[0] + CH / 2} H108`, { cls: 'f-none s-mid w15', 'marker-end': mk('mid') }, gl);
+      // 段階3: 先頭に入れるノード「0」と、つなぎ替えた矢印
+      st.n0 = S.g({ cls: 'fade hide' }, gl);
+      node(NEW0, 5, false, st.n0);
+      st.n0box = S.rect(cellX(NEW0, 0) - 3, RY[1] - 3, CW * 2 + 6, CH + 6, { rx: 3, cls: 'f-none s-x w2' }, st.n0);
+      st.n0link = S.path(`M${cellX(NEW0, 1) + CW / 2},${RY[1]} L${BX[0] + CW / 2 + 2},${RY[0] + CH + 2}`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, gl);
+      st.head0 = S.path(`M68,${RY[0] + CH} V224 H${cellX(NEW0, 0) + CW / 2} V${RY[1] - 2}`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, gl);
+      st.lMark = S.rect(0, 0, CW, CH + 6, { rx: 3, cls: 'f-none s-x w3', style: { display: 'none' } }, gl);
+      // ---- 手間の表（下）
+      const gt = st.gt = S.g({}, svg);
+      S.rect(40, 316, 880, 230, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      S.text(56, 340, '操作', { cls: 't-sm t-b t-dim' }, gt);
+      S.text(330, 340, '配列', { cls: 't-sm t-b t-dim' }, gt);
+      S.text(630, 340, '連結リスト', { cls: 't-sm t-b t-dim' }, gt);
+      S.line(52, 350, 908, 350, { cls: 's-rule w1' }, gt);
+      st.rowBg = [];
+      ['i 番目を読む', '先頭に入れる', '末尾に足す', '順に 8 個読む', '向く使い方'].forEach((s, r) => {
+        const y = 372 + r * 32;
+        st.rowBg.push(S.rect(48, y - 21, 864, 30, { rx: 4, cls: 'f-x-soft', style: { opacity: 0 } }, gt));
+        S.text(56, y, s, { cls: 't-sm t-b' }, gt);
+      });
+      st.cost = COST1.map(([r, c, s, at]) => ({ t: S.text(c ? 630 : 330, 372 + r * 32, s, { cls: 't-sm fade hide' }, gt), at, r }));
+      st.foot = S.text(56, 534, 'ミス 1 回は DRAM まで 200〜300 拍、ヒットは L1 から 4〜5 拍（3 GHz の例、第6章 場面6）', { cls: 't-xs t-dim fade hide' }, gt);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.ga.style.opacity = i === 2 ? 0.35 : '';
+      st.gl.style.opacity = i <= 1 ? 0.35 : '';
+      st.gb.style.opacity = i === 2 ? 0.35 : '';
+      S.fade(st.n0, i === 2);
+      st.cost.forEach((c) => c.t.setAttribute('class', 't-sm fade' + (c.at <= i ? '' : ' hide') + (c.at === i ? ' t-x t-b' : '')));
+      st.rowBg.forEach((bg, r) => { bg.style.opacity = st.cost.some((c) => c.r === r && c.at === i) ? 1 : 0; });
+      S.fade(st.foot, i >= 3);
+      st.aMark.style.display = 'none';
+      st.lMark.style.display = 'none';
+      st.aCount.textContent = '';
+      st.lCount.textContent = '';
+      st.last = -1;
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, ts = moving() ? ctx.ts : 99;
+      // 配列の中身（段階2では先頭に 0 を入れる。ほかの段階は 1〜8）
+      let vals = VALS.slice(), hot = -1;
+      if (i === 1) {
+        const tt = moving() ? U.mod(ctx.ts, 9) : 99;
+        const moved = Math.max(0, Math.min(8, Math.floor((tt - 0.6) / 0.5) + 1));
+        for (let j = 0; j < moved; j++) { const k = 7 - j; vals[k + 1] = vals[k]; vals[k] = null; hot = k + 1; }
+        if (tt >= 4.9) { vals[0] = 5; hot = 0; }
+        st.aCount.textContent = 'ずらした数 ' + moved + ' / 8';
+      }
+      for (let k = 0; k < 24; k++) {
+        const v = k < vals.length ? vals[k] : null, c = st.aCell[k];
+        const filled = v !== null && v !== undefined;
+        c.t.textContent = filled ? String(v) : '';
+        c.r.setAttribute('class', filled ? (k === hot ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1') : (k >= 8 && k < 16 ? 'f-none s-rule w1 dash' : 'f-none s-rule w1'));
+      }
+      // 段階1: 決まった順に i を選び、番地を計算して 1 回で読む
+      const idx = i === 0 && moving() ? RAND1[Math.floor(ctx.ts / 1.4) % 8] : 5;
+      st.addr.textContent = 'i = ' + idx + ' → ' + hex(0x1000) + ' ＋ ' + idx + ' × 8 ＝ ' + hex(0x1000 + idx * 8);
+      if (i === 0) {
+        st.aMark.style.display = '';
+        st.aMark.setAttribute('x', AX + idx * CW);
+      }
+      // 段階3: ノード 0 を作り、次の番地を書き、先頭を書き換える
+      if (i === 2) {
+        const tt = moving() ? U.mod(ctx.ts, 7) : 99;
+        st.n0.style.opacity = tt < 0.6 ? 0 : '';
+        st.n0link.style.display = tt >= 1.6 ? '' : 'none';
+        const sw = tt >= 2.6;
+        st.head0.style.display = sw ? '' : 'none';
+        st.head.style.display = sw ? 'none' : '';
+        st.lCount.textContent = '書いた番地 ' + ((tt >= 1.6 ? 1 : 0) + (sw ? 1 : 0)) + ' 個';
+      } else {
+        st.n0link.style.display = 'none';
+        st.head0.style.display = 'none';
+        st.head.style.display = '';
+      }
+      // 段階4: 両方を順に 8 個読み、初めて触るラインでミスを数える
+      st.aEdge.style.display = 'none';
+      st.box.forEach((row) => row.forEach((b) => { b.bg.setAttribute('class', 'f-sf'); b.edge.setAttribute('class', 'f-none s-fg w15'); }));
+      if (i === 3) {
+        const tt = moving() ? U.mod(ctx.ts, 8.5) : 99;
+        const n = Math.max(0, Math.min(8, Math.floor((tt - 0.5) / 0.6) + 1));
+        if (n > 0) {
+          st.aMark.style.display = '';
+          st.aMark.setAttribute('x', AX + (n - 1) * CW);
+          st.aEdge.style.display = '';
+          const nd = NODE[n - 1];
+          st.lMark.style.display = '';
+          st.lMark.setAttribute('x', BX[nd[1]] + nd[2] * CW);
+          st.lMark.setAttribute('y', RY[nd[0]] - 3);
+          for (let k = 0; k < n; k++) { const b = st.box[NODE[k][0]][NODE[k][1]]; b.bg.setAttribute('class', 'f-x-soft'); b.edge.setAttribute('class', 'f-none s-x w2'); }
+        } else { st.aMark.style.display = 'none'; st.lMark.style.display = 'none'; }
+        st.aCount.textContent = '読んだ ' + n + ' 個 ／ ミス ' + (n ? 1 : 0) + ' 回';
+        st.lCount.textContent = '読んだ ' + n + ' 個 ／ ミス ' + n + ' 回';
+      }
+      if (i === 4) {
+        st.aCount.textContent = '読んだ 8 個 ／ ミス 1 回';
+        st.lCount.textContent = '読んだ 8 個 ／ ミス 8 回';
+      }
+    }
+  };
+
+  /* 章の場面へのリンクの札（SVG の a）。2 行: 上に「第N章 場面K」、下に中身 */
+  function card(parent, x, y, w, href, head, body) {
+    const a = S.el('a', { href, 'aria-label': head + ' ' + body }, parent);
+    S.rect(x, y, w, 34, { rx: 4, cls: 'lnk f-sf s-rule w1' }, a);
+    S.text(x + 10, y + 14, head + ' ↗', { cls: 't-xs t-dim' }, a);
+    S.text(x + 10, y + 28, body, { cls: 't-xs t-b' }, a);
+    return a;
+  }
+
+  /* ================================================================
+     場面2 探す
+     ================================================================ */
+  // 第24章の例の動画の 720p の映像の断片 38 個の始まり（秒）。24-streaming.html の VSEG と同じ実測の値
+  const SEG = [0, 5.24, 10.40, 17.36, 20.72, 24.60, 31.56, 36.16, 42.28, 48.80, 55.40, 61.88, 66.80, 72.56, 76.24, 82.92, 87.32, 91.28, 96.32,
+    101.92, 108.32, 114.72, 121.72, 125.76, 132.16, 137.96, 143.68, 147.32, 153.20, 158.88, 165.40, 172.40, 178.88, 183.92, 190.44, 197.16, 203.60, 209.04];
+  const T2 = 120;
+  // 線形探索: 始まりが 120 秒を超える最初の断片まで比べ、その手前が答え
+  const LIN = (() => { let k = 0; while (k < SEG.length && SEG[k] <= T2) k++; return { n: Math.min(k + 1, SEG.length), ans: k - 1 }; })();
+  // 二分探索: 答え（始まりが 120 秒以下の最後の断片）は lo〜hi の中。真ん中と比べて半分を捨てる
+  const BIN = (() => {
+    let lo = 0, hi = SEG.length - 1;
+    const log = [];
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1, le = SEG[mid] <= T2;
+      if (le) lo = mid; else hi = mid - 1;
+      log.push({ mid, le, lo, hi });
+    }
+    return { log, ans: lo };
+  })();
+  const SX = (k) => 43 + (k % 19) * 46, SY = (k) => (k < 19 ? 64 : 130);
+  const s2 = {
+    steps: [
+      { title: '端から順に比べる', text: '索引の先頭から順に、断片の始まりと 120.00 秒を比べる。始まりが 120 秒を超えた断片の 1 つ手前が答えで、この索引では 23 回比べて断片 22（114.72 秒から）に着く。並んでいなくても使えるが、n 項目なら最悪 n 回比べる。これが**線形探索**。' },
+      { title: '並んでいれば真ん中と比べる', text: '索引は時刻の順に並んでいる。答えの候補の真ん中と比べ、120 秒以下なら後ろ半分、超えれば前半分だけを残す。1 回で候補が半分になるので、38 項目は最大 6 回、100 万項目でも 20 回で 1 つに絞れる。これが**二分探索**で、この索引では 5 回で断片 22 に着く。' },
+      { title: '計算量：手間の増え方を書く', text: '手間が項目の数 n とともにどう増えるかを、定数倍を省いて O(n)・O(log n) と書く（**計算量**）。n が 1,000 倍になると、O(n) の線形探索は比べる回数も 1,000 倍だが、O(log n) の二分探索は約 10 回増えるだけ。場面1 の配列の i 番目を読む手間は n によらないので O(1)。' },
+      { title: '並べる費用', text: '二分探索には、並んでいることが要る。比べて並べ替える手間は O(n log n) で、100 万項目なら約 2,000 万回の比較になり、端から探す 20 回分にあたる。1 回しか探さないなら端から見るほうが安く、何度も探すなら先に並べておく。索引は作る側が時刻の順に並べて渡す。' },
+      { title: '教材の中では', text: '[[24-streaming.html#s1.4|第24章 場面1]]の索引は時刻の順に並び、[[24-streaming.html#s6.1|第24章 場面6]]のシークは 120 秒を含む断片を探す。並んでいるので二分探索で引ける。[[16-internet.html#s2.6|第16章 場面2]]の経路表は約 100 万行あり、パケットごとに端から比べたら 1 個に 100 万回かかる。そこで[[4|木構造]]や専用の回路を使う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      S.text(43, 28, '索引（第24章の例の動画、720p の映像の断片 38 個。数字は始まりの秒）', { cls: 't-sm t-b' }, svg);
+      S.text(917, 28, '探す時刻 120.00 秒', { cls: 't-sm t-b t-x t-end' }, svg);
+      st.cells = SEG.map((v, k) => {
+        const x = SX(k), y = SY(k), g = S.g({}, svg);
+        S.text(x + 22, y - 6, String(k + 1), { cls: 't-c t-xs t-mono t-dim' }, g);
+        const r = S.rect(x, y, 44, 32, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+        const t = S.text(x + 22, y + 21, v.toFixed(2), { cls: 't-c t-xs t-mono t-b' }, g);
+        return { g, r, t };
+      });
+      st.mark = S.rect(0, 0, 50, 38, { rx: 4, cls: 'f-none s-x w3', style: { display: 'none' } }, svg);
+      st.linTxt = S.text(43, 200, '', { cls: 't-sm t-b' }, svg);
+      st.binTxt = S.text(500, 200, '', { cls: 't-sm t-b' }, svg);
+      // 二分探索の記録
+      st.log = BIN.log.map((e, j) => S.text(43, 236 + j * 22, '①②③④⑤⑥'[j] + ' 断片 ' + (e.mid + 1) + '：' + SEG[e.mid].toFixed(2) + (e.le ? ' ≤ ' : ' > ') + '120.00 → ' +
+        (e.lo === e.hi ? '断片 ' + (e.lo + 1) + ' に決まる' : '断片 ' + (e.lo + 1) + '〜' + (e.hi + 1) + ' に絞る'), { cls: 't-sm t-mono fade hide' }, svg));
+      // 教材の中の例（段階5）
+      st.cards = S.g({ cls: 'fade hide' }, svg);
+      card(st.cards, 500, 222, 417, '24-streaming.html#s1.4', '第24章 場面1', '索引（sidx・Cues）は時刻の順に並んでいる');
+      card(st.cards, 500, 262, 417, '24-streaming.html#s6.1', '第24章 場面6', '120 秒へのシーク: 120 秒を含む断片を探す');
+      card(st.cards, 500, 302, 417, '16-internet.html#s2.6', '第16章 場面2', '経路表は約 100 万行 → 場面4 の木で引く');
+      // 項目の数と比べる回数の表
+      const gt = S.g({}, svg);
+      S.rect(43, 350, 874, 196, { rx: 8, cls: 'f-sf s-rule w1' }, gt);
+      const COLX = [60, 300, 520, 740];
+      ['項目の数 n', '端から（線形探索）', '真ん中から（二分探索）', '並べる（比較ソート）'].forEach((h, c) => {
+        st['h' + c] = S.text(COLX[c], 374, h, { cls: 't-sm t-b t-dim' + (c ? ' fade hide' : '') }, gt);
+      });
+      st.oRow = ['O(n)', 'O(log n)', 'O(n log n)'].map((s, c) => S.text(COLX[c + 1], 391, s, { cls: 't-xs t-mono t-dim fade hide' }, gt));
+      S.line(55, 400, 905, 400, { cls: 's-rule w1' }, gt);
+      const ROWS = [['38（この索引）', '38 回', '6 回', '約 200 回'], ['1,000', '1,000 回', '10 回', '約 1 万回'], ['100 万', '100 万回', '20 回', '約 2,000 万回'], ['10 億', '10 億回', '30 回', '約 300 億回']];
+      st.col = [[], [], [], []];
+      ROWS.forEach((row, r) => row.forEach((s, c) => st.col[c].push(S.text(COLX[c], 424 + r * 28, s, { cls: 't-sm t-mono' + (c ? ' fade hide' : '') }, gt))));
+      S.text(60, 536, '回数はどれも最悪の場合。二分探索は ⌈log₂ n⌉ 回、並べ替えは比べる回数の目安', { cls: 't-xs t-dim' }, gt);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const vis = [true, true, i >= 1, i >= 3];
+      [0, 1, 2, 3].forEach((c) => {
+        if (c) S.fade(st['h' + c], vis[c]);
+        st.col[c].forEach((t) => t.setAttribute('class', 't-sm t-mono fade' + (vis[c] ? '' : ' hide') + ((i === 2 && c === 2) || (i === 3 && c === 3) ? ' t-x t-b' : '')));
+      });
+      st.oRow.forEach((t, c) => S.fade(t, c < 2 ? i >= 2 : i >= 3));
+      S.fade(st.cards, i === 4);
+      st.log.forEach((t) => S.fade(t, i >= 2));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      let seen = 0, cur = -1, lo = 0, hi = SEG.length - 1, ans = -1;
+      if (i === 0) {
+        const tt = moving() ? U.mod(ctx.ts, 10.5) : 99;
+        seen = Math.max(0, Math.min(LIN.n, Math.floor((tt - 0.5) / 0.3) + 1));
+        cur = seen - 1;
+        if (seen === LIN.n && tt > 0.5 + 0.3 * LIN.n + 0.4) ans = LIN.ans;
+        st.linTxt.textContent = '端から（線形探索）: 比べた回数 ' + seen + (ans >= 0 ? ' → 断片 ' + (ans + 1) : '');
+        st.binTxt.textContent = '';
+      } else if (i === 1) {
+        const tt = moving() ? U.mod(ctx.ts, 11) : 99;
+        const m = Math.max(0, Math.min(BIN.log.length, Math.floor((tt - 1) / 1.6) + 1));
+        if (m > 0) { const e = BIN.log[m - 1]; cur = e.mid; lo = e.lo; hi = e.hi; }
+        if (m === BIN.log.length && tt > 1 + 1.6 * (m - 1) + 0.8) { ans = BIN.ans; cur = -1; }
+        st.log.forEach((t, j) => { t.setAttribute('class', 't-sm t-mono' + (j < m ? '' : ' hide') + (j === m - 1 && ans < 0 ? ' t-x t-b' : '')); });
+        st.linTxt.textContent = '端から（線形探索）: 比べた回数 ' + LIN.n;
+        st.binTxt.textContent = '真ん中から（二分探索）: 比べた回数 ' + m + (ans >= 0 ? ' → 断片 ' + (ans + 1) : '');
+      } else {
+        ans = BIN.ans;
+        st.log.forEach((t) => t.setAttribute('class', 't-sm t-mono'));
+        st.linTxt.textContent = '端から（線形探索）: 比べた回数 ' + LIN.n;
+        st.binTxt.textContent = '真ん中から（二分探索）: 比べた回数 ' + BIN.log.length;
+      }
+      st.cells.forEach((c, k) => {
+        const out = i === 1 && (k < lo || k > hi);
+        c.g.style.opacity = out ? 0.25 : '';
+        const isAns = k === ans, isSeen = i === 0 && k < seen;
+        c.r.setAttribute('class', isAns ? 'f-x-soft s-x w2' : isSeen ? 'f-in s-rule w1' : 'f-d-soft s-d w1');
+        c.t.setAttribute('class', 't-c t-xs t-mono t-b' + (isAns ? ' t-x' : isSeen ? ' t-dim' : ''));
+      });
+      if (cur >= 0) {
+        st.mark.style.display = '';
+        st.mark.setAttribute('x', SX(cur) - 3);
+        st.mark.setAttribute('y', SY(cur) - 3);
+      } else st.mark.style.display = 'none';
+    }
+  };
+
+  /* ================================================================
+     場面3 ハッシュ表
+     ================================================================ */
+  // 鍵は全章で共通の例の MAC（第13章 場面4 と同じ値）。例のハッシュ関数は「末尾のバイトを表の大きさで割った余り」
+  const KEY3 = [
+    { full: 'PC', name: 'PC', mac: '3C:4D:5E:6F:70:81', b: 0x81 },
+    { full: 'テレビ', name: 'テレビ', mac: '02:11:22:33:44:7C', b: 0x7C },
+    { full: 'Wi-Fi の AP（BSSID）', name: 'AP', mac: '02:11:22:33:44:F0', b: 0xF0 },
+    { full: 'ルーター（LAN 側）', name: 'ルーター', mac: '02:11:22:33:44:01', b: 0x01 }
+  ];
+  // 攻撃の鍵（例）: 末尾のバイトを 01 にそろえ、1 つ前のバイトだけを変える。何個作っても、表を広げても同じ番号になる
+  const ATK3 = [1, 2, 3, 4, 5, 6].map((n) => ({ lab: '…0' + n + ':01', name: '攻撃', b: 0x01, atk: true }));
+  const B3X = (k) => 340 + k * 72, E3Y = (j) => 110 + j * 42;   // 札の高さ 30、間 12
+  const XX = (b) => b.toString(16).toUpperCase().padStart(2, '0');
+  const ent3 = (n) => ({ lab: '…:' + XX(KEY3[n].b), name: KEY3[n].name, key: n });
+  /* 段階 i・時刻 tt の見た目を決める（onStep と frame の両方がこれだけを見る） */
+  function state3(i, tt) {
+    const S3 = { ent: [[], [], [], [], [], [], [], []], hot: null, cmp: null, key: -1, slot: -1, lines: [], sub: '末尾のバイト ÷ 8 の余り（下位 3 ビット）', q: '', n: null, mini: null, miniHot: -1, after: false };
+    const put = (n) => S3.ent[KEY3[n].b % 8].push(ent3(n));
+    const line = (n, hot, m) => S3.lines.push({ s: '…:' + XX(KEY3[n].b) + ' → ' + KEY3[n].b + ' → ' + (KEY3[n].b % (m || 8)) + ' 番', hot });
+    if (i === 0) {
+      [0, 1, 2].forEach((n) => {
+        const t0 = 0.3 + 2 * n, cur = tt >= t0 && tt < t0 + 2;
+        if (cur) S3.key = n;
+        if (tt >= t0 + 0.6) line(n, cur);
+        if (tt >= t0 + 1.2) { put(n); if (cur) S3.hot = [KEY3[n].b % 8, 0]; }
+      });
+    } else if (i === 1) {
+      [0, 1, 2].forEach((n) => { put(n); line(n, n === 1 && tt >= 0.9); });
+      if (tt >= 0.3) { S3.q = '宛先 …:7C（テレビ）を引く'; S3.key = 1; }
+      if (tt >= 1.5) { S3.slot = 4; S3.hot = [4, 0]; S3.n = 1; }
+    } else if (i === 2) {
+      [0, 1, 2].forEach((n) => { put(n); line(n, false); });
+      const cur = tt >= 0.3 && tt < 2.8;
+      if (cur) S3.key = 3;
+      if (tt >= 0.9) line(3, cur);
+      if (tt >= 1.5) { put(3); if (cur) S3.hot = [1, 1]; }
+      if (tt >= 2.8) { S3.q = '宛先 …:01（ルーター）を引く'; S3.slot = 1; }
+      if (tt >= 3.4) { S3.cmp = [1, 0]; S3.n = 1; }
+      if (tt >= 4.0) { S3.cmp = null; S3.hot = [1, 1]; S3.n = 2; }
+    } else if (i === 3) {
+      [0, 1, 2, 3].forEach((n) => { put(n); line(n, false, 16); });
+      S3.sub = '広げた後は ÷ 16 の余り（下位 4 ビット）';
+      S3.mini = [];
+      [2, 0, 3, 1].forEach((n, m) => { if (tt >= 1 + 0.6 * m) { S3.mini.push(n); if (tt < 1.6 + 0.6 * m) S3.miniHot = n; } });
+      S3.after = tt >= 3.6;
+    } else if (i === 4) {
+      [0, 1, 2, 3].forEach((n) => put(n));
+      ATK3.forEach((a, m) => { if (tt >= 0.4 + 0.5 * m) { S3.ent[1].push(a); S3.lines.push({ s: a.lab + ' → 1 → 1 番', hot: tt < 0.9 + 0.5 * m }); } });
+      if (tt >= 3.5) {
+        S3.q = '宛先 …06:01 を引く'; S3.slot = 1;
+        const j = Math.min(7, Math.floor((tt - 3.5) / 0.4));
+        S3.n = j + 1;
+        if (j < 7) S3.cmp = [1, j]; else S3.hot = [1, 7];
+      }
+    } else {
+      [0, 1, 2, 3].forEach((n) => { put(n); line(n, false); });
+    }
+    return S3;
+  }
+  const s3 = {
+    steps: [
+      { title: '鍵を番号に変える', text: 'ハッシュ関数は鍵を番号に変え、表の大きさで割った余りを置き場所にする。図の例は、MAC の末尾のバイトを 8 で割った余り（下位 3 ビット）。PC の …:81 は 129 なので 1 番、テレビの …:7C は 124 なので 4 番に入る。[[13-ethernet.html#s4|第13章 場面4]]の MAC 表なら、値は出口のポートになる。' },
+      { title: '引くのは計算 1 回', text: 'テレビ宛てのフレームなら、宛先 …:7C から同じ計算で 4 番を出し、そこだけを見る。表が 8 行でも 8,000 行でも、計算 1 回と比べる 1 回で済む（平均 O(1)）。NAT の表（[[14-router.html#s4|第14章 場面4]]）、ソケットの表（[[19-tcp.html#s1.5|第19章 場面1]]）、Maglev の GFE 選び（[[22-server.html#s3.3|第22章 場面3]]）も同じ考え。' },
+      { title: 'ぶつかる', text: 'ルーターの …:01 も 1 番になり、PC とぶつかる（衝突）。同じ置き場所の鍵はリストでつなぎ、鍵そのものを比べて区別するので、ルーターを引くと 2 回比べる。ぶつかるほど、たどる数が増える。Rust の HashMap のように、リストを使わず近くの空きを探して置く方式もある。' },
+      { title: '詰まったら広げる', text: '入っている数が置き場所の数に近づくとぶつかりが増えるので、約 2 倍の配列を取り直し、全部の鍵を計算し直して移す。目安の負荷率（入っている数 ÷ 置き場所の数）は、Rust の HashMap が 7/8、Java の HashMap が 0.75。16 個に広げると、余りは下位 4 ビットで決まる。' },
+      { title: '狙ってぶつける攻撃', text: 'ハッシュ関数が読めると、同じ番号の鍵ばかり送って、検索を毎回全部たどる O(n) にできる。2011 年 12 月の 28C3 で、多くのウェブの処理系を止める攻撃（HashDoS）として示された。対策は秘密の乱数を混ぜたハッシュ関数で、Rust の HashMap の既定は今、乱数の鍵を使う SipHash-1-3。' },
+      { title: '苦手なこと', text: '置き場所は計算で決まり、鍵の大小の並びは残らない。そのため「120〜130 秒の断片を全部」のような範囲や、経路表の「いちばん長い一致」は 1 回では引けない。経路表なら、/32 から /0 まで長さごとに最大 33 回引き直すことになる。並びを使う検索は[[4|木構造]]が得意。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      const gm = st.main = S.g({}, svg);
+      // 鍵
+      S.text(30, 36, '鍵（家の機器の MAC）', { cls: 't-sm t-b' }, gm);
+      st.keys = KEY3.map((k, n) => {
+        const y = 52 + n * 50;
+        const r = S.rect(30, y, 260, 40, { rx: 5, cls: 'f-sf s-rule w1' }, gm);
+        S.text(42, y + 17, k.full, { cls: 't-sm t-b' }, gm);
+        S.text(42, y + 33, k.mac, { cls: 't-xs t-mono' }, gm);
+        return r;
+      });
+      // ハッシュ関数
+      S.rect(30, 262, 260, 170, { rx: 6, cls: 'f-in s-rule w1' }, gm);
+      S.text(44, 284, 'ハッシュ関数（例）', { cls: 't-sm t-b' }, gm);
+      st.sub = S.text(44, 302, '', { cls: 't-xs t-dim' }, gm);
+      st.lines = [0, 1, 2, 3, 4, 5].map(() => S.text(0, 0, '', { cls: 't-sm t-mono' }, gm));
+      S.lines(44, 410, ['実際のスイッチは MAC 全体から CRC のような', '計算で番号を作るか、CAM で全行を同時に比べる'], { cls: 't-xs t-dim' }, gm, 13);
+      // 置き場所（配列 8 個）とつないだリスト
+      S.text(340, 36, '置き場所（配列 8 個）', { cls: 't-sm t-b' }, gm);
+      st.slots = [];
+      st.ent = [];
+      for (let k = 0; k < 8; k++) {
+        const x = B3X(k);
+        S.text(x + 30, 56, String(k), { cls: 't-c t-sm t-mono t-b t-dim' }, gm);
+        const r = S.rect(x, 62, 60, 34, { rx: 3, cls: 'f-sf s-fg w15' }, gm);
+        const dot = S.circle(x + 30, 79, 4, { cls: 'f-d' }, gm);
+        const dash = S.text(x + 30, 83, '—', { cls: 't-c t-sm t-dim' }, gm);
+        st.slots.push({ r, dot, dash });
+        st.ent.push([0, 1, 2, 3, 4, 5, 6, 7].map((j) => {
+          const g = S.g({ style: { display: 'none' } }, gm), y = E3Y(j);
+          S.line(x + 30, j ? y - 12 : 96, x + 30, y - 1, { cls: 's-mid w15', 'marker-end': mk('mid') }, g);
+          const rr = S.rect(x, y, 60, 30, { rx: 3, cls: 'f-d-soft s-d w1' }, g);
+          const t1 = S.text(x + 30, y + 13, '', { cls: 't-c t-xs t-mono t-b' }, g);
+          const t2 = S.text(x + 30, y + 25, '', { cls: 't-c t-xs t-dim' }, g);
+          return { g, rr, t1, t2 };
+        }));
+      }
+      st.mark = S.rect(0, 0, 66, 36, { rx: 4, cls: 'f-none s-x w3', style: { display: 'none' } }, gm);
+      // 左下: 引く鍵・比べた回数・負荷率
+      S.rect(30, 444, 260, 104, { rx: 6, cls: 'f-sf s-rule w1' }, gm);
+      st.q = S.text(44, 468, '', { cls: 't-sm' }, gm);
+      st.n = S.text(44, 494, '', { cls: 't-md t-b' }, gm);
+      st.load = S.text(44, 520, '', { cls: 't-sm t-mono' }, gm);
+      st.bar = S.g({ cls: 'fade hide' }, gm);
+      S.rect(44, 528, 160, 8, { rx: 2, cls: 'f-in' }, st.bar);
+      st.barFill = S.rect(44, 528, 80, 8, { rx: 2, cls: 'f-d' }, st.bar);
+      [0.75, 0.875].forEach((f) => S.line(44 + 160 * f, 524, 44 + 160 * f, 540, { cls: 's-x w15' }, st.bar));
+      S.text(212, 537, '目安 0.75・7/8', { cls: 't-xs t-x' }, st.bar);
+      // 右下（段階4）: 16 個に広げた表
+      st.big = S.g({ cls: 'fade hide' }, svg);
+      S.rect(340, 444, 564, 104, { rx: 6, cls: 'f-sf s-rule w1' }, st.big);
+      S.text(354, 464, '16 個に広げて、全部の鍵を計算し直して移す', { cls: 't-sm t-b' }, st.big);
+      S.text(890, 464, '図は目安より早く、4 個で広げた', { cls: 't-xs t-dim t-end' }, st.big);
+      st.bigCell = [];
+      for (let k = 0; k < 16; k++) {
+        const x = 354 + k * 34;
+        st.bigCell.push(S.rect(x, 472, 32, 24, { rx: 2, cls: 'f-none s-rule w1' }, st.big));
+        S.text(x + 16, 489, String(k), { cls: 't-c t-xs t-mono t-dim' }, st.big);
+      }
+      st.bigLab = KEY3.map(() => S.text(0, 0, '', { cls: 't-c t-xs t-mono t-b' }, st.big));
+      // 右下（段階5）: 攻撃の鍵の作り方
+      st.atk = S.g({ cls: 'fade hide' }, svg);
+      S.rect(340, 444, 564, 104, { rx: 6, cls: 'f-sf s-x w1' }, st.atk);
+      S.text(354, 466, '攻撃の鍵（例）', { cls: 't-sm t-b t-x' }, st.atk);
+      S.text(354, 490, '末尾のバイトを 01 にそろえ、その前のバイトだけを変える', { cls: 't-sm' }, st.atk);
+      S.text(354, 512, '→ 何個作っても 1 番。表を広げても同じ番号のまま', { cls: 't-sm' }, st.atk);
+      S.text(354, 534, '鍵を秘密の乱数と混ぜて計算すれば、外からは番号を読めない', { cls: 't-xs t-dim' }, st.atk);
+      // 右下（段階6）: 経路表をこの表で引くと
+      st.range = S.g({ cls: 'fade hide' }, svg);
+      S.rect(340, 444, 564, 104, { rx: 6, cls: 'f-sf s-x w1' }, st.range);
+      S.text(354, 466, '経路表をこの表で引くと（例のハッシュ関数）', { cls: 't-sm t-b' }, st.range);
+      S.text(354, 490, '行   142.250.0.0/15  → 末尾 0   → 0 番に置く', { cls: 't-sm t-mono' }, st.range);
+      S.text(354, 512, '宛先 142.250.196.110 → 末尾 110 → 6 番を見る → 無い', { cls: 't-sm t-mono t-x' }, st.range);
+      S.text(354, 534, '範囲の行と、その中の宛先は、別々の番号になる', { cls: 't-xs t-dim' }, st.range);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.main.style.opacity = i === 5 ? 0.3 : '';
+      S.fade(st.bar, i === 3);
+      S.fade(st.big, i === 3);
+      S.fade(st.atk, i === 4);
+      S.fade(st.range, i === 5);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      const per = [8.8, 5, 6.5, 6, 8.5, 1][i];
+      const tt = moving() ? U.mod(ctx.ts, per) : 99;
+      const z = state3(i, tt);
+      st.keys.forEach((r, n) => r.setAttribute('class', n === z.key ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      st.sub.textContent = z.sub;
+      st.lines.forEach((t, r) => {
+        const L = z.lines[r];
+        if (!L) { t.textContent = ''; return; }
+        const two = z.lines.length > 4;
+        t.setAttribute('x', two && r >= 3 ? 170 : 44);
+        t.setAttribute('y', 326 + (two ? r % 3 : r) * 20);
+        t.setAttribute('class', (two ? 't-xs' : 't-sm') + ' t-mono' + (L.hot ? ' t-x t-b' : ''));
+        t.textContent = L.s;
+      });
+      st.slots.forEach((s, k) => {
+        const has = z.ent[k].length > 0;
+        s.dot.style.display = has ? '' : 'none';
+        s.dash.style.display = has ? 'none' : '';
+        s.r.setAttribute('class', k === z.slot ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+      });
+      st.ent.forEach((col, k) => col.forEach((e, j) => {
+        const v = z.ent[k][j];
+        e.g.style.display = v ? '' : 'none';
+        if (!v) return;
+        e.t1.textContent = v.lab;
+        e.t2.textContent = v.name;
+        e.rr.setAttribute('class', v.atk ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1');
+        e.t2.setAttribute('class', 't-c t-xs' + (v.atk ? ' t-x' : ' t-dim'));
+      }));
+      const m = z.cmp || z.hot;
+      if (m) {
+        st.mark.style.display = '';
+        st.mark.setAttribute('x', B3X(m[0]) - 3);
+        st.mark.setAttribute('y', E3Y(m[1]) - 3);
+        st.mark.setAttribute('class', 'f-none w3 ' + (z.cmp ? 's-mid dash' : 's-x'));
+      } else st.mark.style.display = 'none';
+      st.q.textContent = z.q;
+      st.n.textContent = z.n === null ? '' : '比べた回数 ' + z.n + (z.cmp ? '（違う鍵）' : ' → 見つかった');
+      const cnt = z.ent.reduce((a, c) => a + c.length, 0);
+      st.load.textContent = i === 3 ? (z.after ? '負荷率 4 / 16 ＝ 0.25' : '負荷率 4 / 8 ＝ 0.50') : i === 4 || i === 5 ? '' : '入っている数 ' + cnt + ' ／ 置き場所 8';
+      st.barFill.setAttribute('width', z.after ? 40 : 80);
+      // 16 個の表
+      st.bigCell.forEach((r, k) => r.setAttribute('class', 'f-none s-rule w1'));
+      st.bigLab.forEach((t) => { t.textContent = ''; });
+      if (z.mini) {
+        const depth = {};
+        z.mini.forEach((n, m2) => {
+          const k = KEY3[n].b % 16, d = depth[k] || 0;
+          depth[k] = d + 1;
+          const t = st.bigLab[m2];
+          t.setAttribute('x', 354 + k * 34 + 16);
+          t.setAttribute('y', 511 + d * 16);
+          t.setAttribute('class', 't-c t-xs t-mono t-b' + (n === z.miniHot ? ' t-x' : ''));
+          t.textContent = XX(KEY3[n].b);
+          st.bigCell[k].setAttribute('class', 'f-d-soft s-d w1');
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 木構造
+     ================================================================ */
+  // 段階1: 場面2 の索引の一部（断片 11〜25 の始まり）を真ん中で分けて並べた二分木。x は並びの順
+  const BST4 = SEG.slice(10, 25);
+  const BLV = [3, 2, 3, 1, 3, 2, 3, 0, 3, 2, 3, 1, 3, 2, 3];   // 並びの順の k 番目の値が入る段
+  const BPATH = [7, 11, 13, 12];                                // 120 秒を含む断片を探して通る値（並びの番号）
+  // 段階2〜5: 経路表（第16章 場面5 の 5 行）をビットで分かれる木にしたもの。節は [x, y]
+  const TN = { R: [520, 64], N1: [520, 124], N10: [380, 184], N11: [660, 184], P15: [380, 334], Q: [660, 244], QA: [580, 304], QB: [740, 304], P198: [580, 444], P203: [740, 444], P26: [740, 514] };
+  // 枝: [元, 先, 札, まとめた枝か, 札の置き方]
+  const TE = [['R', 'N1', '1'], ['N1', 'N10', '0'], ['N1', 'N11', '1'], ['N10', 'P15', ['13 段', '001110 1111101'], true, 'L'], ['N11', 'Q', ['2 段', '00'], true, 'R'],
+    ['Q', 'QA', '0'], ['Q', 'QB', '1'], ['QA', 'P198', ['19 段', '110 00110011 01100100'], true, 'R'], ['QB', 'P203', ['19 段', '011 00000000 01110001'], true, 'R'], ['P203', 'P26', ['2 段', '00'], true, 'R']];
+  const ROUTE4 = { R: ['0.0.0.0/0', '上流', 0], P15: ['142.250.0.0/15', 'Google', 15], P198: ['198.51.100.0/24', 'ISP 内', 24], P203: ['203.0.113.0/24', '局舎 B', 24], P26: ['203.0.113.0/26', '局舎 A', 26] };
+  const WALK4 = [
+    { ip: [142, 250, 196, 110], segs: [['R', 'N1', 1, 1], ['N1', 'N10', 2, 2], ['N10', 'P15', 3, 15]] },
+    { ip: [203, 0, 113, 5], segs: [['R', 'N1', 1, 1], ['N1', 'N11', 2, 2], ['N11', 'Q', 3, 4], ['Q', 'QB', 5, 5], ['QB', 'P203', 6, 24], ['P203', 'P26', 25, 26]] }
+  ];
+  const ipBits = (ip) => ip.map((x) => x.toString(2).padStart(8, '0')).join('');
+  /* たどった所までの見た目: 読んだビットの数・点の位置・通った枝・覚えた印・止まったか */
+  function walk4(w, tt) {
+    let t = 0.5, bits = 0, pos = TN.R;
+    const marks = tt >= 0.3 ? ['R'] : [], segs = [];
+    let done = true;
+    for (const [a, b, b0, b1] of w.segs) {
+      if (tt < t) { done = false; break; }
+      const n = b1 - b0 + 1, dur = 0.12 * n, f = Math.min(1, (tt - t) / dur);
+      bits = b0 - 1 + Math.min(n, Math.floor(f * n + 1e-6));
+      pos = [U.lerp(TN[a][0], TN[b][0], f), U.lerp(TN[a][1], TN[b][1], f)];
+      segs.push(a + b);
+      if (f < 1) { done = false; break; }
+      if (ROUTE4[b]) marks.push(b);
+      t += dur + 0.3;
+    }
+    return { bits, pos, segs, marks, stop: done && tt >= t };
+  }
+  const TCAM4 = [['11001011 00000000 01110001 00******', 'P26'], ['11001011 00000000 01110001 ********', 'P203'], ['11000110 00110011 01100100 ********', 'P198'], ['10001110 1111101* ******** ********', 'P15'], ['******** ******** ******** ********', 'R']];
+  const tcamHit = (pat, key) => [...pat.replace(/ /g, '')].every((c, k) => c === '*' || c === key[k]);
+  const s4 = {
+    steps: [
+      { title: '木の形', text: '木は根から枝分かれして葉で終わる。並んだ値を真ん中で分けて並べた二分木なら、比べるたびに候補が半分になり、図の 15 個は 4 段でたどれる。釣り合っていれば 100 万個でも約 20 段で、並びを保ったまま入れる・外すのも O(log n)。[[09-os.html#s5.4|第9章 場面5]]の赤黒木がこれ。' },
+      { title: '経路表をビットの木にする', text: '経路表の行を、宛先のビットで分かれる木（トライ）にする。先頭から 1 ビットずつ、0 なら左、1 なら右へ進み、/n の行は深さ n の所に印として置く。分かれ目の無い所は 1 本にまとめて段数を書いた。/0 を除く 4 行は先頭のビットがどれも 1 で、2 ビット目で 142 と 198・203 が分かれる。' },
+      { title: '142.250.196.110 をたどる', text: '宛先のビットを先頭からたどる。根で /0 を覚え、15 段目で /15 の印を通って覚え直す。16 ビット目の先には枝が無いので止まり、最後に覚えた /15 が「いちばん長い一致」になる。[[16-internet.html#s5.4|第16章 場面5]]と同じ答えで、行が 100 万あってもたどるのは最大 32 段。' },
+      { title: '203.0.113.5 をたどる', text: '家へ戻る 203.0.113.5 は、24 段目で /24（局舎 B）を、さらに 2 段先で /26（局舎 A）を通る。深く進むほど長い一致になるので、通った印を覚え直すだけでよく、一致した行を全部集めて比べ直す必要はない。枝の無い所で止まれば、最後に覚えた行が答え。' },
+      { title: '層によって解き方が違う', text: 'ソフトウェアは 1 段で数ビットずつ進む木で段数を減らす（Linux の IPv4 の経路表は LC-trie）。ルーターの専用回路（[[16-internet.html#s5.6|第16章 場面5]]）は、全部の行と同時に比べる記憶 TCAM で 1 回で引くか、回路の中で木を数段たどる。TCAM は 1 ビットごとに比べる回路を持つので、速いが電力と面積を多く使う。' },
+      { title: '教材の中の木', text: 'DNS の名前（[[17-dns.html#s2.1|第17章 場面2]]）、DOM（[[10-browser.html#s2.5|第10章 場面2]]）、ページテーブル（[[09-os.html#s4.2|第9章 場面4]]）、ランキューの赤黒木も木。木は段ごとに別の場所を読むので、ページテーブルは最近の答えを TLB に控えて、4 段を読む手間を省く。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      // ---- 段階1: 二分木
+      const gb = st.gb = S.g({ cls: 'fade' }, svg);
+      S.text(40, 36, '二分木（場面2 の索引の断片 11〜25 の始まり。左の子 ＜ 親 ＜ 右の子）', { cls: 't-sm t-b' }, gb);
+      S.text(920, 36, '120.00 秒を含む断片を探す', { cls: 't-sm t-b t-x t-end' }, gb);
+      const BX4 = (k) => 80 + k * 57, BY4 = (k) => 76 + BLV[k] * 72;
+      st.bEdge = {};
+      for (let k = 0; k < 15; k++) {
+        if (!BLV[k]) continue;
+        const step = 1 << (3 - BLV[k]);
+        const p = BLV[k - step] === BLV[k] - 1 ? k - step : k + step;
+        st.bEdge[k] = S.line(BX4(p), BY4(p) + 13, BX4(k), BY4(k) - 13, { cls: 's-mid w15' }, gb);
+      }
+      st.bNode = BST4.map((v, k) => {
+        const r = S.rect(BX4(k) - 30, BY4(k) - 13, 60, 26, { rx: 5, cls: 'f-d-soft s-d w1' }, gb);
+        const t = S.text(BX4(k), BY4(k) + 4, v.toFixed(2), { cls: 't-c t-xs t-mono t-b' }, gb);
+        return { r, t };
+      });
+      [0, 1, 2, 3].forEach((lv) => S.text(14, 80 + lv * 72, (lv + 1) + ' 段', { cls: 't-xs t-dim' }, gb));
+      st.bLog = S.text(40, 352, '', { cls: 't-sm' }, gb);
+      const gbt = S.g({}, gb);
+      S.rect(40, 380, 880, 156, { rx: 8, cls: 'f-sf s-rule w1' }, gbt);
+      S.text(56, 404, '釣り合った二分木の段の数と、入る値の数（比べる回数 ＝ たどる段の数）', { cls: 't-sm t-b t-dim' }, gbt);
+      [['4 段', '15 個（図）'], ['10 段', '1,023 個'], ['20 段', '約 105 万個'], ['30 段', '約 10.7 億個']].forEach(([a, b], r) => {
+        S.text(70 + r * 215, 448, a, { cls: 't-md t-b t-mono' }, gbt);
+        S.text(70 + r * 215, 474, b, { cls: 't-sm t-mono' }, gbt);
+      });
+      S.text(56, 516, '段の数が 1 増えると、入る数は約 2 倍。並びを保ったまま入れる・外すのも、段の数だけの手間で済む', { cls: 't-xs t-dim' }, gbt);
+      // ---- 段階2〜4: 経路表の木（トライ）
+      const gt = st.gt = S.g({ cls: 'fade hide' }, svg);
+      st.tEdge = {};
+      TE.forEach(([a, b, lab, comp, side]) => {
+        const [x1, y1] = TN[a], [x2, y2] = TN[b];
+        st.tEdge[a + b] = S.line(x1, y1, x2, y2, { cls: 's-mid w15' + (comp ? ' dash' : '') }, gt);
+        if (Array.isArray(lab)) {
+          const xm = x2 + (side === 'L' ? -10 : 10), ym = (y1 + y2) / 2;
+          S.lines(xm, ym - 4, lab, { cls: 't-xs t-mono' + (side === 'L' ? ' t-end' : '') }, gt, 13);
+        } else S.text((x1 + x2) / 2 + (x2 >= x1 ? 8 : -8), (y1 + y2) / 2 - 2, lab, { cls: 't-sm t-mono t-b t-dim' + (x2 >= x1 ? '' : ' t-end') }, gt);
+      });
+      st.tNode = {};
+      Object.keys(TN).forEach((k) => {
+        const [x, y] = TN[k], route = ROUTE4[k];
+        st.tNode[k] = S.circle(x, y, route ? 9 : 6, { cls: route ? 'f-d s-d w15' : 'f-sf s-fg w15' }, gt);
+      });
+      const lab = (k, x, y, anchor) => {
+        const [p, to] = ROUTE4[k];
+        return S.text(x, y, p + ' → ' + to, { cls: 't-sm t-b' + (anchor === 'c' ? ' t-c' : anchor === 'e' ? ' t-end' : '') }, gt);
+      };
+      st.tLab = { R: lab('R', 536, 68), P15: lab('P15', 380, 362, 'c'), P198: lab('P198', 580, 472, 'c'), P203: lab('P203', 756, 448), P26: lab('P26', 756, 518) };
+      st.dot = S.circle(0, 0, 7, { cls: 'f-x', style: { display: 'none' } }, gt);
+      // 左: 宛先のビットと、覚えている一致
+      const gl = st.gl = S.g({ cls: 'fade hide' }, svg);
+      S.rect(16, 40, 230, 330, { rx: 6, cls: 'f-sf s-rule w1' }, gl);
+      st.lDst = S.text(28, 64, '', { cls: 't-sm t-b' }, gl);
+      st.lBits = [];
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 8; c++) st.lBits.push(S.text(30 + c * 15, 96 + r * 26, '', { cls: 't-md t-mono t-dim' }, gl));
+      st.lOct = [0, 1, 2, 3].map((r) => S.text(160, 96 + r * 26, '', { cls: 't-xs t-mono t-dim' }, gl));
+      st.lDepth = S.text(28, 206, '', { cls: 't-sm' }, gl);
+      st.lStop = S.text(28, 226, '', { cls: 't-xs t-dim' }, gl);
+      st.lMarkHead = S.text(28, 254, '覚えている一致', { cls: 't-sm t-b' }, gl);
+      st.lMarks = [0, 1, 2].map((r) => S.text(36, 278 + r * 22, '', { cls: 't-sm t-mono' }, gl));
+      st.lAns = S.text(28, 352, '', { cls: 't-sm t-b t-x' }, gl);
+      // 段階2: 左に元の経路表（第16章 場面5 の例）
+      const gr2 = st.gr2 = S.g({ cls: 'fade hide' }, svg);
+      S.rect(16, 40, 230, 290, { rx: 6, cls: 'f-sf s-rule w1' }, gr2);
+      S.text(28, 64, '経路表（第16章 場面5 の例）', { cls: 't-sm t-b' }, gr2);
+      S.text(28, 90, '宛先の範囲', { cls: 't-xs t-dim' }, gr2);
+      S.text(234, 90, '出口', { cls: 't-xs t-dim t-end' }, gr2);
+      ['R', 'P15', 'P198', 'P203', 'P26'].forEach((k, r) => {
+        S.text(28, 120 + r * 32, ROUTE4[k][0], { cls: 't-sm t-mono' }, gr2);
+        S.text(234, 120 + r * 32, ROUTE4[k][1], { cls: 't-sm t-b t-end' }, gr2);
+      });
+      S.lines(28, 300, ['/n の行は、深さ n の所の印', '（塗った丸）になる'], { cls: 't-xs t-dim' }, gr2, 14);
+      // ---- 段階5: TCAM
+      const gc = st.gc = S.g({ cls: 'fade hide' }, svg);
+      S.text(270, 64, 'TCAM：全部の行を同時に比べる（* はどちらでもよい）', { cls: 't-sm t-b' }, gc);
+      S.text(270, 100, '鍵', { cls: 't-xs t-dim' }, gc);
+      S.text(300, 100, ipBits([203, 0, 113, 5]).replace(/(.{8})(?!$)/g, '$1 '), { cls: 't-sm t-mono t-b t-x' }, gc);
+      st.cRow = TCAM4.map(([pat, k], r) => {
+        const y = 140 + r * 40;
+        const bg = S.rect(262, y - 22, 666, 32, { rx: 4, cls: 'f-in' }, gc);
+        S.text(300, y, pat, { cls: 't-sm t-mono' }, gc);
+        S.text(600, y, ROUTE4[k][0].replace(/^.*\//, '/') + ' → ' + ROUTE4[k][1], { cls: 't-sm t-b' }, gc);
+        const res = S.text(916, y, '', { cls: 't-sm t-b t-end' }, gc);
+        return { bg, res, hit: tcamHit(pat, ipBits([203, 0, 113, 5])) };
+      });
+      st.cNote = S.text(270, 354, '一致した行のうち、いちばん上の行を使う（長い順に並べて書き込んでおく）', { cls: 't-sm fade hide' }, gc);
+      // ---- 段階6: 教材の中の木
+      const gw = st.gw = S.g({ cls: 'fade hide' }, svg);
+      const box = (x, y, href, title, ref) => {
+        const a = S.el('a', { href, 'aria-label': ref + ' ' + title }, gw);
+        S.rect(x, y, 430, 240, { rx: 8, cls: 'lnk f-sf s-rule w1' }, a);
+        S.text(x + 14, y + 24, title, { cls: 't-sm t-b' }, a);
+        S.text(x + 416, y + 24, ref + ' ↗', { cls: 't-xs t-dim t-end' }, a);
+        return a;
+      };
+      const pill = (g, x, y, s, hot) => {
+        const w = Math.max(30, s.length * 7.2 + 14);
+        S.rect(x - w / 2, y - 11, w, 22, { rx: 11, cls: hot ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1' }, g);
+        S.text(x, y + 4, s, { cls: 't-c t-xs t-mono t-b' + (hot ? ' t-x' : '') }, g);
+      };
+      const tree = (g, nodes, edges, hot) => {
+        edges.forEach(([a, b]) => S.line(nodes[a][0], nodes[a][1] + 11, nodes[b][0], nodes[b][1] - 11, { cls: 's-mid w1' }, g));
+        Object.keys(nodes).forEach((k) => pill(g, nodes[k][0], nodes[k][1], nodes[k][2], hot.includes(k)));
+      };
+      const ga = box(30, 30, '17-dns.html#s2.1', 'DNS の名前', '第17章 場面2');
+      tree(ga, { r: [245, 74, '（根）'], jp: [135, 124, 'jp'], com: [245, 124, 'com'], net: [355, 124, 'net'], g: [185, 174, 'google'], y: [305, 174, 'youtube'], w: [265, 224, 'www'], m: [345, 224, 'm'] },
+        [['r', 'jp'], ['r', 'com'], ['r', 'net'], ['com', 'g'], ['com', 'y'], ['y', 'w'], ['y', 'm']], ['r', 'com', 'y', 'w']);
+      S.text(44, 258, 'www.youtube.com は 根 → com → youtube → www', { cls: 't-xs t-dim' }, ga);
+      const gd = box(500, 30, '10-browser.html#s2.5', 'DOM（文書の木）', '第10章 場面2');
+      tree(gd, { h: [715, 74, 'html'], hd: [625, 124, 'head'], b: [805, 124, 'body'], t: [565, 174, 'title'], l: [625, 174, 'link'], s: [685, 174, 'script'], d: [775, 174, 'div#player'], h1: [865, 174, 'h1'], v: [775, 224, 'video'] },
+        [['h', 'hd'], ['h', 'b'], ['hd', 't'], ['hd', 'l'], ['hd', 's'], ['b', 'd'], ['b', 'h1'], ['d', 'v']], ['h', 'b', 'd', 'v']);
+      S.text(514, 258, 'スタイル計算もレイアウトも、この木を根から順にたどる', { cls: 't-xs t-dim' }, gd);
+      const gp = box(30, 290, '09-os.html#s4.2', 'ページテーブル（4 段の木）', '第9章 場面4');
+      S.text(44, 336, '仮想アドレス 48 ビット ＝ 9 ＋ 9 ＋ 9 ＋ 9 ＋ 12', { cls: 't-xs t-mono' }, gp);
+      ['PML4', 'PDPT', 'PD', 'PT', 'ページ'].forEach((s, k) => {
+        const x = 80 + k * 86, y = 410;
+        if (k < 4) {
+          [-22, 0, 22].forEach((dy) => S.line(x + 26, y, x + 62, y + dy, { cls: 's-mid w1' + (dy ? ' dash2' : '') }, gp));
+          S.text(x + 43, y - 30, '9 ビット', { cls: 't-c t-xs t-dim' }, gp);
+        }
+        pill(gp, x, y, s, true);
+      });
+      S.text(44, 470, '各段は 512 個の行の表。1 段ごとにメモリを 1 回読む', { cls: 't-xs t-dim' }, gp);
+      const gr = box(500, 290, '09-os.html#s5.4', 'ランキューの赤黒木（CFS。vruntime の順）', '第9章 場面5');
+      tree(gr, { a: [715, 340, '40'], b: [625, 390, '20'], c: [805, 390, '60'], d: [580, 440, '10'], e: [670, 440, '30'], f: [760, 440, '50'], g: [850, 440, '70'] },
+        [['a', 'b'], ['a', 'c'], ['b', 'd'], ['b', 'e'], ['c', 'f'], ['c', 'g']], ['d']);
+      S.text(580, 472, '↑ 最小 → 次に走る', { cls: 't-xs t-x t-b' }, gr);
+      S.text(514, 506, '値は例（ms）。色の規則で、根から葉までの段の数を最短の道の 2 倍以内に保つ', { cls: 't-xs t-dim' }, gr);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.gb, i === 0);
+      S.fade(st.gt, i >= 1 && i <= 3);
+      S.fade(st.gl, i >= 2 && i <= 4);
+      S.fade(st.gr2, i === 1);
+      S.fade(st.gc, i === 4);
+      S.fade(st.gw, i === 5);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 段階1: 根から 4 段たどる
+      if (i === 0) {
+        const tt = moving() ? U.mod(ctx.ts, 7) : 99;
+        const n = Math.max(0, Math.min(4, Math.floor((tt - 0.6) / 0.9) + 1));
+        const on = BPATH.slice(0, n), found = n === 4 && tt > 0.6 + 0.9 * 3 + 0.6;
+        st.bNode.forEach((b, k) => {
+          const hot = on.includes(k), ans = found && k === 11;
+          b.r.setAttribute('class', ans ? 'f-x-soft s-x w2' : hot ? 'f-d-soft s-x w2' : 'f-d-soft s-d w1');
+          b.t.setAttribute('class', 't-c t-xs t-mono t-b' + (ans ? ' t-x' : ''));
+        });
+        Object.keys(st.bEdge).forEach((k) => st.bEdge[k].setAttribute('class', on.includes(Number(k)) && Number(k) !== 7 ? 's-x w3' : 's-mid w15'));
+        const steps = ['91.28 ≤ 120 → 右へ', '114.72 ≤ 120 → 右へ', '125.76 ＞ 120 → 左へ', '121.72 ＞ 120 → 左へ（子が無い）'];
+        st.bLog.textContent = n ? steps.slice(0, n).join('　') + (found ? '　→ 答えは 114.72（4 回）' : '') : '';
+      }
+      // 段階3・4: 宛先のビットをたどる。段階5: TCAM の鍵として全部のビットを見せる
+      if (i >= 1 && i <= 4) {
+        const w = i === 3 || i === 4 ? WALK4[1] : WALK4[0];
+        const tt = moving() ? U.mod(ctx.ts, i === 3 ? 9 : 7.5) : 99;
+        const z = i === 1 ? { bits: 0, pos: null, segs: [], marks: [], stop: false } : i === 4 ? { bits: 32, pos: null, segs: [], marks: [], stop: false } : walk4(w, tt);
+        const b = ipBits(w.ip);
+        st.lDst.textContent = '宛先 ' + w.ip.join('.');
+        st.lBits.forEach((t, k) => {
+          t.textContent = b[k];
+          t.setAttribute('class', 't-md t-mono' + (k < z.bits ? ' t-x t-b' : z.stop && k === z.bits ? ' t-b' : ' t-dim'));
+        });
+        st.lOct.forEach((t, r) => { t.textContent = '= ' + w.ip[r]; });
+        st.lDepth.textContent = i === 4 ? '32 ビットを全部の行と同時に比べる' : 'たどった段 ' + z.bits;
+        st.lMarkHead.textContent = i === 4 ? '' : '覚えている一致';
+        st.lStop.textContent = z.stop ? (z.bits + 1) + ' ビット目（' + b[z.bits] + '）の先に枝が無い → 止まる' : '';
+        st.lMarks.forEach((t, r) => {
+          const k = z.marks[r];
+          t.textContent = k ? ROUTE4[k][0] + ' → ' + ROUTE4[k][1] : '';
+          t.setAttribute('class', 't-sm t-mono' + (k && r === z.marks.length - 1 ? ' t-x t-b' : ' t-dim'));
+        });
+        const last = z.marks[z.marks.length - 1];
+        st.lAns.textContent = i === 4 ? '答え /26 → 局舎 A（1 回で）' : z.stop ? '答え ' + ROUTE4[last][0] + ' → ' + ROUTE4[last][1] : '';
+        Object.keys(st.tEdge).forEach((k) => st.tEdge[k].setAttribute('class', (z.segs.includes(k) ? 's-x w3' : 's-mid w15') + (TE.find((e) => e[0] + e[1] === k)[3] ? ' dash' : '')));
+        Object.keys(st.tNode).forEach((k) => {
+          const route = ROUTE4[k], got = z.marks.includes(k);
+          st.tNode[k].setAttribute('class', route ? (got ? 'f-x s-x w2' : 'f-d s-d w15') : 'f-sf s-fg w15');
+          if (st.tLab[k]) st.tLab[k].setAttribute('class', st.tLab[k].getAttribute('class').replace(/ t-x/g, '') + (got ? ' t-x' : ''));
+        });
+        if (z.pos && !z.stop) { st.dot.style.display = ''; st.dot.setAttribute('cx', z.pos[0]); st.dot.setAttribute('cy', z.pos[1]); }
+        else st.dot.style.display = 'none';
+      }
+      // 段階5: 全部の行を同時に比べ、一致した中のいちばん上を使う
+      if (i === 4) {
+        const tt = moving() ? U.mod(ctx.ts, 6) : 99;
+        const cmp = tt >= 0.8, pick = tt >= 1.8;
+        const first = st.cRow.findIndex((r) => r.hit);
+        st.cRow.forEach((r, k) => {
+          r.bg.setAttribute('class', !cmp ? 'f-in' : pick && k === first ? 'f-x-soft s-x w2' : r.hit ? 'f-d-soft' : 'f-in');
+          r.res.textContent = !cmp ? '' : r.hit ? (pick && k === first ? '一致 → 使う' : '一致') : '—';
+          r.res.setAttribute('class', 't-sm t-b t-end' + (pick && k === first ? ' t-x' : r.hit ? '' : ' t-dim'));
+        });
+        S.fade(st.cNote, pick);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 キューとスタック
+     ================================================================ */
+  const RC = [240, 236], RR = 128;   // リングの中心と半径
+  const ringPos = (k, r) => { const a = (-90 + 45 * k) * Math.PI / 180; return [RC[0] + (r || RR) * Math.cos(a), RC[1] + (r || RR) * Math.sin(a)]; };
+  /* 受信リングの状態。W＝書いた数、R＝読んだ数（数え続ける）。置き場所は数を 8 で割った余り */
+  function ring5(i, tt) {
+    if (i === 2) {   // 段階3: ドライバが止まっている間に NIC が 9 個書こうとする → 5 個で満杯、4 個は捨てる。あとで読み出して空になる
+      const tries = tt < 0.4 ? 0 : Math.min(9, Math.floor((tt - 0.4) / 0.45) + 1);
+      const reads = tt < 4.8 ? 0 : Math.min(8, Math.floor((tt - 4.8) / 0.45) + 1);
+      return { W: 11 + Math.min(5, tries), R: 8 + reads, drop: Math.max(0, tries - 5) };
+    }
+    if (i > 1) return { W: 11, R: 8, drop: 0 };
+    const w = tt < 0.5 ? 0 : Math.floor((tt - 0.5) / 1.0) + 1, r = tt < 1.0 ? 0 : Math.floor((tt - 1.0) / 1.0) + 1;
+    return { W: 11 + w, R: 8 + r, drop: 0 };
+  }
+  const TOK5 = [['<html>', 'push', 'html'], ['<body>', 'push', 'body'], ['<div id="player">', 'push', 'div#player'], ['<video>', 'push', 'video'],
+    ['</video>', 'pop'], ['</div>', 'pop'], ['<h1>', 'push', 'h1'], ['</h1>', 'pop']];
+  const HEAP0 = [16, 40, 33, 100, 250, 60, 1000];   // タイマーの締め切り（例、ms）。親 ≤ 子
+  const HP = [[720, 92], [630, 152], [810, 152], [585, 212], [675, 212], [765, 212], [855, 212]];
+  /* 最小を出して、最後の値を根に置き、子の小さいほうと入れ替えて沈める */
+  function heap5(tt) {
+    if (tt < 0.6) return { a: HEAP0, hot: [], msg: '根がいちばん早い締め切り', out: '' };
+    if (tt < 1.4) return { a: HEAP0, hot: [0], msg: '最小の 16 を根から出す', out: '16' };
+    if (tt < 2.2) return { a: [1000, 40, 33, 100, 250, 60], hot: [0], msg: '最後の 1000 を根に置く', out: '16' };
+    if (tt < 3.0) return { a: [33, 40, 1000, 100, 250, 60], hot: [0, 2], msg: '子の小さいほう（33）と入れ替える', out: '16' };
+    if (tt < 3.8) return { a: [33, 40, 60, 100, 250, 1000], hot: [2, 5], msg: '子の 60 と入れ替える', out: '16' };
+    return { a: [33, 40, 60, 100, 250, 1000], hot: [0], msg: '入れ替え 2 回で、次に早い 33 が根に来た', out: '16' };
+  }
+  const s5 = {
+    steps: [
+      { title: 'キュー：来た順に出す', text: 'キューは後ろに足し、前から出す（来た順、FIFO）。足すのも出すのも O(1)。作る速さと使う速さが違う 2 者の間に置き、一時的な差を吸収する。[[09-os.html#s6.2|第9章 場面6]]の受信リングでは、作り手の NIC が届いたフレームを DMA で書き、使い手のドライバがまとめて読み出す。' },
+      { title: 'リングバッファ', text: '決まった大きさの配列を輪にし、書く位置と読む位置の 2 つの番号だけを進める。データは動かさない。番号は書いた数・読んだ数で、置き場所はそれを 8 で割った余り。大きさを 2 のべき乗にすれば、余りは下位のビットを残す AND 1 回で求まる。[[07-shuuhen.html#s4.2|第7章 場面4]]のディスクリプタの輪もこの形。' },
+      { title: '満杯と空', text: '書いた数と読んだ数が同じなら空、差が 8 なら満杯。満杯の列に来たパケットは、捨てるしかない。ルーターの出口の列があふれたときも同じで、TCP は失われたことを混雑の印と見て、送る量を減らす（[[19-tcp.html#s4.4|第19章 場面4]]）。図はドライバが止まっている間に満杯になり、あとで読み出して空になる例。' },
+      { title: '並ぶほど遅れる', text: '列は失うのを防ぐ代わりに、待ち時間を足す。1 Gbps の出口で 1,500 バイトを送り出すのに 12 µs かかり、前に 100 個並べば 1.2 ms 待つ（[[18-ip.html#s4.5|第18章 場面4]]）。大きすぎる列で遅れが膨らむことを bufferbloat と呼ぶ。列の長さは、吸収できる差と足される遅れの取引になる。' },
+      { title: 'スタック：最後に来た順に出す', text: 'スタックは最後に積んだものから降ろす（LIFO）。HTML の構文解析は開いている要素を積み、終了タグで降ろして親子を決める（[[10-browser.html#s2.3|第10章 場面2]]）。関数を呼ぶたびに戻り先を積むコールスタックも同じ形で、第9章のメモリの「スタック」の領域は、この使い方から来た名前。' },
+      { title: '値で順番を決める列', text: '締め切りの早い順に出したいときは、二分ヒープ（親が子より小さい木を配列に詰めたもの）を使い、出し入れは O(log n)。Node.js のタイマーがこの形。[[09-os.html#s5.4|第9章 場面5]]のスケジューラは、同じ目的に赤黒木を使う。ここの「ヒープ」は、第9章・第26章のメモリの領域の名前とは別。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state, mk = S.markers(svg);
+      // ---- 左: 受信リング
+      const gr = st.gr = S.g({}, svg);
+      S.text(30, 30, '受信リング（置き場所 8 個）', { cls: 't-sm t-b' }, gr);
+      S.line(30, 50, 54, 50, { cls: 's-fg w3' }, gr);
+      S.text(60, 54, '書く位置（NIC が DMA で書く）', { cls: 't-xs' }, gr);
+      S.line(250, 50, 274, 50, { cls: 's-mid w3 dash' }, gr);
+      S.text(280, 54, '読む位置（ドライバ）', { cls: 't-xs' }, gr);
+      S.circle(RC[0], RC[1], RR, { cls: 'f-none s-soft w10' }, gr);
+      st.slot = [];
+      for (let k = 0; k < 8; k++) {
+        const [x, y] = ringPos(k), [lx, ly] = ringPos(k, RR + (k % 4 === 2 ? 54 : 42));   // 横の箱（2・6 番）は幅があるので番号を離す
+        S.text(lx, ly + 4, String(k), { cls: 't-c t-sm t-mono t-b t-dim' }, gr);
+        const r = S.rect(x - 35, y - 17, 70, 34, { rx: 4, cls: 'f-sf s-fg w15' }, gr);
+        const t = S.text(x, y + 4, '', { cls: 't-c t-xs t-mono t-b' }, gr);
+        st.slot.push({ r, t });
+      }
+      st.hW = S.line(RC[0], RC[1], RC[0], RC[1] - 80, { cls: 's-fg w3', 'marker-end': mk('fg') }, gr);
+      st.hR = S.line(RC[0], RC[1], RC[0], RC[1] - 80, { cls: 's-mid w3 dash', 'marker-end': mk('mid') }, gr);
+      S.circle(RC[0], RC[1], 5, { cls: 'f-fg' }, gr);
+      st.cnt = S.text(RC[0], 428, '', { cls: 't-c t-sm t-mono' }, gr);
+      // ---- 右: 開いている要素のスタック
+      const gs = st.gs = S.g({ cls: 'fade' }, svg);
+      S.text(510, 30, 'HTML を読みながら、開いている要素を積む', { cls: 't-sm t-b' }, gs);
+      st.tok = TOK5.map(([s], k) => S.text(520, 76 + k * 32, s, { cls: 't-sm t-mono' }, gs));
+      st.tokMark = S.rect(510, 0, 190, 26, { rx: 4, cls: 'f-none s-x w2', style: { display: 'none' } }, gs);
+      S.text(820, 76, 'スタック', { cls: 't-c t-sm t-b' }, gs);
+      S.text(820, 94, '（上が最後に積んだ要素）', { cls: 't-c t-xs t-dim' }, gs);
+      S.line(720, 334, 920, 334, { cls: 's-fg w3' }, gs);
+      S.text(820, 352, '底', { cls: 't-c t-xs t-dim' }, gs);
+      st.stk = [0, 1, 2, 3].map((j) => {
+        const y = 296 - 36 * j;
+        return { r: S.rect(730, y, 180, 32, { rx: 4, cls: 'f-d-soft s-d w1' }, gs), t: S.text(820, y + 21, '', { cls: 't-c t-sm t-mono t-b' }, gs) };
+      });
+      st.stkMsg = S.text(510, 396, '', { cls: 't-sm' }, gs);
+      st.stkMsg2 = S.text(510, 420, '', { cls: 't-sm t-dim' }, gs);
+      // ---- 右（段階6）: タイマーの二分ヒープ
+      const gh = st.gh = S.g({ cls: 'fade hide' }, svg);
+      S.text(510, 30, 'タイマーの二分ヒープ（締め切りの早い順。値は例、ms）', { cls: 't-sm t-b' }, gh);
+      st.hEdge = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5], [2, 6]].map(([a, b]) => ({ b, l: S.line(HP[a][0], HP[a][1] + 18, HP[b][0], HP[b][1] - 18, { cls: 's-mid w15' }, gh) }));
+      st.hNode = HP.map(([x, y]) => ({ c: S.circle(x, y, 19, { cls: 'f-d-soft s-d w15' }, gh), t: S.text(x, y + 4, '', { cls: 't-c t-xs t-mono t-b' }, gh) }));
+      st.hCell = [0, 1, 2, 3, 4, 5, 6].map((k) => {
+        const x = 520 + 58 * k;
+        S.text(x + 27, 326, String(k), { cls: 't-c t-xs t-mono t-dim' }, gh);
+        return { r: S.rect(x, 282, 54, 30, { rx: 3, cls: 'f-d-soft s-d w1' }, gh), t: S.text(x + 27, 302, '', { cls: 't-c t-xs t-mono t-b' }, gh) };
+      });
+      S.text(520, 270, '配列に詰めると', { cls: 't-xs t-dim' }, gh);
+      S.text(520, 350, 'i 番の子は 2i＋1 番と 2i＋2 番（番地の計算だけで木をたどれる）', { cls: 't-xs t-dim' }, gh);
+      st.hMsg = S.text(520, 384, '', { cls: 't-sm t-b' }, gh);
+      st.hOut = S.text(520, 410, '', { cls: 't-sm' }, gh);
+      // ---- 下: 段階ごとの補足
+      const panel = () => { const g = S.g({ cls: 'fade hide' }, svg); S.rect(20, 450, 920, 98, { rx: 6, cls: 'f-sf s-rule w1' }, g); return g; };
+      st.p2 = panel();
+      st.p2a = S.text(36, 480, '', { cls: 't-sm t-mono' }, st.p2);
+      st.p2b = S.text(36, 506, '', { cls: 't-sm t-mono' }, st.p2);
+      S.text(36, 532, '置き場所は 8 で割った余り。8 は 2 の 3 乗なので、数の下位 3 ビットを AND 0b111 で取り出すだけで済む', { cls: 't-xs t-dim' }, st.p2);
+      st.p3 = panel();
+      S.text(36, 480, '入っている数 ＝ 書いた数 − 読んだ数　→　0 なら空、8 なら満杯', { cls: 't-sm' }, st.p3);
+      st.p3a = S.text(36, 508, '', { cls: 't-sm t-b' }, st.p3);
+      st.p4 = panel();
+      S.text(36, 474, 'ルーターの出口の列（1 Gbps）。新しいパケットの前に 100 個', { cls: 't-sm t-b' }, st.p4);
+      st.q4 = [];
+      for (let k = 0; k < 101; k++) st.q4.push(S.rect(36 + k * 7, 486, 5, 16, { rx: 1, cls: k === 100 ? 'f-x' : 'f-d-soft s-d w1' }, st.p4));
+      st.q4t = S.text(760, 499, '', { cls: 't-sm t-mono t-b' }, st.p4);
+      S.text(36, 532, '1 個（1,500 バイト）を線に送り出すのに 12 µs。100 × 12 µs ＝ 1.2 ms（第18章 場面4。図の動きは約 4,000 倍に遅くしてある）', { cls: 't-xs t-dim' }, st.p4);
+      st.p5 = panel();
+      S.text(36, 482, '関数の呼び出しも同じ形: 呼ぶと戻り先を積み、終わると降ろして呼んだ所へ戻る（コールスタック、第10章 場面5）', { cls: 't-sm' }, st.p5);
+      S.text(36, 512, '第9章のネットワークスタックの「スタック」は、層を積み重ねた形を指す別の使い方', { cls: 't-xs t-dim' }, st.p5);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.gr.style.opacity = i >= 3 ? 0.3 : '';
+      S.fade(st.gs, i <= 4);
+      st.gs.style.opacity = i <= 3 ? 0.3 : '';
+      S.fade(st.gh, i === 5);
+      S.fade(st.p2, i === 1);
+      S.fade(st.p3, i === 2);
+      S.fade(st.p4, i === 3);
+      S.fade(st.p5, i === 4);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // リング
+      const tr = moving() ? (i === 2 ? U.mod(ctx.ts, 10) : ctx.ts) : (i === 2 ? 4.4 : 0);
+      const z = ring5(i, tr);
+      st.slot.forEach((s, k) => {
+        let n = 0;
+        for (let p = z.R + 1; p <= z.W; p++) if ((p - 1) % 8 === k) n = p;
+        s.t.textContent = n ? '#' + n : '';
+        s.r.setAttribute('class', n ? 'f-d-soft s-d w15' : 'f-sf s-fg w15');
+      });
+      const hand = (el, c) => { const [x, y] = ringPos(c % 8, 80); el.setAttribute('x2', x.toFixed(1)); el.setAttribute('y2', y.toFixed(1)); };
+      hand(st.hW, z.W); hand(st.hR, z.R);
+      st.cnt.textContent = '書いた数 ' + z.W + ' ／ 読んだ数 ' + z.R + ' ／ 入っている数 ' + (z.W - z.R);
+      const bin = (n) => n.toString(2).padStart(5, '0');
+      st.p2a.textContent = '書いた数 ' + z.W + ' ＝ 0b' + bin(z.W) + '　→ 下位 3 ビット ' + bin(z.W).slice(-3) + ' ＝ ' + (z.W & 7) + ' 番に書く';
+      st.p2b.textContent = '読んだ数 ' + z.R + ' ＝ 0b' + bin(z.R) + '　→ 下位 3 ビット ' + bin(z.R).slice(-3) + ' ＝ ' + (z.R & 7) + ' 番から読む';
+      const n3 = z.W - z.R;
+      st.p3a.textContent = (n3 === 8 ? '満杯' : n3 === 0 ? '空' : '入っている数 ' + n3) + (z.drop ? '　／　満杯で捨てたパケット ' + z.drop + ' 個' : '');
+      st.p3a.setAttribute('class', 't-sm t-b' + (n3 === 8 || z.drop ? ' t-x' : ''));
+      // 出口の列: 前の 100 個が出ていくのを待つ（1 個 12 µs。図は 0.05 秒で 1 個）
+      if (i === 3) {
+        const tq = moving() ? U.mod(ctx.ts, 7.5) : 0;
+        const gone = Math.max(0, Math.min(100, Math.floor((tq - 0.5) / 0.05)));
+        st.q4.forEach((r, k) => { r.style.display = k < gone ? 'none' : ''; });
+        st.q4t.textContent = gone >= 100 ? '待った時間 1.2 ms → 送り出す' : moving() ? '待った時間 ' + (gone * 0.012).toFixed(2) + ' ms' : '待つ時間 1.2 ms';
+      }
+      // スタック: 字句を 1 つずつ読み、開始タグで積み、終了タグで降ろす。止めたときは、いちばん深く積んだ所
+      if (i <= 4) {
+        const tk = i === 4 && moving() ? U.mod(ctx.ts, 9.5) : -1;
+        const done = i !== 4 ? 0 : !moving() ? 4 : Math.max(0, Math.min(8, Math.floor((tk - 0.6) / 0.9) + 1));
+        const stack = [];
+        let msg = '';
+        for (let k = 0; k < done; k++) {
+          const [s, op, name] = TOK5[k];
+          if (op === 'push') { msg = s + ' → ' + name + ' を積む（親は ' + (stack[stack.length - 1] || '文書') + '）'; stack.push(name); }
+          else msg = s + ' → いちばん上の ' + stack.pop() + ' を降ろす';
+        }
+        st.tok.forEach((t, k) => t.setAttribute('class', 't-sm t-mono' + (k < done - 1 ? ' t-dim' : k === done - 1 ? ' t-x t-b' : '')));
+        if (done > 0) { st.tokMark.style.display = ''; st.tokMark.setAttribute('y', 76 + (done - 1) * 32 - 18); } else st.tokMark.style.display = 'none';
+        st.stk.forEach((b, j) => {
+          const v = stack[j];
+          b.r.style.display = v ? '' : 'none';
+          b.t.textContent = v || '';
+          b.r.setAttribute('class', j === stack.length - 1 ? 'f-d-soft s-x w2' : 'f-d-soft s-d w1');
+        });
+        st.stkMsg.textContent = msg;
+        st.stkMsg2.textContent = i === 4 && done === 4 ? '次の </video> で、いちばん上の video を降ろす' : '';
+      }
+      // ヒープ
+      if (i === 5) {
+        const h = heap5(moving() ? U.mod(ctx.ts, 7) : 99);
+        st.hNode.forEach((nd, k) => {
+          const v = h.a[k];
+          nd.c.style.display = v === undefined ? 'none' : '';
+          nd.t.textContent = v === undefined ? '' : String(v);
+          nd.c.setAttribute('class', h.hot.includes(k) ? 'f-x-soft s-x w2' : 'f-d-soft s-d w15');
+        });
+        st.hEdge.forEach((e) => { e.l.style.display = h.a[e.b] === undefined ? 'none' : ''; });
+        st.hCell.forEach((c, k) => {
+          const v = h.a[k];
+          c.t.textContent = v === undefined ? '' : String(v);
+          c.r.setAttribute('class', v === undefined ? 'f-none s-rule w1 dash' : h.hot.includes(k) ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1');
+        });
+        st.hMsg.textContent = h.msg;
+        st.hOut.textContent = h.out ? '出した値: ' + h.out + ' ms のタイマー' : '';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面6 層をまたぐ
+     ================================================================ */
+  // 行は教材の層、列は道具の種類。札は [名前, 行き先, 強調する段階（0 始まり）の並び]
+  const COLS6 = ['並べる（配列・列）', '鍵で引く（ハッシュ表・CAM）', 'たどる（木）', '手順（探索・計算）'];
+  const ROWS6 = [
+    { name: '回路', ch: '第3〜4章', cells: [[], [], [], [['桁上がりの先読み', '04-ronri.html#s6.4', [0]]]] },
+    { name: 'CPU・記憶・画面', ch: '第5〜8章', cells: [[['ディスクリプタの輪', '07-shuuhen.html#s4.2', [1]], ['フレームバッファ', '08-display.html#s1.3', [1]]], [['キャッシュの置き場所', '06-cpu.html#s6.4', [1]]], [], [['追い出し（LRU の近似）', '06-cpu.html#s6.5', [1]]]] },
+    { name: 'OS', ch: '第9章', cells: [[['受信リング', '09-os.html#s6.2', [2]]], [['ソケットの表', '09-os.html#s6.3', [2]]], [['ページテーブル', '09-os.html#s4.2', [2]], ['ランキュー（赤黒木）', '09-os.html#s5.4', [2]]], []] },
+    { name: 'ブラウザ', ch: '第10章', cells: [[['タスクキュー', '10-browser.html#s5.3', [2]], ['開いている要素のスタック', '10-browser.html#s2.3', [2]]], [], [['DOM', '10-browser.html#s2.5', [2]]], []] },
+    { name: '網の機器', ch: '第13〜16章', cells: [[], [['MAC 表', '13-ethernet.html#s4', [1, 3]], ['NAT の変換表', '14-router.html#s4.2', [3]]], [['経路表のトライ・TCAM', '16-internet.html#s5.6', [1, 3]]], [['BGP の経路選び', '16-internet.html#s2.3', [3]]]] },
+    { name: '約束ごと', ch: '第17〜21章', cells: [[['出口の待ち行列', '18-ip.html#s4.5', [3]], ['TCP の並べ直し', '19-tcp.html#s3.3', [3]]], [['DNS のキャッシュ', '17-dns.html#s4.2', [3]]], [['DNS の名前の木', '17-dns.html#s2.1', [3]]], [['再送と輻輳制御', '19-tcp.html#s4.4', [3]], ['鍵交換の 2 倍と足し算', '20-tls.html#s3.2', [4]]]] },
+    { name: '動画', ch: '第22〜24章', cells: [[['断片の索引', '24-streaming.html#s1.4', [4]], ['再生のバッファ', '24-streaming.html#s2.3', [4]]], [['Maglev のハッシュ', '22-server.html#s3.3', [4]]], [], [['動き探索', '23-codec.html#s4.2', [4]], ['算術符号', '23-codec.html#s3.4', [4]], ['ABR の移動平均', '24-streaming.html#s3.1', [4]]]] }
+  ];
+  const s6 = {
+    steps: [
+      { title: '回路の中の手順', text: '足し算の回路でも、手順の選び方で速さの桁が変わる。桁上がりを右から順に伝えると 64 ビットで 64 段の遅れになり、先読みする回路なら log₂64 ＝ 6 段程度で済む（[[04-ronri.html#s6.4|第4章 場面6]]）。回路の手順は、1 拍のうちに必ず終わる決まった段数で組む。' },
+      { title: 'CPU と記憶', text: 'キャッシュは、番地の一部のビットで置き場所を決める表を回路にしたもので、追い出す行は LRU の近似で選ぶ（[[06-cpu.html#s6.5|第6章 場面6]]）。スイッチの CAM やルーターの TCAM は、全部の行と同時に比べる回路の表。どれも、表を引く仕事を回路の決まった拍数で行う。' },
+      { title: 'OS とブラウザ', text: 'カーネルは、ページテーブルの 4 段の木、ランキューの赤黒木、受信リング、ソケットの表を使う（[[09-os.html#s4.2|第9章 場面4]]）。ブラウザは DOM の木と要素のスタック、イベントループのタスクキューで動く（[[10-browser.html#s5.3|第10章 場面5]]）。カーネルは、最悪の場合の遅れも読める形を重く見る。' },
+      { title: '網と約束ごと', text: '網の機器は MAC 表・NAT の表・経路表を引き（[[16-internet.html#s5.6|第16章 場面5]]）、約束ごとは DNS の名前の木とキャッシュ、TCP の並べ直しと再送の手順で動く（[[19-tcp.html#s3.3|第19章 場面3]]）。パケットごとの仕事は回路、経路の計算や接続の管理はソフトウェアと、同じ機器の中でも分けることが多い。' },
+      { title: '暗号・圧縮・再生', text: '鍵交換は 256 ビットの k でも、2 倍と足し算をそれぞれ約 255 回で kG を求める（[[20-tls.html#s3.2|第20章 場面3]]）。k 回足せば 2²⁵⁶ 回近くかかる計算が、手順で現実の時間に収まる。圧縮の動き探索（[[23-codec.html#s4.2|第23章 場面4]]）や ABR の移動平均（[[24-streaming.html#s3.1|第24章 場面3]]）も、手順の選び方である。' },
+      { title: '答え：層ではなく道具', text: '同じ問題でも、層によって選ぶ形が変わる。経路表の「いちばん長い一致」は、ルーターの回路では全行を同時に比べる TCAM、Linux では LC-trie の木で引き、ハッシュ表なら長さごとに最大 33 回引き直す。どの形を選ぶかは、層ごとに重く見る制約で決まる。[[26-kata.html#s5|第26章 場面5]]の型と同じく、層を横切って現れる道具だ。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const X0 = 168, CWID = 192;
+      COLS6.forEach((c, k) => S.text(X0 + k * CWID + 6, 30, c, { cls: 't-sm t-b t-dim' }, svg));
+      S.line(16, 40, 944, 40, { cls: 's-rule w1' }, svg);
+      st.rows = [];
+      st.cards = [];
+      let y = 44;
+      ROWS6.forEach((row, r) => {
+        const n = Math.max(2, ...row.cells.map((c) => c.length)), h = 10 + 25 * n;   // 行の題が 2 行なので、最低 2 段分の高さ
+        if (r % 2) S.rect(16, y, 928, h, { cls: 'f-soft' }, svg);
+        const name = S.text(24, y + 22, row.name, { cls: 't-sm t-b' }, svg);
+        S.text(24, y + 38, row.ch, { cls: 't-xs t-dim' }, svg);
+        st.rows.push({ name, lit: [...new Set(row.cells.flat().flatMap((c) => c[2]))] });
+        row.cells.forEach((cell, k) => cell.forEach(([label, href, lit], j) => {
+          const x = X0 + k * CWID, yy = y + 6 + 25 * j;
+          const code = href.replace(/^0?(\d+)-.*#s(\d+).*$/, '$1-$2');
+          const a = S.el('a', { href, 'aria-label': label + '（第' + code.replace('-', '章 場面') + '）' }, svg);
+          const rr = S.rect(x + 4, yy, CWID - 10, 22, { rx: 4, cls: 'lnk f-sf s-rule w1' }, a);
+          const t = S.text(x + 12, yy + 15, label, { cls: 't-xs t-b' }, a);
+          S.text(x + CWID - 12, yy + 15, code, { cls: 't-xs t-mono t-dim t-end' }, a);
+          st.cards.push({ a, rr, t, lit });
+        }));
+        y += h;
+        S.line(16, y, 944, y, { cls: 's-soft w1' }, svg);
+      });
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, all = i === 5;
+      st.cards.forEach((c) => {
+        const on = c.lit.includes(i);
+        c.rr.setAttribute('class', 'lnk ' + (on ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+        c.t.setAttribute('class', 't-xs t-b' + (on ? ' t-x' : ''));
+        c.a.style.opacity = all || on ? '' : 0.45;
+      });
+      st.rows.forEach((r) => r.name.setAttribute('class', 't-sm t-b' + (r.lit.includes(i) ? ' t-x' : '')));
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VII部 横断 ／ 第27章',
+      title: 'データ構造とアルゴリズム',
+      home: '../index.html',
+      prev: { href: '26-kata.html', title: '型とメモリ' },
+      legend: [{ c: 'd', label: 'データ' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

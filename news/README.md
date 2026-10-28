@@ -28,5 +28,5 @@ tech ニュースを 1 件ずつ調べ、この教材のどの層（章・場面
   4. 層ごとの守り（または影響）: 対策や影響が層ごとに違うときだけ置く。
   5. 追って確かめること。
   6. 出典。
-- 章へのリンクは公開版の場面を指す（`https://okayus.github.io/youtube-ga-mieru-made/chapters/09-os.html#s3` は第9章 場面3）。ページを作るときに相対パスに直り、表紙と一覧の 25 章の帯に印が付く。
+- 章へのリンクは公開版の場面を指す（`https://okayus.github.io/youtube-ga-mieru-made/chapters/09-os.html#s3` は第9章 場面3）。ページを作るときに相対パスに直り、表紙と一覧の全 27 章の帯に印が付く。
 - 文章は [docs/authoring.md](../docs/authoring.md) §8 に従う。

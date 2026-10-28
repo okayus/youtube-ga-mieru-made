@@ -23,7 +23,7 @@ const REPO = 'https://github.com/okayus/youtube-ga-mieru-made/blob/main/news/';
 const PER_SCENE = 6;   // 一覧の 1 場面に並べるノートの数（1画面版で収まる数）
 
 /* ---------- 章の一覧（帯に使う） ---------- */
-const PARTS = [['I', '電気'], ['II', '計算機'], ['III', 'ソフト'], ['IV', 'つながる'], ['V', '約束ごと'], ['VI', 'YouTube']];
+const PARTS = [['I', '電気'], ['II', '計算機'], ['III', 'ソフト'], ['IV', 'つながる'], ['V', '約束ごと'], ['VI', 'YouTube'], ['VII', '横断']];
 const chapters = fs.readdirSync(path.join(ROOT, 'chapters')).filter((f) => /^\d\d-[a-z0-9-]+\.html$/.test(f)).sort().map((file) => {
   const html = fs.readFileSync(path.join(ROOT, 'chapters', file), 'utf8');
   const title = (html.match(/<title>([^<]*)/) || [, ''])[1].replace(/\s*—.*$/, '').trim();
@@ -182,7 +182,7 @@ function readNote(file) {
   return n;
 }
 
-/* 25 章の帯。リンクしている章に印を付け、その章へのリンクにする */
+/* 全章の帯。リンクしている章に印を付け、その章へのリンクにする */
 function strip(on, label) {
   const set = new Set(on);
   const groups = PARTS.map(([p, name]) => {
@@ -219,7 +219,7 @@ const STYLE = `<style>
   .nw-meta li { padding-left: 1em; text-indent: -1em; }
   .nw-meta li::before { content: "・"; }
 
-  /* 25 章の帯 */
+  /* 全章の帯 */
   .nw-strip { display: flex; flex-wrap: wrap; gap: 6px 6px; margin-top: 1rem; }
   .nw-grp { flex: var(--n) 1 calc(var(--n) * 17px); min-width: 0; display: grid; gap: 2px; }
   .nw-part { font-size: 0.68rem; line-height: 1.5; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid var(--rule); padding-left: 3px; }
@@ -366,7 +366,7 @@ ${ns.map(card).join('\n')}
     <p class="eyebrow">ニュースから層へ ／ ${notes.length} 件</p>
     <h1 id="h-s0">ニュースから層へ</h1>
     <p class="standfirst">tech ニュースを 1 件ずつ調べ、この教材のどの層の話かを、章と場面へのリンクで示したノート。各ノートは、確かなことと確かでないことを出どころつきで書き分け、層ごとに何が起きるかを表にする。</p>
-    <p class="keys fit-only">${KEYS}一覧の帯は全 25 章を部ごとに並べたもので、塗りつぶした番号がそのノートのリンクしている章。</p>
+    <p class="keys fit-only">${KEYS}一覧の帯は全 27 章を部ごとに並べたもので、塗りつぶした番号がそのノートのリンクしている章。</p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>

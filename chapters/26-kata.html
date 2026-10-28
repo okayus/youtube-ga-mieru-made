@@ -1,0 +1,1291 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>型とメモリ — YouTubeが見えるまで</title>
+<meta name="description" content="メモリに入っているのはビットの列だけで、それが整数か、文字か、番地かは、読む側の約束で決まる。プログラムの言語の型は、その約束（何バイトを、どの番地に置き、何として読み、どの命令で扱うか）を書き表したものだ。">
+<meta property="og:title" content="型とメモリ — YouTubeが見えるまで">
+<meta property="og:description" content="メモリに入っているのはビットの列だけで、それが整数か、文字か、番地かは、読む側の約束で決まる。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg text.pre { white-space: pre; }
+  svg a { cursor: pointer; }
+  svg a:hover text, svg a:focus-visible text { text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VII部 横断 ／ 第26章 ／ 全27章</p>
+    <h1 id="h-s0">型とメモリ</h1>
+    <p class="standfirst">メモリに入っているのはビットの列だけで、それが整数か、文字か、番地かは、読む側の約束で決まる。プログラムの言語の型（第2章の n 型・p 型とは別）は、その約束、つまり何バイトを、どの番地に置き、何として読み、どの命令で扱うかを書き表したものだ。この章では、同じ 4 バイトの読み分けから始めて、静的な型が実行の前に働き終えて各層に跡だけを残すこと、JavaScript では値が型を持ち歩くこと、型とメモリの安全の関係を見る。第VII部の 2 章は、1 つの層の部品ではなく、層を横切ってどの層にも出てくるものを扱う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only" data-auto></p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>同じビット</a><p>同じ 4 バイトを、符号なし整数・符号付き整数・浮動小数点数・IPv4 アドレスの 4 通りに読む。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>並べ方</a><p>型が大きさと置ける番地を決め、構造体の欄を詰め物を挟んで並べる。欄の名前は番地の差になる。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>命令</a><p>型が命令（整数か浮動小数点か、符号付きか）を選び、機械語には残らない。関数の間の約束 ABI。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>静的と動的</a><p>実行の前に確かめるか、値が型を持ち歩くか。V8 の Smi と Map、JIT の決め打ち。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>どの層か</a><p>型は実行中の層のどこにも部品として無く、各層への決め方として層を横切る。層の境目の形式。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>メモリ安全</a><p>範囲外の書き込みと解放後の使用。長さと寿命を確かめる言語と、回路が比べる札（MTE）。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（データ構造とアルゴリズム）へ。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。機械語と構造体の並びは、この PC（x86-64 の Linux）で gcc 15.2.0（-O2）と rustc 1.95.0 が出したものを 2026 年 10 月に確かめた（関数の入口の endbr64 などは省いた）。V8 の値の表し方は V8 の公式ブログ（2020 年）と、Node.js 24.22.1 の %DebugPrint・%HaveSameMap で確かめた。命令や並びはコンパイラ・版・CPU で変わる。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 同じビット ================= -->
+<section class="scene sc-anim" id="s1" data-tab="同じビット" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>同じビット — 4 バイトを 4 通りに読む</h2>
+    <p class="sh-meta"><span class="chip">C0 A8 01 0A</span><span class="chip">32 ビット</span><span class="chip">IEEE 754</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">第25章で追った道では、どの区間でもデータはビットの列として運ばれ、受け取った側が決まった読み方で読んだ。メモリの中も同じで、ビットそのものには読み方が書かれていない。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">IEEE 754（1985 年）の形を、PC やスマホの CPU は回路で扱う。64 ビット（倍精度）は指数 11 ビット・仮数 52 ビットで、JavaScript の数はこちら。この場面の 4 通りは、どれも番地の小さいバイトを上位として読んだ（逆の順は<a class="xref" href="#s5" data-go="5" data-step="4">5「どの層か」</a>）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="メモリの4バイト C0 A8 01 0A の32ビットと、符号なし整数・符号付き整数・浮動小数点数・IPv4アドレスとして読んだ値"></svg></div>
+    <figcaption>図1　番地 0x1000〜0x1003 の 4 バイトと、その 32 ビット（左端が最上位のビット 31）。下の 4 行は同じビットの 4 通りの読み方と、その値。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 並べ方 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="並べ方" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>並べ方 — 大きさ・置ける番地・詰め物</h2>
+    <p class="sh-meta"><span class="chip">x86-64・AArch64</span><span class="chip">sizeof</span><span class="chip">gcc 15.2</span><span class="chip">rustc 1.95</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">型が決めるのは読み方だけではない。何バイトを使うか、どの番地に置けるか、構造体の中で欄をどう並べるかも型で決まる。コンパイラはそれを計算し終えて、番地の差という数に変える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">配列は同じ型を隙間なく並べたもので、i 番目は「先頭 ＋ i × 大きさ」の番地にある（<a class="xref" href="27-algorithm.html#s1">第27章 場面1</a>）。C の構造体の並べ方は CPU と OS の組ごとに ABI の文書が決めていて、gcc と clang のように別のコンパイラで作った部品どうしでも同じになる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="型ごとの大きさと置ける番地、構造体の欄の並びと詰め物"></svg></div>
+    <figcaption>図2　左上は型ごとの大きさと置ける番地、右上は例の構造体。中段は C と Rust の並び（4 バイトずつの行。斜線は詰め物）、下段は段階2 がラインとの関係、段階3 からは C の並びで 3 個並べた配列。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 命令 ================= -->
+<section class="scene sc-anim" id="s3" data-tab="命令" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>命令 — 型が選び、機械語には残らない</h2>
+    <p class="sh-meta"><span class="chip">x86-64</span><span class="chip">gcc 15.2 -O2</span><span class="chip">System V ABI</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">CPU の命令に型は無い。あるのは「何ビットを、整数として、符号付きで」といった命令ごとの決まりだけ。コンパイラは式の型を見てどの命令を使うかを選び、選び終えると型そのものは捨てる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ARM（AArch64）でも同じで、整数と浮動小数点数では別の命令（add と fadd）を、符号付きと符号なしの比べ方では別の条件（lt と lo）を使う。どの CPU でも、命令を選ぶところまでが型の仕事になる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="型のあるソースと、gcc が出した x86-64 の機械語"></svg></div>
+    <figcaption>図3　上は型の付いた C の式と、gcc 15.2（-O2）が選んだ x86-64 の命令。下は段階ごとの中身（レジスタの幅、2 つの回路、フラグ、ずらす・広げる、関数の間の約束、バイト列）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 静的と動的 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="静的と動的" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>静的と動的 — 動かす前に確かめるか、走りながら確かめるか</h2>
+    <p class="sh-meta"><span class="chip">rustc 1.95</span><span class="chip">V8</span><span class="chip">Smi</span><span class="chip">Map</span><span class="chip">TypeScript</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">型を確かめる時期は言語で違う。C・Rust・Go は実行の前にコンパイラが全部の式を確かめ、JavaScript・Python は走りながら値ごとに確かめる。後のほうでは、値そのものが自分の型を持ち歩く。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Node.js はポインタ圧縮を使わない作りで、Smi は 32 ビット。手元の Node.js 24.22.1 では、2<sup>30</sup> は Smi、2<sup>31</sup> と 1.5 は HeapNumber だった（2026 年 10 月、%DebugPrint）。表し方はエンジンと版で違う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="静的な型と動的な型の時間の帯と、V8 の値の表し方"></svg></div>
+    <figcaption>図4　上は型を確かめる時期の 2 本の帯。下は V8 の値の表し方（32 ビットの語、ヒープの物と Map）。物を指す語の番地は例。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 どの層か ================= -->
+<section class="scene sc-anim" id="s5" data-tab="どの層か" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>どの層か — 型は層を横切る</h2>
+    <p class="sh-meta"><span class="chip">作る／動かす</span><span class="chip">ABI</span><span class="chip">NX</span><span class="chip">バイト順</span><span class="chip">protobuf</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">静的な型はどの層にあるのか。答えは、実行中の層のどこにも部品としては無い。実行の前に働き終え、決めた結果だけを各層に残す。動的な型と、層の境目の形式も同じ表に置いて比べる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">型という考え（ビットの読み方の約束）は、どの層の境目にもある。言語の静的な型は、そのうちプログラムの中の約束を、実行の前にまとめて確かめる道具。プログラムの外から来たバイトには型が付いてこないので、読む側が形式に照らして確かめる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="作る・動かすの時間と、第1〜25章の層の表に、静的な型・動的な型・層の境目の形式を置いた図"></svg></div>
+    <figcaption>図5　表の横は時間（作る・動かす）、縦は第1〜25章の層。右端の帯は層の境目の形式。層の名前と形式の札は、その章へのリンク。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 メモリ安全 ================= -->
+<section class="scene sc-anim" id="s6" data-tab="メモリ安全" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>メモリ安全 — 長さと寿命を守らせる</h2>
+    <p class="sh-meta"><span class="chip">範囲外</span><span class="chip">解放後の使用</span><span class="chip">スライス</span><span class="chip">MTE</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">型の約束が破られると、メモリの安全が壊れる。C の配列は長さを持たず、解放した領域は別の物に使い回され、どちらも CPU は止めない。長さと寿命を確かめる仕組みを、言語と回路の両方が持ち始めている。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Heartbleed（2014 年、CVE-2014-0160）は、OpenSSL が TLS の heartbeat で相手の書いた長さのまま写して返し、1 回に最大約 64 KB の隣のメモリが漏れた。届いたバイトを確かめずに使った、層の境目の問題（<a class="xref" href="#s5" data-go="5" data-step="5">5「どの層か」</a>の段階6）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="ヒープの上の隣り合う物と、範囲外の書き込み・解放後の使用・長さの確認・MTE の札"></svg></div>
+    <figcaption>図6　上はヒープの上の隣り合う 2 つの物（番地は例）。下は段階ごとの中身（ポインタ、範囲外の書き込み、解放後の使用、スライス、寿命、MTE の札）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 型は層を横切る約束</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>メモリのビットには読み方が書かれていない。同じ C0 A8 01 0A が、符号なし整数・符号付き整数・浮動小数点数・IPv4 アドレスで別の値になり、取り違えても CPU は止まらない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>型は大きさと置ける番地を決め、構造体の欄を詰め物を挟んで並べる。欄の名前は、機械語の中では番地の差という数になる（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>型は命令を選ぶ（lea か addss、setl か setb、sar か shr）。関数の間の約束（ABI）も型で決まり、できた機械語に型は残らない（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>静的な型は実行の前にコンパイラが確かめ、動的な型は値が札を持ち歩く。V8 は 1 ビットの印と Map で値の型を示し、JIT はそれを決め打ちにして速くする（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>静的な型は実行中の層のどこにも部品として無く、命令・並び・ABI という跡を各層に残して層を横切る。層の境目の形式は、型の情報をバイトに付けずに送る（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>長さと寿命の約束が破られると、範囲外の書き込みや解放後の使用でメモリが壊れる。スライス・GC・所有と借用・MTE が、言語と回路の両方でそれを確かめる（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>型（データ型）</th><td>ビット列の読み方の約束。大きさ・置ける番地・使う命令を決める。第2章の n 型・p 型（半導体の種類）とは別。int32_t は 4 バイト・4 の倍数の番地・符号付きの命令。</td></tr>
+        <tr><th>符号付き・符号なし整数</th><td>符号は正負の印（第13・23章の符号化とは別）。n ビットで、符号なしは 0〜2<sup>n</sup>−1、符号付き（2 の補数）は −2<sup>n−1</sup>〜2<sup>n−1</sup>−1。32 ビットなら約 43 億までと、約 ±21 億。</td></tr>
+        <tr><th>浮動小数点数（IEEE 754）</th><td>符号・指数・仮数で表す数。32 ビット（float）は 1・8・23 ビットで 10 進約 7 桁、64 ビット（double。JavaScript の数）は 1・11・52 ビットで約 16 桁。</td></tr>
+        <tr><th>アライメント・詰め物</th><td>値を大きさの倍数の番地に置く決まりと、そのために欄の間や末尾に入れる使わないバイト。x86-64 では 4 バイトの値は 4 の倍数、8 バイトの値は 8 の倍数。</td></tr>
+        <tr><th>ABI</th><td>別々にコンパイルした部品どうしの、機械語の水準の約束。引数と戻り値のレジスタ、構造体の並び、システムコールの渡し方。Linux の x86-64 は System V の ABI。</td></tr>
+        <tr><th>静的型付け・動的型付け</th><td>型を実行の前にコンパイラが確かめる（C・Rust・Go・TypeScript）か、実行中に値ごとに確かめる（JavaScript・Python）か。静的な型は機械語や JavaScript には残らない。</td></tr>
+        <tr><th>Smi・隠れクラス（Map）</th><td>V8 の値の表し方。Smi は最下位のビットを印 0 にした小さな整数（ポインタ圧縮では 31 ビット）。Map は物の型と、各プロパティの欄の位置の表。</td></tr>
+        <tr><th>バイト順（エンディアン）</th><td>2 バイト以上の値を、上位のバイトから並べる（ビッグエンディアン。ネットワークバイト順）か、下位から並べる（リトルエンディアン。x86-64 と多くの ARM のメモリ）か。</td></tr>
+        <tr><th>メモリ安全</th><td>範囲外の読み書きと、解放した領域の使用が起きないこと。Chromium の深刻なバグの約 7 割がこの違反だった（2020 年の公表）。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 動きを止めているときは、段階の動きの終わりの姿を見せる */
+  const playing = () => YT.motion.playing;
+  /* 上付きの数字（2³¹ など） */
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+  const sup = (n) => String(n).split('').map((c) => (c === '-' ? '⁻' : SUP[Number(c)])).join('');
+  /* 桁区切り。負の数は全角幅のマイナス記号（−）で書く */
+  const num = (n) => (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('en-US');
+  const hex2 = (b) => b.toString(16).toUpperCase().padStart(2, '0');
+  /* 等幅の行の並び（空白を詰めない） */
+  function code(parent, x, y, lines, lh, cls) {
+    return lines.map((s, k) => S.text(x, y + k * lh, s, { cls: (cls || 't-mono t-sm') + ' pre' }, parent));
+  }
+  /* 区切りの括弧（x0〜x1 の幅に、下向きの両端の線） */
+  function bracket(parent, x0, x1, y, cls) {
+    return S.path(`M${x0 + 1},${y - 6} V${y} H${x1 - 1} V${y - 6}`, { cls: 'f-none ' + (cls || 's-mid w15') }, parent);
+  }
+
+  /* ================================================================
+     場面1 同じビット
+     4 バイト C0 A8 01 0A（番地の小さい順。番地の小さいバイトを上位として読む）の値は、
+     Python 3.14 の struct と rustc 1.95 の u32 / i32 / f32::from_bits で確かめた（2026-10-28）
+     ================================================================ */
+  const BYTES = [0xC0, 0xA8, 0x01, 0x0A];
+  const BITS = BYTES.flatMap((b) => b.toString(2).padStart(8, '0').split('').map(Number));   // [0] がビット 31
+  const ONES = BITS.map((v, k) => (v ? 31 - k : -1)).filter((n) => n >= 0);                 // 1 のビットの番号（31, 30, 23, 21, 19, 8, 3, 1）
+  const READ = [
+    { name: '符号なし整数（32 ビット）', sub: 'C の uint32_t ／ Rust の u32', how: '重み 2³¹〜2⁰ を足す', val: '3,232,235,786' },
+    { name: '符号付き整数（32 ビット）', sub: 'C の int32_t ／ Rust の i32', how: '先頭の重みだけ −2³¹（2 の補数）', val: '−1,062,731,510' },
+    { name: '浮動小数点数（32 ビット）', sub: 'C の float ／ Rust の f32', how: '符号 1・指数 8・仮数 23（IEEE 754）', val: '−5.2501268…' },
+    { name: 'IPv4 アドレス', sub: 'C の struct in_addr ／ Rust の Ipv4Addr', how: '8 ビットずつ 10 進で', val: '192.168.1.10' }
+  ];
+  /* 段階ごとに、読む順に区切ったビットの組 [最初の位置, 最後の位置（0 がビット 31）, 式の途中, 値の途中] */
+  const S1G = (() => {
+    const g = [null];
+    // 符号なし: 1 のビットを 1 つずつ足す
+    let sum = 0;
+    g.push(ONES.map((b, j) => {
+      sum += 2 ** b;
+      const terms = ONES.slice(0, j + 1).map((n) => '2' + sup(n)).join(' ＋ ');
+      return [31 - b, 31 - b, terms, num(sum)];
+    }));
+    // 符号付き: 先頭のビット、残りの 31 ビット
+    const rest = ONES.slice(1).reduce((a, b) => a + 2 ** b, 0);
+    g.push([
+      [0, 0, '−2³¹ ＝ −2,147,483,648', num(-(2 ** 31))],
+      [1, 31, `−2,147,483,648 ＋ ${num(rest)}`, '…']
+    ]);
+    // 浮動小数点数: 符号・指数・仮数
+    g.push([
+      [0, 0, '符号 1 → 負', '−'],
+      [1, 8, '符号 −　指数 129 − 127 ＝ 2 → × 2²', '…'],
+      [9, 31, '符号 −　× 2²　仮数 1.0101000 00000001 00001010₂ ＝ 1.3125317…', '…']
+    ]);
+    // IPv4: 1 バイトずつ
+    g.push(BYTES.map((b, j) => [j * 8, j * 8 + 7, BYTES.slice(0, j + 1).join(' . '), BYTES.slice(0, j + 1).join('.')]));
+    return g;
+  })();
+  const S1EQ = [
+    '',
+    '2³¹ ＋ 2³⁰ ＋ 2²³ ＋ 2²¹ ＋ 2¹⁹ ＋ 2⁸ ＋ 2³ ＋ 2¹ ＝ 3,232,235,786',
+    '−2,147,483,648 ＋ 1,084,752,138 ＝ −1,062,731,510',
+    '−1.3125317… × 2² ＝ −5.2501268…（正確には −5,505,157 ÷ 1,048,576）',
+    '192 . 168 . 1 . 10',
+    ''
+  ];
+  const S1NOTE = [
+    '32 ビットのどこにも「何の値か」を示すビットは無い',
+    '符号なし整数の範囲は 0〜4,294,967,295（2³² − 1）',
+    '符号付き整数の範囲は −2,147,483,648〜2,147,483,647',
+    '10 進で約 7 桁の精度。ここでは 9 桁目以降を「…」とした',
+    'IPv4 アドレスは、この 4 バイトをこの順にヘッダへ入れる（第18章）',
+    '浮動小数点数として書き、整数として読んだ。CPU は例外を出さない'
+  ];
+
+  const s1 = {
+    steps: [
+      { title: 'ビットに読み方は書かれていない', text: '番地 0x1000 からの 4 バイトに、16 進で C0 A8 01 0A が入っている。32 個の 0 と 1 のどこにも「これは何の値か」を示すビットは無い。[[06-cpu.html#s2.4|第6章 場面2]] で命令とデータの区別が使われ方だけだったのと同じく、値の意味も読む側が決める。' },
+      { title: '符号なし整数として読む', text: '各ビットに、右端の 1 から左端の 2³¹ まで 2 倍ずつの重みを付け、1 のビットの重みを足す（[[04-ronri.html#s4.1|第4章 場面4]] の位取りを 32 桁に）。1 のビットは 8 個で、和は 3,232,235,786。' },
+      { title: '符号付き整数として読む', text: '先頭のビットの重みだけを −2³¹ に変えると、2 の補数の符号付き整数になる（[[04-ronri.html#s6.5|第4章 場面6]]）。先頭が 1 なので負の数で、−2,147,483,648 に残りの 31 ビットの 1,084,752,138 を足して −1,062,731,510。' },
+      { title: '浮動小数点数として読む', text: 'IEEE 754 の 32 ビットの形では、先頭の 1 ビットが符号、次の 8 ビットが指数、残り 23 ビットが仮数。指数は 129 から 127 を引いた 2 で 2² を掛ける意味になり、仮数は頭に 1 を補った 1.3125317…。値は −1.3125317… × 2² ＝ −5.2501268…。' },
+      { title: 'IPv4 アドレスとして読む', text: '8 ビットずつ 4 つに区切り、それぞれを 10 進で書くと 192.168.1.10。[[14-router.html#s2|第14章 場面2]] で PC に配られた番号で、IPv4 ヘッダの送信元の欄（[[18-ip.html#s1.6|第18章 場面1]]）には、この 4 バイトがこの順で入る。' },
+      { title: '取り違えても CPU は止まらない', text: '−5.2501268 を浮動小数点数として書いた 4 バイトを、整数として読めば −1,062,731,510 が返り、CPU は例外を出さない。誤りに気づく手がかりはビットの中に無い。そこで読み方をプログラムの中で決めて守らせる。それが言語の**型**（第2章の n 型・p 型とは別）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const X0 = 96, BW = 24, YB = 88, BH = 32;
+      Object.assign(st, { X0, BW, YB, BH });
+      S.text(40, 30, 'メモリの 4 バイト', { cls: 't-lg t-b' }, svg);
+      S.text(920, 30, '番地の小さい順に C0 A8 01 0A（16 進）', { cls: 't-sm t-dim t-end' }, svg);
+      // バイト（番地と 16 進）
+      BYTES.forEach((b, j) => {
+        const x = X0 + j * 8 * BW;
+        S.text(x + 4 * BW, 50, '番地 0x100' + j, { cls: 't-c t-xs t-mono t-dim' }, svg);
+        S.rect(x + 1, 56, 8 * BW - 2, 26, { rx: 3, cls: 'f-in s-rule w1' }, svg);
+        S.text(x + 4 * BW, 74, hex2(b), { cls: 't-c t-md t-mono t-b' }, svg);
+      });
+      // 32 ビット
+      BITS.forEach((v, k) => {
+        const x = X0 + k * BW;
+        S.rect(x + 1, YB, BW - 2, BH, { rx: 2, cls: v ? 'f-d-soft s-d w1' : 'f-sf s-rule w1' }, svg);
+        S.text(x + BW / 2, YB + 21, String(v), { cls: 't-c t-md t-mono ' + (v ? 't-d t-b' : 't-dim') }, svg);
+      });
+      [1, 2, 3].forEach((j) => S.line(X0 + j * 8 * BW, 54, X0 + j * 8 * BW, YB + BH + 2, { cls: 's-mid w15' }, svg));
+      [[31, 0], [24, 7], [23, 8], [16, 15], [15, 16], [8, 23], [7, 24], [0, 31]].forEach(([n, k]) => S.text(X0 + k * BW + BW / 2, YB + BH + 14, String(n), { cls: 't-c t-xs t-mono t-dim' }, svg));
+      // 段階1: 32 ビット全体の枠
+      st.allBox = S.rect(X0 - 4, YB - 4, 32 * BW + 8, BH + 8, { rx: 5, cls: 'f-none s-x w2 fade hide' }, svg);
+      // 段階2・3: 1 のビットの重み
+      st.gW = S.g({ cls: 'fade hide' }, svg);
+      st.w31 = null;
+      ONES.forEach((b) => {
+        const t = S.text(X0 + (31 - b) * BW + BW / 2, 156, '2' + sup(b), { cls: 't-c t-xs t-mono t-d t-b' }, st.gW);
+        if (b === 31) st.w31 = t;
+      });
+      // 段階4: 符号・指数・仮数
+      st.gF = S.g({ cls: 'fade hide' }, svg);
+      [[0, 0, '符号', '1 → 負'], [1, 8, '指数（8 ビット）', '1000 0001 ＝ 129'], [9, 31, '仮数（23 ビット）', '頭に 1 を補って 1.0101000 00000001 00001010₂']].forEach(([a, b, n, v]) => {
+        const x0 = X0 + a * BW, x1 = X0 + (b + 1) * BW;
+        bracket(st.gF, x0, x1, 150);
+        S.text((x0 + x1) / 2, 168, n, { cls: 't-c t-sm t-b' }, st.gF);
+        S.text((x0 + x1) / 2 + (a === 0 ? 6 : 0), 184, v, { cls: 't-c t-xs t-mono t-mid' }, st.gF);
+      });
+      // 段階5: 1 バイトずつ
+      st.gI = S.g({ cls: 'fade hide' }, svg);
+      BYTES.forEach((b, j) => {
+        const x0 = X0 + j * 8 * BW, x1 = x0 + 8 * BW;
+        bracket(st.gI, x0, x1, 150);
+        S.text((x0 + x1) / 2, 172, String(b), { cls: 't-c t-lg t-mono t-b' }, st.gI);
+      });
+      // 式の行
+      st.eq = S.text(480, 210, '', { cls: 't-c t-sm t-mono t-b' }, svg);
+      // 読んでいる所の印
+      st.cur = S.rect(X0, YB - 3, BW, BH + 6, { rx: 4, cls: 'f-none s-x w2', style: { opacity: 0 } }, svg);
+      // 読み方の 4 行
+      st.rows = READ.map((r, k) => {
+        const y = 226 + k * 68;
+        const g = S.g({ cls: 'fade' }, svg);
+        const box = S.rect(40, y, 880, 60, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(60, y + 26, r.name, { cls: 't-md t-b' }, g);
+        S.text(60, y + 45, r.sub, { cls: 't-xs t-mono t-dim' }, g);
+        S.text(360, y + 35, r.how, { cls: 't-sm t-mid' }, g);
+        const val = S.text(900, y + 38, '？', { cls: 't-lg t-mono t-b t-end' }, g);
+        return { g, box, val, y };
+      });
+      // 段階6: 書いた型と読んだ型
+      st.gMix = S.g({ cls: 'fade hide' }, svg);
+      S.label(st.gMix, 690, st.rows[2].y + 30, '書いた型', { cls: 't-sm t-b t-x', box: 'f-sf s-x w15' });
+      S.label(st.gMix, 690, st.rows[1].y + 30, '読んだ型', { cls: 't-sm t-b t-x', box: 'f-sf s-x w15' });
+      S.path(`M922,${st.rows[2].y + 26} C950,${st.rows[2].y + 18} 950,${st.rows[1].y + 42} 926,${st.rows[1].y + 34}`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, st.gMix);
+      // 下の注記
+      st.note = S.text(480, 536, '', { cls: 't-c t-sm t-mid' }, svg);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.allBox, i === 0);
+      S.fade(st.gW, i === 1 || i === 2);
+      st.w31.textContent = i === 2 ? '−2³¹' : '2³¹';
+      st.w31.setAttribute('class', 't-c t-xs t-mono t-b ' + (i === 2 ? 't-x' : 't-d'));
+      S.fade(st.gF, i === 3);
+      S.fade(st.gI, i === 4);
+      S.fade(st.gMix, i === 5);
+      st.rows.forEach((r, k) => {
+        const shown = i === 5 || (i >= 1 && k <= i - 1);
+        const hl = (i >= 1 && i <= 4 && k === i - 1) || (i === 5 && (k === 1 || k === 2));
+        r.val.textContent = shown ? READ[k].val : '？';
+        r.val.setAttribute('class', 't-lg t-mono t-b t-end' + (shown ? (hl ? ' t-x' : '') : ' t-dim'));
+        r.box.setAttribute('class', hl ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        op(r.g, i >= 1 && i <= 4 && k > i - 1 ? 0.45 : '');
+      });
+      st.eq.textContent = S1EQ[i];
+      st.note.textContent = S1NOTE[i];
+      st.note.setAttribute('class', 't-c t-sm ' + (i === 0 || i === 5 ? 't-x t-b' : 't-mid'));
+      op(st.cur, 0);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, G = S1G[i];
+      if (!G) { op(st.cur, 0); return; }
+      // 区切りの組を 0.9 秒ずつ順に読み、読み終えたら 3 秒止めてから繰り返す
+      const DT = 0.9, n = G.length, LOOP = n * DT + 3;
+      const k = playing() ? Math.floor(U.mod(ctx.ts, LOOP) / DT) : n;
+      const row = st.rows[i - 1];
+      if (k < n) {
+        const [a, b, eq, v] = G[k];
+        st.cur.setAttribute('x', st.X0 + a * st.BW);
+        st.cur.setAttribute('width', (b - a + 1) * st.BW);
+        op(st.cur, 1);
+        st.eq.textContent = eq;
+        row.val.textContent = v;
+      } else {
+        op(st.cur, 0);
+        st.eq.textContent = S1EQ[i];
+        row.val.textContent = READ[i - 1].val;
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 並べ方
+     struct Seg の並びは gcc 15.2.0（x86-64、-O2）の offsetof・sizeof と、rustc 1.95.0 の
+     offset_of!・size_of で確かめた（2026-10-28）。C: kind +0、start_ms +4、itag +8、12 バイト。
+     Rust の既定: start_ms +0、itag +4、kind +6、8 バイト。#[repr(C)] を付けると C と同じ 12 バイト
+     ================================================================ */
+  const TYPES = [
+    ['u8・i8', 1, 'どこでも'],
+    ['u16・i16', 2, '2 の倍数'],
+    ['u32・i32・f32', 4, '4 の倍数'],
+    ['u64・i64・f64', 8, '8 の倍数'],
+    ['ポインタ（番地）', 8, '8 の倍数']
+  ];
+  /* 欄 [名前, 番地の差, バイト数, 詰め物か] */
+  const SEG_C = [['kind', 0, 1], ['', 1, 3, true], ['start_ms', 4, 4], ['itag', 8, 2], ['', 10, 2, true]];
+  const SEG_R = [['start_ms', 0, 4], ['itag', 4, 2], ['kind', 6, 1], ['', 7, 1, true]];
+  /* 詰め物の斜線（svg ごとに 1 つ。id は文書の中で重ならないように） */
+  function hatch(svg, id) {
+    const defs = S.el('defs', {}, svg);
+    const p = S.el('pattern', { id, width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
+    S.line(0, 0, 0, 6, { cls: 's-dim w15' }, p);
+    return `url(#${id})`;
+  }
+  /* 構造体の並びを 4 バイトずつの行の格子で描く（どの欄も行をまたがない例だけ） */
+  function grid(parent, x, y, cw, ch, fields, nbytes, fill) {
+    const g = S.g({}, parent);
+    const rows = Math.ceil(nbytes / 4);
+    const offs = [];
+    for (let r = 0; r < rows; r++) offs.push(S.text(x - 8, y + r * ch + ch / 2 + 4, '+' + r * 4, { cls: 't-end t-sm t-mono t-dim' }, g));
+    fields.forEach(([name, off, n, pad]) => {
+      const bx = x + (off % 4) * cw, by = y + Math.floor(off / 4) * ch;
+      const rect = S.rect(bx + 2, by + 2, n * cw - 4, ch - 4, { rx: 3, cls: pad ? 's-rule w1' : 'f-d-soft s-d w1' }, g);
+      if (pad) rect.setAttribute('fill', fill);
+      // バイトの区切りは上下の縁の短い刻みだけ（欄の名前を横切らないように）
+      for (let k = 1; k < n; k++) { S.line(bx + k * cw, by + 2, bx + k * cw, by + 8, { cls: 's-d w1' }, g); S.line(bx + k * cw, by + ch - 8, bx + k * cw, by + ch - 2, { cls: 's-d w1' }, g); }
+      if (!pad) S.text(bx + n * cw / 2, by + ch / 2 + 4, name, { cls: 't-c t-sm t-mono t-b' }, g);
+    });
+    S.rect(x, y, 4 * cw, rows * ch, { rx: 4, cls: 'f-none s-mid w1' }, g);
+    return { g, offs };
+  }
+  /* 横 1 列のバイトの帯。fields は [番地の差, バイト数, 種類（'f' 欄、'p' 詰め物、'x' 注目の欄）, 名前] */
+  function strip(parent, x, y, bw, h, fields, fill) {
+    const g = S.g({}, parent);
+    fields.forEach(([off, n, kind, name]) => {
+      const r = S.rect(x + off * bw + 1.5, y, n * bw - 3, h, { rx: 2, cls: kind === 'p' ? 's-rule w1' : kind === 'x' ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1' }, g);
+      if (kind === 'p') r.setAttribute('fill', fill);
+      if (name) S.text(x + (off + n / 2) * bw, y + h / 2 + 4, name, { cls: 't-c t-xs t-mono t-b' }, g);
+    });
+    return g;
+  }
+
+  const s2 = {
+    steps: [
+      { title: '型ごとの大きさ', text: '型の大きさは、値を何バイトで表すかの約束。Rust の u32 や C の uint32_t は名前に幅を含むが、C の long は Linux の x86-64 では 8 バイト、Windows では 4 バイトと、CPU と OS の組で変わる。コンパイラは、この大きさを命令の幅に写す（[[3|命令]]）。' },
+      { title: '置ける番地（アライメント）', text: 'x86-64 と AArch64 の ABI では、4 バイトの値は 4 の倍数の番地、8 バイトの値は 8 の倍数の番地に置く。揃えてあれば、値が 64 バイトのライン（[[06-cpu.html#s6.4|第6章 場面6]]）をまたがない。x86-64 は揃っていない番地も読めるが、ラインをまたぐ読み書きは遅くなることが多い。' },
+      { title: '構造体は欄を順に並べ、隙間を詰める', text: 'C の構造体は書いた順に欄を置く。kind（1 バイト）の次の start_ms は 4 の倍数の +4 から始めるので、+1〜+3 は使わない**詰め物**になる。末尾の 2 バイトも詰め物で、配列にしたとき次の要素の start_ms も 4 の倍数に来る。12 バイトのうち 5 バイトが詰め物。' },
+      { title: '欄の名前は番地の差になる', text: 'コンパイラは欄の名前を番地の差に置き換える。`s->itag` は「先頭の番地 rdi に 8 を足した所から 2 バイト読む」命令になる。実行するときには欄の名前も型も残らず、命令の中に 8 という数だけが残る（[[3|命令]]）。' },
+      { title: '並べ替えると 8 バイト', text: 'C は書いた順を守る決まりなので、詰め物も残る。Rust の既定の並び（repr(Rust)）は順を変えてよく、rustc 1.95 は start_ms・itag・kind の順にして、詰め物を 1 バイトに減らした。外との約束がある構造体は `#[repr(C)]` で C と同じ並びに固定する（[[5|どの層か]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const fill = hatch(svg, 'k26-hatch2');
+      // 左上: 型の大きさと置ける番地
+      const gT = st.gT = S.g({ cls: 'fade' }, svg);
+      S.text(40, 32, '型の大きさと置ける番地', { cls: 't-lg t-b' }, gT);
+      S.text(470, 32, 'x86-64・AArch64 の Linux', { cls: 't-xs t-dim t-end' }, gT);
+      S.text(40, 58, '型（Rust の名前）', { cls: 't-xs t-dim' }, gT);
+      S.text(196, 58, '大きさ（1 マス ＝ 1 バイト）', { cls: 't-xs t-dim' }, gT);
+      st.alHead = S.text(470, 58, '置ける番地', { cls: 't-xs t-dim t-end' }, gT);
+      st.tBars = []; st.tAl = [];
+      TYPES.forEach(([name, n, al], r) => {
+        const yc = 82 + r * 32;
+        S.text(40, yc + 4, name, { cls: 't-sm t-mono t-b' }, gT);
+        const bars = [];
+        for (let j = 0; j < n; j++) bars.push(S.rect(196 + j * 20, yc - 9, 18, 18, { rx: 2, cls: 'f-d-soft s-d w1' }, gT));
+        st.tBars.push(bars);
+        S.text(196 + n * 20 + 8, yc + 4, n + ' バイト', { cls: 't-sm t-mono' }, gT);
+        st.tAl.push(S.text(470, yc + 4, al, { cls: 't-sm t-end' }, gT));
+      });
+      st.tBox = S.rect(30, 64, 450, 160, { rx: 6, cls: 'f-none s-x w2 fade hide' }, gT);
+      st.alBox = S.rect(414, 64, 66, 160, { rx: 6, cls: 'f-none s-x w2 fade hide' }, gT);
+      // 右上: 例の構造体
+      const gS = st.gS = S.g({ cls: 'fade' }, svg);
+      S.text(510, 32, '例の構造体（C）', { cls: 't-lg t-b' }, gS);
+      S.rect(510, 44, 420, 96, { rx: 6, cls: 'f-in s-rule w1' }, gS);
+      code(gS, 522, 64, [
+        'struct Seg {          // 動画の断片 1 つ（例）',
+        '  uint8_t  kind;      // 1 = 映像、2 = 音声',
+        '  uint32_t start_ms;  // 始まりの時刻（ミリ秒）',
+        '  uint16_t itag;      // 形式の番号（第24章）',
+        '};'
+      ], 17, 't-mono t-xs');
+      // 段階4: 欄の名前 → 番地の差
+      st.gM = S.g({ cls: 'fade hide' }, svg);
+      S.text(510, 166, '欄を読む機械語（gcc 15.2 -O2、s は先頭の番地 rdi）', { cls: 't-sm t-b' }, st.gM);
+      code(st.gM, 522, 190, [
+        's->start_ms   mov   eax, DWORD PTR 4[rdi]',
+        's->itag       movzx eax, WORD PTR 8[rdi]'
+      ], 20, 't-mono t-sm');
+      S.text(522, 230, 'movzx の機械語は 0F B7 47 08。最後の 08 が番地の差', { cls: 't-xs t-x t-b' }, st.gM);
+      // 中: C の並び
+      const gC = st.gC = S.g({ cls: 'fade' }, svg);
+      S.text(40, 262, 'C の並び（gcc 15.2）：12 バイト', { cls: 't-md t-b' }, gC);
+      const C = grid(gC, 84, 274, 56, 34, SEG_C, 12, fill);
+      st.cOffs = C.offs;
+      st.gPad = S.g({ cls: 'fade hide' }, gC);
+      S.text(318, 295, '← 詰め物 3 バイト', { cls: 't-xs t-x t-b' }, st.gPad);
+      S.text(318, 363, '← 詰め物 2 バイト', { cls: 't-xs t-x t-b' }, st.gPad);
+      // 中: Rust の並び
+      const gR = st.gR = S.g({ cls: 'fade hide' }, svg);
+      S.text(560, 262, 'Rust の既定の並び（rustc 1.95）：8 バイト', { cls: 't-md t-b' }, gR);
+      grid(gR, 604, 274, 56, 34, SEG_R, 8, fill);
+      S.text(604, 366, '#[repr(C)] を付けると C と同じ並びで 12 バイト', { cls: 't-xs t-mono t-dim' }, gR);
+      S.text(604, 386, '100 万個並べると、C の並びは 12 MB、この並びは 8 MB', { cls: 't-xs t-x t-b' }, gR);
+      // 下（段階2）: 置ける番地とライン
+      const gL = st.gL = S.g({ cls: 'fade hide' }, svg);
+      const LX = (n) => 64 + (n - 32) * 13;   // 番地 32〜96 を横に並べる
+      S.text(40, 426, '8 バイトの値と 64 バイトのライン（第6章）', { cls: 't-md t-b' }, gL);
+      S.rect(LX(32), 436, LX(64) - LX(32) - 2, 18, { rx: 2, cls: 'f-in s-rule w1' }, gL);
+      S.rect(LX(64) + 2, 436, LX(96) - LX(64) - 2, 18, { rx: 2, cls: 'f-in s-rule w1' }, gL);
+      S.text((LX(32) + LX(64)) / 2, 449, 'ライン（番地 0〜63）の後ろ半分', { cls: 't-c t-xs t-dim' }, gL);
+      S.text((LX(64) + LX(96)) / 2, 449, '次のライン（番地 64〜127）の前半分', { cls: 't-c t-xs t-dim' }, gL);
+      S.rect(LX(56) + 1, 462, 8 * 13 - 2, 22, { rx: 3, cls: 'f-d-soft s-d w15' }, gL);
+      S.text(LX(60), 477, '56〜63', { cls: 't-c t-xs t-mono t-b' }, gL);
+      S.text(LX(64) + 14, 477, '8 の倍数の番地 56 に置く → 1 本のラインに収まる', { cls: 't-xs' }, gL);
+      S.rect(LX(60) + 1, 494, 8 * 13 - 2, 22, { rx: 3, cls: 'f-x-soft s-x w15' }, gL);
+      S.text(LX(62) - 4, 509, '60〜67', { cls: 't-c t-xs t-mono t-b t-x' }, gL);
+      S.text(LX(68) + 14, 509, '揃っていない番地 60 → 2 本のラインにまたがる', { cls: 't-xs t-x' }, gL);
+      S.line(LX(64), 432, LX(64), 520, { cls: 's-mid w15 dash' }, gL);
+      [32, 48, 56, 60, 64, 80, 96].forEach((n) => S.text(LX(n), 536, String(n), { cls: 't-c t-xs t-mono t-dim' }, gL));
+      // 下（段階3〜5）: 配列
+      const gA = st.gA = S.g({ cls: 'fade hide' }, svg);
+      const AB = 24, AX = 48;
+      S.text(40, 426, '3 個並べた配列 Seg[3]：36 バイト（12 バイトごと）', { cls: 't-md t-b' }, gA);
+      const fa = [];
+      for (let e = 0; e < 3; e++) fa.push([e * 12, 1, 'f'], [e * 12 + 1, 3, 'p'], [e * 12 + 4, 4, 'f', 'start_ms'], [e * 12 + 8, 2, 'f', 'itag'], [e * 12 + 10, 2, 'p']);
+      strip(gA, AX, 438, AB, 26, fa, fill);
+      [1, 2].forEach((e) => S.line(AX + e * 12 * AB, 432, AX + e * 12 * AB, 470, { cls: 's-fg w2' }, gA));
+      [0, 12, 24, 36].forEach((n) => S.text(AX + n * AB, 482, '+' + n, { cls: 't-c t-xs t-mono t-dim' }, gA));
+      [4, 16, 28].forEach((n) => S.text(AX + n * AB, 482, '+' + n, { cls: 't-c t-xs t-mono t-d t-b' }, gA));
+      // 段階3: 末尾の詰め物が無かったら
+      st.gGhost = S.g({ cls: 'fade hide' }, gA);
+      const fg = [];
+      for (let e = 0; e < 3; e++) fg.push([e * 10, 1, 'f'], [e * 10 + 1, 3, 'p'], [e * 10 + 4, 4, e === 1 ? 'x' : 'f', 'start_ms'], [e * 10 + 8, 2, 'f', 'itag']);
+      strip(st.gGhost, AX, 494, AB, 20, fg, fill);
+      [1, 2].forEach((e) => S.line(AX + e * 10 * AB, 490, AX + e * 10 * AB, 518, { cls: 's-fg w2' }, st.gGhost));
+      S.text(AX + 14 * AB, 528, '+14', { cls: 't-c t-xs t-mono t-x t-b' }, st.gGhost);
+      S.text(AX + 30 * AB + 12, 508, '← 仮に末尾の詰め物が無いと', { cls: 't-xs t-x' }, st.gGhost);
+      S.text(AX, 548, '10 バイトごとになり、2 個目の start_ms が 4 の倍数でない +14 に来る。末尾の詰め物はこれを防ぐ', { cls: 't-xs t-x' }, st.gGhost);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      S.fade(st.tBox, i === 0);
+      S.fade(st.alBox, i === 1);
+      st.tAl.forEach((t) => t.setAttribute('class', 't-sm t-end' + (i === 1 ? ' t-x t-b' : '')));
+      op(st.gT, i >= 2 ? 0.4 : '');
+      op(st.gS, i <= 1 ? 0.4 : '');
+      op(st.gC, i <= 1 ? 0.4 : '');
+      S.fade(st.gPad, i === 2);
+      S.fade(st.gM, i === 3);
+      st.cOffs.forEach((t, r) => t.setAttribute('class', 't-end t-sm t-mono ' + (i === 3 && r >= 1 ? 't-x t-b' : 't-dim')));
+      S.fade(st.gR, i === 4);
+      S.fade(st.gL, i === 1);
+      S.fade(st.gA, i >= 2);
+      op(st.gA, i >= 3 ? 0.4 : '');
+      S.fade(st.gGhost, i === 2);
+    }
+  };
+
+  /* ================================================================
+     場面3 命令
+     機械語は gcc 15.2.0（x86-64 の Linux、-O2 -masm=intel）の出力（2026-10-28）。関数の入口の endbr64、ret、
+     引数を eax へ移すだけの mov、比べる前に eax を 0 にする xor は省いた。バイト列は objdump -d、C++ の名前の飾りは g++ 15.2 と nm で確かめた
+     ================================================================ */
+  const ASM = [
+    ['int32_t', 'a + b', 'lea   eax, [rdi+rsi]'],
+    ['float', 'a + b', 'addss xmm0, xmm1'],
+    ['double', 'a + b', 'addsd xmm0, xmm1'],
+    ['int32_t', 'a < b', 'cmp   edi, esi ／ setl al'],
+    ['uint32_t', 'a < b', 'cmp   edi, esi ／ setb al'],
+    ['int32_t', 'a / b', 'cdq ／ idiv esi'],
+    ['uint32_t', 'a / b', 'xor   edx, edx ／ div esi'],
+    ['int32_t', 'a >> 1', 'sar   eax'],
+    ['uint32_t', 'a >> 1', 'shr   eax'],
+    ['int8_t', '(int64_t)a', 'movsx rax, dil'],
+    ['uint8_t', '(uint64_t)a', 'movzx eax, dil']
+  ];
+  const ASM_GROUP = [[0, 2, '足す'], [3, 4, '比べる'], [5, 6, '割る'], [7, 8, '右へずらす'], [9, 10, '広げる']];
+  const ASM_HL = [[], [0, 1, 2], [3, 4], [5, 6, 7, 8, 9, 10], [0, 1], []];
+  /* 小さな値の箱（文字は中央） */
+  function vbox(parent, x, y, w, h, s, box, cls) {
+    const g = S.g({}, parent);
+    const r = S.rect(x, y, w, h, { rx: 3, cls: box || 'f-sf s-rule w1' }, g);
+    const t = S.text(x + w / 2, y + h / 2 + 4, s, { cls: 't-c ' + (cls || 't-sm t-mono') }, g);
+    return { g, r, t };
+  }
+
+  const s3 = {
+    steps: [
+      { title: '命令に型は無い。幅と読み方は命令ごと', text: '[[06-cpu.html#s2.2|第6章 場面2]] の YT-8 の ADD は、8 ビットの整数の足し算だけだった。x86-64 の整数の命令は 8・16・32・64 ビットを選べ、幅はレジスタの名前（al・ax・eax・rax）で指す。浮動小数点数には、別の命令と別のレジスタ（xmm）がある。' },
+      { title: '同じ + でも別の回路', text: 'int32_t の足し算は整数の加算器（[[04-ronri.html#s6.1|第4章 場面6]]）が受け持ち、gcc は番地の計算に使う lea 命令で済ませた。float は addss、double は addsd で、指数をそろえて仮数を足し、正規化して丸める別の回路が受け持つ。演算子は同じ + でも、型が回路を選ぶ。' },
+      { title: '比べ方は型で変わる', text: 'ビット列 0xFFFFFFFF と 1 を比べる。符号付きなら −1 < 1 で真、符号なしなら 4,294,967,295 < 1 で偽。`cmp` はどちらも同じ引き算をしてフラグを立てるだけで、`setl` は SF≠OF を、`setb` は CF を読む。型が決めるのは、どのフラグを読むか。' },
+      { title: '割る・ずらす・広げる', text: '符号付きかどうかで命令が分かれる演算はほかにもある。割り算は idiv と div、右へずらすのは先頭のビットを写す sar と 0 を入れる shr、広げるのは先頭のビットで埋める movsx と 0 で埋める movzx。どれも、符号付きの型では先頭のビットを符号として扱う。' },
+      { title: '関数の間の約束（ABI）', text: 'Linux の x86-64 の ABI（System V）では、引数と戻り値をどのレジスタで渡すかが型で決まる。整数とポインタは rdi から、浮動小数点数は xmm0 から順に入れる。別々にコンパイルしたアプリと libc は、関数の型だけを頼りにレジスタを合わせる。システムコールもほぼ同じ形（[[09-os.html#s3.1|第9章 場面3]]）。' },
+      { title: '機械語に型は残らない', text: '型は、命令の種類・幅・番地の差を選び終えた所で役目を終える。機械語のバイト列に残るのは選んだ結果だけで、どの値が何の型だったかは書かれていない。Chrome の C++ も、AV1 を解く dav1d（[[24-streaming.html#s4.5|第24章 場面4]]）の C も、この形で CPU に渡る。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 上: C の式 → 命令
+      S.text(40, 32, 'C の式（型つき）', { cls: 't-md t-b' }, svg);
+      S.text(300, 32, 'gcc 15.2 が選んだ命令（x86-64）', { cls: 't-md t-b' }, svg);
+      S.text(920, 32, '関数の入口・ret・値を移すだけの mov などは省いた', { cls: 't-xs t-dim t-end' }, svg);
+      st.rows = ASM.map(([ty, ex, as], k) => {
+        const y = 44 + k * 22;
+        const g = S.g({}, svg);
+        const bg = S.rect(30, y, 610, 21, { rx: 3, cls: 'f-none s-none' }, g);
+        S.text(48, y + 15, ty, { cls: 't-sm t-mono t-b' }, g);
+        S.text(136, y + 15, ex, { cls: 't-sm t-mono' }, g);
+        S.text(258, y + 15, '→', { cls: 't-sm t-dim' }, g);
+        S.text(300, y + 15, as, { cls: 't-sm t-mono t-b t-d pre' }, g);
+        return { g, bg };
+      });
+      ASM_GROUP.forEach(([a, b, name]) => {
+        const y0 = 44 + a * 22 + 3, y1 = 44 + (b + 1) * 22 - 3;
+        S.path(`M650,${y0} H656 V${y1} H650`, { cls: 'f-none s-dim w1' }, svg);
+        S.text(666, (y0 + y1) / 2 + 4, name, { cls: 't-xs t-dim' }, svg);
+      });
+      S.line(30, 296, 930, 296, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: レジスタの幅
+      S.text(40, 322, '整数のレジスタは 1 本 64 ビット。名前で使う幅を選ぶ', { cls: 't-md t-b' }, P[0]);
+      const RX = (w) => 760 - w * 9;
+      [['rax', 64], ['eax', 32], ['ax', 16], ['al', 8]].forEach(([n, w], k) => {
+        const y = 334 + k * 25;
+        S.rect(RX(w), y, w * 9, 20, { rx: 3, cls: 'f-d-soft s-d w1' }, P[0]);
+        S.text(RX(w) - 8, y + 15, n, { cls: 't-end t-sm t-mono t-b' }, P[0]);
+        S.text(RX(w) + w * 9 / 2, y + 15, w + ' ビット', { cls: 't-c t-xs t-mono' }, P[0]);
+      });
+      [[63, 64], [31, 32], [15, 16], [7, 8], [0, 0]].forEach(([n, w]) => S.text(w ? RX(w) + 4 : 756, 446, String(n), { cls: 't-xs t-mono t-dim' + (w ? '' : ' t-end') }, P[0]));
+      S.lines(784, 352, ['add eax, esi は 32 ビット、', 'add rax, rsi は 64 ビットの', '足し算。命令は同じ add'], { cls: 't-xs t-mid' }, P[0], 16);
+      S.text(40, 476, '浮動小数点数は別のレジスタ xmm（1 本 128 ビット）と別の命令', { cls: 't-md t-b' }, P[0]);
+      S.rect(RX(64), 488, 576, 24, { rx: 3, cls: 'f-in s-rule w1' }, P[0]);
+      S.rect(RX(32), 488, 288, 24, { rx: 3, cls: 'f-d-soft s-d w1' }, P[0]);
+      S.rect(RX(16), 488, 144, 24, { rx: 3, cls: 'f-d-soft s-d w1' }, P[0]);
+      S.text(RX(64) - 8, 505, 'xmm0', { cls: 't-end t-sm t-mono t-b' }, P[0]);
+      S.text((RX(64) + RX(32)) / 2, 504, '（ここでは使わない 64 ビット）', { cls: 't-c t-xs t-dim' }, P[0]);
+      S.text((RX(32) + RX(16)) / 2, 504, 'double は下位 64', { cls: 't-c t-xs' }, P[0]);
+      S.text((RX(16) + 760) / 2, 504, 'float は下位 32', { cls: 't-c t-xs' }, P[0]);
+      S.text(40, 536, 'addss は float、addsd は double の足し算。整数の add とは、命令もレジスタも別', { cls: 't-xs t-mid' }, P[0]);
+
+      // 段階2: 整数の加算器と、浮動小数点数の加算
+      S.rect(40, 312, 270, 228, { rx: 6, cls: 'f-sf s-rule w1' }, P[1]);
+      S.text(54, 336, '整数の加算器（第4章 場面6）', { cls: 't-md t-b' }, P[1]);
+      S.text(84, 372, 'a（edi）', { cls: 't-c t-xs t-mono' }, P[1]);
+      S.text(256, 372, 'b（esi）', { cls: 't-c t-xs t-mono' }, P[1]);
+      S.arrow(P[1], 104, 378, 140, 404, 'dim', { cls: 's-dim w15' });
+      S.arrow(P[1], 238, 378, 204, 404, 'dim', { cls: 's-dim w15' });
+      vbox(P[1], 84, 406, 176, 44, '全加算器 × 32', 'f-d-soft s-d w15', 't-sm t-b');
+      S.arrow(P[1], 172, 452, 172, 476, 'dim', { cls: 's-dim w15' });
+      S.text(172, 494, 'a ＋ b（eax）', { cls: 't-c t-xs t-mono' }, P[1]);
+      S.text(54, 526, '桁上がりは先読みで速める', { cls: 't-xs t-dim' }, P[1]);
+      S.rect(330, 312, 600, 228, { rx: 6, cls: 'f-sf s-rule w1' }, P[1]);
+      S.text(344, 336, '浮動小数点数の加算（addss）：例 1.5 ＋ 0.75', { cls: 't-md t-b' }, P[1]);
+      st.fpStage = [
+        ['① 指数をそろえる', '0.75 ＝ 1.1₂ × 2⁻¹', '→ 0.11₂ × 2⁰'],
+        ['② 仮数を足す', '1.10₂ ＋ 0.11₂', '＝ 10.01₂'],
+        ['③ 正規化', '10.01₂ × 2⁰', '→ 1.001₂ × 2¹'],
+        ['④ 丸める', '仮数を 23 ビットに', '（この例は誤差なし）']
+      ].map(([a, b, c], k) => {
+        const x = 344 + k * 145;
+        const r = S.rect(x, 350, 136, 84, { rx: 5, cls: 'f-sf s-rule w1' }, P[1]);
+        S.text(x + 68, 374, a, { cls: 't-c t-sm t-b' }, P[1]);
+        S.text(x + 68, 398, b, { cls: 't-c t-xs t-mono' }, P[1]);
+        S.text(x + 68, 416, c, { cls: 't-c t-xs t-mono' }, P[1]);
+        if (k < 3) S.arrow(P[1], x + 137, 392, x + 144, 392, 'dim', { cls: 's-dim w1' });
+        return r;
+      });
+      S.text(344, 466, '答え 1.001₂ × 2¹ ＝ 2.25', { cls: 't-sm t-mono t-b' }, P[1]);
+      S.lines(344, 494, ['整数の加算器のほかに、桁をずらす回路と丸める回路が要る。', 'CPU の中では整数とは別の演算器が受け持つ'], { cls: 't-xs t-mid' }, P[1], 17);
+
+      // 段階3: cmp とフラグ
+      S.text(40, 322, '0xFFFFFFFF と 1 を比べる（cmp は同じ。読むフラグが違う）', { cls: 't-md t-b' }, P[2]);
+      st.cmpA = S.text(52, 348, 'cmp edi, esi は edi − esi を計算し、結果は捨ててフラグだけを残す', { cls: 't-sm' }, P[2]);
+      st.cmpB = S.text(52, 370, '0xFFFFFFFF − 1 ＝ 0xFFFFFFFE', { cls: 't-sm t-mono t-b' }, P[2]);
+      st.flags = S.g({}, P[2]);
+      [['CF ＝ 0', '借りが出ない'], ['ZF ＝ 0', '結果は 0 でない'], ['SF ＝ 1', '結果の先頭のビット'], ['OF ＝ 0', '符号付きであふれない']].forEach(([a, b], k) => {
+        const x = 52 + k * 168;
+        S.rect(x, 382, 156, 46, { rx: 5, cls: 'f-sf s-mid w1' }, st.flags);
+        S.text(x + 78, 401, a, { cls: 't-c t-md t-mono t-b' }, st.flags);
+        S.text(x + 78, 419, b, { cls: 't-c t-xs t-dim' }, st.flags);
+      });
+      st.setl = S.g({}, P[2]);
+      vbox(st.setl, 52, 446, 220, 32, 'setl al（int32_t の <）', 'f-x-soft s-x w15', 't-sm t-mono t-b');
+      S.text(286, 467, 'SF ≠ OF なら 1。1 ≠ 0 なので al ＝ 1（真）：−1 < 1', { cls: 't-sm' }, st.setl);
+      st.setb = S.g({}, P[2]);
+      vbox(st.setb, 52, 490, 220, 32, 'setb al（uint32_t の <）', 'f-x-soft s-x w15', 't-sm t-mono t-b');
+      S.text(286, 511, 'CF ＝ 1 なら 1。CF ＝ 0 なので al ＝ 0（偽）：4,294,967,295 < 1 ではない', { cls: 't-sm' }, st.setb);
+      st.cmpSeq = [st.cmpA, st.cmpB, st.flags, st.setl, st.setb];
+
+      // 段階4: ずらす・広げる
+      S.text(40, 322, '右へ 1 つずらす（8 ビットの例）', { cls: 't-md t-b' }, P[3]);
+      const BX = 120, BW3 = 26;
+      const bitRow = (y, bits, label, note) => {
+        S.text(BX - 10, y + 17, label, { cls: 't-end t-sm t-mono t-b' }, P[3]);
+        bits.forEach((_, k) => S.rect(BX + k * BW3 + 1, y, BW3 - 2, 24, { rx: 2, cls: 'f-sf s-rule w1' }, P[3]));
+        S.text(BX + 8 * BW3 + 40, y + 17, note, { cls: 't-sm' }, P[3]);   // ずらして落ちるビット（右端の外）と重ならない所
+      };
+      const ORIG = [1, 1, 1, 1, 0, 0, 0, 0];
+      bitRow(336, ORIG, '元', 'int8_t なら −16、uint8_t なら 240');
+      ORIG.forEach((v, k) => S.text(BX + k * BW3 + BW3 / 2, 353, String(v), { cls: 't-c t-sm t-mono ' + (v ? 't-d t-b' : 't-dim') }, P[3]));
+      st.shifts = [['sar', 1, '−8（先頭のビット 1 を写す）'], ['shr', 0, '120（先頭に 0 を入れる）']].map(([n, top, note], j) => {
+        const y = 378 + j * 42;
+        bitRow(y, ORIG, n, note);
+        const g = S.g({}, P[3]);
+        const ds = ORIG.map((v, k) => S.text(BX + k * BW3 + BW3 / 2, y + 17, String(v), { cls: 't-c t-sm t-mono ' + (v ? 't-d t-b' : 't-dim') }, g));
+        const nb = S.text(BX + BW3 / 2, y + 17, String(top), { cls: 't-c t-sm t-mono t-b t-x' }, P[3]);
+        return { g, ds, nb };
+      });
+      S.text(580, 322, '8 ビットを 64 ビットに広げる', { cls: 't-md t-b' }, P[3]);
+      S.text(580, 350, '元 FF（int8_t の −1、uint8_t の 255）', { cls: 't-sm t-mono' }, P[3]);
+      [['movsx', 'FF', '−1（先頭のビット 1 で埋める）'], ['movzx', '00', '255（0 で埋める）']].forEach(([n, fillB, note], j) => {
+        const y = 362 + j * 58;
+        S.text(634, y + 17, n, { cls: 't-end t-sm t-mono t-b' }, P[3]);
+        for (let k = 0; k < 8; k++) vbox(P[3], 642 + k * 36, y, 33, 24, k === 7 ? 'FF' : fillB, k === 7 ? 'f-d-soft s-d w1' : 'f-x-soft s-x w1', 't-xs t-mono t-b');
+        S.text(642, y + 42, '→ ' + note, { cls: 't-xs' }, P[3]);
+      });
+      S.lines(40, 506, ['割り算：符号付きは cdq で edx を eax の先頭のビットで埋めてから idiv、符号なしは xor で edx を 0 にしてから div。', 'どちらも edx と eax をつないだ 64 ビットを割る'], { cls: 't-xs t-mid' }, P[3], 17);
+
+      // 段階5: ABI
+      S.text(40, 322, '関数の間の約束（Linux の x86-64、System V の ABI）', { cls: 't-md t-b' }, P[4]);
+      const regRow = (y, label, regs, x0, w, hl) => {
+        S.text(52, y + 16, label, { cls: 't-sm' }, P[4]);
+        regs.forEach((r, k) => vbox(P[4], x0 + k * (w + 6), y, w, 24, r, hl && hl.includes(k) ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      };
+      regRow(336, '整数・ポインタの引数', ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9'], 230, 50);
+      regRow(368, '浮動小数点数の引数', ['xmm0', 'xmm1', 'xmm2', 'xmm3', 'xmm4', 'xmm5', 'xmm6', 'xmm7'], 230, 50);
+      regRow(400, '戻り値', ['rax', 'xmm0'], 230, 50);
+      S.text(342, 416, '整数・ポインタは rax、浮動小数点数は xmm0', { cls: 't-xs t-dim' }, P[4]);
+      S.lines(52, 446, ['add_i32(a, b) の a は edi、b は esi で届き、答えを eax で返す（lea eax, [rdi+rsi]）。', '場面2 の s->itag の s（構造体の先頭の番地）も、1 番目の引数として rdi で届いた'], { cls: 't-xs t-mid' }, P[4], 17);
+      S.text(40, 494, 'システムコール（Linux、第9章）', { cls: 't-sm t-b' }, P[4]);
+      S.text(52, 524, '番号', { cls: 't-sm' }, P[4]);
+      vbox(P[4], 88, 508, 46, 24, 'rax', 'f-d-soft s-d w1', 't-xs t-mono t-b');
+      S.text(150, 524, '引数', { cls: 't-sm' }, P[4]);
+      ['rdi', 'rsi', 'rdx', 'r10', 'r8', 'r9'].forEach((r, k) => vbox(P[4], 186 + k * 50, 508, 46, 24, r, k === 3 ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      S.text(496, 524, '戻り値', { cls: 't-sm' }, P[4]);
+      vbox(P[4], 544, 508, 46, 24, 'rax', 'f-d-soft s-d w1', 't-xs t-mono t-b');
+      S.text(606, 524, '4 つ目だけ rcx でなく r10（syscall 命令が rcx を使うため）', { cls: 't-xs t-x' }, P[4]);
+
+      // 段階6: 機械語のバイト列
+      S.text(40, 322, 'できた機械語（16 進。関数の入口の endbr64 は省いた）', { cls: 't-md t-b' }, P[5]);
+      S.text(52, 346, '関数', { cls: 't-xs t-dim' }, P[5]);
+      S.text(150, 346, '機械語のバイト', { cls: 't-xs t-dim' }, P[5]);
+      S.text(300, 346, '読み方（アセンブリ）', { cls: 't-xs t-dim' }, P[5]);
+      S.text(600, 346, 'ソースにあった型（機械語には無い）', { cls: 't-xs t-dim' }, P[5]);
+      [['add_i32', '8D 04 37  C3', 'lea eax, [rdi+rsi] ／ ret', 'int32_t (int32_t, int32_t)'],
+       ['add_f32', 'F3 0F 58 C1  C3', 'addss xmm0, xmm1 ／ ret', 'float (float, float)'],
+       ['seg_itag', '0F B7 47 08  C3', 'movzx eax, WORD PTR 8[rdi] ／ ret', 'uint16_t (const struct Seg *)']].forEach(([n, b, a, ty], k) => {
+        const y = 370 + k * 28;
+        S.text(52, y, n, { cls: 't-sm t-mono t-b' }, P[5]);
+        S.text(150, y, b, { cls: 't-sm t-mono t-b t-d pre' }, P[5]);
+        S.text(300, y, a, { cls: 't-sm t-mono t-mid' }, P[5]);
+        S.text(600, y, ty, { cls: 't-sm t-mono t-dim' }, P[5]);
+      });
+      S.lines(52, 470, [
+        'バイトにあるのは命令の種類・レジスタ・番地の差（seg_itag の 08）だけ。',
+        '-g を付けると、デバッガ用の型の情報（DWARF）が .debug_info などの別の区画に入る。実行には使わず、strip で外せる。',
+        'C++ の関数名には、リンクのために引数の型が埋め込まれる（add_i32(int, int) は _Z7add_i32ii）。これも CPU は読まない。'
+      ], { cls: 't-xs t-mid' }, P[5], 20);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.rows.forEach((r, k) => {
+        const hl = ASM_HL[i].includes(k);
+        r.bg.setAttribute('class', hl ? 'f-x-soft s-none' : 'f-none s-none');
+        op(r.g, i >= 1 && i <= 4 && !hl ? 0.4 : '');
+      });
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      st.fpStage.forEach((r) => r.setAttribute('class', 'f-sf s-rule w1'));
+      st.cmpSeq.forEach((e) => op(e, ''));
+      st.shifts.forEach((s) => { s.g.removeAttribute('transform'); op(s.ds[7], 0); op(s.nb, ''); });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 1) {
+        // 4 つの段を 1 秒ずつ順に光らせ、2 秒止めてから繰り返す
+        const k = run ? Math.floor(U.mod(ctx.ts, 6)) : 9;
+        st.fpStage.forEach((r, j) => r.setAttribute('class', j === k ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      } else if (i === 2) {
+        // 計算 → 結果 → フラグ → setl → setb の順に出し、3 秒止めてから繰り返す
+        const k = run ? Math.floor(U.mod(ctx.ts, 7.5) / 0.9) : 9;
+        st.cmpSeq.forEach((e, j) => op(e, j <= k ? '' : 0));
+      } else if (i === 3) {
+        // 8 ビットを 1 つ右へずらす。先頭に入るビット（sar は 1、shr は 0）は後から出す
+        const c = run ? U.mod(ctx.ts, 4) : 4;
+        const f = U.ease.inOut(U.prog(c, 0.4, 0.8));
+        st.shifts.forEach((s) => {
+          s.g.setAttribute('transform', `translate(${(f * 26).toFixed(1)},0)`);
+          op(s.ds[7], (1 - f).toFixed(2));
+          op(s.nb, U.prog(c, 1.2, 0.4).toFixed(2));
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面4 静的と動的
+     rustc 1.95.0 の誤り「literal out of range for `u8`」、Node.js 24.22.1 の %DebugPrint（42 は Smi、2³¹ は HeapNumber）と
+     %HaveSameMap（{x:1,y:2} と {x:5,y:6} は同じ Map、{y:1,x:2} は別）は 2026-10-28 に確かめた。
+     ポインタ圧縮で値が 32 ビットの語、Smi が 31 ビットになることは V8 の公式ブログ「Pointer Compression in V8」（2020 年）。
+     物を指す語の番地 0x0004A2C9 は例の値
+     ================================================================ */
+  const bits32 = (n) => (n >>> 0).toString(2).padStart(32, '0').split('').map(Number);
+  const s4 = {
+    steps: [
+      { title: '静的な型：実行の前に確かめる', text: 'C・Rust・Go・TypeScript では、コンパイラが実行の前に全部の式の型を決め、合わない使い方を拒む。図の Rust の例では、u8（0〜255）に入らない 300 を書いた所でコンパイルが止まり、プログラムができない。C・Rust・Go の機械語は、型が決まっているので演算のたびに値の型を確かめない。' },
+      { title: '動的な型：値が型を持ち歩く', text: 'JavaScript の `a + b` は、a と b が数なら足し算、片方が文字列ならつなぐ。どちらになるかは実行するまで決まらないので、値が自分の型を持ち歩き、演算のたびに確かめる。JavaScript の数は IEEE 754 の 64 ビット（[[1|同じビット]]）で、言語の上では整数と小数の区別も無い。' },
+      { title: 'V8 の値は 32 ビットの語', text: '64 ビットの Chrome の V8 は、ヒープの中の値を 32 ビットの語で持つ（ポインタ圧縮）。最下位のビットが 0 なら小さな整数（**Smi**）、1 ならヒープの物を指す番地。範囲外の数や小数は、64 ビットの浮動小数点数を入れた箱（HeapNumber）を作って指す。1 ビットの印が、値ごとの型の札になる。' },
+      { title: '物の先頭に形の表（Map）', text: 'ヒープの物は先頭の欄に **Map**（隠れクラス。JavaScript の Map とは別）を指す番地を持ち、Map に型と、各プロパティが何番目の欄にあるかが書いてある。同じプロパティを同じ順で作った物は、同じ Map を指す。Map は、実行中に作る構造体の型（[[2|並べ方]]）と言える。' },
+      { title: 'JIT は型を推して決め打ちにする', text: 'Maglev・TurboFan（[[10-browser.html#s5.1|第10章 場面5]]）は、同じ Map の物が続いたという記録を使い、「Map を 1 回比べ、同じなら x を決まった欄から読む」機械語を作る。違う Map が来たら、その機械語を捨ててバイトコードの実行に戻る（**脱最適化**）。速い所では、動的な型も静的な型に近い形で走る。' },
+      { title: 'TypeScript の型は消える', text: 'TypeScript は、tsc が型を確かめた後、型の注記を消して JavaScript にする。ブラウザが受け取って走らせるのは JavaScript だけで、V8 は元の型を知らないまま、走りながら Smi と Map を作る。静的な型が「作る」側にだけあることの、いちばん分かりやすい例。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 上: 2 本の時間の帯
+      const band = (y, title, boxes) => {
+        S.text(40, y - 12, title, { cls: 't-md t-b' }, svg);
+        return boxes.map(([x0, x1, t], k) => {
+          const r = S.rect(x0, y, x1 - x0, 36, { rx: 6, cls: 'f-sf s-rule w1' }, svg);
+          S.text((x0 + x1) / 2, y + 23, t, { cls: 't-c t-sm t-b' }, svg);
+          if (k < boxes.length - 1) S.arrow(svg, x1 + 4, y + 18, boxes[k + 1][0] - 4, y + 18, 'dim', { cls: 's-dim w15' });
+          return r;
+        });
+      };
+      st.bA = band(48, '静的な型（C・Rust・Go・TypeScript）', [[40, 150, '書く'], [190, 430, 'コンパイル（型を確かめる）'], [470, 920, '実行（式の型はもう決まっている）']]);
+      st.bB = band(176, '動的な型（JavaScript・Python）', [[40, 150, '書く'], [190, 920, '実行（値の札を見て、演算のたびに分ける）']]);
+      S.text(920, 36, '時間 →', { cls: 't-xs t-dim t-end' }, svg);
+      // 段階1: Rust の誤り
+      st.exA = S.g({ cls: 'fade hide' }, svg);
+      S.text(52, 116, 'let n: u8 = 300;', { cls: 't-sm t-mono t-b' }, st.exA);
+      S.arrow(st.exA, 190, 112, 226, 112, 'x', { cls: 's-x w15' });
+      S.text(236, 116, 'error: literal out of range for `u8`', { cls: 't-sm t-mono t-b t-x' }, st.exA);
+      S.text(536, 116, '（rustc 1.95。プログラムができない）', { cls: 't-xs t-dim' }, st.exA);
+      // 段階6: TypeScript → JavaScript
+      st.exT = S.g({ cls: 'fade hide' }, svg);
+      S.text(52, 116, 'const n: number = w * h;', { cls: 't-sm t-mono t-b' }, st.exT);
+      S.arrow(st.exT, 236, 112, 296, 112, 'x', { cls: 's-x w15' });
+      S.text(266, 104, 'tsc', { cls: 't-c t-xs t-mono t-x t-b' }, st.exT);
+      S.text(306, 116, 'const n = w * h;', { cls: 't-sm t-mono t-b t-d' }, st.exT);
+      S.text(436, 116, '型を確かめ、注記を消した JavaScript がブラウザへ届く', { cls: 't-xs t-dim' }, st.exT);
+      // 段階2: + の意味が値で変わる
+      st.exB = S.g({ cls: 'fade hide' }, svg);
+      S.text(52, 244, "1 + 2 → 3（足し算）", { cls: 't-sm t-mono t-b' }, st.exB);
+      S.text(300, 244, "'1' + 2 → '12'（文字列をつなぐ）", { cls: 't-sm t-mono t-b' }, st.exB);
+      S.text(596, 244, '同じ + でも、どちらになるかは値の型しだい', { cls: 't-xs t-dim' }, st.exB);
+
+      // 下: V8 の値
+      const gV = st.gV = S.g({ cls: 'fade hide' }, svg);
+      S.line(30, 262, 930, 262, { cls: 's-rule w1' }, gV);
+      S.text(40, 286, 'V8 の値（64 ビットの Chrome。ポインタ圧縮で、ヒープの中の値は 32 ビットの語）', { cls: 't-md t-b' }, gV);
+      const word = (y, label, n) => {
+        S.text(92, y + 15, label, { cls: 't-end t-sm t-mono t-b' }, gV);
+        bits32(n).forEach((v, k) => {
+          const last = k === 31;
+          S.rect(100 + k * 11, y, 10, 22, { rx: 1.5, cls: last ? 'f-x-soft s-x w15' : v ? 'f-d-soft s-d w1' : 'f-sf s-rule w1' }, gV);
+          S.text(105 + k * 11, y + 15, String(v), { cls: 't-c t-xs t-mono ' + (last ? 't-x t-b' : v ? 't-d' : 't-dim') }, gV);
+        });
+      };
+      st.gW = S.g({}, gV);
+      word(300, '42', 42 << 1);
+      S.text(466, 309, 'Smi：42 を 1 つ左へずらし、最下位に印 0（0x00000054）', { cls: 't-xs' }, gV);
+      S.text(466, 325, '範囲は −1,073,741,824〜1,073,741,823（31 ビット）', { cls: 't-xs t-dim' }, gV);
+      word(352, 'a', 0x0004A2C9);
+      S.text(100, 392, '最下位に印 1：残りのビットはヒープの物の位置（0x0004A2C9 は例）', { cls: 't-xs' }, gV);
+      S.arrow(gV, 458, 363, 512, 363, 'd', { cls: 's-d w15' });
+      // 物 a ＝ {x:1, y:2}
+      st.objA = S.g({}, gV);
+      S.text(520, 344, '物 a ＝ {x:1, y:2}（ヒープの中）', { cls: 't-xs t-b' }, st.objA);
+      st.objArect = S.rect(518, 350, 404, 28, { rx: 4, cls: 'f-none s-none' }, st.objA);
+      [['Map₁ ●', 0, 1, 't-b'], ['（ほかの欄 2 つ）', 1, 2, 't-dim'], ['x 1', 3, 1, 't-b'], ['y 2', 4, 1, 't-b']].forEach(([t, c, n, cls]) => {
+        vbox(st.objA, 520 + c * 80, 352, n * 80 - 4, 24, t, c === 1 ? 'f-in s-rule w1' : 'f-d-soft s-d w1', 't-xs t-mono ' + cls);
+      });
+      S.text(798, 392, '欄 0', { cls: 't-c t-xs t-dim' }, st.objA);
+      S.text(878, 392, '欄 1', { cls: 't-c t-xs t-dim' }, st.objA);
+      // Map と、別の物
+      st.gMap = S.g({ cls: 'fade hide' }, gV);
+      const mapBox = (y, name, line) => {
+        const r = S.rect(520, y, 200, 48, { rx: 6, cls: 'f-sf s-d w15' }, st.gMap);
+        S.text(620, y + 20, name, { cls: 't-c t-sm t-b' }, st.gMap);
+        S.text(620, y + 38, line, { cls: 't-c t-xs t-mono' }, st.gMap);
+        return r;
+      };
+      st.map1 = mapBox(412, 'Map₁（隠れクラス）', 'x は欄 0、y は欄 1');
+      st.map2 = mapBox(476, 'Map₂', 'y は欄 0、x は欄 1');
+      S.path('M558,378 V410', { cls: 'f-none s-d w15', 'marker-end': mk('d') }, st.gMap);
+      st.objB = vbox(st.gMap, 100, 422, 220, 28, '物 b ＝ {x:5, y:6}', 'f-sf s-rule w1', 't-xs t-mono t-b');
+      st.objC = vbox(st.gMap, 100, 486, 220, 28, '物 c ＝ {y:1, x:2}', 'f-sf s-rule w1', 't-xs t-mono t-b');
+      S.arrow(st.gMap, 324, 436, 514, 436, 'd', { cls: 's-d w15' });
+      S.arrow(st.gMap, 324, 500, 514, 500, 'd', { cls: 's-d w15' });
+      S.text(420, 430, '同じ順で作った → 同じ Map', { cls: 't-c t-xs' }, st.gMap);
+      S.text(420, 494, '順が違う → 別の Map', { cls: 't-c t-xs' }, st.gMap);
+      // 段階5: 最適化した機械語の札
+      st.gJ = S.g({ cls: 'fade hide' }, gV);
+      S.rect(738, 404, 192, 140, { rx: 6, cls: 'f-sf s-x w15' }, st.gJ);
+      S.text(834, 424, 'f(o) ＝ o.x を最適化（模式）', { cls: 't-c t-xs t-b' }, st.gJ);
+      st.jl = ['① o の Map が Map₁ か比べる', '② 同じなら欄 0 を読む', '③ 違えば機械語を捨てて', '　 バイトコードへ（脱最適化）'].map((s, k) => S.text(748, 446 + k * 18, s, { cls: 't-xs' }, st.gJ));
+      st.jCall = S.text(834, 532, '', { cls: 't-c t-xs t-mono t-b t-x' }, st.gJ);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const hlA = i === 0 || i === 5, hlB = i === 1;
+      st.bA.forEach((r, k) => r.setAttribute('class', hlA && k === 1 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      st.bB.forEach((r, k) => r.setAttribute('class', hlB && k === 1 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      S.fade(st.exA, i === 0);
+      S.fade(st.exT, i === 5);
+      S.fade(st.exB, i === 1);
+      S.fade(st.gV, i >= 2);
+      op(st.gV, i === 5 ? 0.35 : '');
+      S.fade(st.gMap, i >= 3);
+      S.fade(st.gJ, i === 4);
+      op(st.objA, i === 2 ? 0.45 : '');
+      [st.objB, st.objC].forEach((b) => b.r.setAttribute('class', 'f-sf s-rule w1'));
+      st.objArect.setAttribute('class', 'f-none s-none');
+      st.jl.forEach((t) => t.setAttribute('class', 't-xs'));
+      st.jCall.textContent = '';
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      if (ctx.step !== 4) return;
+      // f(a)・f(b)・f(c) を 2 秒ずつ順に呼ぶ。止めているときは最後の f(c)（脱最適化）の姿
+      const k = playing() ? Math.floor(U.mod(ctx.ts, 6) / 2) : 2;
+      st.objArect.setAttribute('class', k === 0 ? 'f-none s-x w2' : 'f-none s-none');
+      st.objB.r.setAttribute('class', k === 1 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.objC.r.setAttribute('class', k === 2 ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+      st.jl.forEach((t, j) => t.setAttribute('class', 't-xs' + ((k < 2 ? j <= 1 : j !== 1) ? ' t-b' : ' t-dim')));
+      st.jCall.textContent = ['f(a)：Map₁ → 欄 0 を読む', 'f(b)：Map₁ → 欄 0 を読む', 'f(c)：Map₂ → 脱最適化'][k];
+    }
+  };
+
+  /* ================================================================
+     場面5 どの層か
+     層の行は第1〜25章の層。境目の形式の札と層の名前は SVG の <a> で章へのリンク（第25章 場面6・目次の地図と同じ作り）。
+     C0 A8 01 0A を x86-64 で 32 ビットの整数として読んだ値 0x0A01A8C0 ＝ 167,880,896 と、ntohl が bswap になることは
+     gcc 15.2 と Python で確かめた。protobuf の B8 01 87 92 01 は、欄 23・運び方 0（可変長の整数）に 18,695 を入れた形を計算した
+     ================================================================ */
+  const LAYERS = [
+    ['言語とコンパイラ', '', null],
+    ['ランタイム・ライブラリ', 'V8（第10章）・libc（第9章）', '10-browser.html#s5'],
+    ['OS', '第9章', '09-os.html#s4'],
+    ['CPU と記憶', '第5・6章', '06-cpu.html#s1'],
+    ['回路', '第3・4章', '04-ronri.html#s6']
+  ];
+  const EDGES = [
+    ['IPv4 ヘッダ（第18章）', '欄の位置と幅が決まり、', '上位のバイトから送る', '18-ip.html#s1'],
+    ['証明書（第20章）', 'ASN.1 で定義し、', 'DER で 1 列のバイトにする', '20-tls.html#s4'],
+    ['断片の POST（第24章）', 'protobuf：欄の番号と', '値の運び方だけを送る', '24-streaming.html#s3'],
+    ['動画のファイル（第23章）', 'MP4：大きさ 4 バイトと', '種類 4 文字で始まる箱', '23-codec.html#s6']
+  ];
+  const s5 = {
+    steps: [
+      { title: '静的な型は「作る」側にある', text: '静的な型は、ソースとコンパイラの中にだけある。実行の前に全部の式を確かめ、命令を選び、並びを決めて働き終える。第1〜25章で追った回路・CPU・OS・ブラウザは、どれも実行中の層で、そのどこにも型そのものは部品として無い。' },
+      { title: '跡は各層に残る', text: 'コンパイラが決めた結果は、各層の形で残る。CPU には命令の種類（[[3|命令]]）、メモリには大きさ・番地の差・詰め物（[[2|並べ方]]）、アプリ・ライブラリ・OS の間には引数のレジスタと構造体の並び（ABI）。型は 1 つの層の部品ではなく、各層への決め方として層を横切る。' },
+      { title: '回路が実行中に見る区別', text: '回路が実行中に区別するのは、幅（8〜64 ビット）、整数と浮動小数点数のレジスタ、そしてページの属性。ページテーブルの各行には書き込み可と実行禁止の印があり（x86-64 は NX ビット、AArch64 は UXN・PXN）、データのページを命令として実行しようとすると例外になる（[[09-os.html#s4.5|第9章 場面4]]）。' },
+      { title: '動的な型は「動かす」側にある', text: 'JavaScript の型は、実行中のメモリの中の札として V8 の層にある。Smi の印のビットと Map が、それぞれの値の型を示す（[[4|静的と動的]]）。Go や Java も、インターフェースや型の変換のために、実行中に型の札を持つ。同じ「型」という語でも、静的な型は作る側に、動的な型は動かす側に住む。' },
+      { title: '層の境目には形式の約束がある', text: 'IPv4 ヘッダ（[[18-ip.html#s1.1|第18章 場面1]]）は欄の位置と幅が決まり、2 バイト以上の欄は上位のバイトから送る（ネットワークバイト順、ビッグエンディアン）。x86-64 と多くの ARM は、メモリに下位のバイトから置く（リトルエンディアン）。そのため、数として使う前にバイトを並べ替える。' },
+      { title: '型の情報はバイトと一緒に来ない', text: '断片の POST の本文（[[24-streaming.html#s3.6|第24章 場面3]]）は protobuf で、バイトにあるのは欄の番号と値の運び方（可変長の整数・固定長・長さ付き）だけ。欄 23 が帯域の見積もりだという意味は、両端の定義にしかない。証明書（[[20-tls.html#s4.2|第20章 場面4]]）も同じ。受け取る側は、届いたバイトを確かめてから使う（[[6|メモリ安全]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const RY = (r) => 56 + r * 80;   // 層の行の上端（行の高さ 80）
+      // 見出し
+      S.text(40, 40, '層', { cls: 't-sm t-b t-dim' }, svg);
+      S.text(315, 40, '作る（書く・コンパイル）', { cls: 't-c t-sm t-b' }, svg);
+      S.text(565, 40, '動かす（実行）', { cls: 't-c t-sm t-b' }, svg);
+      S.text(825, 40, '層の境目の形式', { cls: 't-c t-sm t-b' }, svg);
+      // 表の枠
+      for (let r = 0; r <= 5; r++) S.line(30, RY(r), 700, RY(r), { cls: 's-rule w1' }, svg);
+      S.line(206, RY(0), 206, RY(5), { cls: 's-rule w1' }, svg);
+      S.line(424, RY(0), 424, RY(5), { cls: 's-rule w1' }, svg);
+      // 層の名前（章へのリンク）
+      LAYERS.forEach(([n, sub, href], r) => {
+        const p = href ? S.el('a', { href, 'aria-label': n + ' ' + sub }, svg) : svg;
+        S.text(40, RY(r) + (sub ? 36 : 44), n, { cls: 't-sm t-b' }, p);
+        if (sub) S.text(40, RY(r) + 54, sub, { cls: 't-xs t-dim' + (href ? ' t-mid' : '') }, p);
+      });
+      // 静的な型（作る × 言語）
+      st.stat = S.rect(218, RY(0) + 10, 196, 60, { rx: 6, cls: 'f-sf s-fg w15' }, svg);
+      S.text(316, RY(0) + 34, '静的な型', { cls: 't-c t-md t-b' }, svg);
+      S.text(316, RY(0) + 54, '式を確かめ、命令と並びを決める', { cls: 't-c t-xs' }, svg);
+      S.text(562, RY(0) + 44, '（ソースの型は、ここには来ない）', { cls: 't-c t-xs t-dim' }, svg);
+      S.text(562, RY(4) + 44, '0 と 1 を運び、足し、覚えるだけ', { cls: 't-c t-xs t-dim' }, svg);
+      // 動かす側の札（上: コンパイラが残した跡、下: 実行中に見る区別）
+      const slot = (r, k, s) => {
+        const g = S.g({ cls: 'fade hide' }, svg);
+        const box = S.rect(432, RY(r) + 6 + k * 36, 262, 30, { rx: 5, cls: 'f-sf s-rule w1' }, g);
+        S.text(563, RY(r) + 25 + k * 36, s, { cls: 't-c t-xs' }, g);
+        return { g, box };
+      };
+      st.trace = [
+        slot(1, 0, '跡：ABI（引数のレジスタ・構造体の並び）'),
+        slot(2, 0, '跡：システムコールの引数と構造体の並び'),
+        slot(3, 0, '跡：命令の種類・大きさ・番地の差・詰め物')
+      ];
+      st.gTr = S.g({ cls: 'fade hide' }, svg);
+      const mk = S.markers(svg);
+      // 静的な型の箱の下から、動かす側の各行の札へ
+      [1, 2, 3].forEach((r) => S.path(`M${290 + r * 18},${RY(0) + 70} C${290 + r * 18},${RY(r) + 21} 372,${RY(r) + 21} 428,${RY(r) + 21}`, { cls: 'f-none s-x w15', 'marker-end': mk('x') }, st.gTr));
+      st.hw = [slot(2, 1, 'ページテーブルの印：書き込み可・実行禁止'), slot(3, 1, '回路が見る区別：幅、整数と浮動小数点数')];
+      st.dyn = slot(1, 1, '動的な型：Smi の印と Map（実行中の札）');
+      // 段階3: 第6章 場面2 の「区別は使われ方だけ」とのつながり
+      st.gH = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 484, 'データのページに実行禁止の印を付けておくと、データを命令として実行する誤りや攻撃を回路が止める。', { cls: 't-xs' }, st.gH);
+      const a6 = S.el('a', { href: '06-cpu.html#s2.4', 'aria-label': '第6章 場面2' }, st.gH);
+      S.text(40, 504, '第6章 場面2 の YT-8 では、命令とデータの区別は「PC が指すか、LOAD・STORE で指すか」という使われ方だけだった ↗', { cls: 't-xs t-mid' }, a6);
+      // 層の境目の形式（章へのリンク）
+      st.edge = EDGES.map(([t, a, b, href], k) => {
+        const y = 56 + k * 101;
+        const link = S.el('a', { href, 'aria-label': t }, svg);
+        const box = S.rect(716, y, 214, 92, { rx: 6, cls: 'f-sf s-rule w1' }, link);
+        S.text(730, y + 24, t, { cls: 't-sm t-b' }, link);
+        S.text(730, y + 48, a, { cls: 't-xs' }, link);
+        S.text(730, y + 66, b, { cls: 't-xs' }, link);
+        S.text(916, y + 84, '開く ↗', { cls: 't-xs t-dim t-end' }, link);
+        return { link, box };
+      });
+      // 下: 段階5（バイトの順）と段階6（protobuf と DER）
+      st.gE = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 476, 'ヘッダの中の 4 バイト（第18章）', { cls: 't-xs t-b' }, st.gE);
+      ['C0', 'A8', '01', '0A'].forEach((b, k) => vbox(st.gE, 40 + k * 34, 484, 30, 24, b, 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      S.text(186, 501, '上位のバイトが先（ビッグエンディアン）として読むと 192.168.1.10（0xC0A8010A）', { cls: 't-xs' }, st.gE);
+      S.text(40, 530, 'x86-64 が同じ 4 バイトをそのまま 32 ビットの整数として読むと、番地の小さい C0 を下位とみなして 0x0A01A8C0 ＝ 167,880,896。', { cls: 't-xs t-x' }, st.gE);
+      S.text(40, 548, '数として比べる前に並べ替える（C の ntohl。gcc 15.2 では bswap 命令 1 つ）', { cls: 't-xs' }, st.gE);
+      st.gP = S.g({ cls: 'fade hide' }, svg);
+      S.text(40, 476, '欄 23 に 18,695 を可変長の整数で入れたときの protobuf のバイト（計算した例）', { cls: 't-xs t-b' }, st.gP);
+      ['B8', '01'].forEach((b, k) => vbox(st.gP, 40 + k * 34, 484, 30, 24, b, 'f-x-soft s-x w1', 't-xs t-mono t-b'));
+      ['87', '92', '01'].forEach((b, k) => vbox(st.gP, 116 + k * 34, 484, 30, 24, b, 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      S.text(228, 494, 'B8 01 ＝ 欄 23・運び方 0（可変長の整数）　87 92 01 ＝ 18,695', { cls: 't-xs t-mono' }, st.gP);
+      S.text(228, 510, '「帯域の見積もり（B/s）」という意味は、このバイトのどこにも無い', { cls: 't-xs t-x' }, st.gP);
+      S.text(40, 534, 'DER は INTEGER（02）・SEQUENCE（30）などの基本の型の札を付けるが、', { cls: 't-xs' }, st.gP);
+      S.text(40, 550, 'どの INTEGER が通し番号かは、ASN.1 で書いた定義（RFC 5280）にしかない', { cls: 't-xs' }, st.gP);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.stat.setAttribute('class', i <= 1 ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+      st.trace.forEach((s) => { S.fade(s.g, i >= 1); s.box.setAttribute('class', i === 1 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'); });
+      S.fade(st.gTr, i === 1);
+      st.hw.forEach((s) => { S.fade(s.g, i >= 2); s.box.setAttribute('class', i === 2 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'); });
+      S.fade(st.dyn.g, i >= 3);
+      S.fade(st.gH, i === 2);
+      st.dyn.box.setAttribute('class', i === 3 ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+      st.edge.forEach((e, k) => {
+        const hl = (i === 4 && k === 0) || (i === 5 && (k === 1 || k === 2));
+        e.box.setAttribute('class', hl ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        op(e.link, i <= 3 ? 0.4 : (hl ? '' : 0.55));
+      });
+      S.fade(st.gE, i === 4);
+      S.fade(st.gP, i === 5);
+    }
+  };
+
+  /* ================================================================
+     場面6 メモリ安全
+     ヒープの番地 0x5000〜 と物の並びは例（模式）。実際の割り当てでは間に管理用の欄が入ることが多い。
+     buf を 16 バイトにしたのは、MTE の札が 16 バイト単位で、割り当ても 16 バイト単位に切り上げられるため。
+     Rust のスライスの大きさ（16 バイト）と panic・E0597 の文は rustc 1.95.0 で確かめた（2026-10-28）。
+     数値の出典: Chromium（2020 年 5 月）、Microsoft（2019 年 2 月）、Google の Android の 2024 年 9 月・2025 年 11 月 13 日のブログ、
+     Arm MTE（Armv8.5-A）、Apple の Memory Integrity Enforcement（2025 年 9 月）
+     ================================================================ */
+  const HB = 27, HX = 48;                      // 1 バイトの幅、0x5000 の左端
+  const HXo = (n) => HX + n * HB;              // 番地 0x5000 + n の左端
+  const s6 = {
+    steps: [
+      { title: 'ポインタ ＝ 番地 ＋ 型', text: 'ポインタは 8 バイトの番地で、型は「その先を何バイト、何として読むか」と、`p + 1` で何バイト進むかを決める（`uint8_t *` なら 1 バイト、`int32_t *` なら 4 バイト先）。C の配列は長さを持たず、関数には先頭の番地だけが渡る。どこまで使ってよいかは、書いた人が覚えておくしかない。' },
+      { title: '範囲外の書き込み', text: '16 バイトの buf に 24 バイトを写すと、後ろの 8 バイトが隣の物の欄を上書きする。同じページの中なので CPU も OS も止めない（保護はページ単位、[[09-os.html#s4.4|第9章 場面4]]）。上書きされたのが関数の番地なら、呼んだ瞬間に PC が攻撃者の選んだ所へ向く（[[06-cpu.html#s1.2|第6章 場面1]]）。' },
+      { title: '解放した後に使う', text: '解放した領域は、後から頼まれた別の型の物に使い回される。古いポインタで書くと、型の違う物の欄を壊す（解放後の使用）。Chromium の深刻なバグ（2015 年以降の 912 件）と Microsoft のセキュリティ更新（12 年分）の約 7 割がメモリの安全の問題で、Chromium ではその半分がこれだった。' },
+      { title: '長さを持ち歩いて確かめる', text: 'Rust のスライス `&[u8]` は、番地と長さを組にした 16 バイト（rustc 1.95 の size_of で 16）。添字のたびに長さと比べ、範囲外なら壊れたまま走り続けずに panic で止まる。JavaScript や Java の配列も長さを確かめ、隣のメモリには触れない。' },
+      { title: '寿命を守る', text: 'JavaScript・Java・Go の GC は、どこからも届かなくなった物だけを解放する。Rust は所有と借用をコンパイル時に確かめ、寿命より長く使う参照を拒む（型を寿命まで広げた静的な検査）。Android は新しいコードを Rust などで書いて、メモリの安全の脆弱性を減らしてきた。' },
+      { title: '回路で捕まえる（MTE）', text: 'Arm の MTE（Armv8.5-A）は、メモリ 16 バイトごとに 4 ビットの札を付け、ポインタの上位のバイトにも札を入れる。読み書きのたびに回路が 2 つを比べ、合わなければ例外にする。Pixel 8（2023 年）から開発者が使える。コンパイラの検査とは別に回路が実行中に確かめる、層を横切る安全の検査。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const fill = hatch(svg, 'k26-hatch6');
+      S.text(40, 30, 'ヒープの上の隣り合う 2 つの物（模式）', { cls: 't-md t-b' }, svg);
+      S.text(920, 30, '番地は例。実際は間に管理用の欄が入ることが多い', { cls: 't-xs t-dim t-end' }, svg);
+      [0, 8, 16, 24, 32].forEach((n) => S.text(HXo(n), 52, '0x' + (0x5000 + n).toString(16).toUpperCase(), { cls: 't-c t-xs t-mono t-dim' }, svg));
+      S.text((HXo(0) + HXo(16)) / 2, 70, 'buf（uint8_t × 16）', { cls: 't-c t-sm t-b' }, svg);
+      S.text((HXo(16) + HXo(32)) / 2, 70, '物 B（関数の番地 on_end と長さ len を持つ例）', { cls: 't-c t-sm t-b' }, svg);
+      // buf の 16 バイト
+      st.cells = [];
+      for (let k = 0; k < 16; k++) {
+        const r = S.rect(HXo(k) + 1, 80, HB - 2, 30, { rx: 2, cls: 'f-d-soft s-d w1' }, svg);
+        const t = S.text(HXo(k) + HB / 2, 100, String(k), { cls: 't-c t-xs t-mono t-dim' }, svg);
+        st.cells.push({ r, t });
+      }
+      // 物 B: on_end（8 バイト）・len（4）・詰め物（4）
+      st.onEnd = S.rect(HXo(16) + 1, 80, 8 * HB - 2, 30, { rx: 3, cls: 'f-sf s-fg w15' }, svg);
+      st.onEndT = S.text((HXo(16) + HXo(24)) / 2, 100, 'on_end：関数の番地', { cls: 't-c t-xs t-mono t-b' }, svg);
+      S.rect(HXo(24) + 1, 80, 4 * HB - 2, 30, { rx: 3, cls: 'f-sf s-fg w15' }, svg);
+      S.text((HXo(24) + HXo(28)) / 2, 100, 'len', { cls: 't-c t-xs t-mono t-b' }, svg);
+      const pad = S.rect(HXo(28) + 1, 80, 4 * HB - 2, 30, { rx: 3, cls: 's-rule w1' }, svg);
+      pad.setAttribute('fill', fill);
+      S.line(HXo(16), 76, HXo(16), 114, { cls: 's-fg w2' }, svg);
+      // 縁の下の括弧（段階2 はページ、段階6 は MTE の札）
+      st.gPage = S.g({ cls: 'fade hide' }, svg);
+      bracket(st.gPage, HXo(0), HXo(32), 126);
+      S.text((HXo(0) + HXo(32)) / 2, 142, '同じ 4 KiB のページの中（書き込みを許したページ）', { cls: 't-c t-xs' }, st.gPage);
+      st.gTag = S.g({ cls: 'fade hide' }, svg);
+      bracket(st.gTag, HXo(0), HXo(16), 126, 's-d w15');
+      bracket(st.gTag, HXo(16), HXo(32), 126, 's-x w15');
+      S.text((HXo(0) + HXo(16)) / 2, 142, 'メモリの札 3（0x5000〜0x500F）', { cls: 't-c t-xs t-mono t-b t-d' }, st.gTag);
+      S.text((HXo(16) + HXo(32)) / 2, 142, 'メモリの札 7（0x5010〜0x501F）', { cls: 't-c t-xs t-mono t-b t-x' }, st.gTag);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: ポインタと p + 1
+      [[0, 'p'], [1, 'p + 1'], [4, 'q + 1']].forEach(([n, s]) => {
+        S.arrow(P[0], HXo(n) + HB / 2, 168, HXo(n) + HB / 2, 116, 'x', { cls: 's-x w15' });
+      });
+      S.text(HXo(0) + HB / 2 - 6, 186, 'p', { cls: 't-c t-sm t-mono t-b t-x' }, P[0]);
+      S.text(HXo(1) + HB / 2 + 6, 186, 'p + 1', { cls: 't-sm t-mono t-b t-x' }, P[0]);
+      S.text(HXo(4) + HB / 2 + 6, 186, 'q + 1', { cls: 't-sm t-mono t-b t-x' }, P[0]);
+      code(P[0], 60, 236, [
+        'uint8_t *p = buf;     // p は 8 バイトの番地 0x5000。p + 1 は 0x5001（1 バイト先）',
+        'int32_t *q = (int32_t *)buf;   // q + 1 は 0x5004（4 バイト先）',
+        'void fill(uint8_t *dst, size_t n);   // 関数に渡るのは先頭の番地と n だけ'
+      ], 28, 't-mono t-sm');
+      S.text(60, 340, 'どの 8 バイトにも、buf の長さ 16 は入っていない', { cls: 't-sm t-b t-x' }, P[0]);
+
+      // 段階2: 範囲外の書き込み
+      code(P[1], 60, 196, ['memcpy(buf, src, 24);   // buf は 16 バイト'], 20, 't-mono t-sm t-b');
+      st.wCur = S.rect(HXo(0), 77, HB, 36, { rx: 4, cls: 'f-none s-x w2' }, P[1]);
+      // on_end に写した 41 も buf のマスと同じく 1 バイトずつ置く（写している所の枠が文字を横切らないように）
+      st.onEndB = Array.from({ length: 8 }, (_, k) => S.text(HXo(16 + k) + HB / 2, 100, '', { cls: 't-c t-xs t-mono t-b t-x' }, P[1]));
+      S.path(`M${(HXo(16) + HXo(24)) / 2},150 V232`, { cls: 'f-none s-x w2', 'marker-end': mk('x') }, P[1]);
+      st.callT = S.text((HXo(16) + HXo(24)) / 2, 256, 'b->on_end() を呼ぶと、飛び先は 0x4141414141414141', { cls: 't-c t-sm t-mono t-b t-x' }, P[1]);
+      S.text((HXo(16) + HXo(24)) / 2, 278, '（写したバイトがそのまま飛び先になる）', { cls: 't-c t-xs t-x' }, P[1]);
+
+      // 段階3: 解放した後に使う
+      st.uafHit = S.g({}, P[2]);
+      S.rect(HXo(20) + 1, 186, 4 * HB - 2, 28, { rx: 3, cls: 'f-x-soft s-x w2' }, st.uafHit);
+      S.rect(HXo(20), 76, 4 * HB, 38, { rx: 4, cls: 'f-none s-x w2' }, st.uafHit);
+      S.text((HXo(20) + HXo(24)) / 2, 100, '書き換わる', { cls: 't-c t-xs t-b t-x' }, st.uafHit);
+      const ghost = [[16, 1, ''], [17, 3, ''], [20, 4, 'start_ms'], [24, 2, 'itag'], [26, 2, '']];   // 1 バイトの kind は枠に名前が入らないので書かない
+      ghost.forEach(([n, w, s]) => {
+        S.rect(HXo(n) + 2, 188, w * HB - 4, 24, { rx: 3, cls: 'f-none s-dim w1 dash' }, P[2]);
+        if (s) S.text(HXo(n) + w * HB / 2, 204, s, { cls: 't-c t-xs t-mono t-dim' }, P[2]);
+      });
+      S.text(HXo(16) - 10, 204, '古いポインタ a（struct Seg *）が思っている形', { cls: 't-end t-xs t-b' }, P[2]);
+      st.uafSeq = ['① a ＝ malloc(12)：物 A（場面2 の Seg、12 バイト）を 0x5010 に作る',
+        '② free(a)：0x5010 からの領域は空きに戻る。a には番地が残ったまま',
+        '③ 物 B を作ると、空いた 0x5010 に置かれる',
+        '④ a->start_ms ＝ 0x41414141 と書くと、B の on_end の 4 バイトが変わる'].map((s, k) => S.text(60, 252 + k * 26, s, { cls: 't-sm' + (k === 3 ? ' t-b t-x' : '') }, P[2]));
+
+      // 段階4: Rust のスライス
+      S.text(60, 196, 's: &[u8]', { cls: 't-sm t-mono t-b' }, P[3]);
+      vbox(P[3], 140, 180, 150, 26, '番地 0x5000', 'f-d-soft s-d w1', 't-xs t-mono t-b');
+      vbox(P[3], 294, 180, 150, 26, '長さ 16', 'f-x-soft s-x w15', 't-xs t-mono t-b');
+      S.text(140, 224, '番地 8 バイト ＋ 長さ 8 バイト（size_of で 16）', { cls: 't-xs t-dim' }, P[3]);
+      S.path(`M150,180 C150,160 ${HXo(0) + 13},150 ${HXo(0) + 13},118`, { cls: 'f-none s-d w15', 'marker-end': mk('d') }, P[3]);
+      S.line(HXo(16), 72, HXo(16), 122, { cls: 's-x w4' }, P[3]);
+      st.idx = S.g({}, P[3]);
+      S.arrow(st.idx, 0, 150, 0, 118, 'x', { cls: 's-x w15' });
+      st.idxT = S.text(0, 166, '', { cls: 't-c t-xs t-mono t-b t-x' }, st.idx);
+      code(P[3], 470, 196, ['let v = s[i];   // 先に i < 16 か比べる'], 20, 't-mono t-sm');
+      st.panic = S.g({}, P[3]);
+      S.text(470, 236, "thread 'main' (…) panicked at …:", { cls: 't-xs t-mono t-x' }, st.panic);
+      S.text(470, 254, 'index out of bounds: the len is 16 but the index is 16', { cls: 't-xs t-mono t-b t-x' }, st.panic);
+      S.lines(60, 290, ['JavaScript の配列も長さを持ち、範囲の外を読むと undefined が返る（隣のメモリは読まない）。', 'Java は例外 ArrayIndexOutOfBoundsException を投げる'], { cls: 't-xs t-mid' }, P[3], 18);
+
+      // 段階5: 寿命（GC・Rust・Android）
+      S.text(40, 192, 'GC（JavaScript・Java・Go）', { cls: 't-sm t-b' }, P[4]);
+      const node = (x, y, s, dashed) => vbox(P[4], x, y, 64, 26, s, dashed ? 'f-none s-dim w1 dash' : 'f-d-soft s-d w1', 't-xs t-mono' + (dashed ? ' t-dim' : ' t-b'));
+      node(52, 210, '根');
+      node(150, 210, '物 1');
+      node(150, 262, '物 2');
+      node(52, 314, '物 3', true);
+      S.arrow(P[4], 118, 223, 146, 223, 'd', { cls: 's-d w15' });
+      S.arrow(P[4], 182, 238, 182, 258, 'd', { cls: 's-d w15' });
+      S.text(124, 332, '← どこからも届かない', { cls: 't-xs t-x' }, P[4]);
+      S.text(52, 366, '届く物は解放しないので、持っている参照の先が', { cls: 't-xs' }, P[4]);
+      S.text(52, 384, '別の物に入れ替わることがない', { cls: 't-xs' }, P[4]);
+      S.text(330, 192, 'Rust：寿命をコンパイル時に確かめる', { cls: 't-sm t-b' }, P[4]);
+      code(P[4], 342, 220, ['let r;', '{ let s = String::from("seg"); r = &s; }', 'println!("{}", r);   // s はもう無い'], 18, 't-mono t-xs');
+      S.text(342, 290, 'error[E0597]: `s` does not live long enough', { cls: 't-xs t-mono t-b t-x' }, P[4]);
+      S.text(342, 310, '（rustc 1.95。プログラムができない）', { cls: 't-xs t-dim' }, P[4]);
+      S.text(690, 192, 'Android の脆弱性のうち', { cls: 't-sm t-b' }, P[4]);
+      S.text(690, 210, 'メモリの安全の問題の割合', { cls: 't-sm t-b' }, P[4]);
+      [['2019 年', 76], ['2024 年', 24]].forEach(([y, v], k) => {
+        const yy = 230 + k * 34;
+        S.text(690, yy + 17, y, { cls: 't-xs t-mono' }, P[4]);
+        S.rect(744, yy, v * 2, 24, { rx: 2, cls: 'f-d-soft s-d w1' }, P[4]);
+        S.text(744 + v * 2 + 6, yy + 17, v + '%', { cls: 't-xs t-mono t-b' }, P[4]);
+      });
+      S.text(690, 316, '2025 年は初めて 20% を下回った', { cls: 't-xs t-x t-b' }, P[4]);
+      S.text(690, 334, '（Google の 2024・2025 年のブログ）', { cls: 't-xs t-dim' }, P[4]);
+
+      // 段階6: MTE
+      S.text(60, 196, 'p', { cls: 't-sm t-mono t-b' }, P[5]);
+      vbox(P[5], 80, 180, 70, 26, '札 3', 'f-d-soft s-d w15', 't-xs t-mono t-b');
+      vbox(P[5], 154, 180, 150, 26, '番地 0x5000', 'f-sf s-rule w1', 't-xs t-mono t-b');
+      S.text(80, 224, 'ポインタの上位のバイトに札（buf を確保したときに付く）', { cls: 't-xs t-dim' }, P[5]);
+      st.mteSeq = [
+        S.text(60, 262, 'p[15] を読む → 番地 0x500F の札は 3 ＝ ポインタの札 3 → 読める', { cls: 't-sm' }, P[5]),
+        S.text(60, 290, 'p[16] に書く → 番地 0x5010 の札は 7 ≠ 3 → 合わないので、回路が例外にする', { cls: 't-sm t-b t-x' }, P[5])
+      ];
+      S.lines(60, 330, ['札は 4 ビットで 16 通りしかないので、偶然に札が合って見逃すこともある。設定によっては、その場では止めずに記録し、後で知らせる。', 'Apple の強化版（EMTE）は、カーネルと 70 以上のプロセスで常に有効（2025 年 9 月の公表）'], { cls: 't-xs t-mid' }, P[5], 18);
+      st.mteCur = S.rect(HXo(15), 77, HB, 36, { rx: 4, cls: 'f-none s-x w2' }, P[5]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      S.fade(st.gPage, i === 1);
+      S.fade(st.gTag, i === 5);
+      // buf のバイトは添字、段階2 だけ写した値
+      st.cells.forEach((c, k) => { c.t.textContent = i === 1 ? '41' : String(k); c.t.setAttribute('class', 't-c t-xs t-mono ' + (i === 1 ? 't-b' : 't-dim')); });
+      const hit = i === 1;
+      st.onEnd.setAttribute('class', hit ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+      st.onEndT.textContent = hit ? '' : i === 2 ? 'on_end' : 'on_end：関数の番地';   // 段階2 は写した 41 を 1 バイトずつ（onEndB）
+      st.onEndB.forEach((t) => { t.textContent = '41'; });
+      st.onEndT.setAttribute('x', i === 2 ? (HXo(16) + HXo(20)) / 2 : (HXo(16) + HXo(24)) / 2);   // 段階3 は右半分（書き換わる 4 バイト）を空ける
+      st.onEndT.setAttribute('class', 't-c t-xs t-mono t-b' + (hit ? ' t-x' : ''));
+      st.uafSeq.forEach((t) => op(t, ''));
+      op(st.uafHit, '');
+      op(st.panic, '');
+      st.mteSeq.forEach((t) => op(t, ''));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 1) {
+        // 0〜23 バイト目を順に写す（1 バイト 0.12 秒）。止めているときは写し終えた姿
+        const k = run ? Math.floor(U.mod(ctx.ts, 6) / 0.12) : 24;
+        const n = Math.min(24, k);
+        st.cells.forEach((c, j) => { c.t.textContent = j < n ? '41' : String(j); c.t.setAttribute('class', 't-c t-xs t-mono ' + (j < n ? 't-b' : 't-dim')); });
+        const over = n > 16;
+        st.onEnd.setAttribute('class', over ? 'f-x-soft s-x w2' : 'f-sf s-fg w15');
+        st.onEndT.textContent = over ? '' : 'on_end：関数の番地';
+        st.onEndT.setAttribute('class', 't-c t-xs t-mono t-b');
+        st.onEndB.forEach((t, j) => { t.textContent = 16 + j < n ? '41' : ''; });
+        st.wCur.setAttribute('x', HXo(Math.min(23, n)));
+        op(st.wCur, n < 24 ? 1 : 0);
+        op(st.callT, n >= 24 ? '' : 0.25);
+      } else if (i === 2) {
+        // ①〜④ を 1.2 秒ずつ出し、3 秒止めて繰り返す
+        const k = run ? Math.floor(U.mod(ctx.ts, 7.8) / 1.2) : 9;
+        st.uafSeq.forEach((t, j) => op(t, j <= k ? '' : 0.15));
+        op(st.uafHit, k >= 3 ? '' : 0);
+      } else if (i === 3) {
+        // 添字 i を 12 から 16 へ。16 で比べて止まる
+        const k = run ? Math.min(4, Math.floor(U.mod(ctx.ts, 7) / 0.8)) : 4;
+        const n = 12 + k;
+        st.idx.setAttribute('transform', `translate(${HXo(n) + HB / 2},0)`);
+        st.idxT.textContent = 'i ＝ ' + n;
+        op(st.panic, n >= 16 ? '' : 0);
+      } else if (i === 5) {
+        // p[15]（合う）→ p[16]（合わない）
+        const k = run ? Math.floor(U.mod(ctx.ts, 5) / 1.6) : 2;
+        st.mteCur.setAttribute('x', HXo(k >= 1 ? 16 : 15));
+        st.mteCur.setAttribute('class', k >= 1 ? 'f-none s-x w2' : 'f-none s-d w2');
+        st.mteSeq.forEach((t, j) => op(t, j <= k ? '' : 0.15));
+      }
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VII部 横断 ／ 第26章',
+      title: '型とメモリ',
+      home: '../index.html',
+      prev: { href: '25-tooshi.html', title: '通しで見る' },
+      next: { href: '27-algorithm.html', title: 'データ構造とアルゴリズム', lead: 'たくさんの値をメモリにどう並べ、どうたどるかの決め方がデータ構造で、それを使って答えを出す手順がアルゴリズムである。' },
+      legend: [{ c: 'd', label: 'データ・ビット列' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

@@ -62,11 +62,13 @@
   /* 説明文の簡易マークアップ → HTML
        [[3|題名]]      場面3へのリンク（3「題名」と表示）
        [[3:2|題名]]    場面3の段階3（0始まりで2）へのリンク
+       [[13-ethernet.html#s4|第13章 場面4]]   他の章へのリンク（#s4.2 で段階2 も指せる）。文字はそのまま出す
        `code`          等幅
        **強調**        太字
        {e|電子}        色付きの語（e h p r d x）  */
   function rich(s) {
     s = esc(s);
+    s = s.replace(/\[\[(\d\d-[a-z0-9-]+\.html(?:#s\d+(?:\.\d+)?)?)\|([^\]]+)\]\]/g, '<a class="xref" href="$1">$2</a>');
     s = s.replace(/\[\[(\d+)(?::(\d+))?\|([^\]]+)\]\]/g, function (_, n, st, name) {
       return '<a class="xref" href="#s' + n + '" data-go="' + n + '"' + (st ? ' data-step="' + st + '"' : '') + '>' + n + '「' + name + '」</a>';
     });
@@ -606,7 +608,7 @@
     var st = ctx.steps[ctx.step];
     if (st.dur) return st.dur;
     if (DEF.stepDur) return DEF.stepDur;
-    var plain = String(st.text || '').replace(/\{[ehprdx]\|([^}]+)\}/g, '$1').replace(/\[\[\d+(?::\d+)?\|([^\]]+)\]\]/g, '$1').replace(/\*\*|`/g, '');
+    var plain = String(st.text || '').replace(/\{[ehprdx]\|([^}]+)\}/g, '$1').replace(/\[\[(?:\d+(?::\d+)?|\d\d-[a-z0-9-]+\.html(?:#s\d+(?:\.\d+)?)?)\|([^\]]+)\]\]/g, '$1').replace(/\*\*|`/g, '');
     var n = Array.from ? Array.from(plain).length : plain.length;
     return util.clamp(8 + 0.1 * n, 12, 30);
   }
