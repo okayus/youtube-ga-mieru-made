@@ -366,7 +366,7 @@ ${ns.map(card).join('\n')}
     <p class="eyebrow">ニュースから層へ ／ ${notes.length} 件</p>
     <h1 id="h-s0">ニュースから層へ</h1>
     <p class="standfirst">tech ニュースを 1 件ずつ調べ、この教材のどの層の話かを、章と場面へのリンクで示したノート。各ノートは、確かなことと確かでないことを出どころつきで書き分け、層ごとに何が起きるかを表にする。</p>
-    <p class="keys fit-only">${KEYS}一覧の帯は全 27 章を部ごとに並べたもので、塗りつぶした番号がそのノートのリンクしている章。</p>
+    <p class="keys fit-only">${KEYS}一覧の帯は全 29 章を部ごとに並べたもので、塗りつぶした番号がそのノートのリンクしている章。</p>
   </div>
   <nav class="toc a-toc" aria-labelledby="h-toc">
     <h2 id="h-toc">構成</h2>

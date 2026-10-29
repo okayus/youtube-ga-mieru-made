@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <link rel="icon" href="data:,">
 <title>用語索引 — YouTubeが見えるまで</title>
-<meta name="description" content="教材「YouTubeが見えるまで」全 27 章の用語表を 1 か所に集めた索引。部ごとの一覧、検索、同じ語の別の意味。">
+<meta name="description" content="教材「YouTubeが見えるまで」全 29 章の用語表を 1 か所に集めた索引。部ごとの一覧、検索、同じ語の別の意味。">
 <meta property="og:title" content="用語索引 — YouTubeが見えるまで">
-<meta property="og:description" content="全 27 章の用語表を 1 か所に集めた索引。">
+<meta property="og:description" content="全 29 章の用語表を 1 か所に集めた索引。">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ja_JP">
 <meta property="og:site_name" content="YouTubeが見えるまで">
@@ -75,7 +75,7 @@
 <!-- ================= 表紙 ================= -->
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
-    <p class="eyebrow">用語索引 ／ 全27章の用語表から</p>
+    <p class="eyebrow">用語索引 ／ 全29章の用語表から</p>
     <h1 id="h-s0">用語索引</h1>
     <p class="standfirst">各章のまとめにある用語表を 1 か所に集めた。用語を押すと定義が出て、その章のまとめへ飛べる。「探す」では全章から部分一致で引ける。「同じ語」には、章によって別の物を指す語（断片・TTL・フレーム・ポートなど）を並べた。定義は章の用語表と同じ文で、章を直せば <code>node tools/build-glossary.mjs</code> で作り直す。</p>
     <p class="legend" data-auto></p>
@@ -112,7 +112,7 @@
 <section class="scene sc-gl" id="s5" data-tab="IV つながる" aria-labelledby="h-s5" data-part="IV"><header class="sh a-sh"><h2 id="h-s5"><span class="n">5</span>第IV部 つながる（第11〜16章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s6" data-tab="V 約束ごと" aria-labelledby="h-s6" data-part="V"><header class="sh a-sh"><h2 id="h-s6"><span class="n">6</span>第V部 約束ごと（第17〜21章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 <section class="scene sc-gl" id="s7" data-tab="VI YouTube" aria-labelledby="h-s7" data-part="VI"><header class="sh a-sh"><h2 id="h-s7"><span class="n">7</span>第VI部 YouTube（第22〜25章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
-<section class="scene sc-gl" id="s8" data-tab="VII 横断" aria-labelledby="h-s8" data-part="VII"><header class="sh a-sh"><h2 id="h-s8"><span class="n">8</span>第VII部 横断（第26〜27章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
+<section class="scene sc-gl" id="s8" data-tab="VII 横断" aria-labelledby="h-s8" data-part="VII"><header class="sh a-sh"><h2 id="h-s8"><span class="n">8</span>第VII部 横断（第26〜29章）</h2></header><div class="parts a-tbl"></div><div class="defbox a-text"></div></section>
 
 <!-- ================= 9 同じ語の別の意味 ================= -->
 <section class="scene sc-homo" id="s9" data-tab="同じ語" aria-labelledby="h-s9">
@@ -127,22 +127,24 @@
     <table class="plain homo">
       <thead><tr><th>語</th><th>意味とその章</th></tr></thead>
       <tbody>
-        <tr><td>断片</td><td><b>動画の断片</b>（DASH のセグメント。数秒ぶんの映像や音声）<small> 第11・21〜25章</small> ／ <b>IP の断片</b>（フラグメント。MTU より大きいパケットを切ったもの）<small> 第18章 場面5</small> ／ 保存の単位は<b>チャンク</b><small> 第22章 場面2</small></td></tr>
+        <tr><td>断片</td><td><b>動画の断片</b>（DASH のセグメント。数秒ぶんの映像や音声）<small> 第11・21〜25章</small> ／ <b>IP の断片</b>（フラグメント）<small> 第18章 場面5</small> ／ 保存の単位は<b>チャンク</b><small> 第22章</small></td></tr>
         <tr><td>TTL</td><td><b>IP ヘッダの残りホップ数</b>（ルーターを 1 台通るごとに 1 減り、0 で捨てる）<small> 第14章 場面6・第18章 場面4</small> ／ <b>DNS の答えを使い回してよい秒数</b><small> 第17章 場面4</small></td></tr>
-        <tr><td>フレーム</td><td><b>映像の 1 枚の画</b><small> 第8・23・24章</small> ／ <b>Ethernet・Wi-Fi が送る単位</b>（宛先 MAC・送信元 MAC・中身・FCS）<small> 第12・13章</small> ／ <b>フレームバッファ</b>（画面 1 枚ぶんの画素の数値が入ったメモリ）<small> 第8章 場面1</small></td></tr>
-        <tr><td>ポート</td><td><b>スイッチやルーターの差し込み口</b><small> 第13・14章</small> ／ <b>TCP・UDP・QUIC の 16 ビットの番号</b>（機器の中のどのプログラム宛てか）<small> 第19章 場面1</small></td></tr>
-        <tr><td>セグメント</td><td><b>TCP の送る単位</b><small> 第7・19章</small> ／ <b>DASH の動画の断片</b>（この教材では「断片」）<small> 第11・24章</small></td></tr>
+        <tr><td>フレーム</td><td><b>映像の 1 枚の画</b><small> 第8・23・24章</small> ／ <b>Ethernet・Wi-Fi が送る単位</b><small> 第12・13章</small> ／ <b>フレームバッファ</b>（画面 1 枚ぶんの画素の数値のメモリ）<small> 第8章 場面1</small></td></tr>
+        <tr><td>ポート</td><td><b>スイッチやルーターの差し込み口</b><small> 第13・14章</small> ／ <b>TCP・UDP・QUIC の 16 ビットの番号</b>（どのプログラム宛てか）<small> 第19章 場面1</small></td></tr>
+        <tr><td>セグメント</td><td><b>TCP の送る単位</b><small> 第7・19章</small> ／ <b>DASH の動画の断片</b>（この教材では「断片」）<small> 第11・24章</small> ／ <b>実行ファイルの区画</b>（ELF）<small> 第28章 場面6</small></td></tr>
         <tr><td>キャッシュ</td><td>どれも「手元に写しを置いて次を速くする」。<b>CPU の SRAM</b><small> 第5・6章</small> ／ <b>DNS の答えの表</b><small> 第17章 場面4</small> ／ <b>HTTP の応答の保存</b><small> 第21章 場面5</small> ／ <b>ISP の中の動画の写し（GGC）</b><small> 第16・22章</small></td></tr>
         <tr><td>ウィンドウ</td><td><b>TCP で確認を待たずに送ってよい量</b><small> 第19章 場面4</small> ／ <b>画面の窓</b><small> 第7・8・10章</small></td></tr>
         <tr><td>ストリーム</td><td><b>Wi-Fi の MIMO の空間ストリーム</b>（アンテナごとの別の流れ）<small> 第12章 場面6</small> ／ <b>HTTP/2・QUIC の多重化の 1 本</b><small> 第19・21章</small></td></tr>
         <tr><td>チャネル</td><td><b>MOSFET の電子の通り道</b>（反転層）<small> 第3章 場面2</small> ／ <b>Wi-Fi の周波数の区切り</b><small> 第12章</small></td></tr>
-        <tr><td>ゲート</td><td><b>MOSFET の端子</b>（電圧でチャネルを開閉する）<small> 第3章</small> ／ <b>論理ゲート</b>（NAND・NOR など、入力の組み合わせで出力が決まる回路）<small> 第4章</small>。「ゲートウェイ」（第14章）は別の語</td></tr>
+        <tr><td>ゲート</td><td><b>MOSFET の端子</b>（電圧でチャネルを開閉する）<small> 第3章</small> ／ <b>論理ゲート</b>（NAND・NOR など）<small> 第4章</small>。「ゲートウェイ」（第14章）は別の語</td></tr>
         <tr><td>ブロック</td><td><b>NAND フラッシュの消去の単位</b><small> 第5章 場面6</small> ／ <b>共通鍵暗号の処理の単位</b>（AES は 16 バイト）<small> 第20章 場面2</small> ／ <b>画像の 8×8 などの区画</b><small> 第23章 場面2</small></td></tr>
-        <tr><td>符号化</td><td><b>ビットを電圧や光の形にする</b>（PAM-5、4B5B）<small> 第13章 場面2・第15章 場面2</small> ／ <b>映像・音声を圧縮して記号の列にする</b><small> 第22・23章</small>。「符号付き整数」（第26章）の符号は正負の印で、別の語</td></tr>
-        <tr><td>型</td><td><b>半導体の n 型・p 型</b>（不純物で電子や正孔を多くしたもの）<small> 第2・3章</small> ／ <b>プログラムの型</b>（ビットの読み方と置き方の約束）<small> 第26章</small></td></tr>
+        <tr><td>符号化</td><td><b>ビットを電圧や光の形にする</b>（PAM-5、4B5B）<small> 第13章 場面2・第15章 場面2</small> ／ <b>映像・音声を圧縮して記号の列にする</b><small> 第22・23章</small>。「符号付き整数」（第26章）の符号は正負の印</td></tr>
+        <tr><td>型</td><td><b>半導体の n 型・p 型</b>（不純物で電子や正孔を多くしたもの）<small> 第2・3章</small> ／ <b>プログラムの型</b>（ビットの読み方と置き方の約束）<small> 第26・28・29章</small></td></tr>
         <tr><td>ヒープ</td><td><b>メモリの領域</b>（実行中に確保して使う所）<small> 第9・26章</small> ／ <b>二分ヒープ</b>（値の小さい順に出す木）<small> 第27章 場面5</small></td></tr>
         <tr><td>スタック</td><td><b>最後に積んだ物から降ろす列</b>（コールスタックなど）<small> 第7・9・10・27章</small> ／ <b>ネットワークスタック</b>（OS の中の IP・TCP などの処理）<small> 第9章 場面6</small></td></tr>
         <tr><td>ハッシュ</td><td><b>暗号のハッシュ関数</b>（SHA-256。元に戻せない）<small> 第20章</small> ／ <b>ハッシュ表の置き場所の計算</b><small> 第13・22・27章</small></td></tr>
+        <tr><td>タグ</td><td><b>HTML のタグ</b>（開始タグ・終了タグ）<small> 第10・27章</small> ／ <b>VLAN タグ</b><small> 第13章</small> ／ <b>改ざん検出のタグ</b>（AEAD）<small> 第20章</small> ／ <b>直和型のタグ</b>（どの場合かを示す欄）<small> 第28・29章</small></td></tr>
+        <tr><td>リンク</td><td><b>ページのリンク</b>（他の章・場面へ移る）<small> 各章</small> ／ <b>リンカがオブジェクトファイルをつなぐこと</b><small> 第28章 場面6</small></td></tr>
       </tbody>
     </table>
   </div>

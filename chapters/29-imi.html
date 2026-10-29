@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>型で意味を表す — YouTubeが見えるまで</title>
+<meta name="description" content="型検査が捕まえるのは、型として書いた区別だけである。int と string しか書かなければ捕まるのはその取り違えだけで、円とドル、ミリ秒と秒のように同じ数の型で持つ値の取り違えは素通りする。">
+<meta property="og:title" content="型で意味を表す — YouTubeが見えるまで">
+<meta property="og:description" content="型検査が捕まえるのは、型として書いた区別だけである。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg text.pre { white-space: pre; }
+  svg a { cursor: pointer; }
+  svg a .lnk { transition: stroke 0.15s; }
+  svg a:hover .lnk, svg a:focus-visible .lnk { stroke: var(--fg); stroke-width: 2; }
+  svg a:hover text, svg a:focus-visible text { text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VII部 横断 ／ 第29章 ／ 全29章</p>
+    <h1 id="h-s0">型で意味を表す</h1>
+    <p class="standfirst">型検査が捕まえるのは、型として書いた区別だけである。int と string しか書かなければ捕まるのはその取り違えだけで、円とドル、ミリ秒と秒のように同じ数の型で持つ値の取り違えは素通りする。この章では、単位・状態・確かめ済みの値をドメイン（プログラムが扱う対象）の型として書き、意味の取り違えをコンパイルエラーにする方法と、その限りを見る。型だけで持つ区別はコンパイラが一度確かめて消し、値で持つ区別は CPU が実行のたびに確かめるので、型の設計とは、どの区別をどちらに置くかを決めることになる。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only" data-auto></p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>同じ数</a><p>同じ u64 に入るミリ秒・時刻の単位・バイト数を別の型にする（newtype）。取り違えは止まり、費用は 0。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>値の数</a><p>欄を並べる型は値の数を掛け、場合を並べる型は足す。あり得ない組を表せない型と、そのメモリの並び。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>作るとき</a><p>円の型。確かめる関数だけが値を作り、定義した演算だけが使える。負を表せなくする 2 つの守り方。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>状態と遷移</a><p>状態を値（enum）で持つか、型（typestate）で持つか。コンパイラと CPU の分担。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>境界</a><p>外から来るバイトに型は付いてこない。入口で一度だけパースして、ドメインの型に作り直す。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>答え</a><p>コンパイラ・実行時・テストの分担と、型システムの利点は何か。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。この教材の最後の章。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>図は模式図。誤りの文・大きさ・機械語は、この PC（x86-64 の Linux）で rustc 1.95.0（機械語は -O）、gcc 15.2.0（-Wall -Wextra）、tsc 7.0.2（--strict）、serde 1.0.228（serde_json 1.0.149）を使って 2026 年 10 月に確かめた（機械語の飾りの行は省いた）。考え方の出典: Minsky「<a href="https://blog.janestreet.com/effective-ml-revisited/">Effective ML Revisited</a>」（2011 年）、King「<a href="https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/">Parse, don’t validate</a>」（2019 年）・「<a href="https://lexi-lambda.github.io/blog/2020/11/01/names-are-not-type-safety/">Names are not type safety</a>」（2020 年）、Wlaschin『Domain Modeling Made Functional』（2018 年。邦訳『関数型ドメインモデリング』猪股健太郎 訳、2024 年）。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 同じ数 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="同じ数" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>同じ数、違う意味 — newtype</h2>
+    <p class="sh-meta"><span class="chip">u64</span><span class="chip">newtype</span><span class="chip">E0308</span><span class="chip">rustc 1.95</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">第28章で見たとおり、型として書いた区別はコンパイラが確かめた後で消え、機械語に費用を残さない。この区別を数の単位に使えば、同じ u64 に入るミリ秒と 12,800 分の 1 秒の取り違えを、コンパイルで止められる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">newtype は Haskell 由来の言葉で、Rust の本は「実行時の性能の損は無く、包んだ型はコンパイル時に消える」と書く。扱う対象を素の数や文字列で持つことを、Fowler と Beck は『Refactoring』で Primitive Obsession と呼んだ。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="同じ u64 に入る 4 つの値と、単位の取り違え、newtype、機械語、別名、時刻と時間の型"></svg></div>
+    <figcaption>図1　上は同じ u64（8 バイト）に入る 4 つの値（30,000 は例。ほかは第23・24章の実測の値）。下は段階ごとの中身。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 値の数 ================= -->
+<section class="scene sc-anim" id="s2" data-tab="値の数" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>値の数を数える — 直積と直和</h2>
+    <p class="sh-meta"><span class="chip">struct</span><span class="chip">enum</span><span class="chip">Option</span><span class="chip">size_of</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">型は、取りうる値の集まりでもある。欄を並べる型と場合を並べる型では、値の数の数え方が違う。数えてみると、意味の無い値が型に入っていないかが分かる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">値の数が掛け算と足し算になるので直積型・直和型と呼び、合わせて代数的データ型という。ML・Haskell の直和型や Rust・Swift の enum は場合ごとに中身を持てるが、C の enum は名前を付けた整数で、中身は持てない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="直積の Flags の 4 通りと、直和の Load の 3 つの場合、値の数とメモリの並び"></svg></div>
+    <figcaption>図2　左上は直積の Flags の 4 通り、右上は直和の Load の 3 つの場合。下は段階ごとの値の数とメモリの並び（rustc 1.95 の size_of と、値をバイトとして読んだ結果）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 作るとき ================= -->
+<section class="scene sc-anim" id="s3" data-tab="作るとき" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>作るときに確かめる — 円の型</h2>
+    <p class="sh-meta"><span class="chip">i64 → Yen</span><span class="chip">スマートコンストラクタ</span><span class="chip">checked_*</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">外から来た数は、まだ確かめていない。確かめる関数だけが値を作れるようにすると、その型の値はどれも確かめ済みになる。Super Chat の金額のような円の金額を例に、0 以上の整数の型を作る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Rust は、debug の既定ではあふれを確かめて panic で止め、release の既定では確かめずに折り返す（<a class="xref" href="28-compiler.html#s3">第28章 場面3</a>）。金額のようにあふれてはいけない値は、checked_ の付いた演算で書いて None を扱う。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="i64 の数が門 Yen::new を通って Yen になる図と、円の演算の表と機械語"></svg></div>
+    <figcaption>図3　上は門（Yen::new）を通る前の i64 と、通った後の Yen（値は例）。下は段階ごとのコード・誤り・機械語・演算の表。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 状態と遷移 ================= -->
+<section class="scene sc-anim" id="s4" data-tab="状態と遷移" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>状態と遷移に名前を付ける — 値で持つか、型で持つか</h2>
+    <p class="sh-meta"><span class="chip">IFrame API</span><span class="chip">match</span><span class="chip">typestate</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">プレーヤーは再生中・一時停止のような状態を持ち、操作や出来事で次の状態へ移る。状態と遷移を型で書くと、扱い忘れやあり得ない順番をコンパイラが見つける。書き方は、状態を値で持つか型で持つかの 2 通り。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">typestate は Strom と Yemini が 1986 年の論文（IEEE TSE）で名付けた考えで、いま許す操作を変数ごとの状態で変え、コンパイラが確かめる。Rust では、値を渡すと元の名前を使えなくなる規則（所有）がこれを支える。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="プレーヤーの状態と遷移の関数、状態を値で持つ版と型で持つ版の比べ"></svg></div>
+    <figcaption>図4　左上は例のプレーヤーの状態と遷移の関数、右上は段階ごとのコード。下は段階ごとの中身で、段階3 は状態を値で持つ版（タグとジャンプ表）、段階4・6 はそれと型で持つ版（0 バイト、2 命令）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 境界 ================= -->
+<section class="scene sc-anim" id="s5" data-tab="境界" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>境界で型を作り直す — バイトに型は付いてこない</h2>
+    <p class="sh-meta"><span class="chip">JSON</span><span class="chip">protobuf</span><span class="chip">serde</span><span class="chip">zod</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">型の守りが効くのは、プログラムの中だけである。外から届くバイトには型が付いてこないので、入口で一度だけ確かめてドメインの型に作り直し、中ではその型を信じる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">中で作った値を外へ出すときは、型の区別がバイトから消える。JSON には Ms と Ticks の区別が無く、"pos_ms" のような欄の名前と文書が単位を伝える。受け取る側は、それを入口で型に戻す。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="外から届くバイトが入口のパースを通ってドメインの型の値になる図"></svg></div>
+    <figcaption>図5　上は左から、外から届くバイト・入口のパース・ドメインの型の値。下は段階ごとの中身（段階2・3 の結果は serde 1.0.228 と tsc 7.0.2 で確かめた）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 答え ================= -->
+<section class="scene sc-anim" id="s6" data-tab="答え" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>型にできること・できないこと — 答え</h2>
+    <p class="sh-meta"><span class="chip">コンパイラ</span><span class="chip">実行時</span><span class="chip">テスト</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">ここまでの区別を、確かめる時期で 3 つに分ける。コンパイラが実行の前に証明すること、実行のたびに確かめること、テストで確かめること。最後に、型システムの利点は何かという問いに答える。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">テストは選んだ入力で道を 1 本ずつ走らせて確かめ、型検査は走らせずに全部の道を確かめる。確かめる中身が違うので、一方で他方の代わりはできない。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="コンパイラ・実行時・テストの 3 列に、この章と第26〜28章の例を並べた表"></svg></div>
+    <figcaption>図6　上の 3 列は確かめる時期（コンパイラ・実行のたび・テスト）で、札はこの章と第26〜28章の例（場面へのリンク）。下は段階ごとの中身。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — 型で意味を表す</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>同じ u64 のミリ秒と 12,800 分の 1 秒を newtype で別の型にすると、取り違えが E0308 で止まる。大きさも機械語も元の型と同じで費用は 0。別名（typedef・type）では区別されない（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>直積は値の数を掛け、直和は足す。あり得ない組を表せない型にすると、使う側の確かめが要らなくなる。enum はタグを付けて中身を重ね、中身に取らない値があればタグの代わりに使う（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>確かめる関数だけが値を作れる型（スマートコンストラクタ）は、入口で 1 回確かめた事実を型に残す。どの演算を定義するかが、円の意味を決める（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>実行中の出来事で変わる状態は値（enum）で持ち、コンパイラが漏れを、CPU がタグを確かめる。順番が決まった手順は型（typestate）で持ち、機械語に何も残さない（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>外から来るバイトに型は付いてこない。確かめない as ではなく、入口のパースでドメインの型に作り直し、失敗はそこで扱う（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>型システムの利点は、区別と約束をコンパイラに預けること。意味の取り違えがコンパイルエラーになり、変えたときに直す所が挙がり、実行時の費用は増えず、型で言えない所は境界の検査とテストに回す（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th><i class="sw d"></i>newtype</th><td>既存の型を中身 1 つの構造体で包み、別の名前の型にしたもの。大きさと機械語は元の型と同じ。Rust の struct Ms(u64)。</td></tr>
+        <tr><th>ブランド型</th><td>TypeScript で、型の上だけの欄（__brand など）を足して形を変え、同じ number や string を区別する書き方。実行時の値は変わらない。</td></tr>
+        <tr><th>構造的型付け</th><td>型を名前でなく形（欄とその型）で比べること。TypeScript はこれで、Rust と C の構造体は名前で比べる（名前的型付け）。</td></tr>
+        <tr><th>直積型・直和型</th><td>欄を並べ、値の数が積になる型（構造体）と、場合を並べ、値の数が和になる型（Rust の enum）。合わせて代数的データ型。</td></tr>
+        <tr><th>タグ（判別子）</th><td>直和型の値がどの場合かを示す欄。例の State は先頭の 2 バイト。TypeScript の判別可能な union では kind などのプロパティ。HTML のタグ（第10章）、TLS の改ざん検出のタグ（第20章）とは別。</td></tr>
+        <tr><th>スマートコンストラクタ</th><td>中身を隠し、確かめる関数だけが値を作れるようにする書き方。型が保証するのは「その関数を通った」こと。</td></tr>
+        <tr><th>網羅性の検査</th><td>match・switch が全部の場合を扱っているかを、コンパイラが確かめること。Rust の E0004。</td></tr>
+        <tr><th>typestate</th><td>状態を型の引数で持ち、状態ごとに使える操作をコンパイラが確かめる書き方（Strom・Yemini、1986 年）。状態の型は 0 バイト。</td></tr>
+        <tr><th>篩型（refinement type）</th><td>型に条件の式を付けて値を絞った型。{v:Int | v >= 0}。Liquid Haskell は SMT ソルバで確かめる。</td></tr>
+        <tr><th>Primitive Obsession</th><td>扱う対象の値を、素の int や文字列のまま持つこと。Fowler『Refactoring』の言葉。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <p class="note">この章で教材は終わり。<a class="xref" href="../index.html">目次</a>の地図から気になる層へ戻るか、<a class="xref" href="01-denshi.html">第1章</a>から通して読み直せる。</p>
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  /* 濃さ（fade の付いた要素は 0.35 秒かけて変わる） */
+  const op = (el, v) => { el.style.opacity = v; };
+  /* 動きを止めているときは、段階の動きの終わりの姿を見せる */
+  const playing = () => YT.motion.playing;
+  /* 等幅の行の並び（空白を詰めない） */
+  function code(parent, x, y, lines, lh, cls) {
+    return lines.map((s, k) => S.text(x, y + k * lh, s, { cls: (cls || 't-mono t-sm') + ' pre' }, parent));
+  }
+  /* 枠と中央の文字 */
+  function vbox(parent, x, y, w, h, s, box, cls) {
+    const g = S.g({}, parent);
+    const r = S.rect(x, y, w, h, { rx: 4, cls: box || 'f-sf s-rule w1' }, g);
+    const t = S.text(x + w / 2, y + h / 2 + 4, s, { cls: 't-c ' + (cls || 't-sm') }, g);
+    return { g, r, t };
+  }
+  /* 誤りの札（コンパイラの出力）。1 行目が見出し */
+  function errBox(parent, x, y, w, lines, lh, fcls) {
+    const g = S.g({}, parent);
+    const h = 12 + lines.length * (lh || 18);
+    S.rect(x, y, w, h, { rx: 5, cls: 'f-x-soft s-x w15' }, g);
+    lines.forEach((s, k) => S.text(x + 12, y + 20 + k * (lh || 18), s, { cls: (fcls || 't-sm') + ' t-mono pre' + (k ? '' : ' t-b t-x') }, g));
+    return g;
+  }
+  /* 何バイトかの欄を 1 つの枠で描く。バイトの区切りは上下の縁の短い刻みだけ（札の文字を線が横切らないように） */
+  function field(parent, x, y, cb, n, h, box, tick, label, lcls) {
+    const g = S.g({}, parent);
+    S.rect(x + 1, y, n * cb - 2, h, { rx: 3, cls: box }, g);
+    for (let k = 1; k < n; k++) {
+      S.line(x + k * cb, y, x + k * cb, y + 5, { cls: tick }, g);
+      S.line(x + k * cb, y + h - 5, x + k * cb, y + h, { cls: tick }, g);
+    }
+    if (label) S.text(x + n * cb / 2, y + h / 2 + 4, label, { cls: 't-c ' + (lcls || 't-xs t-mono t-b') }, g);
+    return g;
+  }
+  /* 他の章の場面へのリンク（SVG の a） */
+  function xlink(parent, x, y, href, label, end) {
+    const a = S.el('a', { href, 'aria-label': label }, parent);
+    S.text(x, y, label + ' ↗', { cls: 't-xs t-mid' + (end ? ' t-end' : '') }, a);
+    return a;
+  }
+
+  /* ================================================================
+     場面1 同じ数
+     値: 30,000 は例の再生位置（ミリ秒）。67,072 は第23章 場面6 の AV1（itag 398）の断片 2 の始まり（1 秒 ＝ 12,800）、
+     3,433,755 は第23章の Opus のファイルの大きさ、18,695 は第24章の SABR の欄 23（B/s）。
+     誤りの文・大きさ・機械語は rustc 1.95.0（-O）、gcc 15.2.0、tsc 7.0.2 で確かめた（2026-10-29）。
+     ahead と ahead_u は機械語が同じ（mov rax, rdi / sub rax, rsi / ret）で、LLVM は ahead_u = ahead にまとめた。
+     Mars Climate Orbiter は事故調査委員会の第 1 報告（1999-11-10）の本文で確かめた
+     ================================================================ */
+  const S1V = [
+    { name: '再生位置', src: '第24章（値は例）', val: '30,000', unit: 'ミリ秒', ty: 'Ms' },
+    { name: '断片 2 の始まり', src: 'AV1 の MP4（第23章）', val: '67,072', unit: '1/12,800 秒', ty: 'Ticks' },
+    { name: 'ファイルの大きさ', src: 'Opus の音声（第23章）', val: '3,433,755', unit: 'バイト', ty: 'Bytes' },
+    { name: '帯域の見積もり', src: 'SABR の欄 23（第24章）', val: '18,695', unit: 'B/s', ty: 'Bps' }
+  ];
+  const SX1 = (s) => 70 + s * 820 / 70;          // 数直線: 0〜70 秒
+  const s1 = {
+    steps: [
+      { title: '同じ u64 に 4 つの意味', text: '再生位置のミリ秒（[[24-streaming.html#s3.6|第24章 場面3]]）、AV1 の時刻（1 秒 ＝ 12,800。[[23-codec.html#s6.5|第23章 場面6]]）、ファイルのバイト数、帯域の B/s は、どれも u64 に入る。30 秒の位置 30,000 を、5.24 秒から始まる断片 2 の 67,072 と比べると、30 秒のほうが前と判定され、型検査は何も言わない。' },
+      { title: '単位の取り違えで探査機を失った', text: '1999 年 9 月、火星探査機 Mars Climate Orbiter が予定より低い軌道で大気に入り、失われた。地上のソフト SM_FORCES は噴射の力積をポンド重秒で書き、航法のソフトは仕様どおりニュートン秒として読んだ。噴射の効果は 4.45 分の 1 に見積もられた。単位はファイルの外の仕様で決まる。' },
+      { title: '別の型にする（newtype）', text: '中身が 1 つの構造体で包み、`Ms` と `Ticks` を別の型にする（**newtype**）。中身は同じ u64 でも型が違うので、`Ms` と `Ticks` を比べると E0308 で止まる。12,800 分の 1 秒からミリ秒への換算は、名前の付いた関数 `to_ms` の 1 か所に書く。`.0` は中身の欄。' },
+      { title: '費用は 0', text: '`Ms` の大きさは u64 と同じ 8 バイトで、型の札も詰め物も増えない。end から pos を引く関数を `Ms` で書いた `ahead` と u64 で書いた `ahead_u` は同じ 3 命令になり、LLVM は 2 つを 1 つにまとめた（[[28-compiler.html#s4|第28章 場面4]]）。区別はコンパイルの間だけ働き、実行には残らない。' },
+      { title: '別名では区別されない', text: 'C の `typedef`、Rust と TypeScript の `type` は別名を作るだけで、取り違えても止まらない。TypeScript は型を名前でなく形で比べ（**構造的型付け**）、同じ形の interface どうしも代入できる。そこで型の上だけの欄を足して形を変える**ブランド型**を使う。C は構造体で包む。' },
+      { title: '時刻と時間を分ける', text: 'Chromium は単調に進む時計の時刻を `TimeTicks`、長さを `TimeDelta` と別の型にし、Rust の std も `Instant` と `Duration` を分ける。時刻 − 時刻 ＝ 時間、時刻 ＋ 時間 ＝ 時刻は定義され、時刻 ＋ 時刻は無い（E0308）。どの演算を定義するかが、型の意味を決める。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 上: 同じ u64 に入る 4 つの値
+      S.text(40, 28, '同じ u64（8 バイト）に入る 4 つの値', { cls: 't-md t-b' }, svg);
+      S.text(920, 28, '30,000 は例。ほかは第23・24章で測った値', { cls: 't-xs t-dim t-end' }, svg);
+      st.cards = S1V.map((v, k) => {
+        const x0 = 40 + k * 222, y0 = 40, w = 208;
+        const g = S.g({ cls: 'fade' }, svg);
+        const box = S.rect(x0, y0, w, 140, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(x0 + 12, y0 + 24, v.name, { cls: 't-sm t-b' }, g);
+        const tagR = S.rect(x0 + w - 64, y0 + 10, 54, 20, { rx: 4, cls: 'f-in s-rule w1' }, g);
+        const tagT = S.text(x0 + w - 37, y0 + 24, 'u64', { cls: 't-c t-xs t-mono t-b' }, g);
+        S.text(x0 + 12, y0 + 42, v.src, { cls: 't-xs t-dim' }, g);
+        S.text(x0 + 12, y0 + 78, v.val, { cls: 't-xl t-mono t-b' }, g);
+        S.text(x0 + 12, y0 + 100, v.unit, { cls: 't-sm t-mid' }, g);
+        for (let j = 0; j < 8; j++) S.rect(x0 + 12 + j * 23, y0 + 112, 21, 16, { rx: 2, cls: 'f-d-soft s-d w1' }, g);
+        return { g, box, tagR, tagT };
+      });
+      S.line(30, 196, 930, 196, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: u64 のまま比べる
+      code(P[0], 52, 224, [
+        'let pos_ms: u64 = 30_000;   // 再生位置（ミリ秒）',
+        'let seg2: u64 = 67_072;     // 断片 2 の始まり（1/12,800 秒）',
+        'if pos_ms < seg2 { … }      // 型検査は通る'
+      ], 21);
+      S.line(SX1(0), 380, SX1(70), 380, { cls: 's-mid w15' }, P[0]);
+      for (let s = 0; s <= 70; s += 10) {
+        S.line(SX1(s), 375, SX1(s), 385, { cls: 's-mid w1' }, P[0]);
+        S.text(SX1(s), 402, s + (s === 70 ? ' 秒' : ''), { cls: 't-c t-xs t-mono t-dim' }, P[0]);
+      }
+      S.circle(SX1(5.24), 380, 6, { cls: 'f-d' }, P[0]);
+      S.text(SX1(5.24) - 8, 342, '断片 2 の始まり', { cls: 't-xs t-b t-d' }, P[0]);
+      S.text(SX1(5.24) - 8, 358, '5.24 秒', { cls: 't-xs t-mono t-b t-d' }, P[0]);
+      S.circle(SX1(30), 380, 6, { cls: 'f-fg' }, P[0]);
+      S.text(SX1(30), 358, '再生位置 30 秒', { cls: 't-c t-xs t-b' }, P[0]);
+      st.mis = S.circle(SX1(5.24), 380, 6, { cls: 'f-x' }, P[0]);
+      st.misT = S.g({}, P[0]);
+      S.text(SX1(67.072), 342, '67,072 をミリ秒と', { cls: 't-c t-xs t-b t-x' }, st.misT);
+      S.text(SX1(67.072), 358, '読むと 67.07 秒', { cls: 't-c t-xs t-b t-x' }, st.misT);
+      S.text(70, 452, 'u64 のまま比べた：30,000 < 67,072 → 30 秒は断片 2 より「前」', { cls: 't-sm t-b t-x' }, P[0]);
+      S.text(70, 478, '単位をそろえた：67,072 ÷ 12,800 ＝ 5.24 秒 ＝ 5,240 ミリ秒 < 30,000 →「後」', { cls: 't-sm t-d' }, P[0]);
+
+      // 段階2: Mars Climate Orbiter
+      const mk = S.markers(svg);
+      S.text(40, 224, 'Mars Climate Orbiter（1999 年 9 月 23 日に喪失）', { cls: 't-md t-b' }, P[1]);
+      S.rect(40, 240, 280, 92, { rx: 6, cls: 'f-sf s-rule w1' }, P[1]);
+      S.text(54, 262, '地上のソフト SM_FORCES', { cls: 't-sm t-b' }, P[1]);
+      S.text(54, 280, '探査機の運用側（Lockheed Martin）', { cls: 't-xs t-dim' }, P[1]);
+      S.text(54, 308, '噴射の力積をポンド重秒（lbf·s）で書く', { cls: 't-sm' }, P[1]);
+      S.path('M324,286 H352', { cls: 'f-none s-mid w15', 'marker-end': mk('mid') }, P[1]);
+      S.rect(360, 254, 220, 64, { rx: 6, cls: 'f-in s-rule w1' }, P[1]);
+      S.text(470, 280, 'AMD ファイル', { cls: 't-c t-sm t-b' }, P[1]);
+      S.text(470, 300, '数の単位はファイルの外の仕様が決める', { cls: 't-c t-xs' }, P[1]);
+      S.path('M584,286 H612', { cls: 'f-none s-mid w15', 'marker-end': mk('mid') }, P[1]);
+      S.rect(620, 240, 300, 92, { rx: 6, cls: 'f-sf s-rule w1' }, P[1]);
+      S.text(634, 262, '航法のソフト（JPL の航法チーム）', { cls: 't-sm t-b' }, P[1]);
+      S.text(634, 280, '仕様（SIS）は N·s と決めていた', { cls: 't-xs t-dim' }, P[1]);
+      S.text(634, 308, 'ニュートン秒（N·s）として読む', { cls: 't-sm' }, P[1]);
+      st.tok = S.g({}, P[1]);
+      S.rect(-44, -12, 88, 24, { rx: 5, cls: 'f-sf s-x w15' }, st.tok);
+      st.tokT = S.text(0, 4, '', { cls: 't-c t-xs t-mono t-b t-x' }, st.tok);
+      S.text(920, 380, '数 1.0 は例', { cls: 't-xs t-dim t-end' }, P[1]);
+      S.text(40, 406, '1 lbf·s の噴射の効果（1 ポンド重 ＝ 4.45 ニュートン）', { cls: 't-sm t-b' }, P[1]);
+      S.text(222, 435, '実際', { cls: 't-sm t-end' }, P[1]);
+      S.rect(230, 420, 4.45 * 120, 20, { rx: 3, cls: 'f-in s-mid w1' }, P[1]);
+      S.text(230 + 4.45 * 120 + 8, 435, '4.45 N·s', { cls: 't-sm t-mono' }, P[1]);
+      S.text(222, 465, '航法の見積もり', { cls: 't-sm t-end t-x' }, P[1]);
+      S.rect(230, 450, 120, 20, { rx: 3, cls: 'f-x-soft s-x w1' }, P[1]);
+      S.text(358, 465, '1 N·s', { cls: 't-sm t-mono t-x t-b' }, P[1]);
+      S.text(40, 520, '事故調査委員会の第 1 報告（1999 年 11 月 10 日）による', { cls: 't-xs t-dim' }, P[1]);
+
+      // 段階3: newtype
+      code(P[2], 52, 224, [
+        '#[derive(PartialEq, PartialOrd)]',
+        'pub struct Ms(pub u64);      // ミリ秒',
+        'pub struct Ticks(pub u64);   // 1 秒 ＝ 12,800',
+        'fn to_ms(t: Ticks) -> Ms { Ms(t.0 * 1000 / 12_800) }',
+        '',
+        'let pos = Ms(30_000);',
+        'let seg2 = Ticks(67_072);',
+        'if pos < to_ms(seg2) { … }',
+        'if pos < seg2 { … }'
+      ], 21);
+      S.text(418, 287, '← 換算はこの 1 か所', { cls: 't-xs t-b t-x' }, P[2]);
+      S.text(238, 371, '← 30,000 < 5,240 は偽：「後」と正しく判定', { cls: 't-xs t-d t-b' }, P[2]);
+      S.text(190, 392, '← 止まる', { cls: 't-xs t-x t-b' }, P[2]);
+      errBox(P[2], 52, 406, 560, [
+        'error[E0308]: mismatched types',
+        'if pos < seg2 { … }',
+        '         ^^^^ expected `Ms`, found `Ticks`'
+      ], 18);
+      S.text(52, 508, '上の 4 つの値も、中身は u64 のまま Ms・Ticks・Bytes・Bps と別の型にした', { cls: 't-sm t-mid' }, P[2]);
+
+      // 段階4: 費用は 0
+      code(P[3], 52, 226, [
+        'pub fn ahead(end: Ms, pos: Ms) -> Ms { Ms(end.0 - pos.0) }',
+        'pub fn ahead_u(end: u64, pos: u64) -> u64 { end - pos }'
+      ], 22);
+      S.rect(52, 270, 380, 160, { rx: 6, cls: 'f-in s-rule w1' }, P[3]);
+      S.text(66, 292, 'rustc 1.95 -O が出した機械語', { cls: 't-xs t-dim' }, P[3]);
+      code(P[3], 66, 318, ['ahead:', '    mov  rax, rdi', '    sub  rax, rsi', '    ret'], 20, 't-mono t-sm t-b t-d');
+      S.text(66, 414, 'ahead_u = ahead', { cls: 't-sm t-mono t-b t-x' }, P[3]);
+      S.text(186, 414, '← 同じ機械語なので 1 つにまとめた', { cls: 't-xs t-x' }, P[3]);
+      S.text(480, 292, '大きさ（size_of）', { cls: 't-xs t-dim' }, P[3]);
+      [['u64', 330], ['Ms', 368]].forEach(([n, y]) => {
+        S.text(480, y, n, { cls: 't-sm t-mono t-b' }, P[3]);
+        for (let j = 0; j < 8; j++) S.rect(530 + j * 26, y - 14, 24, 18, { rx: 2, cls: 'f-d-soft s-d w1' }, P[3]);
+        S.text(746, y, '8 バイト', { cls: 't-sm t-mono' }, P[3]);
+      });
+      S.text(480, 404, '型の札も詰め物も足さない', { cls: 't-xs t-mid' }, P[3]);
+      xlink(P[3], 920, 470, '28-compiler.html#s4', '第28章 場面4 を開く', true);
+
+      // 段階5: 別名と、名前で比べる型・形で比べる型
+      S.text(52, 222, '言語', { cls: 't-xs t-dim' }, P[4]);
+      S.text(150, 222, '書き方', { cls: 't-xs t-dim' }, P[4]);
+      S.text(590, 222, '取り違えると', { cls: 't-xs t-dim' }, P[4]);
+      S.line(40, 230, 920, 230, { cls: 's-rule w1' }, P[4]);
+      [
+        ['C', 'typedef uint64_t ms_t;', '通る（gcc 15.2 -Wall -Wextra でも黙る）', 0],
+        ['C', 'struct ms { uint64_t v; };', '止まる：incompatible type for argument 1', 1],
+        ['Rust', 'type Ms = u64;', '通る（別名）', 0],
+        ['Rust', 'pub struct Ms(pub u64);', '止まる：E0308 mismatched types', 1],
+        ['TypeScript', 'type Ms = number;', '通る（別名）', 0],
+        ['TypeScript', 'interface A { x: number } と B（同じ形）', '通る（形が同じなら代入できる）', 0],
+        ['TypeScript', "type Ms = number & { readonly __brand: 'Ms' };", '止まる：TS2345', 1]
+      ].forEach(([l, c, r, stop], k) => {
+        const y = 256 + k * 32;
+        if (stop) S.rect(40, y - 19, 880, 28, { rx: 4, cls: 'f-x-soft' }, P[4]);
+        S.text(52, y, l, { cls: 't-sm t-b' }, P[4]);
+        S.text(150, y, c, { cls: 't-sm t-mono pre' }, P[4]);
+        S.text(590, y, r, { cls: 't-sm' + (stop ? ' t-b t-x' : ' t-mid') }, P[4]);
+      });
+      S.text(52, 494, 'ブランド型の __brand は型の上だけの欄で、値は number のまま（数に付けるときは as Ms）', { cls: 't-xs t-mid' }, P[4]);
+      S.text(52, 516, 'C は gcc 15.2、Rust は rustc 1.95、TypeScript は tsc 7.0.2（--strict）で確かめた', { cls: 't-xs t-dim' }, P[4]);
+
+      // 段階6: 時刻と時間
+      S.line(60, 248, 900, 248, { cls: 's-mid w15' }, P[5]);
+      S.text(900, 236, '時間の流れ →', { cls: 't-xs t-dim t-end' }, P[5]);
+      [[260, '時刻 t₁'], [660, '時刻 t₂']].forEach(([x, s]) => {
+        S.circle(x, 248, 6, { cls: 'f-fg' }, P[5]);
+        S.text(x, 232, s, { cls: 't-c t-sm t-b' }, P[5]);
+      });
+      st.dur = S.line(260, 272, 660, 272, { cls: 's-x w2', 'marker-end': mk('x') }, P[5]);
+      S.text(460, 294, '時間 d ＝ t₂ − t₁（t₁ ＋ d ＝ t₂）', { cls: 't-c t-sm t-b t-x' }, P[5]);
+      S.text(52, 330, '演算', { cls: 't-xs t-dim' }, P[5]);
+      S.text(250, 330, 'Rust の std', { cls: 't-xs t-dim' }, P[5]);
+      S.text(600, 330, 'Chromium（base/time/time.h）', { cls: 't-xs t-dim' }, P[5]);
+      S.line(40, 338, 920, 338, { cls: 's-rule w1' }, P[5]);
+      [
+        ['時刻 − 時刻 → 時間', 'Instant - Instant → Duration', 'TimeTicks - TimeTicks → TimeDelta', 0],
+        ['時刻 ＋ 時間 → 時刻', 'Instant + Duration → Instant', 'TimeTicks + TimeDelta → TimeTicks', 0],
+        ['時間 ＋ 時間 → 時間', 'Duration + Duration → Duration', 'TimeDelta + TimeDelta → TimeDelta', 0],
+        ['時刻 ＋ 時刻 → 無い', 'E0308：expected `Duration`, found `Instant`', '定義されていない', 1]
+      ].forEach(([a, b, c, no], k) => {
+        const y = 362 + k * 30;
+        if (no) S.rect(40, y - 19, 880, 28, { rx: 4, cls: 'f-x-soft' }, P[5]);
+        S.text(52, y, a, { cls: 't-sm t-b' + (no ? ' t-x' : '') }, P[5]);
+        S.text(250, y, b, { cls: 't-sm t-mono' + (no ? ' t-x' : '') }, P[5]);
+        S.text(600, y, c, { cls: 't-sm' + (no ? ' t-x' : ' t-mono') }, P[5]);
+      });
+      S.text(52, 500, '第28章の ahead(end, pos) の end − pos も「時刻 − 時刻 ＝ 時間」。Ms 1 つで書くと、この区別は消えている', { cls: 't-xs t-mid' }, P[5]);
+      S.text(52, 522, 'Chromium の TimeTicks は「単調に減らない時計の時刻」（2026 年 10 月の main で確かめた）', { cls: 't-xs t-dim' }, P[5]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      st.cards.forEach((c, k) => {
+        const named = i >= 2;
+        const hl = (i === 0 || i === 2) ? k <= 1 : (i === 3 ? k === 0 : false);
+        c.box.setAttribute('class', hl ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+        c.tagT.textContent = named ? S1V[k].ty : 'u64';
+        c.tagT.setAttribute('class', 't-c t-xs t-mono t-b' + (named ? ' t-x' : ''));
+        c.tagR.setAttribute('class', named ? 'f-sf s-x w15' : 'f-in s-rule w1');
+        op(c.g, i === 1 || i >= 4 ? 0.4 : '');
+      });
+      st.mis.setAttribute('cx', SX1(67.072));
+      op(st.misT, '');
+      st.tokT.textContent = '1.0 N·s';
+      st.tok.setAttribute('transform', 'translate(770,356)');
+      st.dur.setAttribute('x2', 660);
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 0) {
+        // 67,072 の点が、正しい位置（5.24 秒）からミリ秒と読んだ位置（67.07 秒）へ動く。7 秒ごとに繰り返す
+        const c = run ? U.mod(ctx.ts, 7) : 7;
+        const f = U.ease.inOut(U.prog(c, 0.6, 1.6));
+        st.mis.setAttribute('cx', U.lerp(SX1(5.24), SX1(67.072), f).toFixed(1));
+        op(st.misT, f >= 1 ? '' : 0);
+      } else if (i === 1) {
+        // 数がファイルを通って運ばれる。書いた側では lbf·s、ファイルでは単位なし、読んだ側では N·s
+        const c = run ? U.mod(ctx.ts, 7) : 7;
+        const a = U.ease.inOut(U.prog(c, 1.2, 1.0)), b = U.ease.inOut(U.prog(c, 3.2, 1.0));
+        const x = c < 2.2 ? U.lerp(180, 470, a) : U.lerp(470, 770, b);
+        st.tok.setAttribute('transform', `translate(${x.toFixed(1)},356)`);
+        st.tokT.textContent = c < 1.7 ? '1.0 lbf·s' : c < 3.7 ? '1.0' : '1.0 N·s';
+      } else if (i === 5) {
+        // 時刻 t₁ に時間 d を足すと時刻 t₂
+        const c = run ? U.mod(ctx.ts, 5) : 5;
+        st.dur.setAttribute('x2', U.lerp(268, 660, U.ease.out(U.prog(c, 0.4, 1.4))).toFixed(1));
+      }
+    }
+  };
+
+  /* ================================================================
+     場面2 値の数
+     大きさは rustc 1.95.0 の size_of（Flags 2、Load 4、State 16、Option<u64> 16、Option<NonZeroU64> 8、
+     Option<bool> 1、Option<&u8> 8）。並びは値を transmute でバイトとして読んで確かめた（2026-10-29）:
+     Load はタグ（u16）が +0、Failed の u16 が +2。State はタグ（u16）が +0（Loading 0・Playing 1・Paused 2・Error 3）、
+     code が +2、pos_ms が +8。Option<bool> の None は 2、Option<NonZeroU64> の None は 0。
+     TypeScript の誤り TS2339・TS2322 は tsc 7.0.2（--strict）で確かめた
+     ================================================================ */
+  const FLAG = [['読み込み済み', '→ Ready'], ['失敗', '→ Failed(…)'], ['読み込み中', '→ Loading'], ['？', '→ 無い']];   // [loading][error] の順
+  const LOAD = [['Loading', '読み込み中', '1 通り'], ['Ready', '読み込み済み', '1 通り'], ['Failed(u16)', '失敗（理由の番号 0〜65,535）', '65,536 通り']];
+  const STATE = [['Loading', 0, []], ['Playing', 1, [8, 8, 'pos_ms（u64）']], ['Paused', 2, [8, 8, 'pos_ms（u64）']], ['Error', 3, [2, 2, 'code']]];
+  const s2 = {
+    steps: [
+      { title: '直積：欄の値の数を掛ける', text: '構造体は欄を並べた型で、値の数は欄ごとの値の数の積になる（**直積型**）。`Flags { loading: bool, error: bool }` は 2 通りの bool が 2 つで 2 × 2 ＝ 4 通り、大きさは 2 バイト。読み込みの状態を、この 2 つの旗で表すとする。' },
+      { title: 'あり得ない組も表せてしまう', text: '4 通りのうち、loading も error も真の組は「読み込み中で、しかも失敗した」という意味の無い状態だが、型は許す。そのため Flags を受け取る関数はどれも、この組の扱いを決めて確かめることになる。旗を 1 つ足すと、組の数は 2 倍になる。' },
+      { title: '直和：場合の値の数を足す', text: 'enum は場合を並べた型で、値の数は場合ごとの値の数の和になる（**直和型**）。`Load { Loading, Ready, Failed(u16) }` は 1 ＋ 1 ＋ 65,536 通りで、どの値もあり得る状態に当たる。Minsky の言う「不正な状態を表せなくする」形で、失敗の番号は失敗のときにしか無い。' },
+      { title: 'タグを付けて中身を重ねる', text: '構造体は欄を重ねずに並べる（[[26-kata.html#s2.3|第26章 場面2]]）。enum は、どの場合かを示す**タグ**（HTML や暗号のタグとは別）を付け、場合ごとの中身を同じ領域に重ねる。`State` は 16 バイトで、機械語はタグを +0 の 2 バイト、code を +2、pos_ms を +8 で読み書きしていた。' },
+      { title: '取らない値を印に使う', text: '`Option<u64>` は None かどうかのタグを足して 16 バイト。`NonZeroU64` は 0 を取らないので、`Option<NonZeroU64>` は 0 を None の印に使い 8 バイトで済む（[[28-compiler.html#s4|第28章 場面4]]）。「0 にならない」という制約が、メモリの節約になる。' },
+      { title: 'TypeScript の判別可能な union', text: 'TypeScript は `kind` の文字列で場合を分ける（判別可能な union）。tsc 7.0.2 は `kind` で絞らずに `code` を読むと TS2339、switch の漏れを `never` で TS2322 にした。型は tsc が消すので、実行時のタグは `kind` というプロパティ（[[26-kata.html#s4.4|第26章 場面4]]）。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      // 左上: 直積 Flags の 4 通り
+      const gL = st.gL = S.g({ cls: 'fade' }, svg);
+      S.text(40, 30, '直積（struct）：欄の値の数を掛ける', { cls: 't-md t-b' }, gL);
+      code(gL, 52, 56, ['struct Flags { loading: bool, error: bool }'], 18);
+      const GX = 160, GY = 96, GW = 136, GH = 62;
+      S.text(GX + GW / 2, 88, 'error = false', { cls: 't-c t-xs t-mono t-dim' }, gL);
+      S.text(GX + GW * 1.5, 88, 'error = true', { cls: 't-c t-xs t-mono t-dim' }, gL);
+      ['false', 'true'].forEach((v, r) => {
+        S.text(GX - 10, GY + r * GH + 26, 'loading', { cls: 't-end t-xs t-mono t-dim' }, gL);
+        S.text(GX - 10, GY + r * GH + 40, '= ' + v, { cls: 't-end t-xs t-mono t-dim' }, gL);
+      });
+      st.cells = FLAG.map(([m, to], k) => {
+        const r = k >> 1, c = k & 1, x = GX + c * GW, y = GY + r * GH;
+        const box = S.rect(x, y, GW - 4, GH - 4, { rx: 5, cls: 'f-sf s-rule w1' }, gL);
+        const t = S.text(x + (GW - 4) / 2, y + 25, m, { cls: 't-c t-sm t-b' }, gL);
+        const sub = S.text(x + (GW - 4) / 2, y + 44, to, { cls: 't-c t-xs t-mono t-d t-b fade hide' }, gL);
+        return { box, t, sub };
+      });
+      st.flagSum = S.text(294, 246, '2 × 2 ＝ 4 通り', { cls: 't-c t-sm t-mono t-b' }, gL);
+      // 右上: 直和 Load の 3 つの場合
+      const gR = st.gR = S.g({ cls: 'fade' }, svg);
+      S.text(490, 30, '直和（enum）：場合の値の数を足す', { cls: 't-md t-b' }, gR);
+      code(gR, 502, 56, ['enum Load { Loading, Ready, Failed(u16) }'], 18);
+      st.rows = LOAD.map(([n, m, c], k) => {
+        const y = 76 + k * 48;
+        const box = S.rect(502, y, 418, 40, { rx: 5, cls: 'f-sf s-rule w1' }, gR);
+        S.text(516, y + 25, n, { cls: 't-sm t-mono t-b' }, gR);
+        S.text(640, y + 25, m, { cls: 't-sm' }, gR);
+        S.text(908, y + 25, c, { cls: 't-sm t-mono t-b t-end' }, gR);
+        return box;
+      });
+      S.text(711, 246, '1 ＋ 1 ＋ 65,536 ＝ 65,538 通り', { cls: 't-c t-sm t-mono t-b' }, gR);
+      S.line(30, 272, 930, 272, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: 値の数と大きさ
+      S.text(52, 304, '値の数と大きさ（rustc 1.95 の size_of）', { cls: 't-sm t-b' }, P[0]);
+      [['bool', 'false と true の 2 通り', '1 バイト', ['']], ['Flags', '2 × 2 ＝ 4 通り', '2 バイト', ['loading', 'error']]].forEach(([n, c, z, cells], k) => {
+        const y = 340 + k * 40;
+        S.text(52, y, n, { cls: 't-sm t-mono t-b' }, P[0]);
+        S.text(160, y, c, { cls: 't-sm' }, P[0]);
+        S.text(400, y, z, { cls: 't-sm t-mono' }, P[0]);
+        cells.forEach((s, j) => vbox(P[0], 520 + j * 96, y - 17, 92, 24, s, 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      });
+      S.text(52, 432, '旗（bool）を n 個並べると 2ⁿ 通り。3 個なら 8 通り、4 個なら 16 通りになる', { cls: 't-xs t-mid' }, P[0]);
+
+      // 段階2: 使う側がどの関数でも確かめる
+      code(P[1], 52, 306, [
+        "fn label(f: &Flags) -> &'static str {",
+        '    if f.loading && f.error {',
+        '        return "？";          // 意味の無い組も来る',
+        '    }',
+        '    if f.loading { "読み込み中" }',
+        '    else if f.error { "失敗" }',
+        '    else { "読み込み済み" }',
+        '}'
+      ], 21);
+
+      // 段階3: 場合ごとに中身を持つ
+      code(P[2], 52, 306, [
+        'fn label(s: &Load) -> String {',
+        '    match s {',
+        '        Load::Loading => "読み込み中".to_string(),',
+        '        Load::Ready => "読み込み済み".to_string(),',
+        '        Load::Failed(code) => format!("失敗 {code}"),',
+        '    }',
+        '}'
+      ], 21);
+      S.text(560, 330, 'code は Failed の場合にだけあり、', { cls: 't-xs t-mid' }, P[2]);
+      S.text(560, 348, 'Failed だと確かめてからでないと読めない', { cls: 't-xs t-mid' }, P[2]);
+      S.text(560, 380, '両方が真の組に当たる値は、この型には無い', { cls: 't-xs t-b t-x' }, P[2]);
+
+      // 段階4: タグと中身の並び
+      code(P[3], 52, 302, ['enum State { Loading, Playing { pos_ms: u64 }, Paused { pos_ms: u64 }, Error { code: u16 } }'], 18);
+      const BX = 190, CB = 44;
+      [0, 2, 4, 8, 15].forEach((b) => S.text(BX + b * CB + CB / 2, 332, '+' + b, { cls: 't-c t-xs t-mono t-dim' }, P[3]));
+      st.srows = STATE.map(([n, tag, pay], r) => {
+        const y = 340 + r * 34, g = S.g({}, P[3]);
+        const nm = S.text(180, y + 18, n, { cls: 't-end t-sm t-mono t-b' }, g);
+        for (let b = 2; b < 16; b++) {
+          if (pay.length && b >= pay[0] && b < pay[0] + pay[1]) continue;
+          S.rect(BX + b * CB + 1, y, CB - 2, 26, { rx: 2, cls: 'f-in s-rule w1' }, g);
+        }
+        field(g, BX, y, CB, 2, 26, 'f-x-soft s-x w1', 's-x w1', 'タグ ' + tag, 't-xs t-mono t-b t-x');
+        if (pay.length) field(g, BX + pay[0] * CB, y, CB, pay[1], 26, 'f-d-soft s-d w1', 's-d w1', pay[2]);
+        return { g, nm };
+      });
+      S.text(52, 496, 'どの場合も同じ 16 バイト。タグを読んでから、中身をどう読むかを決める（灰色は使わないバイト）', { cls: 't-xs t-mid' }, P[3]);
+      S.text(52, 516, '並びは rustc 1.95 で値をバイトとして読み、機械語の読み書きの番地とも照らして確かめた', { cls: 't-xs t-dim' }, P[3]);
+
+      // 段階5: 取らない値を None の印に使う
+      S.text(52, 304, '取らない値を None の印に使う（rustc 1.95 の size_of）', { cls: 't-sm t-b' }, P[4]);
+      [
+        ['Option<u64>', 16, '16 バイト', 'u64 は 0〜2⁶⁴−1 の全部を取るので、タグが別に要る', ''],
+        ['Option<NonZeroU64>', 8, '8 バイト', 'None は 0、Some(5) は 5 のビット', '値（0 なら None）'],
+        ['Option<bool>', 1, '1 バイト', 'Some(false) は 0、Some(true) は 1、None は 2', ''],
+        ['Option<&u8>', 8, '8 バイト', '参照は 0（null）を取らないので、0 が None', '番地（0 なら None）']
+      ].forEach(([n, len, z, d, lab], r) => {
+        const y = 338 + r * 44;
+        S.text(52, y + 16, n, { cls: 't-sm t-mono t-b' }, P[4]);
+        if (len === 16) {
+          field(P[4], 200, y, 22, 8, 22, 'f-x-soft s-x w1', 's-x w1', 'タグ（0 か 1）', 't-xs t-b t-x');
+          field(P[4], 200 + 8 * 22, y, 22, 8, 22, 'f-d-soft s-d w1', 's-d w1', '値', 't-xs t-b');
+        } else field(P[4], 200, y, 22, len, 22, 'f-d-soft s-d w1', 's-d w1', lab, 't-xs t-b');
+        S.text(566, y + 16, z, { cls: 't-sm t-mono' }, P[4]);
+        S.text(640, y + 16, d, { cls: 't-xs' + (r === 0 ? ' t-mid' : ' t-b') }, P[4]);
+      });
+      xlink(P[4], 920, 528, '28-compiler.html#s4', '第28章 場面4 を開く', true);
+
+      // 段階6: TypeScript の判別可能な union
+      code(P[5], 52, 304, [
+        'type Load =',
+        "  | { kind: 'loading' }",
+        "  | { kind: 'ready' }",
+        "  | { kind: 'failed'; code: number };",
+        '',
+        'function g(s: Load): number {',
+        '  switch (s.kind) {',
+        "    case 'loading': return 0;",
+        "    case 'failed': return s.code;   // 絞った後は読める",
+        '    default: { const rest: never = s; return rest; }',
+        '  }',
+        '}'
+      ], 19);
+      S.text(440, 316, 'kind で絞らずに s.code を読むと（tsc 7.0.2）', { cls: 't-xs t-dim' }, P[5]);
+      errBox(P[5], 440, 324, 480, ["error TS2339: Property 'code' does not exist on type 'Load'."], 18, 't-xs');
+      S.text(440, 384, "case 'ready' を書き忘れると", { cls: 't-xs t-dim' }, P[5]);
+      errBox(P[5], 440, 392, 480, ["error TS2322: Type '{ kind: \"ready\"; }' is not assignable to type 'never'."], 18, 't-xs');
+      S.text(440, 460, '実行時の値は { kind: "failed", code: 404 } のような物で、', { cls: 't-xs t-mid' }, P[5]);
+      S.text(440, 478, 'タグは kind のプロパティ。比べるのは JavaScript の ===', { cls: 't-xs t-mid' }, P[5]);
+      xlink(P[5], 920, 528, '26-kata.html#s4.4', '第26章 場面4 を開く', true);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      op(st.gL, i >= 3 ? 0.4 : '');
+      op(st.gR, i <= 1 || i === 3 || i === 4 ? 0.35 : '');
+      st.cells.forEach((c, k) => {
+        const bad = k === 3 && (i === 1 || i === 2);
+        c.box.setAttribute('class', bad ? 'f-x-soft s-x w2' : 'f-sf s-rule w1');
+        c.t.textContent = k === 3 && i === 1 ? 'あり得ない' : FLAG[k][0];
+        c.t.setAttribute('class', 't-c t-sm t-b' + (bad ? ' t-x' : ''));
+        S.fade(c.sub, i === 2);
+        c.sub.setAttribute('class', 't-c t-xs t-mono t-b fade' + (i === 2 ? '' : ' hide') + (k === 3 ? ' t-x' : ' t-d'));
+      });
+      st.rows.forEach((r) => r.setAttribute('class', i === 2 ? 'f-sf s-d w15' : 'f-sf s-rule w1'));
+      st.srows.forEach((r) => { op(r.g, ''); r.nm.setAttribute('class', 't-end t-sm t-mono t-b'); });
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      if (i === 0) {
+        // 4 通りを 1 つずつ数える（0.8 秒ずつ、数え終えたら 2 秒止める）
+        const k = run ? Math.floor(U.mod(ctx.ts, 5.2) / 0.8) : 9;
+        st.cells.forEach((c, j) => c.box.setAttribute('class', j === k ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'));
+      } else if (i === 3) {
+        // 4 つの場合を 1.2 秒ずつ順に見る。止めているときは全部を同じ濃さで
+        const k = run ? Math.floor(U.mod(ctx.ts, 6) / 1.2) : 9;
+        st.srows.forEach((r, j) => {
+          op(r.g, k < 4 && j !== k ? 0.35 : '');
+          r.nm.setAttribute('class', 't-end t-sm t-mono t-b' + (j === k ? ' t-x' : ''));
+        });
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 作るとき
+     値 500・−500・1,200 は例。−500 を as u64 で写した値 18,446,744,073,709,551,116（0xFFFFFFFFFFFFFE0C）は rustc 1.95 で確かめた。
+     E0603・E0369 の文と、yen_new・yen_add・checked_add・checked_sub・checked_times の機械語は rustc 1.95.0（-O）の出力（2026-10-29）。
+     Ada の範囲型と Constraint_Error は Ada の参照マニュアル 11.5（Range_Check）と AdaCore の教材、SPARK の証明は AdaCore の教材、
+     Liquid Haskell の篩型 {v:Int | v >= 0} と Z3 は UCSD の教材と Hackage で確かめた
+     ================================================================ */
+  const CHIP = ['500', '−500', '1,200'];
+  const LANE = [124, 150, 176];
+  const BIG = '18,446,744,073,709,551,116';
+  /* 札（数の値）。幅は文字の数から決める */
+  function chip(parent, s, cls) {
+    const g = S.g({}, parent);
+    const r = S.rect(-38, -11, 76, 22, { rx: 4, cls: 'f-sf s-d w15' }, g);
+    const t = S.text(0, 4, s, { cls: 't-c t-sm t-mono t-b' + (cls ? ' ' + cls : '') }, g);
+    return { g, r, t, set(str, bad) { t.textContent = str; const w = Math.max(76, str.length * 6.6 + 16); r.setAttribute('x', -w / 2); r.setAttribute('width', w); r.setAttribute('class', bad ? 'f-x-soft s-x w15' : 'f-sf s-d w15'); t.setAttribute('class', 't-c t-sm t-mono t-b' + (bad ? ' t-x' : '')); } };
+  }
+  const s3 = {
+    steps: [
+      { title: '外から来る数は負かもしれない', text: 'フォームや JSON の数は、負も小数も取りうる。i64 で受けた −500 を確かめずに `as u64` で写すと、ビットはそのままで読み方だけが変わり、18,446,744,073,709,551,116 円になる（[[26-kata.html#s1.3|第26章 場面1]]）。Rust の `as` は、この写し方で止まらない。' },
+      { title: '確かめる関数だけが作れる', text: '中身の欄を `pub` にしないと、モジュールの外では `Yen(5)` と書けない（E0603）。値を作る道は、確かめる関数 `Yen::new` だけになる。この形を**スマートコンストラクタ**と呼ぶ。負なら None を返すので、使う側は Option を外すときに None の場合を扱う。' },
+      { title: '確かめるのは入口の 1 回', text: '`Yen::new` は比べて分岐せず、`not` と `shr` で符号（正負）のビットを取り出して Some か None かの印にした。足し算の `yen_add` は `lea` 1 命令で、符号を確かめ直さない。確かめた事実を型に残し、後で確かめ直さない（King「Parse, don’t validate」、2019 年）。' },
+      { title: '演算が意味を決める', text: '円 ＋ 円 ＝ 円、円 × 個数 ＝ 円は定義し、円 × 円は定義しない（E0369）。円 − 円は負になりうるので Option を返し、`checked_sub` は借り（CF、[[26-kata.html#s3.3|第26章 場面3]]）を `setae` で読む。足し算のあふれは `checked_add` で確かめる（release の既定では確かめない）。' },
+      { title: '2 つの守り方', text: '中身を u64 にすれば、負の値はそもそも表せない（表し方による守り）。i64 のまま隠すなら、型が保証するのは「`Yen::new` を通った」ことだけで、0 以上かどうかはその関数の正しさに依る。King は「newtype は、それだけではただの名前」と書いた（2020 年）。' },
+      { title: '範囲を型に書ける言語', text: 'Ada は範囲を型に書け、外れた値は実行時の検査で Constraint_Error になる。SPARK（Ada の部分集合）は、それが起きないことを実行の前に証明する。Liquid Haskell の**篩型**は型に条件の式を付け、成り立つかをコンパイル時に SMT ソルバで確かめる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 上: 外 → 門 → 中
+      const gT = st.gT = S.g({ cls: 'fade' }, svg);
+      S.text(40, 40, '外から来た数（i64。値は例）', { cls: 't-sm t-b' }, gT);
+      S.path('M200,100 H322', { cls: 'f-none s-dim w1 dash', 'marker-end': mk('dim') }, gT);
+      S.path('M568,100 H592', { cls: 'f-none s-dim w1 dash', 'marker-end': mk('dim') }, gT);
+      st.gate = S.rect(330, 60, 230, 180, { rx: 8, cls: 'f-sf s-fg w15' }, gT);
+      st.gName = S.text(445, 82, '', { cls: 't-c t-sm t-mono t-b' }, gT);
+      st.gSig = S.text(445, 100, '', { cls: 't-c t-xs t-mono' }, gT);
+      st.gCond = S.text(445, 226, '', { cls: 't-c t-xs' }, gT);
+      st.inBox = S.rect(600, 60, 320, 180, { rx: 8, cls: 'f-d-soft s-d w1' }, gT);
+      st.inT = S.text(612, 82, '', { cls: 't-sm t-b' }, gT);
+      st.inSub = S.text(612, 226, '', { cls: 't-xs t-mid' }, gT);
+      st.chips = CHIP.map((v) => chip(gT, v));
+      st.none = S.text(286, 206, 'None', { cls: 't-c t-sm t-mono t-b t-x' }, gT);
+      S.line(30, 272, 930, 272, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: as u64 で写す
+      code(P[0], 52, 304, [
+        'let v: i64 = -500;      // フォームや JSON から来た数',
+        'let yen = v as u64;     // 確かめずに写す',
+        '// yen ＝ 18,446,744,073,709,551,116'
+      ], 22);
+      S.text(52, 392, '−500（i64）と 18,446,744,073,709,551,116（u64）は、同じ 64 ビット', { cls: 't-sm t-b' }, P[0]);
+      ['FF', 'FF', 'FF', 'FF', 'FF', 'FF', 'FE', '0C'].forEach((b, k) => vbox(P[0], 52 + k * 44, 404, 40, 24, b, 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      S.text(412, 421, '（16 進。上位のバイトから）', { cls: 't-xs t-dim' }, P[0]);
+      S.text(52, 456, 'i64 として読めば 2 の補数で −500、u64 として読めば 2⁶⁴ − 500', { cls: 't-xs t-mid' }, P[0]);
+      xlink(P[0], 920, 528, '26-kata.html#s1.3', '第26章 場面1 を開く', true);
+
+      // 段階2: 中身を隠し、確かめる関数だけが作る
+      code(P[1], 52, 300, [
+        'mod money {',
+        '    pub struct Yen(u64);        // 中身の欄は pub でない',
+        '    impl Yen {',
+        '        pub fn new(v: i64) -> Option<Yen> {',
+        '            if v >= 0 { Some(Yen(v as u64)) } else { None }',
+        '        }',
+        '    }',
+        '}',
+        'let a = money::Yen(5);          // モジュールの外で書くと'
+      ], 20);
+      errBox(P[1], 52, 474, 560, ['error[E0603]: tuple struct constructor `Yen` is private'], 18);
+
+      // 段階3: 機械語
+      S.text(52, 296, 'rustc 1.95 -O が出した機械語（#[no_mangle] を付けた関数）', { cls: 't-xs t-dim' }, P[2]);
+      code(P[2], 52, 320, [
+        'yen_new:                  ; Yen::new（v は rdi）',
+        '    mov  rax, rdi',
+        '    not  rax              ; ビットを反転',
+        '    shr  rax, 63          ; 先頭（符号）のビットだけ残す',
+        '    mov  rdx, rdi         ; 値',
+        '    ret',
+        'yen_add:                  ; Yen ＋ Yen',
+        '    lea  rax, [rdi + rsi] ; 足すだけ',
+        '    ret'
+      ], 20, 't-mono t-sm');
+      S.text(560, 320, 'v の先頭のビット → not → 戻り値 rax', { cls: 't-xs t-dim' }, P[2]);
+      code(P[2], 560, 344, ['v ＝ 500   0 → 1 → Some', 'v ＝ −500  1 → 0 → None'], 22, 't-mono t-sm t-b');
+      S.text(560, 404, '戻り値は rax（Some か None かの印）と', { cls: 't-xs t-mid' }, P[2]);
+      S.text(560, 422, 'rdx（値）の 2 つ。LLVM IR では { i64, i64 }', { cls: 't-xs t-mid' }, P[2]);
+      S.text(560, 470, 'yen_add には符号を確かめる命令が無い', { cls: 't-xs t-b t-x' }, P[2]);
+
+      // 段階4: 演算の表
+      S.text(52, 296, '演算', { cls: 't-xs t-dim' }, P[3]);
+      S.text(230, 296, '書き方と型', { cls: 't-xs t-dim' }, P[3]);
+      S.text(540, 296, 'rustc 1.95 -O の機械語・誤り', { cls: 't-xs t-dim' }, P[3]);
+      S.line(40, 304, 920, 304, { cls: 's-rule w1' }, P[3]);
+      [
+        ['円 ＋ 円', 'Yen + Yen → Yen', 'lea rax, [rdi + rsi]（あふれは確かめない）', 0],
+        ['円 ＋ 円（確かめる）', 'checked_add → Option<Yen>', 'lea ／ cmp rdx, rdi ／ setae al', 0],
+        ['円 × 個数', 'checked_times(n) → Option<Yen>', 'mul rdx ／ setno cl（OF を読む）', 0],
+        ['円 − 円', 'checked_sub → Option<Yen>', 'sub rdi, rsi ／ setae al（借り CF を読む）', 0],
+        ['円 × 円', '定義しない', 'error[E0369]: cannot multiply `Yen` by `Yen`', 1]
+      ].forEach(([a, b, c, no], k) => {
+        const y = 330 + k * 34;
+        if (no) S.rect(40, y - 20, 880, 30, { rx: 4, cls: 'f-x-soft' }, P[3]);
+        S.text(52, y, a, { cls: 't-sm t-b' + (no ? ' t-x' : '') }, P[3]);
+        S.text(230, y, b, { cls: 't-sm t-mono' + (no ? ' t-x' : '') }, P[3]);
+        S.text(540, y, c, { cls: 't-sm t-mono' + (no ? ' t-x' : ' t-d') }, P[3]);
+      });
+      S.text(52, 508, 'setae は CF ＝ 0（借り・あふれが無い）なら 1、setno は OF ＝ 0 なら 1 を書く', { cls: 't-xs t-mid' }, P[3]);
+      xlink(P[3], 52, 532, '04-ronri.html#s6.5', '第4章 場面6（2 の補数の引き算）');
+      xlink(P[3], 300, 532, '26-kata.html#s3.3', '第26章 場面3（フラグ）');
+
+      // 段階5: 2 つの守り方
+      [[40, '① 表し方で守る', 'pub struct Yen(u64);', ['負の値を表すビットの並びが無い', '関数を書き違えても、負の Yen は作れない', '引き算は Option で返す（段階4）']],
+       [490, '② 隠して守る（カプセル化）', 'pub struct Yen(i64);   // 欄は非公開', ['型が保証するのは「Yen::new を通った」こと', 'new を書き違えると、負の Yen もできる', '守りの正しさは、このモジュールのコードに依る']]].forEach(([x, t, c, ls], k) => {
+        S.rect(x, 290, 430, 200, { rx: 8, cls: k ? 'f-sf s-rule w1' : 'f-sf s-d w15' }, P[4]);
+        S.text(x + 16, 316, t, { cls: 't-md t-b' }, P[4]);
+        S.text(x + 16, 346, c, { cls: 't-sm t-mono pre' }, P[4]);
+        ls.forEach((s, j) => S.text(x + 16, 384 + j * 26, s, { cls: 't-sm' + (k && j === 1 ? ' t-x t-b' : '') }, P[4]));
+      });
+      S.text(52, 524, '“On its own, a newtype is just a name.”（King「Names are not type safety」、2020 年）', { cls: 't-xs t-mid' }, P[4]);
+
+      // 段階6: 範囲を型に書ける言語
+      [[290, 'Ada', 'type Yen is range 0 .. 2**63 - 1;', ['範囲の外の値は、代入などの境目の実行時の検査で Constraint_Error', 'SPARK（Ada の部分集合）の GNATprove は、それが起きないことを証明する']],
+       [410, 'Liquid Haskell', '{-@ type Yen = {v:Int | v >= 0} @-}', ['篩型：型に条件の式を付け、値を絞る', 'コンパイル時に、条件が成り立つかを SMT ソルバ（Z3 など）で確かめる']]].forEach(([y, n, c, ls]) => {
+        S.text(52, y + 6, n, { cls: 't-md t-b' }, P[5]);
+        S.text(200, y + 6, c, { cls: 't-sm t-mono t-b t-d pre' }, P[5]);
+        ls.forEach((s, j) => S.text(200, y + 34 + j * 22, s, { cls: 't-sm' }, P[5]));
+      });
+      S.text(52, 520, 'Rust の Yen::new は実行時に 1 回、Ada は境目ごとに実行時に、SPARK と Liquid Haskell は実行の前に確かめる', { cls: 't-xs t-mid' }, P[5]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state, gated = i >= 1;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      op(st.gT, i >= 3 ? 0.45 : '');
+      st.gate.setAttribute('class', gated ? 'f-sf s-fg w15' : 'f-sf s-dim w15 dash');
+      st.gName.textContent = gated ? 'Yen::new(v: i64)' : 'v as u64';
+      st.gSig.textContent = gated ? '-> Option<Yen>' : '確かめずに写す';
+      st.gCond.textContent = gated ? 'v ≥ 0 か（符号のビット）を見る' : 'ビットはそのまま';
+      st.inT.textContent = gated ? 'Yen の値（確かめ済み）' : 'u64 の値';
+      st.inSub.textContent = gated ? 'どの値も 0 以上' : '−500 も大きな正の数として入る';
+      st.inSub.setAttribute('class', 't-xs' + (gated ? ' t-mid' : ' t-x t-b'));
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, gated = i >= 1;
+      // 3 つの数を 2.4 秒ずつ順に門へ送る。止めているとき・段階3 から後は、送り終えた姿
+      const c = playing() && i <= 1 ? U.mod(ctx.ts, 9) : 99;
+      st.chips.forEach((ch, k) => {
+        const t0 = 0.4 + k * 2.4;
+        const a = U.ease.inOut(U.prog(c, t0, 0.9)), b = U.ease.inOut(U.prog(c, t0 + 1.2, 0.9));
+        const stop = gated && k === 1;
+        const x = stop ? U.lerp(150, 286, a) : (a < 1 ? U.lerp(150, 286, a) : U.lerp(286, 760, b));
+        ch.g.setAttribute('transform', `translate(${x.toFixed(1)},${LANE[k]})`);
+        const over = !gated && k === 1 && x > 445;
+        ch.set(over ? BIG : CHIP[k], over || (stop && a >= 1));
+      });
+      op(st.none, gated && U.prog(c, 0.4 + 2.4 + 0.9, 0.3) >= 1 ? '' : 0);
+    }
+  };
+
+  /* ================================================================
+     場面4 状態と遷移
+     IFrame Player API の onStateChange の値（−1・0・1・2・3・5）は developers.google.com の iframe_api_reference（2026-10）。
+     E0004・E0599・E0382 の文、Ended を足した 5 つの状態の on_space（movzx でタグを読み、ジャンプ表で分かれ、再生中のタグ 1 なら 2 を書き戻す）と ts_play（mov rax, rdi / ret）の
+     機械語、Player<Paused> 8 バイト・Paused 0 バイトは rustc 1.95.0（-O）で確かめた（2026-10-29）。
+     MSE の InvalidStateError は W3C「Media Source Extensions」（2026-08-07 の Working Draft）の Prepare Append の手順 2、
+     GPIO の向きを型の引数で持つ例は The Embedded Rust Book の「Design Contracts」
+     ================================================================ */
+  const ST4 = { Loading: [40, 60, '読み込み中'], Playing: [220, 60, '再生中'], Ended: [400, 60, '終了'], Error: [40, 200, '失敗'], Paused: [220, 200, '一時停止'] };
+  const s4 = {
+    steps: [
+      { title: '状態が整数だと', text: 'YouTube の IFrame Player API は、状態の変わり目を −1・0・1・2・3・5 の整数で知らせる。JavaScript では、無い状態の 4 と比べても、状態を入れる変数に 7 を入れても、誤りにならない。どの状態からどこへ移れるかは、文書と書く人の注意に頼る。' },
+      { title: 'enum にすると漏れが分かる', text: '状態を enum にすると、`match` は全部の場合を扱わないとコンパイルが通らない（**網羅性の検査**）。後から `Ended` を足すと、`_` で残りをまとめていない `match` ごとに E0004（`State::Ended` not covered）が出る。状態を足したときに直す所を、コンパイラが全部挙げる。' },
+      { title: '遷移に名前を付ける', text: '遷移は、今の状態から次の状態を作る関数として名前を付け、1 か所に集める（Wlaschin『Domain Modeling Made Functional』、2018 年）。スペースキーで呼ぶ `on_space` は再生中と一時停止を入れ替え、ほかは変えない。CPU は呼ばれるたびにタグを読み、ジャンプ表で分かれる。' },
+      { title: '状態を型で持つ（typestate）', text: '状態を型の引数にすると（**typestate**、Strom・Yemini、1986 年）、`Player<Paused>` には `play` しか無く、`pause` は E0599 で止まる。`play(self)` は古い値を受け取って消すので、古い状態を使うと E0382。状態の型は 0 バイトで、機械語には何も足されない。' },
+      { title: '教材の中の状態', text: 'MSE は、前の `appendBuffer` の途中で次を呼ぶと、実行時に InvalidStateError を投げる（[[24-streaming.html#s2.2|第24章 場面2]]）。TCP の状態（[[19-tcp.html#s2.3|第19章 場面2]]）はパケットが来るたびに変わるので、カーネルは値で持つ。装置のレジスタの設定（[[07-shuuhen.html#s2.1|第7章 場面2]]）は、組み込みの Rust で型に持つ例がある。' },
+      { title: 'どちらに置くか', text: '実行中の出来事で変わる状態は値（enum）で持つ。コンパイラが漏れを確かめ、CPU が毎回タグを読む。順番がコードで決まる手順は型（typestate）で持つ。コンパイラが順番を確かめ、機械語には何も残らない。型の設計とは、どの区別をどちらに置くかを決めることである。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = st.mk = S.markers(svg);
+      // 左上: 状態の図（矢印に遷移の関数の名前）
+      const gD = st.gD = S.g({ cls: 'fade' }, svg);
+      S.text(40, 32, '例のプレーヤーの状態と、遷移の関数', { cls: 't-md t-b' }, gD);
+      st.box = {};
+      Object.entries(ST4).forEach(([n, [x, y, jp]]) => {
+        const g = S.g({}, gD);
+        const r = S.rect(x, y, 120, 44, { rx: 6, cls: 'f-sf s-rule w15' }, g);
+        const t = S.text(x + 60, y + 19, n, { cls: 't-c t-sm t-mono t-b' }, g);
+        S.text(x + 60, y + 35, jp, { cls: 't-c t-xs t-dim' }, g);
+        st.box[n] = { g, r, t };
+      });
+      const arrow = (d, lx, ly, name, anchor) => {
+        const p = S.path(d, { cls: 'f-none s-mid w15', 'marker-end': mk('mid') }, gD);
+        const base = 't-xs t-mono t-b ' + (anchor === undefined ? 't-c' : anchor);
+        const t = S.text(lx, ly, name, { cls: base }, gD);
+        return { p, t, base };
+      };
+      st.ar = {
+        loaded: arrow('M162,82 H216', 189, 74, 'loaded'),
+        end: arrow('M342,82 H396', 369, 74, 'end'),
+        pause: arrow('M262,106 V196', 254, 156, 'on_space', 't-end'),
+        play: arrow('M298,198 V108', 306, 156, 'on_space', ''),
+        fail: arrow('M100,106 V196', 108, 156, 'fail', '')
+      };
+      st.added = S.text(460, 128, '足した状態', { cls: 't-c t-xs t-b t-x fade hide' }, gD);
+      st.key = S.text(280, 284, '', { cls: 't-c t-xs t-mono t-b t-x' }, gD);
+      S.line(30, 296, 930, 296, { cls: 's-rule w1' }, svg);
+      // 右上: 段階ごとのコード
+      const PT = st.PT = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+      S.text(548, 36, 'IFrame Player API の状態（整数）', { cls: 't-sm t-b' }, PT[0]);
+      ['−1  未開始（unstarted）', ' 0  終了（ended）', ' 1  再生中（playing）', ' 2  一時停止（paused）', ' 3  バッファ中（buffering）', ' 5  頭出し済み（video cued）'].forEach((s, k) => S.text(560, 60 + k * 19, s, { cls: 't-xs t-mono pre' }, PT[0]));
+      code(PT[0], 548, 192, [
+        'function onPlayerStateChange(event) {',
+        '  if (event.data === 4) { … }  // 4 は無い状態',
+        '}'
+      ], 18, 't-mono t-xs');
+      S.text(548, 262, '整数なので、無い状態と比べても誤りにならない', { cls: 't-xs t-b t-x' }, PT[0]);
+      code(PT[1], 548, 36, [
+        'enum State { Loading, Playing { pos_ms: u64 },',
+        '    Paused { pos_ms: u64 }, Error { code: u16 }, Ended }',
+        '',
+        'fn on_space(s: State) -> State {',
+        '    match s {',
+        '        State::Playing { pos_ms } => State::Paused { pos_ms },',
+        '        State::Paused { pos_ms } => State::Playing { pos_ms },',
+        '        State::Loading => State::Loading,',
+        '        State::Error { code } => State::Error { code },',
+        '    }',
+        '}'
+      ], 17, 't-mono t-xs');
+      errBox(PT[1], 540, 232, 390, ['error[E0004]: non-exhaustive patterns:', '    `State::Ended` not covered'], 16, 't-xs');
+      code(PT[2], 548, 36, [
+        'fn on_space(s: &mut State) {',
+        '    *s = match *s {',
+        '        State::Playing { pos_ms } => State::Paused { pos_ms },',
+        '        State::Paused { pos_ms } => State::Playing { pos_ms },',
+        '        State::Loading => State::Loading,',
+        '        State::Error { code } => State::Error { code },',
+        '        State::Ended => State::Ended,',
+        '    };',
+        '}'
+      ], 18, 't-mono t-xs');
+      S.text(548, 226, '遷移を 1 つの関数にして名前を付ける。', { cls: 't-xs t-mid' }, PT[2]);
+      S.text(548, 244, 'loaded・end・fail も同じ形の関数にして集める', { cls: 't-xs t-mid' }, PT[2]);
+      code(PT[3], 548, 36, [
+        'struct Paused;  struct Playing;       // 0 バイト',
+        'struct Player<S> { pos_ms: u64, _s: PhantomData<S> }',
+        'impl Player<Paused>  { fn play(self) -> Player<Playing> {…} }',
+        'impl Player<Playing> { fn pause(self) -> Player<Paused> {…} }',
+        '',
+        'let p: Player<Paused> = …;',
+        'p.pause();          // E0599',
+        'let q = p.play();   // q は Player<Playing>',
+        'p.play();           // E0382'
+      ], 17, 't-mono t-xs');
+      errBox(PT[3], 540, 196, 390, ['error[E0599]: no method named `pause`', '    found for struct `Player<Paused>`'], 16, 't-xs');
+      errBox(PT[3], 540, 248, 390, ['error[E0382]: use of moved value: `p`'], 16, 't-xs');
+      S.text(548, 36, 'どちらに置くか', { cls: 't-sm t-b' }, PT[5]);
+      S.text(630, 62, '値（enum）', { cls: 't-xs t-b' }, PT[5]);
+      S.text(780, 62, '型（typestate）', { cls: 't-xs t-b' }, PT[5]);
+      S.line(548, 70, 926, 70, { cls: 's-rule w1' }, PT[5]);
+      [['向く状態', '実行中の出来事で変わる', '順番がコードで決まる'],
+       ['コンパイラ', '漏れを確かめる', '順番を確かめる'],
+       ['実行時', '毎回タグを読んで分かれる', '何もしない（0 バイト）'],
+       ['例', 'TCP の接続、再生と一時停止', 'ピンの設定、決まった手順']].forEach(([a, b, c], k) => {
+        const y = 92 + k * 28;
+        S.text(548, y, a, { cls: 't-xs t-b' }, PT[5]);
+        S.text(630, y, b, { cls: 't-xs' }, PT[5]);
+        S.text(780, y, c, { cls: 't-xs' }, PT[5]);
+      });
+      S.text(548, 220, '1 つのプログラムの中で両方を使い分けられる。例のプレーヤーなら、', { cls: 't-xs t-mid' }, PT[5]);
+      S.text(548, 238, '再生と一時停止は値で、初めの設定の順は型で持てる', { cls: 't-xs t-mid' }, PT[5]);
+
+      // 下: 段階1 は整数の値、段階2 は止まる所、段階5 は教材の中の例
+      const PB = st.PB = [0, 1, 4].reduce((o, k) => { o[k] = S.g({ cls: 'fade hide' }, svg); return o; }, {});
+      S.text(40, 326, 'number の値のうち、状態として意味があるのは 6 つ', { cls: 't-sm t-b' }, PB[0]);
+      [[-1, '未開始'], [0, '終了'], [1, '再生中'], [2, '一時停止'], [3, 'バッファ中'], [4, ''], [5, '頭出し済み'], [6, ''], [7, '']].forEach(([v, n], k) => {
+        const x = 52 + k * 96;
+        S.rect(x, 342, 88, 48, { rx: 5, cls: n ? 'f-d-soft s-d w1' : 'f-none s-x w15 dash' }, PB[0]);
+        S.text(x + 44, 362, v < 0 ? '−1' : String(v), { cls: 't-c t-sm t-mono t-b' + (n ? '' : ' t-x') }, PB[0]);
+        S.text(x + 44, 380, n || '無い', { cls: 't-c t-xs' + (n ? '' : ' t-x t-b') }, PB[0]);
+      });
+      S.text(40, 426, '4・6・7 も、1.5 も −100 も同じ number。どれと比べても、どれを入れても型の上では通る', { cls: 't-sm t-b t-x' }, PB[0]);
+      S.text(40, 452, 'どの状態からどの状態へ移れるかも、整数のままではどこにも書かれない', { cls: 't-xs t-mid' }, PB[0]);
+      S.text(40, 326, 'State を使う match が 3 か所あれば、3 か所とも止まる（例）', { cls: 't-sm t-b' }, PB[1]);
+      ['fn on_space(s: State) -> State', 'fn label(s: &State) -> &str', 'fn draw(s: &State)'].forEach((s, k) => {
+        const x = 40 + k * 298;
+        S.rect(x, 344, 282, 70, { rx: 6, cls: 'f-sf s-rule w1' }, PB[1]);
+        S.text(x + 14, 368, s, { cls: 't-xs t-mono t-b' }, PB[1]);
+        S.text(x + 14, 392, '    match s { … }', { cls: 't-xs t-mono pre' }, PB[1]);
+        vbox(PB[1], x + 196, 380, 72, 22, 'E0004', 'f-x-soft s-x w15', 't-xs t-mono t-b t-x');
+      });
+      S.text(40, 450, 'Ended を扱う腕を足すまで、どの関数もコンパイルが通らない', { cls: 't-xs t-mid' }, PB[1]);
+      [['24-streaming.html#s2.2', 'MSE の appendBuffer', '第24章 場面2', ['前の追加が終わる前に次を呼ぶと、', '実行時に InvalidStateError を投げる。', '順番を実行時の検査で守らせる']],
+       ['19-tcp.html#s2.3', 'TCP の状態', '第19章 場面2', ['LISTEN・ESTABLISHED などは、', 'パケットが来るたびに変わるので、', 'カーネルは接続ごとに値で持つ']],
+       ['07-shuuhen.html#s2.1', '装置のレジスタの設定', '第7章 場面2', ['組み込みの Rust では GPIO のピンの', '向き（入力・出力）を型の引数で持ち、', '誤った設定をコンパイルで止める']]].forEach(([href, t, ch, ls], k) => {
+        const x = 40 + k * 298;
+        const a = S.el('a', { href, 'aria-label': t + '（' + ch + '）' }, PB[4]);
+        S.rect(x, 316, 282, 150, { rx: 6, cls: 'lnk f-sf s-rule w1' }, a);
+        S.text(x + 14, 340, t, { cls: 't-sm t-b' }, a);
+        S.text(x + 268, 340, ch + ' ↗', { cls: 't-xs t-dim t-end' }, a);
+        ls.forEach((s, j) => S.text(x + 14, 370 + j * 20, s, { cls: 't-xs' }, a));
+      });
+      S.text(40, 496, 'MSE は W3C の仕様（2026 年 8 月の版）の Prepare Append の手順 2。GPIO の例は The Embedded Rust Book の「Design Contracts」', { cls: 't-xs t-dim' }, PB[4]);
+
+      // 下: 値で持つ版と、型で持つ版
+      const gV = st.gV = S.g({ cls: 'fade hide' }, svg);
+      st.bV = S.rect(40, 306, 430, 232, { rx: 8, cls: 'f-sf s-rule w1' }, gV);
+      S.text(54, 328, '状態を値で持つ（enum）', { cls: 't-sm t-b' }, gV);
+      S.text(54, 350, 'State（16 バイト）', { cls: 't-xs t-dim' }, gV);
+      field(gV, 54, 358, 24, 2, 24, 'f-x-soft s-x w1', 's-x w1', '', '');
+      st.tagT = S.text(54 + 24, 374, 'タグ 1', { cls: 't-c t-xs t-mono t-b t-x' }, gV);
+      for (let b = 2; b < 8; b++) S.rect(54 + b * 24 + 1, 358, 22, 24, { rx: 2, cls: 'f-in s-rule w1' }, gV);
+      field(gV, 54 + 8 * 24, 358, 24, 8, 24, 'f-d-soft s-d w1', 's-d w1', 'pos_ms', 't-xs t-mono t-b');
+      code(gV, 54, 412, [
+        'on_space:',
+        '    movzx eax, word ptr [rdi]   ; タグを読む',
+        '    …                           ; ジャンプ表を引く',
+        '    jmp   rcx                   ; タグで分かれる',
+        '    mov   ax, 2                 ; 再生中なら 2 へ',
+        '    mov   word ptr [rdi], ax    ; タグを書き戻す'
+      ], 18, 't-mono t-xs');
+      const gT = st.gTy = S.g({ cls: 'fade hide' }, svg);
+      st.bT = S.rect(490, 306, 430, 232, { rx: 8, cls: 'f-sf s-rule w1' }, gT);
+      S.text(504, 328, '状態を型で持つ（typestate）', { cls: 't-sm t-b' }, gT);
+      st.tyT = S.text(504, 350, 'Player<Paused>（8 バイト）', { cls: 't-xs t-mono t-dim' }, gT);
+      field(gT, 504, 358, 24, 8, 24, 'f-d-soft s-d w1', 's-d w1', 'pos_ms', 't-xs t-mono t-b');
+      S.text(712, 375, '状態の型 Paused・Playing は 0 バイト', { cls: 't-xs' }, gT);
+      code(gT, 504, 412, ['ts_play:               ; p.play() を呼ぶだけの関数', '    mov  rax, rdi', '    ret'], 18, 't-mono t-xs');
+      S.text(504, 490, '型が Paused から Playing に変わっても、ビットは同じ', { cls: 't-xs t-b t-x' }, gT);
+      S.text(504, 510, '順番の確かめは、コンパイルの間に済んでいる', { cls: 't-xs t-mid' }, gT);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.PT.forEach((g, k) => S.fade(g, k === i));
+      [0, 1, 4].forEach((k) => S.fade(st.PB[k], k === i));
+      S.fade(st.gV, i === 2 || i === 3 || i === 5);
+      S.fade(st.gTy, i === 3 || i === 5);
+      op(st.gV, i === 3 ? 0.45 : '');
+      st.bV.setAttribute('class', i === 2 || i === 5 ? 'f-sf s-x w15' : 'f-sf s-rule w1');
+      st.bT.setAttribute('class', i === 3 || i === 5 ? 'f-sf s-x w15' : 'f-sf s-rule w1');
+      op(st.gD, i === 0 || i === 4 ? 0.35 : '');
+      // 終了の状態と end の矢印は段階2 で足す
+      const ended = i >= 1;
+      op(st.box.Ended.g, ended ? '' : 0);
+      op(st.ar.end.p, ended ? '' : 0);
+      op(st.ar.end.t, ended ? '' : 0);
+      st.box.Ended.r.setAttribute('class', i === 1 ? 'f-x-soft s-x w15 dash' : 'f-sf s-rule w15');
+      S.fade(st.added, i === 1);
+      Object.values(st.box).forEach((b) => { if (b !== st.box.Ended) b.r.setAttribute('class', 'f-sf s-rule w15'); });
+      Object.values(st.ar).forEach((a) => { a.p.setAttribute('class', 'f-none s-mid w15'); a.p.setAttribute('marker-end', st.mk('mid')); a.t.setAttribute('class', a.base); });
+      // 段階4（型で持つ版）では、再生と一時停止の矢印の名前を typestate の関数 play・pause にする
+      st.ar.pause.t.textContent = i === 3 ? 'pause' : 'on_space';
+      st.ar.play.t.textContent = i === 3 ? 'play' : 'on_space';
+      st.key.textContent = '';
+      st.tagT.textContent = 'タグ 1';
+      st.tyT.textContent = 'Player<Paused>（8 バイト）';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step, run = playing();
+      const lit = (n, on) => {
+        const a = st.ar[n];
+        a.p.setAttribute('class', on ? 'f-none s-x w2' : 'f-none s-mid w15');
+        a.p.setAttribute('marker-end', st.mk(on ? 'x' : 'mid'));
+        a.t.setAttribute('class', a.base + (on ? ' t-x' : ''));
+      };
+      if (i === 2) {
+        // スペースキーを 1.6 秒ごとに押す。押すたびに on_space がタグを読み、再生中と一時停止を入れ替える
+        const k = run ? Math.floor(ctx.ts / 1.6) : 1;
+        const playingNow = k % 2 === 0;
+        st.box.Playing.r.setAttribute('class', playingNow ? 'f-x-soft s-x w2' : 'f-sf s-rule w15');
+        st.box.Paused.r.setAttribute('class', playingNow ? 'f-sf s-rule w15' : 'f-x-soft s-x w2');
+        lit('pause', !playingNow && k > 0);
+        lit('play', playingNow && k > 0);
+        st.key.textContent = k > 0 ? 'Space → on_space（' + (playingNow ? '一時停止 → 再生中' : '再生中 → 一時停止') + '）' : '';
+        st.tagT.textContent = 'タグ ' + (playingNow ? 1 : 2);
+      } else if (i === 3) {
+        // play() で型が Player<Paused> から Player<Playing> に変わる。ビットは変わらない
+        const k = run ? Math.floor(ctx.ts / 2) % 2 : 1;
+        st.box.Paused.r.setAttribute('class', k === 0 ? 'f-x-soft s-x w2' : 'f-sf s-rule w15');
+        st.box.Playing.r.setAttribute('class', k === 1 ? 'f-x-soft s-x w2' : 'f-sf s-rule w15');
+        lit('play', k === 1);
+        st.key.textContent = k === 1 ? 'let q = p.play();  // 型が Player<Playing> に' : 'p: Player<Paused>';
+        st.tyT.textContent = (k === 1 ? 'Player<Playing>' : 'Player<Paused>') + '（8 バイト）';
+      }
+    }
+  };
+
+  /* ================================================================
+     場面5 境界
+     serde 1.0.228・serde_json 1.0.149 で、#[serde(try_from = "i64")] の Yen を持つ Chat を from_str で読んだ結果（2026-10-29）:
+     {"amount": 500} → Ok、-500 → Err("円は 0 以上")、"500" → invalid type: string "500", expected i64、{"amt": 500} → missing field `amount`。
+     u64 の欄に直接読むと invalid value: integer `-500`, expected u64。tsc 7.0.2 の lib.es5.d.ts で JSON.parse の戻り値は any。
+     zod の parse（合わなければ ZodError）と .brand（型の上だけ）は zod.dev（Zod 4）で確かめた。
+     protobuf の B8 01 87 92 01（欄 23・可変長の整数 18,695）は第26章 場面5 と同じ。受ける側が kbps と読む定義は例
+     ================================================================ */
+  const SRC5 = [
+    ['HTTP で受け取る JSON', '第21章', '7B 22 61 6D 6F 75 6E 74 22 3A …', '{"amount": 500}', 'Chat { amount: Yen(500) }', '場面3 の円の型'],
+    ['断片の POST の protobuf', '第24章', 'B8 01 87 92 01', '欄 23・可変長の整数 18,695', 'Bps(18_695)', '単位を型に持つ（場面1）'],
+    ['キーボードの HID レポート', '第7章', '00 00 04 00 00 00 00 00', '3 バイト目の 0x04 ＝ キー A', 'Key::A', 'キーの種類の enum（場面2）']
+  ];
+  const BODY5 = '{"amount": -500}';
+  const s5 = {
+    steps: [
+      { title: 'バイトに型は付いてこない', text: 'HTTP で受け取る JSON（[[21-http.html#s6.6|第21章 場面6]]）、断片の POST の protobuf（[[24-streaming.html#s3.6|第24章 場面3]]）、キーボードの 8 バイト（[[07-shuuhen.html#s5.3|第7章 場面5]]）は、どれもバイトの列で届く。何の型の値かは、両端の定義にしかない（[[26-kata.html#s5.6|第26章 場面5]]）。' },
+      { title: '入口でパースする', text: '届いたバイトは、入口で一度だけドメインの型に変える。Rust の serde は、場面3 の円を `TryFrom<i64>` で作るように書くと、`{"amount": -500}` を読む所で Err を返す。値の型が違う JSON も欄の無い JSON も止まる。失敗は入口で扱い、中では型を信じる（King 2019）。' },
+      { title: 'TypeScript の as は確かめない', text: '`JSON.parse` の戻り値は any で、`as` で型を付けても tsc は中身を確かめない。型は tsc が消す（[[26-kata.html#s4.6|第26章 場面4]]）ので、負の金額が届いても、型の注記と食い違ったまま走る。入口には、zod の `parse` のように実行時に形と値を確かめるものを置く。' },
+      { title: '両端に同じ定義が要る', text: '型の定義は、送る側と受ける側の両方にある。protobuf の欄 23 が帯域の B/s だという約束は両端の定義にあり、バイトには欄の番号と値しか無い。仮に受ける側だけが kbps と読むと、同じ 18,695 が 125 倍の帯域になり、どちらの型検査も通る。単位の取り違えは、境界でも起きる。' },
+      { title: '教材の中の境目', text: '境目は網だけではない。ファイル（[[23-codec.html#s6.4|第23章 場面6]]）、入力（第7章）、プロセスの間のシステムコール（[[09-os.html#s3.1|第9章 場面3]]）、言語の間の ABI（[[26-kata.html#s3.5|第26章 場面3]]）と `#[repr(C)]`（[[26-kata.html#s2.5|第26章 場面2]]）。どこでも、外から来たものは確かめ直し、中の型の区別は外へは持ち出せない。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 上: 外 → 入口 → 中
+      const gT = st.gT = S.g({ cls: 'fade' }, svg);
+      st.L = []; st.R = [];
+      SRC5.forEach(([t, ch, b, s, v, vs], k) => {
+        const y = 30 + k * 80;
+        st.L.push(S.rect(30, y, 272, 68, { rx: 6, cls: 'f-sf s-rule w1' }, gT));
+        S.text(42, y + 18, t, { cls: 't-xs t-b' }, gT);
+        S.text(292, y + 18, ch, { cls: 't-xs t-dim t-end' }, gT);
+        S.text(42, y + 40, b, { cls: 't-xs t-mono t-b t-d pre' }, gT);
+        S.text(42, y + 58, s, { cls: 't-xs t-mono t-mid' }, gT);
+        S.arrow(gT, 306, y + 34, 326, y + 34, 'mid', { cls: 's-mid w15' });
+        S.arrow(gT, 614, y + 34, 644, y + 34, 'mid', { cls: 's-mid w15' });
+        st.R.push(S.rect(648, y, 272, 68, { rx: 6, cls: 'f-d-soft s-d w1' }, gT));
+        S.text(662, y + 30, v, { cls: 't-sm t-mono t-b' }, gT);
+        S.text(662, y + 52, vs, { cls: 't-xs t-mid' }, gT);
+      });
+      st.gate = S.rect(330, 30, 280, 228, { rx: 8, cls: 'f-sf s-fg w15' }, gT);
+      code(gT, 344, 58, ['Rust        serde_json::from_str', 'TypeScript  ChatSchema.parse（zod）'], 20, 't-mono t-xs');
+      ['形：欄の名前と入れ子', '値の型：数か、文字列か', '値の条件：0 以上など'].forEach((s, k) => S.text(344, 134 + k * 22, s, { cls: 't-xs' }, gT));
+      S.text(344, 236, '合わなければ、ここで Err', { cls: 't-xs t-b t-x' }, gT);
+      S.text(40, 286, '外：届くバイト', { cls: 't-xs t-b t-dim' }, gT);
+      S.text(470, 286, '入口：一度だけパースする', { cls: 't-c t-xs t-b t-dim' }, gT);
+      S.text(648, 286, '中：ドメインの型（中ではこれを信じる）', { cls: 't-xs t-b t-dim' }, gT);
+      // 段階3: as は入口を通らない
+      st.by = S.g({ cls: 'fade hide' }, svg);
+      S.path('M166,30 C166,-6 784,-6 784,28', { cls: 'f-none s-x w2 dash', 'marker-end': mk('x') }, st.by);
+      S.text(470, 22, 'as Chat：確かめずに型を付ける', { cls: 't-c t-xs t-b t-x' }, st.by);
+      S.line(30, 300, 930, 300, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: 本文のバイト
+      S.text(40, 330, '本文 ' + BODY5 + ' の 16 バイト（UTF-8）', { cls: 't-sm t-b' }, P[0]);
+      Array.from(BODY5).forEach((c, k) => {
+        const x = 40 + k * 55, hl = k >= 11 && k <= 14;
+        S.rect(x, 342, 51, 44, { rx: 4, cls: hl ? 'f-x-soft s-x w15' : 'f-d-soft s-d w1' }, P[0]);
+        S.text(x + 25.5, 360, c.charCodeAt(0).toString(16).toUpperCase(), { cls: 't-c t-xs t-mono t-b' + (hl ? ' t-x' : '') }, P[0]);
+        S.text(x + 25.5, 378, c === ' ' ? '空白' : c, { cls: 't-c t-xs t-mono t-mid' }, P[0]);
+      });
+      S.text(40, 420, '−500 は 2D 35 30 30 の 4 文字。数か、円か、0 以上かは、どのバイトにも書かれていない', { cls: 't-sm t-b t-x' }, P[0]);
+      S.text(40, 446, '欄の名前 amount も文字の並びで、それが Yen だという約束は両端のコードにしかない', { cls: 't-xs t-mid' }, P[0]);
+      xlink(P[0], 920, 528, '26-kata.html#s5.6', '第26章 場面5 を開く', true);
+
+      // 段階2: serde で入口に置く
+      code(P[1], 40, 330, [
+        '#[derive(Deserialize)]',
+        '#[serde(try_from = "i64")]   // i64 で読み、',
+        'struct Yen(u64);             // TryFrom で作る',
+        '',
+        '#[derive(Deserialize)]',
+        'struct Chat { amount: Yen }',
+        '',
+        'let c: Chat = serde_json::from_str(body)?;'
+      ], 19, 't-mono t-xs');
+      S.text(386, 330, '届いた本文', { cls: 't-xs t-dim' }, P[1]);
+      S.text(574, 330, 'from_str の結果（serde 1.0.228）', { cls: 't-xs t-dim' }, P[1]);
+      S.line(380, 338, 926, 338, { cls: 's-rule w1' }, P[1]);
+      [['{"amount": 500}', 'Ok：Chat { amount: Yen(500) }', 0],
+       ['{"amount": -500}', 'Err：円は 0 以上', 1],
+       ['{"amount": "500"}', 'Err：invalid type: string "500", expected i64', 1],
+       ['{"amt": 500}', 'Err：missing field `amount`', 1]].forEach(([b, r, bad], k) => {
+        const y = 362 + k * 32;
+        if (bad) S.rect(380, y - 19, 546, 28, { rx: 4, cls: 'f-x-soft' }, P[1]);
+        S.text(386, y, b, { cls: 't-xs t-mono t-b pre' }, P[1]);
+        S.text(574, y, r, { cls: 't-xs t-mono' + (bad ? ' t-x t-b' : ' t-d t-b') }, P[1]);
+      });
+      S.text(40, 512, '−500 は TryFrom<i64> の確かめ（場面3 の Yen::new と同じ）で止まる。u64 の欄に直接読んでも「expected u64」で止まる', { cls: 't-xs t-mid' }, P[1]);
+
+      // 段階3: TypeScript の as と zod
+      code(P[2], 40, 330, [
+        "type Yen = number & { readonly __brand: 'Yen' };",
+        'type Chat = { amount: Yen };',
+        '',
+        'const c = JSON.parse(text) as Chat;    // tsc 7.0.2 は通す',
+        '// 実行時の c.amount は -500。型の注記と食い違ったまま走る',
+        '',
+        "import { z } from 'zod';",
+        'const ChatSchema = z.object({ amount: z.number().nonnegative() });',
+        'const d = ChatSchema.parse(JSON.parse(text));   // -500 なら ZodError'
+      ], 19, 't-mono t-xs');
+      S.text(500, 344, 'JSON.parse の戻り値の型は any（tsc の lib の定義）', { cls: 't-xs' }, P[2]);
+      S.text(500, 364, 'as は「この型として扱え」という指示で、確かめない', { cls: 't-xs t-b t-x' }, P[2]);
+      S.text(500, 452, 'zod の parse は実行時に形と値を確かめ、', { cls: 't-xs' }, P[2]);
+      S.text(500, 470, '合わなければ ZodError を投げる（safeParse は結果を返す）', { cls: 't-xs' }, P[2]);
+      S.text(500, 498, '.brand() で、確かめた値にだけブランド型（場面1）を', { cls: 't-xs t-mid' }, P[2]);
+      S.text(500, 516, '付けることもできる。ブランドは型の上だけで、実行時には何もしない', { cls: 't-xs t-mid' }, P[2]);
+
+      // 段階4: 両端の定義
+      S.rect(40, 316, 250, 104, { rx: 6, cls: 'f-sf s-rule w1' }, P[3]);
+      S.text(54, 340, '送る側の定義', { cls: 't-sm t-b' }, P[3]);
+      code(P[3], 54, 368, ['uint64 bandwidth = 23;', '// 単位は B/s'], 20, 't-mono t-xs');
+      ['B8', '01', '87', '92', '01'].forEach((b, k) => vbox(P[3], 330 + k * 46, 344, 42, 26, b, k < 2 ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1', 't-xs t-mono t-b'));
+      S.text(330, 394, '欄 23 に 18,695 を入れたバイト', { cls: 't-xs' }, P[3]);
+      xlink(P[3], 330, 414, '26-kata.html#s5.6', '読み方は第26章 場面5');
+      S.rect(610, 316, 310, 104, { rx: 6, cls: 'f-sf s-x w15' }, P[3]);
+      S.text(624, 340, '受ける側の定義（仮に kbps と読むと）', { cls: 't-sm t-b' }, P[3]);
+      code(P[3], 624, 368, ['uint64 bandwidth = 23;', '// 単位は kbps'], 20, 't-mono t-xs');
+      S.arrow(P[3], 294, 357, 324, 357, 'mid', { cls: 's-mid w15' });
+      S.arrow(P[3], 562, 357, 604, 357, 'mid', { cls: 's-mid w15' });
+      S.text(40, 462, '送る側：18,695 B/s ＝ 約 0.15 Mbps　受ける側：18,695 kbps ＝ 約 18.7 Mbps（125 倍）', { cls: 't-sm t-b t-x' }, P[3]);
+      S.text(40, 488, 'バイトは同じ形のまま届き、どちらの型検査も通る。両端が同じ定義（.proto）を使うことで守る', { cls: 't-xs t-mid' }, P[3]);
+      S.text(920, 528, '欄の名前と型の書き方は例', { cls: 't-xs t-dim t-end' }, P[3]);
+
+      // 段階5: 教材の中の境目（章へのリンク）
+      [['網', 'JSON・protobuf', '第21・24章', '21-http.html#s6'], ['ファイル', 'MP4 の box', '第23章 場面6', '23-codec.html#s6'], ['入力', 'HID レポート', '第7章 場面5', '07-shuuhen.html#s5'],
+       ['プロセスの間', 'システムコール', '第9章 場面3', '09-os.html#s3'], ['言語の間', 'ABI・#[repr(C)]', '第26章 場面3', '26-kata.html#s3']].forEach(([t, s, ch, href], k) => {
+        const x = 40 + k * 176;
+        const a = S.el('a', { href, 'aria-label': t + '：' + s + '（' + ch + '）' }, P[4]);
+        S.rect(x, 318, 168, 92, { rx: 6, cls: 'lnk f-sf s-rule w1' }, a);
+        S.text(x + 12, 342, t, { cls: 't-sm t-b' }, a);
+        S.text(x + 12, 366, s, { cls: 't-xs t-mono' }, a);
+        S.text(x + 12, 394, ch + ' ↗', { cls: 't-xs t-dim' }, a);
+      });
+      S.text(40, 446, '形式（JSON・protobuf・MP4・ABI）は両端の約束で、型は両端のコードの中にある', { cls: 't-xs t-mid' }, P[4]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      S.fade(st.by, i === 2);
+      op(st.gT, i === 4 ? 0.4 : '');
+      st.L.forEach((r, k) => r.setAttribute('class', (i === 0 || (i === 3 && k === 1)) ? 'f-sf s-x w15' : 'f-sf s-rule w1'));
+      st.R.forEach((r) => r.setAttribute('class', 'f-d-soft s-d w1'));
+      st.gate.setAttribute('class', i === 1 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      if (ctx.step !== 1) return;
+      // 3 本のバイトの列を順に入口へ通す（1.2 秒ずつ、通し終えたら 1.2 秒止める）。止めているときは通し終えた姿
+      const k = playing() ? Math.floor(U.mod(ctx.ts, 4.8) / 1.2) : 3;
+      st.L.forEach((r, j) => r.setAttribute('class', j === k ? 'f-sf s-x w15' : 'f-sf s-rule w1'));
+      st.R.forEach((r, j) => r.setAttribute('class', j === k ? 'f-d-soft s-x w15' : 'f-d-soft s-d w1'));
+    }
+  };
+
+  /* ================================================================
+     場面6 答え
+     Gao・Bird・Barr「To Type or Not to Type」（ICSE 2017）: 公開の JavaScript のバグ 400 個に型注釈を足し、TypeScript・Flow とも 60 個（15%、
+     95% 信頼区間 11.5〜18.5%）。Mayer・Hanenberg・Robbes・Tanter・Stefik（OOPSLA 2012）: 27 人、文書の無い API の課題で速い課題と遅い課題。
+     テストの例の START_MS は第27章 場面2 の索引の先頭 4 個（ミリ秒）。rustc 1.95 の --test で通ることを確かめた
+     ================================================================ */
+  const COL6 = [
+    ['コンパイラ', '実行の前に一度、通りうる全部の道を確かめる', [
+      ['値の形：あり得ない組を表せない', 'この章 場面2', '#s2'], ['演算：Ms ＋ Ticks、円 × 円は無い', 'この章 場面1・3', '#s1'],
+      ['漏れ：match の網羅性（E0004）', 'この章 場面4', '#s4'], ['順番：typestate（E0599・E0382）', 'この章 場面4', '#s4'],
+      ['所有と寿命', '第26章 場面6', '26-kata.html#s6'], ['確かめた区別は消える（費用 0）', '第28章 場面4', '28-compiler.html#s4']]],
+    ['実行時', '実行のたびに、CPU が確かめる', [
+      ['外から来た値：serde・zod', 'この章 場面5', '#s5'], ['円の符号：Yen::new の 1 回', 'この章 場面3', '#s3'],
+      ['状態のタグ：ジャンプ表で分かれる', 'この章 場面4', '#s4'], ['配列の範囲：panic で止まる', '第26章 場面6', '26-kata.html#s6'],
+      ['あふれ：checked_* で確かめる', 'この章 場面3', '#s3'], ['比べる命令とフラグを読む命令', '第28章 場面4', '28-compiler.html#s4']]],
+    ['テスト', '作る側が、選んだ入力で確かめる', [
+      ['値どうしの関係：索引が並んでいる', '第27章 場面2', '27-algorithm.html#s2'], ['換算の式：to_ms の 1000 ÷ 12,800', 'この章 場面1', '#s1'],
+      ['入口の関数の中身：Yen::new', 'この章 場面3', '#s3'], ['仕様どおりか：例を選んで', '', null]]]
+  ];
+  const s6 = {
+    steps: [
+      { title: 'コンパイラが実行の前に確かめること', text: '値の形（[[2|値の数]]）、使える演算（[[1|同じ数]]・[[3|作るとき]]）、扱いの漏れと順番（[[4|状態と遷移]]）、所有と寿命（[[26-kata.html#s6.5|第26章 場面6]]）は、実行の前に、通りうる全部の道について確かめ終わる。確かめた区別は機械語に残らず、費用は 0（[[28-compiler.html#s4|第28章 場面4]]）。' },
+      { title: '実行のたびに確かめること', text: '外から来た値（[[5|境界]]）、円の符号（[[3|作るとき]]）、enum のタグ（[[4|状態と遷移]]）、配列の範囲（[[26-kata.html#s6.4|第26章 場面6]]）は、実行のたびに CPU が確かめる。機械語では比べる命令と分岐、フラグ（演算の結果を示すビット）を読む命令になる（[[28-compiler.html#s4|第28章 場面4]]）。あふれは、release の既定では確かめない。' },
+      { title: 'テストで確かめること', text: '値どうしの関係は、Rust の型検査では言えない。二分探索の前提「索引が並んでいる」（[[27-algorithm.html#s2.4|第27章 場面2]]）は、テストで確かめるか、並べて作る関数だけが作れる型にする（[[3|作るとき]]と同じ守り）。篩型や依存型（Liquid Haskell・Idris・Lean）は書けるが、証明の手間がかかる。' },
+      { title: '実証研究が測ったこと', text: 'Gao らは、公開の JavaScript のバグ 400 個に型注釈を足すと、TypeScript でも Flow でも 15% が見つかると測った（2017 年）。Mayer らの 27 人の実験では、静的な型で速い課題と遅い課題があった（2012 年）。どちらも、ドメインを型にする設計の効果は測っていない。' },
+      { title: '型の費用', text: '型には費用もある。型を書く手間、単位や状態をどこまで分けるかを決める設計の手間、コンパイルの時間。分けすぎると換算の関数が増える。Fowler と Beck が Primitive Obsession と呼んだ素の数のままの形と比べ、取り違えたときの損と、書く手間の釣り合いで選ぶ。' },
+      { title: '答え：区別と約束をコンパイラに預ける', text: '型システムの利点は、区別と約束をコンパイラに預けること。int と string だけなら、捕まるのはその取り違えだけ。単位・状態・確かめ済みの値を型にすると、意味の取り違えがコンパイルエラーになり、変えたときに直す所をコンパイラが挙げ、実行時の費用は増えない。型で言えない所は、境界の検査とテストに回す。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      st.cols = COL6.map(([t, sub, items], k) => {
+        const x = 40 + k * 300, g = S.g({}, svg);
+        const head = S.rect(x, 16, 288, 50, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+        S.text(x + 12, 37, t, { cls: 't-sm t-b' }, g);
+        S.text(x + 12, 55, sub, { cls: 't-xs t-mid' }, g);
+        const cards = items.map(([label, ref, href], j) => {
+          const y = 76 + j * 46;
+          const p = href ? S.el('a', href[0] === '#' ? { href, 'data-go': href.slice(2), 'aria-label': label } : { href, 'aria-label': label + '（' + ref + '）' }, g) : g;
+          const r = S.rect(x, y, 288, 40, { rx: 5, cls: (href ? 'lnk ' : '') + 'f-sf s-rule w1' }, p);
+          S.text(x + 12, y + 17, label, { cls: 't-xs t-b' }, p);
+          if (ref) S.text(x + 12, y + 33, ref + (href ? ' ↗' : ''), { cls: 't-xs t-dim' }, p);
+          return { r, link: !!href };
+        });
+        return { g, head, cards };
+      });
+      S.line(30, 362, 930, 362, { cls: 's-rule w1' }, svg);
+      const P = st.P = [0, 1, 2, 3, 4, 5].map(() => S.g({ cls: 'fade hide' }, svg));
+
+      // 段階1: 確かめた区別の跡
+      S.text(40, 390, 'コンパイラが確かめた区別は、機械語に残らない（rustc 1.95 -O）', { cls: 't-sm t-b' }, P[0]);
+      code(P[0], 52, 420, [
+        'ahead_u = ahead                       ; Ms と u64 で同じ 3 命令（場面1）',
+        'ts_play:  mov rax, rdi ／ ret          ; 状態の型は 0 バイト（場面4）',
+        'yen_add:  lea rax, [rdi + rsi] ／ ret  ; 符号を確かめ直さない（場面3）'
+      ], 24, 't-mono t-xs');
+      // 段階2: 実行のたびの確かめ
+      S.text(40, 390, '実行のたびに走る確かめ（rustc 1.95 -O）', { cls: 't-sm t-b' }, P[1]);
+      code(P[1], 52, 420, [
+        'yen_new:   not rax ／ shr rax, 63           ; 符号のビットを読む（場面3）',
+        'yen_sub:   sub rdi, rsi ／ setae al         ; 借り（CF）を読む（場面3）',
+        'on_space:  movzx eax, word ptr [rdi] … jmp  ; タグで分かれる（場面4）'
+      ], 24, 't-mono t-xs');
+      // 段階3: テスト
+      code(P[2], 40, 392, [
+        '// 第24章の索引の始まり（ミリ秒。先頭の 4 個）',
+        'const START_MS: [u64; 4] = [0, 5_240, 10_400, 17_360];',
+        '#[test]',
+        'fn index_is_sorted() {',
+        '    assert!(START_MS.windows(2).all(|w| w[0] < w[1]));',
+        '}'
+      ], 20, 't-mono t-xs');
+      S.text(500, 404, 'テストは選んだ入力で 1 本ずつ確かめる', { cls: 't-xs' }, P[2]);
+      S.text(500, 424, '（rustc 1.95 の --test で通る）', { cls: 't-xs t-dim' }, P[2]);
+      S.text(500, 460, 'Liquid Haskell・Idris・Lean は「並んでいる」を', { cls: 't-xs t-mid' }, P[2]);
+      S.text(500, 478, '型に書けるが、証明を書く手間がかかる', { cls: 't-xs t-mid' }, P[2]);
+      // 段階4: 実証研究
+      S.text(40, 390, 'Gao・Bird・Barr（ICSE 2017）：公開の JavaScript のバグ 400 個に型注釈を足す', { cls: 't-sm t-b' }, P[3]);
+      [['TypeScript', 60], ['Flow', 60]].forEach(([n, v], k) => {
+        const y = 404 + k * 30;
+        S.text(132, y + 15, n, { cls: 't-xs t-mono t-b t-end' }, P[3]);
+        S.rect(140, y, 400 * 1.5, 20, { rx: 3, cls: 'f-in s-rule w1' }, P[3]);
+        S.rect(140, y, v * 1.5, 20, { rx: 3, cls: 'f-d-soft s-d w1' }, P[3]);
+        S.text(140 + v * 1.5 + 8, y + 15, v + ' 個（15%）が見つかる', { cls: 't-xs t-b' }, P[3]);
+      });
+      S.text(746, 419, '400 個', { cls: 't-xs t-dim' }, P[3]);
+      S.text(40, 484, '95% 信頼区間は 11.5〜18.5%。測ったのは、既存のコードに注釈を足した効果', { cls: 't-xs t-mid' }, P[3]);
+      S.text(40, 508, 'Mayer ほか（OOPSLA 2012）：27 人。文書の無い API を使う課題で、静的な型で速い課題と遅い課題があった', { cls: 't-xs t-mid' }, P[3]);
+      S.text(40, 532, 'どちらも、ドメインを型にする設計の効果は測っていない', { cls: 't-xs t-b t-x' }, P[3]);
+      // 段階5: 費用
+      ['型を書く手間', '分け方を決める手間', 'コンパイルの時間', '換算の関数が増える'].forEach((s, k) => vbox(P[4], 40 + k * 222, 380, 210, 44, s, 'f-sf s-rule w1', 't-sm t-b'));
+      S.text(40, 464, '素の数のまま（Primitive Obsession）：書く手間は小さいが、取り違えはコンパイルでは見つからない', { cls: 't-xs' }, P[4]);
+      S.text(40, 488, 'ドメインの型：書く手間は増えるが、取り違えはコンパイルで止まり、実行時の費用は増えない', { cls: 't-xs t-b' }, P[4]);
+      // 段階6: 答え
+      S.text(52, 386, '書いた型', { cls: 't-xs t-dim' }, P[5]);
+      S.text(330, 386, 'コンパイラが捕まえる取り違え', { cls: 't-xs t-dim' }, P[5]);
+      S.text(800, 386, '型が足す実行時の費用', { cls: 't-xs t-dim' }, P[5]);
+      S.line(40, 394, 920, 394, { cls: 's-rule w1' }, P[5]);
+      S.text(52, 420, 'int・string だけ', { cls: 't-sm t-mono t-b' }, P[5]);
+      S.text(330, 420, 'int と string の取り違えだけ', { cls: 't-sm' }, P[5]);
+      S.text(800, 420, '0', { cls: 't-sm t-mono t-b' }, P[5]);
+      S.rect(40, 434, 880, 30, { rx: 4, cls: 'f-x-soft' }, P[5]);
+      S.text(52, 454, 'Ms・Yen・State・Player<S>', { cls: 't-sm t-mono t-b t-x' }, P[5]);
+      S.text(330, 454, '単位、確かめていない値、状態の漏れと順番も', { cls: 't-sm t-b t-x' }, P[5]);
+      S.text(800, 454, '0', { cls: 't-sm t-mono t-b t-x' }, P[5]);
+      S.text(52, 500, '型で言えない所（外から来た値・値どうしの関係）は、境界の検査とテストに回す', { cls: 't-xs t-mid' }, P[5]);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.P.forEach((g, k) => S.fade(g, k === i));
+      st.cols.forEach((c, k) => {
+        const on = i === k || i === 5;
+        c.head.setAttribute('class', on ? 'f-x-soft s-x w15' : 'f-sf s-rule w1');
+        c.cards.forEach((cd) => cd.r.setAttribute('class', (cd.link ? 'lnk ' : '') + (i === k ? 'f-sf s-x w15' : 'f-sf s-rule w1')));
+        op(c.g, i <= 2 ? (i === k ? '' : 0.4) : (i === 5 ? '' : 0.4));
+      });
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VII部 横断 ／ 第29章',
+      title: '型で意味を表す',
+      home: '../index.html',
+      prev: { href: '28-compiler.html', title: 'コンパイラ' },
+      legend: [{ c: 'd', label: 'データ・ビット列' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>

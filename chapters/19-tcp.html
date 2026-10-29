@@ -28,7 +28,7 @@
 <!-- ================= 表紙 ================= -->
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
-    <p class="eyebrow">第V部 約束ごと ／ 第19章 ／ 全27章</p>
+    <p class="eyebrow">第V部 約束ごと ／ 第19章 ／ 全29章</p>
     <h1 id="h-s0">TCP・UDP・QUIC</h1>
     <p class="standfirst">IP はパケットを相手の機器まで運ぶが、順番も到着も約束しない（<a class="xref" href="18-ip.html">第18章</a>）。その上で、機器の中のどのプログラム宛てかをポート番号で分けるのがトランスポート層の TCP・UDP・QUIC で、TCP と QUIC は抜けた分を送り直し、送る速さを網の混み具合にも合わせる。この章では、ポート、TCP の接続の始め方・番号と再送・速さの決め方、何も足さない UDP、UDP の上で TCP と TLS の仕事をまとめた QUIC を順に見る。Chrome で YouTube を見るとき、動画の断片は多くの場合 QUIC で届く。</p>
     <p class="legend" data-auto></p>
@@ -502,7 +502,7 @@
 
   const s2 = {
     steps: [
-      { title: 'SYN：自分の番号の始まりを知らせる', text: 'PC は 443 番へ {d|SYN} を送る。データは無く、自分の**初期シーケンス番号**（ISN）x と、1 個で受け取れる最大の量（MSS、1,460 バイト）や SACK を使えるかなどのオプションを載せる。ISN は 32 ビットの予測しにくい値。PC の状態は SYN_SENT になる。' },
+      { title: 'SYN：自分の番号の始まりを知らせる', text: 'PC は 443 番へ {d|SYN} を送る。データは無く、自分の**初期シーケンス番号**（ISN）x と、1 個で受け取れる最大の量（MSS、1,460 バイト）や SACK を使えるかなどのオプションを載せる。ISN は 32 ビットの予測しにくい値。PC の状態は SYN_SENT になる（状態の持ち方は[[29-imi.html#s4|第29章 場面4]]）。' },
       { title: 'SYN/ACK：受け取りの印と相手の番号', text: 'サーバーは自分の ISN y を載せた SYN と、「x＋1 番から待つ」という ACK を 1 個にまとめて返す。SYN はデータが無くても番号を 1 つ使う決まりなので、受け取りの印は x＋1 になる。サーバーの状態は SYN_RECV（RFC の表記は SYN-RECEIVED）。' },
       { title: 'ACK：両端が ESTABLISHED に', text: 'PC が y＋1 への ACK を返すと、両端とも ESTABLISHED になる。PC は SYN から 1 往復で ESTABLISHED に入り、この ACK に続けてデータを送れる。ISN を接続ごとに変え、予測しにくくするのは、前の接続の遅れたパケットや、第三者の偽のパケットと番号が合わないようにするため。' },
       { title: '要求までに 2 往復', text: '最初のデータは SYN から 1 往復後にやっと出せる。YouTube の通信は暗号化するので、TCP の 1 往復のあとに TLS 1.3 の 1 往復（第20章）が続き、HTTP の要求は 2 往復目の後になる。往復 10 ms なら 20 ms。遠いサーバーほど、この待ちが伸びる。' },
