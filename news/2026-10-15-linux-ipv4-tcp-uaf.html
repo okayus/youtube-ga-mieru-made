@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<!-- このページは tools/build-news.mjs が news/ の Markdown から作る（手で直さない） -->
+<title>Linux の IPv4 TCP の解放後の使用 CVE-2026-98432 — ニュースから層へ</title>
+<meta name="description" content="IPv4 ヘッダのオプション（第18章）の写しを、TCP のハンドシェイク（第19章）の途中でカーネルが解放後に読む、ネットワークスタック（第9章）の欠陥の話である。">
+<meta property="og:title" content="Linux の IPv4 TCP の解放後の使用 CVE-2026-98432 — ニュースから層へ">
+<meta property="og:description" content="IPv4 ヘッダのオプション（第18章）の写しを、TCP のハンドシェイク（第19章）の途中でカーネルが解放後に読む、ネットワークスタック（第9章）の欠陥の話である。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* ニュースのページだけのスタイル（tools/build-news.mjs が書く） */
+  .sc-nw { grid-template-areas: "sh" "text"; }
+  .fit .sc-nw { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh" "text"; }
+  .nw-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.15rem; align-content: start; }
+  .fit .nw-body { grid-template-columns: var(--cols, minmax(0, 1fr)); column-gap: 40px; }
+  .fit .nw-body.nw-narrow { max-width: 60em; }
+  .nw-body h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; line-height: 1.5; }
+  .nw-body h4 { font-weight: 600; font-size: 0.95rem; }
+  .nw-body ul, .nw-body ol { padding-left: 1.3em; display: grid; gap: 0.35rem; }
+  .nw-body li > ul, .nw-body li > ol { margin-top: 0.3rem; }
+  .nw-body blockquote { border-left: 3px solid var(--rule); padding-left: 0.9rem; color: var(--fg-mid); }
+  .nw-body pre { background: var(--inset); border-radius: 4px; padding: 0.6rem 0.8rem; overflow-x: auto; font-size: 0.8rem; }
+  .nw-tbl b { font-weight: 600; }
+  table.nw-tbl td[data-label]::before { border-left: 0; padding-left: 0; }   /* 縦読み版の見出しの色見本（章の表で使う）は出さない */
+  a.nw-ch { white-space: nowrap; text-decoration: underline dotted; text-decoration-color: var(--fg-dim); text-underline-offset: 0.22em; }
+  a.nw-ch:hover { text-decoration-style: solid; text-decoration-color: var(--fg); }
+  .nw-meta { list-style: none; padding: 0; margin-top: 1rem; display: grid; gap: 0.2rem; font-size: 0.84rem; line-height: 1.7; color: var(--fg-mid); }
+  .fit .nw-meta { margin-top: 18px; }
+  .nw-meta li { padding-left: 1em; text-indent: -1em; }
+  .nw-meta li::before { content: "・"; }
+
+  /* 全章の帯 */
+  .nw-strip { display: flex; flex-wrap: wrap; gap: 6px 6px; margin-top: 1rem; }
+  .nw-grp { flex: var(--n) 1 calc(var(--n) * 17px); min-width: 0; display: grid; gap: 2px; }
+  .nw-part { font-size: 0.68rem; line-height: 1.5; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 2px solid var(--rule); padding-left: 3px; }
+  .nw-cells { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 2px; }
+  .nw-cell { font-family: var(--mono); font-size: 0.68rem; line-height: 1.75rem; text-align: center; border-radius: 3px; background: var(--inset); color: var(--fg-dim); text-decoration: none; }
+  a.nw-cell.on { background: var(--fg); color: var(--surface); font-weight: 600; }
+  a.nw-cell.on:hover { outline: 2px solid var(--fg-dim); outline-offset: 1px; }
+
+  /* 一覧 */
+  .sc-nwlist { grid-template-areas: "sh" "tbl"; }
+  .fit .sc-nwlist { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "sh" "tbl"; }
+  .nw-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.9rem; align-content: start; }
+  .fit .nw-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+  .nw-card { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 0.75rem 0.95rem 0.8rem; display: grid; gap: 0.35rem; align-content: start; }
+  .nw-card .nw-date { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em; color: var(--fg-dim); }
+  .nw-card h3 { font-family: var(--display); font-weight: 700; font-size: 1.02rem; line-height: 1.5; }
+  .nw-card h3 a { text-decoration: none; }
+  .nw-card h3 a:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  .nw-card .nw-lead { font-size: 0.86rem; line-height: 1.7; color: var(--fg-mid); }
+  .nw-card .nw-strip { margin-top: 0.35rem; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">ニュースから層へ ／ 2026-10-15</p>
+    <h1 id="h-s0">Linux の IPv4 TCP の解放後の使用 CVE-2026-98432</h1>
+    <p class="standfirst">IPv4 ヘッダのオプション（第18章）の写しを、TCP のハンドシェイク（第19章）の途中でカーネルが解放後に読む、ネットワークスタック（第9章）の欠陥の話である。アプリが <code>accept()</code> する前の処理なので、認証は関係しない。2015 年の変更から入っていて、修正は <code>kfree()</code> を <code>kfree_rcu()</code> に替える 2 行である。Anthropic は MPTCP の待ち受けへの遠隔 root の PoC を報告したが、欠陥そのものは MPTCP に限らない。修正版は、Debian は配布済み、Ubuntu は <code>-proposed</code> まで、RHEL は未提供である。</p>
+    <ul class="nw-meta"><li>出典: <a href="https://www.cve.org/CVERecord?id=CVE-2026-98432" target="_blank" rel="noopener">CVE の記録</a>（Linux カーネルの CNA、2026-10-15）、<a href="https://git.kernel.org/linus/e3f33b0a1d89d738e2b913dab519226eaf76e15b" target="_blank" rel="noopener">修正のコミット e3f33b0a1d89</a>、<a href="https://ubuntu.com/security/CVE-2026-98432" target="_blank" rel="noopener">Ubuntu の CVE のページ</a></li><li>調べた時点: 2026-10-30 23:30 JST。Ubuntu の修正版は <code>-proposed</code> までで、RHEL の修正版は出ていない。</li><li>手元で確かめたこと: 暫定策のルールが IP オプション付きの SYN を落とすことと、<code>net.mptcp.enabled</code> が netns を越えないこと（場面「この PC」）。</li></ul>
+    <div class="nw-strip" role="group" aria-label="このノートがリンクしている章: 第6章 CPU、第9章 OS、第14章 ホームルーター、第18章 IP、第19章 TCP・UDP・QUIC、第26章 型とメモリ、第27章 データ構造とアルゴリズム"><div class="nw-grp" style="--n:3"><span class="nw-part">I 電気</span><div class="nw-cells"><span class="nw-cell" title="第1章 電子と電流">1</span><span class="nw-cell" title="第2章 半導体とダイオード">2</span><span class="nw-cell" title="第3章 トランジスタ">3</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">II 計算機</span><div class="nw-cells"><span class="nw-cell" title="第4章 論理ゲートと2進数">4</span><span class="nw-cell" title="第5章 記憶">5</span><a class="nw-cell on" href="../chapters/06-cpu.html" title="第6章 CPU">6</a><span class="nw-cell" title="第7章 入出力と周辺機器">7</span><span class="nw-cell" title="第8章 画面と音">8</span></div></div><div class="nw-grp" style="--n:2"><span class="nw-part">III ソフト</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/09-os.html" title="第9章 OS">9</a><span class="nw-cell" title="第10章 ブラウザ">10</span></div></div><div class="nw-grp" style="--n:6"><span class="nw-part">IV つながる</span><div class="nw-cells"><span class="nw-cell" title="第11章 ネットワークの層">11</span><span class="nw-cell" title="第12章 Wi-Fi">12</span><span class="nw-cell" title="第13章 Ethernet とスイッチ">13</span><a class="nw-cell on" href="../chapters/14-router.html" title="第14章 ホームルーター">14</a><span class="nw-cell" title="第15章 光回線">15</span><span class="nw-cell" title="第16章 インターネットの骨格">16</span></div></div><div class="nw-grp" style="--n:5"><span class="nw-part">V 約束ごと</span><div class="nw-cells"><span class="nw-cell" title="第17章 DNS">17</span><a class="nw-cell on" href="../chapters/18-ip.html" title="第18章 IP">18</a><a class="nw-cell on" href="../chapters/19-tcp.html" title="第19章 TCP・UDP・QUIC">19</a><span class="nw-cell" title="第20章 TLS">20</span><span class="nw-cell" title="第21章 HTTP">21</span></div></div><div class="nw-grp" style="--n:4"><span class="nw-part">VI YouTube</span><div class="nw-cells"><span class="nw-cell" title="第22章 YouTube のサーバー側">22</span><span class="nw-cell" title="第23章 動画の圧縮">23</span><span class="nw-cell" title="第24章 ストリーミングと再生">24</span><span class="nw-cell" title="第25章 通しで見る">25</span></div></div><div class="nw-grp" style="--n:4"><span class="nw-part">VII 横断</span><div class="nw-cells"><a class="nw-cell on" href="../chapters/26-kata.html" title="第26章 型とメモリ">26</a><a class="nw-cell on" href="../chapters/27-algorithm.html" title="第27章 データ構造とアルゴリズム">27</a><span class="nw-cell" title="第28章 コンパイラ">28</span><span class="nw-cell" title="第29章 型で意味を表す">29</span></div></div></div>
+    <p class="keys fit-only">上のタブで場面を選ぶ。<kbd>↓</kbd><kbd>↑</kbd>（または右上の <kbd>‹</kbd><kbd>›</kbd>）で場面を移る。帯の塗りつぶした番号は、このノートがリンクしている章。</p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>確かなことと、確かでないこと</a></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>どの層の話か</a></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>欠陥の仕組み</a></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>解放された領域を読むと</a></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>直し方と配布</a></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>層ごとの守り</a></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>この PC で確かめたこと</a></li>
+      <li><a href="#s8" data-go="8"><span class="n">8</span>追って確かめること</a></li>
+      <li><a href="#s9" data-go="9"><span class="n">9</span>出典</a></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" aria-label="移動"><a class="next" href="#s1" data-go="1">読む ›</a><a href="index.html">ニュースの一覧</a><a href="../index.html">目次</a><a href="../glossary.html">用語索引</a></nav>
+    <p>元のノート: <a href="https://github.com/okayus/youtube-ga-mieru-made/blob/main/news/2026-10-15-linux-ipv4-tcp-uaf.md" target="_blank" rel="noopener">news/2026-10-15-linux-ipv4-tcp-uaf.md</a>（このページは <code>node tools/build-news.mjs</code> で作る）</p>
+  </footer>
+</section>
+
+<!-- ================= 1 確かなことと、確かでないこと ================= -->
+<section class="scene sc-nw" id="s1" data-tab="確かさ" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>確かなことと、確かでないこと</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>項目</th><th>内容</th><th>出どころ</th><th>確かさ</th></tr></thead><tbody>
+<tr><td data-label="項目">欠陥</td><td data-label="内容">TCP の子ソケットの <code>inet_opt</code> を <code>kfree()</code> で解放した後に、別の CPU が <code>ip_options_build()</code> で読む。request socket の移行でも同じ形が起きる</td><td data-label="出どころ">CVE の記録、修正のコミット</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">範囲</td><td data-label="内容">4.4 から（コミット 079096f103fa、2015-10）。移行の道はコミット c905dee62232（2021-06）から。IPv6 は最初の欠陥の影響を受けない</td><td data-label="出どころ">同上</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">修正版</td><td data-label="内容">上流は 7.3（7.3-rc7）。stable は 5.10.272・5.15.223・6.1.190・6.6.159・6.12.113・6.18.56・7.2.10</td><td data-label="出どころ">CVE の記録</td><td data-label="確かさ">公式</td></tr>
+<tr><td data-label="項目">遠隔 root</td><td data-label="内容">Anthropic が、MPTCP の待ち受けへパケットを送るだけで root のコマンドを実行する PoC を報告した（10-27）。ポインタの漏えいに 48 分、実行までさらに 5 分。修正のコミットの報告者も同社の研究者</td><td data-label="出どころ">Anthropic の記事、修正のコミット</td><td data-label="確かさ">報告者の発表。コードは載っておらず、第三者の再現は見つからなかった</td></tr>
+<tr><td data-label="項目">MPTCP の無い待ち受け</td><td data-label="内容">RCE に至る道があるかは不明。Go の告知は、欠陥は MPTCP に固有でなく、似た攻撃の可能性があると書く</td><td data-label="出どころ">Go の告知（10-29）、issue 82717</td><td data-label="確かさ">未確認</td></tr>
+<tr><td data-label="項目">深刻度</td><td data-label="内容">CNA は CVSS 3.1 で 9.8（AC:L）。Red Hat は 8.1（AC:H、草案）で Important、SUSE も AC:H で important。Ubuntu は 9.8 を表示し、CVSS 4.0 では 8.3（AT:P）、優先度は High</td><td data-label="出どころ">各社の記録</td><td data-label="確かさ">公式どうしで食い違う</td></tr>
+<tr><td data-label="項目">公開された道具</td><td data-label="内容">競合の引き金と漏えいまで作ったと称するリポジトリが、10-29 以降に GitHub に複数出た。README の 1 つは、完全な root の攻撃は実装していないと書く</td><td data-label="出どころ">GitHub の検索</td><td data-label="確かさ">未確認。README だけを読み、コードは取得も実行もしていない</td></tr>
+<tr><td data-label="項目">悪用</td><td data-label="内容">報告は見つからなかった。CISA の KEV（10-29 の版）に無く、EPSS は 0.39%（10-29）</td><td data-label="出どころ">CISA、FIRST、検索</td><td data-label="確かさ">未確認</td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 2 どの層の話か ================= -->
+<section class="scene sc-nw" id="s2" data-tab="層" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>どの層の話か</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><p>SYN が届いてから解放された領域を読むまでの順に並べ、最後に権限と MPTCP を置く。欠陥があったのは太字の層。</p>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>層</th><th>このニュースで起きること</th><th>章・場面</th></tr></thead><tbody>
+<tr><td data-label="層">IP ヘッダ</td><td data-label="このニュースで起きること">ヘッダ長を 5 より大きくすると、後ろにオプションを足せる。攻撃者は SYN に Record Route や Timestamp を付ける</td><td data-label="章・場面"><a href="../chapters/18-ip.html#s1" class="nw-ch">18章 場面1</a> の段階2・6</td></tr>
+<tr><td data-label="層">家のルーター</td><td data-label="このニュースで起きること">ポート開放が無ければ、外からの IPv4 の SYN は NAT の内側へ届かない。同じ LAN の機器からは届く</td><td data-label="章・場面"><a href="../chapters/14-router.html#s5" class="nw-ch">14章 場面5</a> の段階1・4</td></tr>
+<tr><td data-label="層">ネットワークスタック</td><td data-label="このニュースで起きること">受信はカーネルが処理し、待ち受けのアプリは関わらない</td><td data-label="章・場面"><a href="../chapters/09-os.html#s6" class="nw-ch">9章 場面6</a> の段階2・3</td></tr>
+<tr><td data-label="層"><b>TCP のハンドシェイク</b></td><td data-label="このニュースで起きること">SYN でカーネルが request socket を作り、IP オプションの写しを持つ。最後の ACK で子ソケットができ、写しをコピーせずに引き継ぐ</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s2" class="nw-ch">19章 場面2</a> の段階1〜3</td></tr>
+<tr><td data-label="層">TCP の再送</td><td data-label="このニュースで起きること">同じ SYN が再送されると、カーネルは SYN/ACK を作り直し、そのとき写しを読む</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s3" class="nw-ch">19章 場面3</a> の段階5</td></tr>
+<tr><td data-label="層">複数のコア</td><td data-label="このニュースで起きること">再送の処理と子ソケットの解放は、別のコアで同時に走る</td><td data-label="章・場面"><a href="../chapters/09-os.html#s5" class="nw-ch">9章 場面5</a> の段階6</td></tr>
+<tr><td data-label="層"><b>メモリの寿命</b></td><td data-label="このニュースで起きること">解放された領域が別の物に使い回されると、古いポインタで読む長さの欄も別の値になる</td><td data-label="章・場面"><a href="../chapters/26-kata.html#s6" class="nw-ch">26章 場面6</a> の段階3</td></tr>
+<tr><td data-label="層">ハッシュ表</td><td data-label="このニュースで起きること">2015 年の変更で request socket を ehash 表に入れ、リスナーのロックなしで処理するようになった。この欠陥の入口である</td><td data-label="章・場面"><a href="../chapters/27-algorithm.html#s3" class="nw-ch">27章 場面3</a> の段階2</td></tr>
+<tr><td data-label="層">カーネルの権限</td><td data-label="このニュースで起きること">カーネルは ring 0 で動く。ここで制御を奪えば、root のコマンドも実行できる</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a> の段階2</td></tr>
+<tr><td data-label="層">MPTCP</td><td data-label="このニュースで起きること">1 本の接続を複数の TCP のサブフローで運ぶ拡張で、教材に無い。近いのは QUIC の接続 ID。Go 1.24 以降の Linux の待ち受けは、既定で MPTCP を使う</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s6" class="nw-ch">19章 場面6</a> の段階4</td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 3 欠陥の仕組み ================= -->
+<section class="scene sc-nw" id="s3" data-tab="仕組み" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>欠陥の仕組み</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>読む側と解放する側</h3>
+<ol><li>SYN が届くと、<code>tcp_v4_save_options()</code> が IP オプションの写しを確保し、<code>ireq-&gt;ireq_opt</code> に置く。オプションが無ければ何も確保しない。</li><li>最後の ACK で、<code>tcp_v4_syn_recv_sock()</code> がこのポインタを子ソケットの <code>inet_opt</code> へ移す。コピーはしない。</li><li>別の CPU が、同じ request socket への再送 SYN を処理する。<code>tcp_check_req()</code>、<code>tcp_v4_send_synack()</code>、<code>ip_build_and_send_pkt()</code>、<code>ip_options_build()</code> の順に進み、写しを読む。持っているのは <code>rcu_read_lock()</code> だけで、<code>opt-&gt;optlen</code> を 2 回読む。</li><li>子ソケットが解放されると、<code>inet_sock_destruct()</code> が <code>inet_opt</code> を <code>kfree()</code> する。3 の読み手を待たないので、読み手は解放された領域を読む。</li></ol>
+<p>SYN の処理はリスナーのロックを持たない。SYN/ACK のタイマーは request socket の参照を持ち、子を解放する前に止まるので、この欠陥の道ではない。</p></div>
+<div class="col"><h3>2 つ目の道と IPv6</h3>
+<ul><li>request socket の移行（<code>net.ipv4.tcp_migrate_req=1</code> か、<code>BPF_SK_REUSEPORT_SELECT_OR_MIGRATE</code> の BPF プログラム）では、複製と元が同じ <code>ireq_opt</code> を指す。元を持つ別の CPU が読んでいる間に複製が解放されると、同じことが起きる。<code>tcp_migrate_req</code> の既定は 0 である。</li><li>IPv6 は <code>tcp_v6_syn_recv_sock()</code> がオプションを複製するので、最初の欠陥が無い。</li><li>移行の欠陥は <code>tcp_v6_reqsk_destructor()</code> にもある。<code>ipv6_opt</code> を設定するのは CALIPSO だけで、CVE の記録は別のパッチで直すと書く。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 4 解放された領域を読むと ================= -->
+<section class="scene sc-nw" id="s4" data-tab="影響" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>解放された領域を読むと</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>CVE の記録が書く影響</h3>
+<p>解放された領域が別の物に使い回されたときの影響を、CVSS の説明は次のように書く。CVE の記録に PoC は無い。</p>
+<ul><li>漏れる: 古い <code>optlen</code> の長さだけ <code>opt-&gt;__data</code> を SYN/ACK へ写すので、隣のヒープの内容が相手に届く。</li><li>壊す: 古い <code>optlen</code> と <code>srr</code>・<code>rr</code>・<code>ts</code> のオフセットで <code>ip_options_build()</code> の書き先がずれ、範囲外に書く。</li><li>止まる: <code>optlen</code> が大きいと <code>ip_build_and_send_pkt()</code> の <code>skb_push()</code> がヘッドルームを超え、<code>skb_under_panic()</code> になる。</li></ul></div>
+<div class="col"><h3>Anthropic の PoC</h3>
+<ul><li>第 1 段: 余分なバイトを返させ、その中のカーネルのポインタから KASLR（カーネルの配置を起動ごとにずらす仕組み。教材に無い）を破る。</li><li>第 2 段: 同じ欠陥でバッファをあふれさせ、コールバックの番地を書き換える（<a href="../chapters/06-cpu.html#s1" class="nw-ch">6章 場面1</a> の段階2 の PC を向ける先を変える）。行き先は、通常のプロトコルの機能で先にカーネルのメモリへ置いた内容で、既存のカーネルの関数を連ねて root のシェルのコマンドに至る。</li><li>競合に負けてもハンドシェイクが失敗するだけで落ちないので、成功するまで繰り返せる、と記事は書く。</li><li>MPTCP が要る理由と、対象のカーネルの版は、記事に書かれていない。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 5 直し方と配布 ================= -->
+<section class="scene sc-nw" id="s5" data-tab="修正" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>直し方と配布</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 3fr 3fr">
+<div class="col"><h3>差分は 2 行</h3>
+<p><code>rcu_dereference_protected()</code> を略して書く。</p>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>関数</th><th>前</th><th>後</th></tr></thead><tbody>
+<tr><td data-label="関数"><code>inet_sock_destruct()</code></td><td data-label="前"><code>kfree(inet_opt)</code></td><td data-label="後"><code>kfree_rcu(inet_opt, rcu)</code></td></tr>
+<tr><td data-label="関数"><code>tcp_v4_reqsk_destructor()</code></td><td data-label="前"><code>kfree(ireq_opt)</code></td><td data-label="後"><code>kfree_rcu(ireq_opt, rcu)</code></td></tr>
+</tbody></table></div>
+<ul><li><code>kfree_rcu()</code> は、<code>rcu_read_lock()</code> の中の読み手が抜けるまで待ってから解放する。RCU は教材に無い。</li><li>読み手はもともと RCU を使っていて、<code>inet_opt</code> を置き換える <code>do_ip_setsockopt()</code> なども <code>kfree_rcu()</code> だった。揃っていなかったのは、この 2 か所の解放である。</li></ul></div>
+<div class="col"><h3>配布の状況</h3>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>配布元</th><th>10-30 23:30 JST の状態</th></tr></thead><tbody>
+<tr><td data-label="配布元">Debian</td><td data-label="10-30 23:30 JST の状態">修正済み。bookworm 6.1.190-1、trixie 6.12.113-1、forky 7.2.12-1、sid 7.2.13-1</td></tr>
+<tr><td data-label="配布元">Ubuntu 26.04</td><td data-label="10-30 23:30 JST の状態"><code>linux</code> は 7.0.0-43.43 で <code>-proposed</code>（10-28）。<code>-updates</code> の 7.0.0-42.42 と <code>-security</code> の 7.0.0-38.38 に修正は無い</td></tr>
+<tr><td data-label="配布元">Ubuntu 24.04</td><td data-label="10-30 23:30 JST の状態"><code>linux</code> は 6.8.0-149.149、<code>-proposed</code>（10-26）。<code>linux-hwe-6.17</code>・<code>linux-hwe-7.0</code> は版の記載なし</td></tr>
+<tr><td data-label="配布元">Ubuntu 22.04</td><td data-label="10-30 23:30 JST の状態"><code>linux</code> は 5.15.0-203.213、<code>-proposed</code>（10-26）。<code>-security</code> の 5.15.0-202.212 に修正は無い</td></tr>
+<tr><td data-label="配布元">Ubuntu のほか</td><td data-label="10-30 23:30 JST の状態">20.04・18.04・16.04 は Vulnerable で版の記載なし。14.04 は影響なし。USN はまだ無い</td></tr>
+<tr><td data-label="配布元">RHEL</td><td data-label="10-30 23:30 JST の状態">8・9・10 は Affected で、修正のエラータは無い。6・7 は影響なし</td></tr>
+</tbody></table></div>
+<p>Ubuntu の 3 版は、changelog に修正の行があることを確かめた。26.04 の追跡のバグでは、検証が進行中で、<code>-updates</code> と <code>-security</code> への昇格は始まっていない。</p></div>
+  </div>
+</section>
+
+<!-- ================= 6 層ごとの守り ================= -->
+<section class="scene sc-nw" id="s6" data-tab="守り" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>層ごとの守り</h2>
+  </header>
+  <div class="nw-body a-text">
+<div class="col"><div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>守り</th><th>層</th><th>章・場面</th><th>出どころと注意</th></tr></thead><tbody>
+<tr><td data-label="守り">修正版のカーネルに上げ、再起動する</td><td data-label="層">カーネル</td><td data-label="章・場面"><a href="../chapters/09-os.html#s1" class="nw-ch">9章 場面1</a></td><td data-label="出どころと注意">公式。Go の告知も最善と書く。再起動するまで古いカーネルのまま。コンテナはホストのカーネルで動くので、イメージの更新では直らない</td></tr>
+<tr><td data-label="守り">IP オプション付きの TCP を落とす</td><td data-label="層">IP</td><td data-label="章・場面"><a href="../chapters/18-ip.html#s1" class="nw-ch">18章 場面1</a> の段階6</td><td data-label="出どころと注意">未確認の暫定策。Go の担当者は issue で、十分かもしれないが確かめていないと書いた。Red Hat は基準を満たす緩和策は無いとする。オプションが無ければ読む物が確保されない（上流のソースで確かめた）。IGMP はオプションを使うので、TCP に限る</td></tr>
+<tr><td data-label="守り">MPTCP の待ち受けを無くす</td><td data-label="層">TCP</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s6" class="nw-ch">19章 場面6</a> の段階4</td><td data-label="出どころと注意">実証された構成を外すだけ。Go の告知は、プログラムごとに切る方法は脆いと書く。Go は <code>GODEBUG=multipathtcp=0</code> で切れる</td></tr>
+<tr><td data-label="守り"><code>net.mptcp.enabled=0</code> にする</td><td data-label="層">TCP</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s6" class="nw-ch">19章 場面6</a> の段階4</td><td data-label="出どころと注意">新しい MPTCP ソケットを作らせない。netns ごとの値で、ホストを 0 にしてもコンテナには及ばない（場面「この PC」）。既にあるソケットへの効果は文書に無い</td></tr>
+<tr><td data-label="守り">移行の機能を使わない</td><td data-label="層">TCP</td><td data-label="章・場面"><a href="../chapters/19-tcp.html#s1" class="nw-ch">19章 場面1</a> の段階2</td><td data-label="出どころと注意"><code>net.ipv4.tcp_migrate_req</code> の既定は 0。BPF の <code>BPF_SK_REUSEPORT_SELECT_OR_MIGRATE</code> も同じ道を開く</td></tr>
+<tr><td data-label="守り">待ち受けへ届く範囲を絞る</td><td data-label="層">ルーター</td><td data-label="章・場面"><a href="../chapters/14-router.html#s5" class="nw-ch">14章 場面5</a> の段階1・4</td><td data-label="出どころと注意">一般論。ポート開放を閉じても、同じ LAN の機器からは届く。IPv6 で届く SYN は最初の欠陥の道に入らないが、<code>[::]</code> の待ち受けも IPv4 の SYN を受ける</td></tr>
+</tbody></table></div></div>
+  </div>
+</section>
+
+<!-- ================= 7 この PC で確かめたこと ================= -->
+<section class="scene sc-nw" id="s7" data-tab="この PC" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>この PC で確かめたこと</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 3fr 2fr">
+<div class="col"><h3>暫定策のルール</h3>
+<p><code>--network none</code> の使い捨てコンテナで次のルールを入れ、loopback の待ち受けへ 1 回ずつつないだ。</p>
+<pre><code>table ip cve_2026_98432 {
+  chain prerouting {
+    type filter hook prerouting priority raw
+    policy accept
+    ip protocol tcp ip hdrlength != 5 counter drop
+  }
+}</code></pre>
+<div class="tbl-wrap"><table class="plain stack nw-tbl"><thead><tr><th>SYN</th><th>ルールなし</th><th>ルールあり</th></tr></thead><tbody>
+<tr><td data-label="SYN">IP オプションなし</td><td data-label="ルールなし">接続できた</td><td data-label="ルールあり">接続できた</td></tr>
+<tr><td data-label="SYN">IP オプションあり（NOP だけ）</td><td data-label="ルールなし">接続できた</td><td data-label="ルールあり">タイムアウト</td></tr>
+</tbody></table></div>
+<p>SYN が落ちることを確かめただけで、欠陥を防げることは確かめていない。競合は起こしていない。</p></div>
+<div class="col"><h3>netns と MPTCP</h3>
+<ul><li>親の netns を <code>net.mptcp.enabled=0</code> にすると、<code>socket(AF_INET, SOCK_STREAM, IPPROTO_MPTCP)</code> は <code>Protocol not available</code> で失敗した。<code>unshare -n</code> で作った子の netns の値は 1 で、ソケットを作れた。</li><li>Docker 29.9.0（Go 1.26.9）のユーザー定義ネットワークのコンテナの netns には、<code>127.0.0.11</code> の MPTCP の待ち受けが 1 つあった。<code>127.0.0.11</code> は Docker の内蔵 DNS で、ループバックなので外からは届かない。コンテナの中に持ち主のプロセスが無いので、dockerd が開いたものと読める（推測）。</li><li>この待ち受けは、ホストの <code>ss -M -l</code> には出ない。MPTCP の待ち受けは netns ごとに見る必要がある。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 8 追って確かめること ================= -->
+<section class="scene sc-nw" id="s8" data-tab="今後" aria-labelledby="h-s8">
+  <header class="sh a-sh">
+    <h2 id="h-s8"><span class="n">8</span>追って確かめること</h2>
+  </header>
+  <div class="nw-body a-text nw-narrow">
+<div class="col"><ul><li>Ubuntu の修正版が <code>-security</code> と <code>-updates</code> に載る日と USN。Livepatch が対応するか。</li><li>RHEL の修正版の時期。IP オプションを落とす策を、ベンダーが認めるか。</li><li>MPTCP の無い待ち受けで RCE に至る道があるか。Anthropic の PoC の第三者の再現と、MPTCP が要る理由。</li><li>公開された道具の実際の力、悪用の報告、KEV への掲載。</li><li>IPv6 の移行の欠陥を直す別のパッチ。</li><li>Go が既定を変えるか（<a href="https://go.dev/issue/82717" target="_blank" rel="noopener">issue 82717</a>）。</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= 9 出典 ================= -->
+<section class="scene sc-nw" id="s9" data-tab="出典" aria-labelledby="h-s9">
+  <header class="sh a-sh">
+    <h2 id="h-s9"><span class="n">9</span>出典</h2>
+  </header>
+  <div class="nw-body a-text" style="--cols: 2fr 2fr">
+<div class="col"><h3>公式の記録と修正</h3>
+<ul><li>CVE: <a href="https://www.cve.org/CVERecord?id=CVE-2026-98432" target="_blank" rel="noopener">CVE の記録</a>、<a href="https://git.kernel.org/pub/scm/linux/security/vulns.git/plain/cve/published/2026/CVE-2026-98432.mbox" target="_blank" rel="noopener">Linux の CVE の告知</a>、<a href="https://nvd.nist.gov/vuln/detail/CVE-2026-98432" target="_blank" rel="noopener">NVD</a></li><li>コミット: <a href="https://git.kernel.org/linus/e3f33b0a1d89d738e2b913dab519226eaf76e15b" target="_blank" rel="noopener">修正 e3f33b0a1d89</a>、<a href="https://git.kernel.org/linus/079096f103faca2dd87342cca6f23d4b34da8871" target="_blank" rel="noopener">原因 079096f103fa</a>、<a href="https://git.kernel.org/linus/c905dee62232" target="_blank" rel="noopener">移行の原因 c905dee62232</a></li><li>配布: <a href="https://ubuntu.com/security/CVE-2026-98432" target="_blank" rel="noopener">Ubuntu</a>、<a href="https://changelogs.ubuntu.com/changelogs/pool/main/l/linux/linux_7.0.0-43.43/changelog" target="_blank" rel="noopener">7.0.0-43.43 の changelog</a>、<a href="https://bugs.launchpad.net/bugs/2171676" target="_blank" rel="noopener">追跡のバグ LP 2171676</a>、<a href="https://security-tracker.debian.org/tracker/CVE-2026-98432" target="_blank" rel="noopener">Debian</a>、<a href="https://access.redhat.com/security/cve/CVE-2026-98432" target="_blank" rel="noopener">Red Hat</a>、<a href="https://www.suse.com/security/cve/CVE-2026-98432.html" target="_blank" rel="noopener">SUSE</a></li><li>文書: <a href="https://docs.kernel.org/networking/ip-sysctl.html" target="_blank" rel="noopener">ip-sysctl</a>、<a href="https://docs.kernel.org/networking/mptcp-sysctl.html" target="_blank" rel="noopener">mptcp-sysctl</a>、<a href="https://docs.kernel.org/networking/mptcp.html" target="_blank" rel="noopener">MPTCP</a></li><li>悪用の指標: <a href="https://www.cisa.gov/known-exploited-vulnerabilities-catalog" target="_blank" rel="noopener">CISA の KEV</a>、<a href="https://api.first.org/data/v1/epss?cve=CVE-2026-98432" target="_blank" rel="noopener">FIRST の EPSS</a></li></ul></div>
+<div class="col"><h3>研究者と開発者</h3>
+<ul><li><a href="https://www.anthropic.com/research/discovering-vulnerabilities-with-claude" target="_blank" rel="noopener">Anthropic の記事（10-27）</a>: PoC の 2 段と所要時間。</li><li><a href="https://www.openwall.com/lists/oss-security/2026/10/30/1" target="_blank" rel="noopener">Go の告知（oss-security への転送、10-29）</a>: MPTCP の既定と切り方。</li><li><a href="https://go.dev/issue/82717" target="_blank" rel="noopener">Go の issue 82717</a>: IP オプションを落とす案と、既定を変えるかの議論。</li></ul></div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+YT.chapter({ meta: {"eyebrow":"ニュースから層へ ／ 2026-10-15","title":"Linux の IPv4 TCP の解放後の使用 CVE-2026-98432","home":"index.html","actions":[{"href":"index.html","label":"ニュースの一覧"}]} });
+</script>
+</body>
+</html>
