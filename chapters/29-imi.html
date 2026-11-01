@@ -32,7 +32,7 @@
 <!-- ================= 表紙 ================= -->
 <section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
   <div class="a-main">
-    <p class="eyebrow">第VII部 横断 ／ 第29章 ／ 全29章</p>
+    <p class="eyebrow">第VII部 横断 ／ 第29章 ／ 全30章</p>
     <h1 id="h-s0">型で意味を表す</h1>
     <p class="standfirst">型検査が捕まえるのは、型として書いた区別だけである。int と string しか書かなければ捕まるのはその取り違えだけで、円とドル、ミリ秒と秒のように同じ数の型で持つ値の取り違えは素通りする。この章では、単位・状態・確かめ済みの値をドメイン（プログラムが扱う対象）の型として書き、意味の取り違えをコンパイルエラーにする方法と、その限りを見る。型だけで持つ区別はコンパイラが一度確かめて消し、値で持つ区別は CPU が実行のたびに確かめるので、型の設計とは、どの区別をどちらに置くかを決めることになる。</p>
     <p class="legend" data-auto></p>
@@ -47,7 +47,7 @@
       <li><a href="#s4" data-go="4"><span class="n">4</span>状態と遷移</a><p>状態を値（enum）で持つか、型（typestate）で持つか。コンパイラと CPU の分担。</p></li>
       <li><a href="#s5" data-go="5"><span class="n">5</span>境界</a><p>外から来るバイトに型は付いてこない。入口で一度だけパースして、ドメインの型に作り直す。</p></li>
       <li><a href="#s6" data-go="6"><span class="n">6</span>答え</a><p>コンパイラ・実行時・テストの分担と、型システムの利点は何か。</p></li>
-      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。この教材の最後の章。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。次の章（エミュレータの外側）へ。</p></li>
     </ol>
   </nav>
   <footer class="cover-foot a-foot">
@@ -202,7 +202,7 @@
     </table>
   </div>
   <div class="a-after">
-    <p class="note">この章で教材は終わり。<a class="xref" href="../index.html">目次</a>の地図から気になる層へ戻るか、<a class="xref" href="01-denshi.html">第1章</a>から通して読み直せる。</p>
+    <p class="note">第VII部はここまで。次の第VIII部「実物を読む」では、公開されている実際のプログラム（Rust で書かれたゲームボーイのエミュレータ）を、この教材の層に当てはめて読む。所有・借用・Option・Result・閉包が、この章までの型の話の続きとして出てくる。</p>
     <nav class="chnav" data-auto aria-label="章の移動"></nav>
   </div>
 </section>
@@ -1346,6 +1346,7 @@
       title: '型で意味を表す',
       home: '../index.html',
       prev: { href: '28-compiler.html', title: 'コンパイラ' },
+      next: { href: '30-gbemu-desktop.html', title: 'エミュレータの外側', lead: 'Rust で書かれたゲームボーイのエミュレータ gb-emu のうち、PC で動かす側の 218 行（gb-emu-desktop）を読む。' },
       legend: [{ c: 'd', label: 'データ・ビット列' }, { c: 'x', label: '注目・変化' }]
     },
     scenes: { s1, s2, s3, s4, s5, s6 }

@@ -1,0 +1,1503 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>エミュレータの外側 — YouTubeが見えるまで</title>
+<meta name="description" content="Rust で書かれたゲームボーイのエミュレータ gb-emu のうち、PC で動かす側の 218 行（gb-emu-desktop）を読む。本体の時計を実時間に合わせ、キーボードをボタンに、画素の列を窓に、音のサンプルをスピーカーに、セーブをファイルにつなぐコードを、具体的な値を入れて 1 行ずつ追う。">
+<meta property="og:title" content="エミュレータの外側 — YouTubeが見えるまで">
+<meta property="og:description" content="Rust で書かれたゲームボーイのエミュレータ gb-emu のうち、PC で動かす側の 218 行（gb-emu-desktop）を読む。">
+<meta property="og:type" content="article">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:site_name" content="YouTubeが見えるまで">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<link rel="stylesheet" href="../assets/base.css">
+<script src="../assets/engine.js"></script>
+<style>
+  /* この章だけのスタイル */
+  svg text.pre { white-space: pre; }
+  svg a { cursor: pointer; }
+  svg a:hover text, svg a:focus-visible text { text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+<main class="scenes">
+
+<!-- ================= 表紙 ================= -->
+<section class="scene sc-cover on" id="s0" data-tab="表紙" aria-labelledby="h-s0">
+  <div class="a-main">
+    <p class="eyebrow">第VIII部 実物を読む ／ 第30章 ／ 全30章</p>
+    <h1 id="h-s0">エミュレータの外側</h1>
+    <p class="standfirst">Rust で書かれたゲームボーイのエミュレータ gb-emu のうち、PC で動かす側の 218 行（gb-emu-desktop）を読む。CPU や画面の回路を真似る本体は別のクレート gbemu に任せ、この側は本体の時計を実時間に合わせ、キーボードをボタンに、画素の列を窓に、音のサンプルをスピーカーに、セーブをファイルにつなぐ。つまり第4〜8章の機械をソフトウェアで作り直したものと、第9章の OS との境目である。コードは具体的な値を入れて 1 行ずつ追う。</p>
+    <p class="legend" data-auto></p>
+    <p class="keys fit-only" data-auto></p>
+  </div>
+  <nav class="toc a-toc" aria-labelledby="h-toc">
+    <h2 id="h-toc">構成</h2>
+    <ol>
+      <li><a href="#s1" data-go="1"><span class="n">1</span>全体の形</a><p>main が ROM を Vec&lt;u8&gt; に読み、本体 GameBoy を作り、SDL で窓・音・入力を開く。持ち主は struct Emulator。</p></li>
+      <li><a href="#s2" data-go="2"><span class="n">2</span>時計を合わせる</a><p>経過したナノ秒を 953 で割った回数だけ emulate_cycle を呼ぶ。1 フレーム ＝ 17,556 M サイクル。</p></li>
+      <li><a href="#s3" data-go="3"><span class="n">3</span>キーボードをボタンに</a><p>match で Button に写し、P1（$FF00）のビットを 0 に倒し、IF のビット 4 を立てる。2 つの &amp;mut が通る理由。</p></li>
+      <li><a href="#s4" data-go="4"><span class="n">4</span>画素の列を窓に</a><p>92,160 バイトの Vec&lt;u8&gt; を、フレームの終わりに 1 回、ピッチ 640 でテクスチャに写し、640×576 に伸ばす。</p></li>
+      <li><a href="#s5" data-go="5"><span class="n">5</span>サンプルをスピーカーに</a><p>512 組ごとにクロージャが呼ばれ、SDL のキューに積む。8,192 バイトを超えたら 1 ms 寝る。速さの主導権。</p></li>
+      <li><a href="#s6" data-go="6"><span class="n">6</span>セーブとケーブル</a><p>SRAM を「題名.SAV」に書き、起動時に読み戻す。通信ケーブルの相手はいないので 0xFF を返す。</p></li>
+      <li><a href="#s7" data-go="7"><span class="n">7</span>まとめ</a><p>要点と用語。この教材の最後の章。</p></li>
+    </ol>
+  </nav>
+  <footer class="cover-foot a-foot">
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+    <p>コードは <a href="https://github.com/take44444/gb-emu">take44444/gb-emu</a>（桝本武志、GitHub で公開）の gb-emu-desktop と、それが呼ぶ gbemu クレートから引用した（2023 年 12 月 31 日のコミット 9577a89。行番号は元のファイルのもので、長い行は折り返し、省いた行は … で示した）。ゲームボーイの仕様は <a href="https://gbdev.io/pandocs/">Pan Docs</a>（2026 年 10 月に閲覧）、SDL2 の挙動は sdl2 クレート 0.35.2 と SDL2 の文書に拠る。「計算上」と書いた数値はコードの式から求めた値で、実機では測っていない。図は模式図。</p>
+  </footer>
+</section>
+
+<!-- ================= 1 全体の形 ================= -->
+<section class="scene sc-anim" id="s1" data-tab="全体" aria-labelledby="h-s1">
+  <header class="sh a-sh">
+    <h2 id="h-s1"><span class="n">1</span>全体の形 — main から Emulator へ</h2>
+    <p class="sh-meta"><span class="chip">main.rs</span><span class="chip">218 行</span><span class="chip">SDL2</span><span class="chip">struct</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">第29章までに見た層を、1 つのプログラムの上で見直す。gb-emu-desktop は 3 ファイル・218 行で、ROM を読み、本体（GameBoy）を作り、SDL で窓・音・キーボードを開き、本体の時計を回す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">本体の gbemu クレートは約 4,000 行で、CPU（SM83）・PPU・APU・カートリッジ・タイマ・ジョイパッド・シリアルを持つ。この章は外側だけを読み、本体の中は入口の emulate_cycle と、外側が触る欄にとどめる。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="main.rs のコードと、PC の中の ROM ファイル・キーボード・窓・音の装置と Emulator の本体をつなぐ道の図"></svg></div>
+    <figcaption>図1　左は段階ごとのコード（main.rs と本体の gameboy.rs）。右は PC（OS ＋ SDL2）の中に置いた Emulator と、外の装置やファイルをつなぐ道。緑の粒はデータ。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 2 時計を合わせる ================= -->
+<section class="scene sc-anim" id="s2" data-tab="時計" aria-labelledby="h-s2">
+  <header class="sh a-sh">
+    <h2 id="h-s2"><span class="n">2</span>時計を合わせる — 1 M サイクル ＝ 953 ns</h2>
+    <p class="sh-meta"><span class="chip">4,194,304 Hz</span><span class="chip">u128</span><span class="chip">Instant</span><span class="chip">'running</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">本体は「1 M サイクル進め」と言われた分だけ進む。実時間とそろえるのは外側の仕事で、run は起動からの経過ナノ秒を 953 で割った回数だけ emulate_cycle を呼ぶ。待つ命令は無い。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">953 は 4 × 10⁹ ÷ 4,194,304 の整数除算で、正確な 953.674… より 0.07% 短い。この時計だけなら 1 時間に約 2.5 秒速く進む計算だが、場面5 の音の待ちのほうが強く効くので、実際の速さは音の側で決まる（計算上）。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="run のループのコードと、実時間と本体の時間を並べた時間軸、1 M サイクルの中身、1 フレームの長さの図"></svg></div>
+    <figcaption>図2　左上は run のコード。右上は本体の 1 M サイクルの中身（段階4 からは 1 フレームの長さ）。下は実時間 e と本体の時間 elapsed を 20 µs の幅で並べたもの（止まる所は例）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 3 キーボードをボタンに ================= -->
+<section class="scene sc-anim" id="s3" data-tab="入力" aria-labelledby="h-s3">
+  <header class="sh a-sh">
+    <h2 id="h-s3"><span class="n">3</span>キーボードをボタンに — key2joy と P1</h2>
+    <p class="sh-meta"><span class="chip">$FF00</span><span class="chip">Option&lt;Button&gt;</span><span class="chip">&amp;mut</span><span class="chip">IF ビット 4</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">W・A・S・D と 1〜4 のキーが、ゲームボーイの 8 つのボタンになる。SDL のイベントを match で Button に写し、本体のジョイパッドのビットを 0 に倒し、割り込みの旗を立てる。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">Pan Docs によれば、P1 の下位 4 ビットは 0 が「押されている」で、ビット 5・4 に 0 を書いてどちらの組を読むかを選ぶ。ジョイパッド割り込み（IF のビット 4、飛び先 $60）は、選んだ組の下位のビットが 1 から 0 に変わったときに要求される。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="イベント処理と key2joy と joypad.rs のコード、キーとボタンの対応表、direction・action・P1・IF のビットの図"></svg></div>
+    <figcaption>図3　左は段階ごとのコード（main.rs と本体の joypad.rs）。右上はキーとボタンとビットの対応、中は本体のジョイパッドの欄と P1 を読んだ値、下は IF。W を押して離す動きを繰り返す。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 4 画素の列を窓に ================= -->
+<section class="scene sc-anim" id="s4" data-tab="画面" aria-labelledby="h-s4">
+  <header class="sh a-sh">
+    <h2 id="h-s4"><span class="n">4</span>画素の列を窓に — LCD::draw</h2>
+    <p class="sh-meta"><span class="chip">160×144</span><span class="chip">RGBA32</span><span class="chip">pitch 640</span><span class="chip">×4</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">本体の PPU は 1 フレームぶんの画素を 92,160 バイトの列に書く。外側はフレームの終わりに 1 回だけ、その列を SDL のテクスチャに写し、窓の大きさに引き伸ばして出す。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">これは第8章 場面1 のフレームバッファをソフトウェアで持ったもの。SDL の先は OS のウィンドウシステムと GPU（第8章 場面2）で、present は垂直同期を待つ設定にしていないので、ティアリング（第8章 場面3）が出ることはある。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="lcd.rs と ppu.rs のコード、160×144 の buffer の格子、1 画素の 4 バイト、640×576 の窓、階調の表"></svg></div>
+    <figcaption>図4　左は段階ごとのコード（本体の ppu.rs と lcd.rs）。右は buffer の格子（1 マスは 8×8 画素）、画素 (3, 2) の 4 バイト、640×576 の窓と広げたときの余白、4 階調の表。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 5 サンプルをスピーカーに ================= -->
+<section class="scene sc-anim" id="s5" data-tab="音" aria-labelledby="h-s5">
+  <header class="sh a-sh">
+    <h2 id="h-s5"><span class="n">5</span>サンプルをスピーカーに — Audio と背圧</h2>
+    <p class="sh-meta"><span class="chip">48,000 Hz</span><span class="chip">f32 × 2</span><span class="chip">8,192 バイト</span><span class="chip">dyn Fn</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">本体の APU は 512 組のステレオのサンプルがたまるたびに関数を 1 回呼ぶ。外側はその関数として、SDL の音のキューに積むクロージャを渡す。キューがたまりすぎると、外側は寝て待つ。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">PCM のサンプルは第8章 場面6 の数値の列そのもので、この後は OS のオーディオの層、DAC、アンプ、スピーカーへ進む。キューは第27章 場面5 のリングバッファと同じ役で、作る側と使う側の速さの差を吸収する。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="audio.rs と apu.rs のコード、APU からクロージャ、SDL のキュー、音の装置へ流れるサンプルと、キューの量の目盛り"></svg></div>
+    <figcaption>図5　左は段階ごとのコード（audio.rs と本体の apu.rs）。右は APU → クロージャ → キュー → 音の装置の道と、キューにたまった量の目盛り（作る速さと使う速さの差は誇張）。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 6 セーブとケーブル ================= -->
+<section class="scene sc-anim" id="s6" data-tab="セーブ" aria-labelledby="h-s6">
+  <header class="sh a-sh">
+    <h2 id="h-s6"><span class="n">6</span>セーブとケーブル — ファイルと 0xFF</h2>
+    <p class="sh-meta"><span class="chip">.SAV</span><span class="chip">Result</span><span class="chip">$0134</span><span class="chip">SB／SC</span></p>
+  </header>
+  <div class="col a-left">
+    <p class="prose a-lead">カートリッジの電池で残る RAM（SRAM）は、PC ではファイルになる。Enter で中身を書き出し、起動の引数で読み戻す。通信ケーブルの相手はいないので、送るたびに 0xFF が返る。</p>
+    <div class="narr-slot a-panel"></div>
+    <div class="prose a-after">
+      <p class="note">ファイルを作る・書く・閉じるは第9章 場面3 のシステムコール（open・write・close）になる。SB・SC（$FF01・$FF02）や P1 は第7章 場面2 のデバイスレジスタで、本体はメモリの番地として見せ、match で部品に振り分けている。</p>
+    </div>
+  </div>
+  <figure class="anim-fig a-fig">
+    <div class="fig-scroll" data-scroll-x><svg viewBox="0 0 960 560" role="img" aria-label="save_to_file と cartridge.rs と serial.rs のコード、カートリッジのヘッダと SRAM、.SAV ファイル、通信ケーブルの図"></svg></div>
+    <figcaption>図6　左は段階ごとのコード（main.rs と本体の cartridge.rs・serial.rs・peripherals.rs）。右上はカートリッジのヘッダと SRAM と .SAV ファイル（題名 SAMPLE、32 KiB は例）、右下は通信ケーブルと SB・SC。</figcaption>
+  </figure>
+</section>
+
+<!-- ================= 7 まとめ ================= -->
+<section class="scene sc-wrap" id="s7" data-tab="まとめ" aria-labelledby="h-s7">
+  <header class="sh a-sh">
+    <h2 id="h-s7"><span class="n">7</span>まとめ — エミュレータの外側</h2>
+  </header>
+  <div class="prose a-text">
+    <ol class="keypoints">
+      <li>外側は 218 行。ROM を Vec&lt;u8&gt; に読み、本体 GameBoy を作り、SDL で窓・音・キーボードを開く。本体は第4〜8章の機械、SDL の外は第9章の OS。持ち主は struct Emulator（<a class="xref" href="#s1" data-go="1">1</a>）。</li>
+      <li>時計は外側が合わせる。経過ナノ秒 ÷ 953 の回数だけ emulate_cycle を呼び、待たずに回り続ける。1 フレーム ＝ 17,556 M サイクル（<a class="xref" href="#s2" data-go="2">2</a>）。</li>
+      <li>キーは match で Option&lt;Button&gt; に写し、P1 のビットを 0 に倒し、IF のビット 4 を立てる。同じ構造体の別の欄なら &amp;mut を 2 つ同時に取れる（<a class="xref" href="#s3" data-go="3">3</a>）。</li>
+      <li>画面は 92,160 バイトの列。フレームの終わりに 1 回、ピッチ 640 でテクスチャに写し、640×576 の窓へ引き伸ばす（<a class="xref" href="#s4" data-go="4">4</a>）。</li>
+      <li>音は 512 組ごとにクロージャへ。キューが 8,192 バイトを超えると 1 ms 寝る。計算上、この待ちが全体の速さを決める（<a class="xref" href="#s5" data-go="5">5</a>）。</li>
+      <li>セーブは SRAM を「題名.SAV」に書き、失敗は eprintln! で知らせて続ける。ケーブルの相手がいないので、送るたびに 0xFF を受け取ったことにする（<a class="xref" href="#s6" data-go="6">6</a>）。</li>
+    </ol>
+  </div>
+  <div class="tbl-wrap a-tbl">
+    <table class="gloss">
+      <tbody>
+        <tr><th>M サイクル</th><td>本体の時間の単位。クロック（4,194,304 Hz）の 4 拍で、約 953.67 ns。外側は整数除算で 953 ns として数える。</td></tr>
+        <tr><th>フレーム（PPU）</th><td>PPU が 154 行を描き終える周期。本体では 1 行 114 M サイクル、1 フレーム 17,556 M サイクル（約 16.74 ms、59.73 Hz）。映像の 1 枚の画（第8章）と同じ意味。</td></tr>
+        <tr><th>P1／JOYP（$FF00）</th><td>ジョイパッドのレジスタ。ビット 5・4 に 0 を書いてボタンの組か十字の組を選び、下位 4 ビットは 0 が「押されている」（負論理）。</td></tr>
+        <tr><th><i class="sw e"></i>IF（$FF0F）・IE（$FFFF）</th><td>割り込みの要求と許可の旗。ビット 0 VBlank、1 STAT、2 タイマ、3 シリアル、4 ジョイパッド。飛び先は $40・$48・$50・$58・$60。</td></tr>
+        <tr><th><i class="sw d"></i>buffer（フレームバッファ）</th><td>本体の PPU が書く Vec&lt;u8&gt;。160 × 144 画素 × RGBA 4 バイト ＝ 92,160 バイト。1 行は 640 バイト（ピッチ）。</td></tr>
+        <tr><th><i class="sw d"></i>サンプルとキュー</th><td>48,000 Hz・ステレオ・f32 の PCM。512 組（4,096 バイト）ごとに SDL のキューに積み、未再生が 8,192 バイト（21.3 ms）を超えたら 1 ms 待つ。</td></tr>
+        <tr><th>SRAM（セーブ）</th><td>カートリッジの電池付き RAM。大きさはヘッダ $0149 の符号で 0〜128 KiB。PC では「題名.SAV」のファイルにする。</td></tr>
+        <tr><th>SB・SC（$FF01・$FF02）</th><td>シリアル通信のデータと制御のレジスタ。SC のビット 7 で開始、ビット 0 で内部クロック。相手がいなければ 0xFF を受け取る（Pan Docs）。</td></tr>
+        <tr><th>クロージャと dyn Fn</th><td>外の変数を捕まえた関数。move で持ち主ごと中に移す。Box&lt;dyn Fn(&amp;[f32])&gt; は「&amp;[f32] を受け取る何らかの関数」の箱、Rc は持ち主を数えて共有する包み。</td></tr>
+        <tr><th>分割借用</th><td>同じ構造体でも別の欄なら &amp;mut を同時に取れる規則。joypad と cpu.interrupts を同時に渡せる理由。全体を &amp;mut で渡すと E0499。</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="a-after">
+    <p class="note">この章で教材は終わり。本体のコード（CPU・PPU・APU・カートリッジ）は <a href="https://github.com/take44444/gb-emu">gb-emu のリポジトリ</a>で読める。<a class="xref" href="../index.html">目次</a>の地図から気になる層へ戻るか、<a class="xref" href="01-denshi.html">第1章</a>から通して読み直せる。</p>
+    <nav class="chnav" data-auto aria-label="章の移動"></nav>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+(() => {
+  const U = YT.util, S = YT.svg, A = YT.anim;
+
+  /* ---------- この章で使う部品 ---------- */
+
+  const op = (el, v) => { el.style.opacity = v; };
+  const playing = () => YT.motion.playing;
+  const KW = /\b(fn|let|mut|pub|struct|impl|use|mod|const|match|if|else|for|in|loop|while|break|return|move|self|Self|crate|as|dyn|ref|where|enum|type)\b/g;
+
+  /* 等幅のコードの 1 行。予約語は太字、// から後ろは薄い色。空白は詰めない（pre） */
+  function codeLine(parent, x, y, s, cls) {
+    const t = S.text(x, y, '', { cls: 't-mono pre ' + (cls || 't-sm') }, parent);
+    const ci = s.indexOf('//');
+    const code = ci >= 0 ? s.slice(0, ci) : s, cm = ci >= 0 ? s.slice(ci) : '';
+    let last = 0, m;
+    KW.lastIndex = 0;
+    while ((m = KW.exec(code))) {
+      if (m.index > last) S.el('tspan', { text: code.slice(last, m.index) }, t);
+      S.el('tspan', { text: m[0], cls: 't-b' }, t);
+      last = m.index + m[0].length;
+    }
+    if (last < code.length) S.el('tspan', { text: code.slice(last) }, t);
+    if (cm) S.el('tspan', { text: cm, cls: 't-dim' }, t);
+    return t;
+  }
+  /* コードの板。lines は [行番号, 文字列]（行番号 null は折り返しの続き、'' は見出しの行）。
+     hl(a, b) で a〜b 行め（0 始まり）を照らす。hl() で消す */
+  function codePanel(parent, x, y, w, lines, opts) {
+    opts = opts || {};
+    const lh = opts.lh || 16, pad = 10;
+    const g = S.g({}, parent);
+    const h = pad * 2 + lines.length * lh + 2;
+    S.rect(x, y, w, h, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+    const band = S.rect(x + 3, y, w - 6, lh, { rx: 3, cls: 'f-x-soft', style: { display: 'none' } }, g);
+    const y0 = y + pad + 11;
+    lines.forEach(([ln, s], k) => {
+      const yy = y0 + k * lh;
+      if (ln === '') { S.text(x + pad, yy, s, { cls: 't-xs t-dim' }, g); return; }
+      if (ln != null) S.text(x + pad + 26, yy, String(ln), { cls: 't-xs t-dim t-mono t-end' }, g);
+      codeLine(g, x + pad + 34, yy, s, opts.cls);
+    });
+    const api = {
+      g, h,
+      hl(a, b) {
+        if (a == null) { band.style.display = 'none'; return api; }
+        if (b == null) b = a;
+        S.attrs(band, { y: y0 + a * lh - 12, height: (b - a + 1) * lh });
+        band.style.display = '';
+        return api;
+      }
+    };
+    return api;
+  }
+  /* 枠と題（と小さな説明）の箱 */
+  function box(parent, x, y, w, h, title, sub, cls, tcls) {
+    const g = S.g({}, parent);
+    const r = S.rect(x, y, w, h, { rx: 5, cls: cls || 'f-sf s-rule w1' }, g);
+    const t = S.text(x + w / 2, y + (sub ? h / 2 - 2 : h / 2 + 4), title, { cls: 't-c ' + (tcls || 't-sm t-b') }, g);
+    const s = sub ? S.text(x + w / 2, y + h / 2 + 12, sub, { cls: 't-c t-xs t-dim' }, g) : null;
+    return { g, r, t, s, x, y, w, h };
+  }
+  /* ファイルの絵（右上を折った紙） */
+  function fileIcon(parent, x, y, w, h, name, sub) {
+    const g = S.g({}, parent);
+    const f = 10;
+    const r = S.path(`M${x},${y} H${x + w - f} L${x + w},${y + f} V${y + h} H${x} Z`, { cls: 'f-sf s-rule w1' }, g);
+    S.path(`M${x + w - f},${y} V${y + f} H${x + w}`, { cls: 'f-none s-rule w1' }, g);
+    S.text(x + w / 2, y + (sub ? h / 2 - 1 : h / 2 + 4), name, { cls: 't-c t-sm t-b t-mono' }, g);
+    if (sub) S.text(x + w / 2, y + h / 2 + 13, sub, { cls: 't-c t-xs t-dim' }, g);
+    return { g, r, x, y, w, h };
+  }
+  /* ビットの箱の列（上位が左）。labels は各ビットの小さな名前。set(値の配列) で中身を変える */
+  function bitRow(parent, x, y, n, labels, o) {
+    o = Object.assign({ w: 30, h: 24, gap: 4, fs: 12 }, o || {});
+    const g = S.g({}, parent);
+    const bits = [];
+    for (let k = 0; k < n; k++) {
+      const cx = x + k * (o.w + o.gap) + o.w / 2;
+      bits.push(YT.zoom.bit(g, cx, y + o.h / 2, o.w, o.h, o.fs));
+      if (labels && labels[k]) S.text(cx, y + o.h + 12, labels[k], { cls: 't-c t-xs t-dim' }, g);
+    }
+    return { g, bits, set(vals) { vals.forEach((v, k) => bits[k].set(v)); return this; }, width: n * (o.w + o.gap) - o.gap };
+  }
+  /* 割り込みの要求の旗（IF のビット）。1 のときは e（割り込み）の色にする。set の後に呼ぶ */
+  function irqColor(bit, on) {
+    bit.g.firstChild.setAttribute('class', on ? 'f-e-soft s-e w15' : 'f-in s-rule w1');
+    bit.g.lastChild.setAttribute('class', 't-c t-mono t-b ' + (on ? 't-e' : 't-dim'));
+  }
+  /* 他の章の場面へのリンク（SVG の a） */
+  function xlink(parent, x, y, href, label, end) {
+    const a = S.el('a', { href, 'aria-label': label }, parent);
+    S.text(x, y, label + ' ↗', { cls: 't-xs t-mid' + (end ? ' t-end' : '') }, a);
+    return a;
+  }
+  /* 文の列（段階ごとの具体的な値の追跡） */
+  function trace(parent, x, y, lines, lh) {
+    return lines.map((s, k) => {
+      const cls = typeof s === 'string' ? 't-sm' : s[1];
+      return S.text(x, y + k * (lh || 20), typeof s === 'string' ? s : s[0], { cls: cls + ' pre' }, parent);
+    });
+  }
+
+  /* ================================================================
+     場面1 全体の形
+     値は例: ROM 32 KiB（$0148 ＝ 0x00）、題名 SAMPLE、RAM 32 KiB（$0149 ＝ 0x03）
+     ================================================================ */
+  const s1 = {
+    steps: [
+      { title: '引数の ROM ファイルを Vec<u8> に読む', text: '`cargo run -- game.gb` で起動の引数に ROM を渡す。`env::args()` は引数の列で、0 番は自分の名前。2 個未満なら `exit(1)`。`file2vec` はファイルを開き、`read_to_end` で全部を {d|Vec<u8>}（伸びるバイトの列）に読む。32 KiB なら長さ 32,768。' },
+      { title: '本体を作る：GameBoy::new(cart_rom, save)', text: '`&cartridge_raw` は Vec を借りた `&[u8]`（バイトの並びへの参照）。本体は ROM の $0100〜$014F のヘッダを読み、題名（$0134）、CGB の旗（$0143）、ROM と RAM の大きさ（$0148・$0149）を取り、検査和（$014D）が合わなければ `assert!` で止まる。' },
+      { title: 'SDL で窓・音・入力を開く', text: '`sdl2::init()` は SDL を初期化して `Sdl` を返し、失敗なら `expect` で止まる。`LCD::new` の `sdl.video()` が 640×576 の窓を、`Audio::new` の `sdl.audio()` が 48,000 Hz のキューを開く。`&sdl` は貸すだけで、持ち主は Emulator。' },
+      { title: '持ち主を決める：struct Emulator', text: '`Emulator` は `gameboy`・`lcd`・`sdl` の 3 つの欄を**持つ**。`new` が終わっても値が消えないのは、この構造体に移したから。音の閉包だけは `Rc::new(audio.0)` で本体の APU に渡し、APU が持つ（[[5|サンプルをスピーカーに]]）。持ち主が 1 か所に決まるのが所有の規則。' },
+      { title: 'run の輪郭と、層への当てはめ', text: '`run` は `\'running: loop` で回り続け、1 M サイクルごとにイベントを見て本体を 1 歩進め、フレームの終わりに `draw`。本体 GameBoy は[[04-ronri.html#s1|第4章]]〜[[08-display.html#s1|第8章]]の機械をソフトウェアで作り直したもので、SDL の外側が[[09-os.html#s1|第9章]]の OS。残りの場面で、境目の 4 本の道を 1 本ずつ追う。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      // 左: 段階ごとのコード
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'main.rs'],
+        [123, 'fn file2vec(fname: &String) -> Vec<u8> {'],
+        [124, '  if let Ok(mut file) = File::open(fname) {'],
+        [125, '    let mut ret = vec![];'],
+        [126, '    file.read_to_end(&mut ret).unwrap();'],
+        [127, '    ret'],
+        [128, '  } else {'],
+        [129, '    panic!("Cannot open {}.", fname);'],
+        [130, '  }'],
+        [131, '}'],
+        [133, 'fn main() {'],
+        [134, '  let args: Vec<String> = env::args().collect();'],
+        [135, '  if args.len() < 2 {'],
+        [136, '    eprintln!("The file name argument is required.");'],
+        [137, '    exit(1);'],
+        [138, '  }'],
+        [139, '  let cartridge_raw = file2vec(&args[1]);'],
+        [140, '  let save = if args.len() >= 3 { file2vec(&args[2]) }'],
+        [null, '             else { vec![] };'],
+        [142, '  let mut emulator = Emulator::new(&cartridge_raw, &save);'],
+        [143, '  emulator.run();'],
+        [144, '}']
+      ]).hl(1, 9);
+      panel([
+        ['', 'gameboy.rs（本体）'],
+        [18, 'pub fn new(cart_rom: &[u8], save: &[u8]) -> Self {'],
+        [19, '  let cartridge = Cartridge::new(cart_rom.into(),'],
+        [null, '    if save.len() > 0 { Some(save.to_vec()) }'],
+        [null, '    else { None });'],
+        [24, '  let is_cgb = cartridge.is_cgb;'],
+        [25, '  let bootrom = Bootrom::new();'],
+        [26, '  let peripherals ='],
+        [null, '    Peripherals::new(bootrom, cartridge, is_cgb);'],
+        [27, '  let cpu = Cpu::new();'],
+        [28, '  Self { cpu, peripherals }'],
+        [32, '}'],
+        ['', 'cartridge.rs（本体、Cartridge::new の抜粋）'],
+        [68, 'let header = CartridgeHeader::new('],
+        [null, '  rom[0x100..0x150].try_into().unwrap());'],
+        [70, 'let title = str::from_utf8(&header.title).unwrap()'],
+        [null, '  .trim_end_matches(\'\\0\').to_string();'],
+        [71, 'let is_cgb = header.cgb_flag[0] == 0x80'],
+        [null, '  || header.cgb_flag[0] == 0xc0;'],
+        [72, 'let rom_size = header.rom_size();'],
+        [73, 'let sram_size = header.sram_size();'],
+        [94, 'let sram = save.unwrap_or(vec![0; sram_size]);']
+      ]).hl(13, 14);
+      panel([
+        ['', 'main.rs（impl Emulator）'],
+        [56, 'pub fn new(cart_rom: &[u8], save: &[u8]) -> Self {'],
+        [57, '  let mut gameboy = GameBoy::new(cart_rom, save);'],
+        [58, '  let sdl = sdl2::init().expect("failed to initialize SDL");'],
+        [59, '  let lcd = LCD::new(&sdl, 4);'],
+        [60, '  let audio = Audio::new(&sdl);'],
+        [61, '  gameboy.peripherals.apu.set_callback(Rc::new(audio.0));'],
+        [62, '  Self { gameboy, lcd, sdl }'],
+        [67, '}'],
+        ['', 'lcd.rs（LCD::new の抜粋）'],
+        [14, 'let window = sdl.video().expect("...")'],
+        [15, '  .window("gb-emu", LCD_WIDTH as u32 * scale,'],
+        [null, '          LCD_HEIGHT as u32 * scale)'],
+        [16, '  .position_centered().resizable().build().expect("...");'],
+        ['', 'audio.rs（Audio::new の抜粋）'],
+        [20, 'let audio_queue: AudioQueue<f32> = audio.open_queue(None,'],
+        [21, '  &AudioSpecDesired { freq: Some(SAMPLE_RATE as i32),'],
+        [null, '    channels: Some(2), samples: Some(SAMPLES as u16 * 2) })'],
+        [26, '  .expect("failed to create audio queue");']
+      ]).hl(3, 6);
+      panel([
+        ['', 'main.rs'],
+        [49, 'pub struct Emulator {'],
+        [50, '  gameboy: GameBoy,'],
+        [51, '  lcd: LCD,'],
+        [52, '  sdl: Sdl,'],
+        [53, '}'],
+        ['', 'lcd.rs ／ audio.rs（中身 1 つの構造体）'],
+        [10, 'pub struct LCD(Canvas<Window>);'],
+        [13, 'pub struct Audio(pub Box<dyn Fn(&[f32])>);'],
+        ['', 'main.rs（Emulator::new の終わり）'],
+        [61, '  gameboy.peripherals.apu.set_callback(Rc::new(audio.0));'],
+        [62, '  Self {'],
+        [63, '    gameboy,   // 欄の名前と変数の名前が同じなら省ける'],
+        [64, '    lcd,'],
+        [65, '    sdl,'],
+        [66, '  }']
+      ]).hl(1, 5);
+      panel([
+        ['', 'main.rs（run。中身は場面2〜6）'],
+        [69, 'pub fn run(&mut self) {'],
+        [70, '  let mut event_pump = self.sdl.event_pump().unwrap();'],
+        [71, '  let time = time::Instant::now();'],
+        [72, '  let mut elapsed = 0;'],
+        [73, "  'running: loop {"],
+        [74, '    let e = time.elapsed().as_nanos();'],
+        [75, '    for _ in 0..(e - elapsed) / M_CYCLE_NANOS {'],
+        [76, '      for event in event_pump.poll_iter() { … }   // 場面3'],
+        [92, '      if self.gameboy.emulate_cycle() {              // 場面2'],
+        [93, '        self.lcd.draw(&self.gameboy.peripherals.ppu.buffer);'],
+        [94, '      }                                             // 場面4'],
+        [95, '      if self.gameboy.peripherals.serial.send().is_some() {'],
+        [96, '        self.gameboy.peripherals.serial.recv(0xFF); // 場面6'],
+        [97, '      }'],
+        [98, '      elapsed += M_CYCLE_NANOS;'],
+        [99, '    }'],
+        [100, '  }'],
+        [101, '}']
+      ]).hl(5, 7);
+      // 左下: 段階ごとの具体的な値
+      st.tr = S.g({}, svg);
+      // 右: PC の中
+      const g = st.g = S.g({}, svg);
+      S.rect(490, 22, 454, 524, { rx: 8, cls: 'f-none s-dim w1 dash' }, g);
+      S.text(502, 40, 'PC（OS ＋ SDL2）', { cls: 't-xs t-dim' }, g);
+      st.rom = fileIcon(g, 500, 54, 96, 44, 'game.gb', '32,768 バイト');
+      st.sav = fileIcon(g, 626, 54, 128, 44, 'SAMPLE.SAV', 'SRAM の写し');
+      st.key = box(g, 782, 54, 150, 44, 'キーボード', 'W A S D ／ 1 2 3 4');
+      st.emu = S.rect(506, 134, 426, 236, { rx: 6, cls: 'f-sf s-fg w15' }, g);
+      st.emuLbl = S.text(514, 150, 'Emulator（main.rs）', { cls: 't-xs t-dim' }, g);
+      st.gb = S.rect(518, 166, 250, 192, { rx: 5, cls: 'f-in s-rule w1' }, g);
+      st.gbLbl = S.text(526, 350, 'gameboy: GameBoy（本体 gbemu）', { cls: 't-xs t-dim' }, g);
+      st.parts = {};
+      [['cartridge', 530], ['joypad', 589], ['ppu', 648], ['apu', 707]].forEach(([n, x]) => {
+        st.parts[n] = box(g, x, 200, 54, 28, n, null, 'f-sf s-rule w1', 't-xs t-mono t-b');
+      });
+      S.text(540, 292, 'cpu ／ timer ／ serial', { cls: 't-xs t-dim t-mono' }, g);
+      S.text(540, 308, 'wram ／ hram ／ bootrom', { cls: 't-xs t-dim t-mono' }, g);
+      st.sdl = box(g, 784, 166, 136, 44, 'sdl: Sdl', 'event_pump');
+      st.clo = box(g, 784, 224, 136, 44, 'Audio の閉包', 'Rc<dyn Fn(&[f32])>');
+      st.lcd = box(g, 784, 282, 136, 44, 'lcd: LCD', 'Canvas<Window>');
+      // 窓
+      const gw = S.g({}, g);
+      st.win = S.rect(510, 400, 160, 126, { rx: 4, cls: 'f-sf s-rule w1' }, gw);
+      S.rect(510, 400, 160, 16, { rx: 4, cls: 'f-in' }, gw);
+      S.text(590, 412, 'gb-emu（640×576）', { cls: 't-c t-xs t-dim' }, gw);
+      S.rect(535, 424, 110, 99, { cls: 'f-in s-rule w1' }, gw);
+      for (let k = 0; k < 6; k++) S.rect(545 + (k % 3) * 32, 436 + Math.floor(k / 3) * 36, 22, 22, { cls: k % 2 ? 'f-dim' : 'f-rule' }, gw);
+      st.spk = box(g, 720, 404, 196, 60, '音の装置', '48,000 Hz・ステレオ');
+      st.layer = S.g({ cls: 'fade hide' }, g);
+      S.text(818, 494, 'GameBoy ＝ 第4〜8章の機械をソフトウェアで', { cls: 't-c t-xs' }, st.layer);
+      S.text(818, 512, 'SDL の外 ＝ 第9章の OS', { cls: 't-c t-xs' }, st.layer);
+      S.text(818, 530, '外側の 218 行 ＝ その境目', { cls: 't-c t-xs t-b t-x' }, st.layer);
+      // 道（粒が流れる）
+      const road = (d, color) => S.path(d, { cls: 'f-none s-rule w15' }, g);
+      const P = st.P = {
+        rom: road('M548,98 V200'),
+        sav: road('M690,98 V158 H566 V200'),
+        key: road('M857,98 V166'),
+        sdlJoy: road('M784,178 H616 V200'),
+        ppuLcd: road('M675,228 V304 H784'),
+        apuClo: road('M734,228 V246 H784'),
+        lcdWin: road('M852,326 V384 H590 V400'),
+        cloSpk: road('M920,246 H938 V392 H818 V404')
+      };
+      st.F = {};
+      for (const k in P) st.F[k] = A.flow(P[k], { count: k === 'rom' || k === 'key' ? 4 : 6, speed: 0, r: 3, cls: 'f-d', parent: g });
+      st.arrowHeads = {};
+      // 矢印の先（向きの印）
+      [['rom', 548, 196, 'v'], ['key', 857, 162, 'v'], ['sdlJoy', 616, 196, 'v'], ['ppuLcd', 780, 304, 'h'], ['apuClo', 780, 246, 'h'], ['lcdWin', 590, 396, 'v'], ['cloSpk', 818, 400, 'v']].forEach(([k, x, y, dir]) => {
+        st.arrowHeads[k] = S.path(dir === 'v' ? `M${x - 4},${y - 5} L${x},${y} L${x + 4},${y - 5}` : `M${x - 5},${y - 4} L${x},${y} L${x - 5},${y + 4}`, { cls: 'f-none s-rule w15 round' }, g);
+      });
+      st.savHead = S.path('M562,196 L566,200 L570,196', { cls: 'f-none s-rule w15 round' }, g);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      st.C.forEach((c, k) => S.fade(c.g, k === i));
+      const T = [
+        ['args ＝ ["gb-emu", "game.gb"]　args.len() ＝ 2 → 続行', 'file2vec("game.gb") → Vec<u8>、長さ 32,768（32 KiB の ROM の例）', 'save ＝ vec![]（引数が 2 個なので長さ 0）', '読んだ列は関数の外へ返り、持ち主が main の変数に移る'],
+        ['ヘッダ $0100〜$014F（80 バイト）を読む', '$0134 題名 "SAMPLE"　$0143 CGB 0x00 → 白黒の機種', '$0148 ROM 0x00 → 32 KiB　$0149 RAM 0x03 → 32 KiB', '$014D 検査和: $0134〜$014C を x ＝ x − b − 1 で畳んで比べる'],
+        ['sdl2::init() → Sdl（OS の窓・音・入力の入口）', 'LCD::new(&sdl, 4): 窓は 160×4 ＝ 640、144×4 ＝ 576', 'Audio::new(&sdl): 48,000 Hz・2 ch・f32 のキュー', '&sdl は借りるだけ。持ち主は Emulator の欄 sdl'],
+        ['Emulator { gameboy, lcd, sdl } ← 3 つの値の持ち主', 'audio.0 → Rc::new → 本体の apu.callback（APU が持つ）', 'Emulator は main の変数 emulator が持ち、run() を呼ぶ', 'main が終わると emulator ごと解放される（drop）'],
+        ['1 M サイクルごと: イベント → 本体を 1 歩 → 画面 → シリアル', '本体 GameBoy ＝ 第4〜8章の機械（CPU・記憶・入出力・画面と音）', 'SDL の外 ＝ 第9章の OS（窓・音・入力・ファイル）', '場面2〜6 で、境目の 4 本の道を 1 本ずつ追う']
+      ];
+      S.clear(st.tr);
+      trace(st.tr, 20, 398, T[i].map((s, k) => [s, k === 0 ? 't-sm t-b' : 't-sm']), 22);
+      // 注目する箱
+      const hl = (b, on) => b.r.setAttribute('class', on ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      hl(st.rom, i === 0); hl(st.sav, false); hl(st.key, i === 4);
+      hl(st.parts.cartridge, i <= 1); hl(st.parts.joypad, i === 4); hl(st.parts.ppu, i === 4); hl(st.parts.apu, i === 4);
+      hl(st.sdl, i === 2 || i === 3); hl(st.lcd, i === 2 || i === 3); hl(st.clo, i === 2 || i === 3); hl(st.spk, i === 2);
+      st.win.setAttribute('class', i === 2 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.gb.setAttribute('class', i === 1 || i === 3 ? 'f-in s-x w2' : 'f-in s-rule w1');
+      st.emu.setAttribute('class', i === 3 ? 'f-sf s-x w2' : 'f-sf s-fg w15');
+      st.emuLbl.textContent = i === 3 ? 'Emulator が持つ 3 つの欄' : 'Emulator（main.rs）';
+      st.emuLbl.setAttribute('class', 't-xs ' + (i === 3 ? 't-x t-b' : 't-dim'));
+      st.clo.t.textContent = i === 3 ? '閉包（APU が持つ）' : 'Audio の閉包';
+      S.fade(st.layer, i === 4);
+      // 粒の流れ
+      const sp = { rom: i === 0 ? 70 : 0, sav: i === 4 ? -50 : 0, key: i === 4 ? 70 : 0, sdlJoy: i === 4 ? 70 : 0, ppuLcd: i === 4 ? 80 : 0, apuClo: i === 4 ? 70 : 0, lcdWin: i === 4 ? 80 : 0, cloSpk: i === 4 ? 80 : 0 };
+      for (const k in st.F) { st.F[k].set('speed', sp[k]).show(sp[k] !== 0).reset(); if (sp[k] !== 0) st.F[k].update(0); }
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state;
+      for (const k in st.F) if (st.F[k].o.speed) st.F[k].update(dt);
+    }
+  };
+
+  /* ================================================================
+     場面2 時計を合わせる
+     953 ＝ 4 × 10⁹ ÷ 4,194,304 の整数除算（正確には 953.674…）。1 行 ＝ 20 ＋ 43 ＋ 51 ＝ 114 M サイクル（ppu.rs の cycles）、
+     154 行 ＝ 17,556 M サイクル ＝ 16.73 ms（953 ns）。時間軸の「止まる所」は例
+     ================================================================ */
+  const X0 = 60, NS2PX = 880 / 20000;              // 時間軸: 20 µs を 880px に
+  const s2 = {
+    steps: [
+      { title: '定数：1 M サイクル ＝ 953 ナノ秒', text: 'クロックは 4,194,304 Hz（Pan Docs）。CPU の命令はその 4 拍を 1 単位（**M サイクル**）として進み、`emulate_cycle` も 1 回で 4 拍ぶん進める。`M_CYCLE_NANOS` ＝ 4 × 10⁹ ÷ 4,194,304 ＝ 953.67… を整数除算で **953** に切り捨てる。' },
+      { title: '経過した時間を 953 で割った回数だけ進める', text: '`time.elapsed().as_nanos()` が起動からの実時間 e（ナノ秒）、`elapsed` は本体に進めた時間。差を 953 で割った回数だけ `for` を回し、1 回ごとに `elapsed += 953`。1 ms 遅れていれば 1,049 回を続けて回して追いつく。差が 953 未満なら 0 回で次の周へ。' },
+      { title: '1 M サイクルの中身（本体の gameboy.rs）', text: '`emulate_cycle` は CPU → タイマ → シリアル → APU → DMA → PPU の順にそれぞれ 1 M サイクルぶん進め、PPU の戻り値（フレームが終わったか）を `bool` で返す。外側はこの `bool` を見て `draw` するだけで、順番も中身も知らなくてよい。' },
+      { title: '1 フレーム ＝ 17,556 M サイクル', text: '実機は 1 行 456 ドット × 154 行。本体は 1 行を 20 ＋ 43 ＋ 51 ＝ 114 M サイクルに固定し、154 行で 17,556 M サイクル。953 ns なら 16.73 ms ごとに `true` が返り、毎秒 59.77 回 `draw` を呼ぶ計算になる（実機は 59.73 Hz）。' },
+      { title: '切り捨てのずれと、待たないループ', text: '953 は正確な値より 0.07% 短いので、この時計だけなら 1 時間に約 2.5 秒速い。ただし[[5|サンプルをスピーカーに]]の音の待ちが先に効くので、実際は音の時計に合う（計算上）。ループは待たずに回り続け、CPU の 1 コアを使い切る。イベントも `for` の中で見るので、0 回の周では見ない。' },
+      { title: 'ラベル付きの break で 2 重のループを抜ける', text: '`\'running` は外側の `loop` に付けた名前。中の `for` と `match` の奥から `break \'running` と書くと、外側の `loop` ごと抜けて `run` が終わる。抜けるのは窓を閉じた `Event::Quit` と、`Escape` を押したとき。`_ => ()` はそれ以外のイベントを捨てる腕。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'main.rs'],
+        [31, 'const CPU_CLOCK_HZ: u128 = 4_194_304;'],
+        [32, 'const M_CYCLE_CLOCK: u128 = 4;'],
+        [33, 'const M_CYCLE_NANOS: u128 ='],
+        [null, '  M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;  // = 953'],
+        [69, 'pub fn run(&mut self) {'],
+        [70, '  let mut event_pump = self.sdl.event_pump().unwrap();'],
+        [71, '  let time = time::Instant::now();'],
+        [72, '  let mut elapsed = 0;'],
+        [73, "  'running: loop {"],
+        [74, '    let e = time.elapsed().as_nanos();'],
+        [75, '    for _ in 0..(e - elapsed) / M_CYCLE_NANOS {'],
+        [76, '      for event in event_pump.poll_iter() { … }'],
+        [92, '      if self.gameboy.emulate_cycle() {'],
+        [93, '        self.lcd.draw(&self.gameboy.peripherals.ppu.buffer);'],
+        [98, '      elapsed += M_CYCLE_NANOS;'],
+        [99, '    }'],
+        [100, '  }']
+      ]);
+      panel([
+        ['', 'gameboy.rs（本体）'],
+        [34, 'pub fn emulate_cycle(&mut self) -> bool {'],
+        [35, '  self.cpu.emulate_cycle(&mut self.peripherals);'],
+        [36, '  self.peripherals.timer'],
+        [null, '    .emulate_cycle(&mut self.cpu.interrupts);'],
+        [37, '  self.peripherals.serial'],
+        [null, '    .emulate_cycle(&mut self.cpu.interrupts);'],
+        [38, '  self.peripherals.apu.emulate_cycle();'],
+        [39, '  if let Some(addr) = self.peripherals.ppu.oam_dma { … }'],
+        [42, '  if let Some(_) = self.peripherals.ppu.hblank_dma { … }'],
+        [49, '  if let Some(len) = self.peripherals.ppu.general_dma { … }'],
+        [56, '  self.peripherals.ppu'],
+        [null, '    .emulate_cycle(&mut self.cpu.interrupts)'],
+        ['', 'ppu.rs（本体、emulate_cycle の抜粋）'],
+        [259, '  self.cycles -= 1;'],
+        [260, '  if self.cycles > 0 { return false; }'],
+        [284, '  Mode::VBlank => { self.ly += 1;'],
+        [286, '    if self.ly > 153 { ret = true; self.ly = 0; … }']
+      ]).hl(1, 12);
+      panel([
+        ['', 'ppu.rs（本体、1 行を 3 つのモードで進める。詰めた）'],
+        [300, 'Mode::OamScan => {'],
+        [301, '  self.mode = Mode::Drawing; self.cycles = 43; },'],
+        [304, 'Mode::Drawing => {'],
+        [305, '  self.render();                 // buffer に 1 行書く'],
+        [306, '  self.mode = Mode::HBlank; self.cycles = 51; … },'],
+        [266, 'Mode::HBlank => {'],
+        [267, '  self.ly += 1;'],
+        [268, '  if self.ly < 144 {'],
+        [269, '    self.mode = Mode::OamScan; self.cycles = 20;'],
+        [274, '  } else {'],
+        [275, '    self.mode = Mode::VBlank; self.cycles = 114;'],
+        [277, '    interrupts.irq(interrupts::VBLANK);'],
+        [281, '  } … },'],
+        [284, 'Mode::VBlank => {'],
+        [285, '  self.ly += 1;'],
+        [286, '  if self.ly > 153 { ret = true; self.ly = 0; … }'],
+        [295, '  else { self.cycles = 114; } … },']
+      ]).hl(1, 5);
+      panel([
+        ['', 'main.rs（run の中。抜粋）'],
+        [73, "  'running: loop {"],
+        [74, '    let e = time.elapsed().as_nanos();'],
+        [75, '    for _ in 0..(e - elapsed) / M_CYCLE_NANOS {'],
+        [76, '      for event in event_pump.poll_iter() {'],
+        [77, '        match event {'],
+        [78, "          Event::Quit { .. } => break 'running,"],
+        [81, '          Event::KeyDown { keycode: Some(k), .. } => {'],
+        [82, "            if k == Keycode::Escape { break 'running }"],
+        [83, '            …'],
+        [84, '          },'],
+        [89, '          _ => (),'],
+        [90, '        }'],
+        [91, '      }'],
+        [99, '    }'],
+        [100, '  }'],
+        [101, "}   // 'running を抜けると run が終わり、main も終わる"]
+      ]).hl(6, 8);
+      // 右上: 1 M サイクルの中身
+      const g = st.g = S.g({}, svg);
+      S.text(496, 36, 'emulate_cycle の 1 回 ＝ 1 M サイクル（gameboy.rs の順）', { cls: 't-sm t-b' }, g);
+      st.pipe = ['cpu', 'timer', 'serial', 'apu', 'DMA', 'ppu'].map((n, k) => {
+        const x = 496 + k * 74;
+        const b = box(g, x, 48, 66, 32, n, null, 'f-sf s-rule w1', 't-sm t-mono t-b');
+        if (k < 5) S.path(`M${x + 66},64 H${x + 74}`, { cls: 'f-none s-dim w15' }, g);
+        return b;
+      });
+      S.text(942, 44, '→ bool', { cls: 't-end t-xs t-mono t-dim' }, g);
+      S.text(496, 104, '戻り値は PPU の bool。154 行めを終えて次のフレームに入るときだけ true', { cls: 't-xs t-dim' }, g);
+      S.text(496, 122, '外側はこの bool だけを見て draw を呼ぶ（場面4）', { cls: 't-xs t-dim' }, g);
+      // 右中: 1 フレームの長さ（段階4 から）
+      const gf = st.gf = S.g({ cls: 'fade hide' }, svg);
+      S.text(496, 166, '1 フレーム ＝ 154 行 × 114 M サイクル ＝ 17,556 M サイクル', { cls: 't-sm t-b' }, gf);
+      S.rect(496, 182, 411, 24, { rx: 3, cls: 'f-d-soft s-d w1' }, gf);
+      S.rect(907, 182, 29, 24, { rx: 3, cls: 'f-in s-rule w1' }, gf);
+      S.text(500, 222, '行 0', { cls: 't-xs t-dim' }, gf);
+      S.text(700, 198, '描く 144 行（行 0〜143）', { cls: 't-c t-xs t-d t-b' }, gf);
+      S.text(921, 176, 'VBlank', { cls: 't-c t-xs t-dim' }, gf);
+      S.text(921, 222, '10 行', { cls: 't-c t-xs t-dim' }, gf);
+      st.fMark = S.line(496, 178, 496, 210, { cls: 's-x w2' }, gf);
+      st.fTag = S.label(gf, 880, 236, 'true → draw', { cls: 't-xs t-b t-x', box: 'f-sf s-x w15' });
+      S.text(496, 258, '1 行 ＝ 114 M サイクル（本体は固定。実機の描画は 43〜72、HBlank は 22〜51 と変わる）', { cls: 't-xs t-dim' }, gf);
+      [[496, 77, 'OAM 走査 20', 'f-in s-rule w1'], [573, 166, '描画 43（buffer に 1 行書く）', 'f-d-soft s-d w1'], [739, 197, 'HBlank 51', 'f-in s-rule w1']].forEach(([x, w, s, cls]) => {
+        S.rect(x, 266, w, 22, { rx: 3, cls }, gf);
+        S.text(x + w / 2, 281, s, { cls: 't-c t-xs' }, gf);
+      });
+      S.text(496, 310, '17,556 × 953 ns ＝ 16.73 ms → 毎秒 59.77 回 true（実機は 16.74 ms、59.73 Hz）', { cls: 't-xs' }, gf);
+      // 下: 時間軸
+      const gt = st.gt = S.g({}, svg);
+      S.text(16, 346, '実時間 e と本体の時間 elapsed（幅 20 µs ＝ 21 M サイクルぶん。「止まる」所は例で、誇張）', { cls: 't-xs t-dim' }, gt);
+      S.text(54, 396, '実時間 e', { cls: 't-end t-sm t-b' }, gt);
+      S.line(X0, 392, X0 + 880, 392, { cls: 's-mid w15' }, gt);
+      for (let u = 0; u <= 20; u += 2) {
+        const x = X0 + u * 1000 * NS2PX;
+        S.line(x, 387, x, 397, { cls: 's-mid w1' }, gt);
+        S.text(x, 410, u === 20 ? '20 µs' : String(u), { cls: 't-c t-xs t-mono t-dim' }, gt);
+      }
+      S.rect(X0 + 8000 * NS2PX, 380, 5000 * NS2PX, 24, { rx: 3, cls: 'f-x-soft' }, gt);
+      S.text(X0 + 10500 * NS2PX, 426, 'ほかの仕事で 5 µs 止まる（例）', { cls: 't-c t-xs t-x' }, gt);
+      S.text(54, 456, 'elapsed', { cls: 't-end t-sm t-b t-mono' }, gt);
+      st.blocks = [];
+      for (let k = 0; k < 21; k++) {
+        const x = X0 + k * 953 * NS2PX;
+        const r = S.rect(x + 1, 440, 953 * NS2PX - 2, 22, { rx: 2, cls: 'f-d-soft s-d w1' }, gt);
+        st.blocks.push(r);
+      }
+      S.text(X0 + 953 * NS2PX / 2, 455, '953 ns', { cls: 't-c t-xs t-mono t-d' }, gt);
+      st.cursor = S.line(X0, 372, X0, 466, { cls: 's-x w15' }, gt);
+      st.eLbl = S.text(X0, 366, '', { cls: 't-xs t-mono t-x t-b' }, gt);
+      st.c1 = S.text(60, 492, '', { cls: 't-sm t-mono' }, gt);
+      st.c2 = S.text(60, 514, '', { cls: 't-sm t-mono' }, gt);
+      st.c3 = S.text(60, 536, '', { cls: 't-sm t-mono t-dim' }, gt);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const which = i === 2 ? 1 : i === 3 ? 2 : i === 5 ? 3 : 0;
+      st.C.forEach((c, k) => S.fade(c.g, k === which));
+      if (which === 0) st.C[0].p.hl(...(i === 0 ? [1, 4] : i === 1 ? [10, 11] : [11, 11]));
+      S.fade(st.gf, i >= 3);
+      st.pipe.forEach((b) => b.r.setAttribute('class', 'f-sf s-rule w1'));
+      op(st.g, i === 2 || i === 3 ? '' : 0.55);
+      op(st.gt, i === 3 ? 0.45 : '');
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 時間軸: 12 秒で 1 周（10 秒で 20 µs 進み、2 秒止まる）。止めている人には、追いついた直後の姿
+      const tt = playing() ? U.mod(ctx.ts, 12) : 6.9;
+      const e = Math.min(20000, tt * 2000);
+      let done;                                   // 本体に進めた M サイクルの数
+      if (e < 8000) done = Math.floor(e / 953);
+      else if (e < 13000) done = 8;
+      else if (e < 13800) done = Math.min(13, 8 + Math.floor((e - 13000) / 160));   // 5 回を 0.4 秒で続けて回す
+      else done = Math.floor(e / 953);
+      const elapsed = done * 953;
+      st.blocks.forEach((r, k) => { r.style.display = k < done ? '' : 'none'; });
+      const cx = X0 + e * NS2PX;
+      S.attrs(st.cursor, { x1: cx, x2: cx });
+      st.eLbl.textContent = 'e ＝ ' + U.fmt(e) + ' ns';
+      S.attrs(st.eLbl, { x: cx > 820 ? cx - 4 : cx + 4, 'text-anchor': cx > 820 ? 'end' : 'start' });
+      const n = Math.floor((e - elapsed) / 953);
+      st.c1.textContent = 'e ＝ ' + U.fmt(e) + ' ns　　elapsed ＝ ' + U.fmt(elapsed) + ' ns（' + done + ' 回 × 953）';
+      if (e >= 8000 && e < 13000) st.c2.textContent = '(e − elapsed) ÷ 953 ＝ ' + n + '　← ループが回っていないので進めない';
+      else if (e >= 13000 && e < 13800) st.c2.textContent = '(13,000 − 7,624) ÷ 953 ＝ 5 → 5 回続けて進めて追いつく';
+      else st.c2.textContent = '(e − elapsed) ÷ 953 ＝ ' + n + '　← 周ごとに 0 回か 1 回';
+      st.c3.textContent = '累計 ' + done + ' M サイクル。次の true（フレームの終わり）まで ' + U.fmt(17556 - done) + ' M サイクル';
+      // 1 M サイクルの中身: 段階3 では順に照らす
+      if (i === 2) {
+        const k = playing() ? Math.floor(U.mod(ctx.ts, 3.6) / 0.6) : 5;
+        st.pipe.forEach((b, j) => b.r.setAttribute('class', j === k ? 'f-x-soft s-x w2' : 'f-sf s-rule w1'));
+      }
+      // 1 フレーム: 4 秒で 1 周
+      if (i >= 3) {
+        const f = playing() ? U.cycle(ctx.ts, 4) : 0.97;
+        S.attrs(st.fMark, { x1: 496 + f * 440, x2: 496 + f * 440 });
+        op(st.fTag, f > 0.935 ? 1 : 0);
+      }
+    }
+  };
+
+  /* ================================================================
+     場面3 キーボードをボタンに
+     ビットの並びは Pan Docs の P1: ビット 3 Start/Down、2 Select/Up、1 B/Left、0 A/Right（0 が押されている）。
+     例: W（Up）を押す → direction ＝ 0xFB、mode ＝ 0x20 で読むと 0xEB
+     ================================================================ */
+  const S3MAP = [['W', 'Button::Up', 'direction', '0b0100', 2], ['S', 'Button::Down', 'direction', '0b1000', 3], ['A', 'Button::Left', 'direction', '0b0010', 1], ['D', 'Button::Right', 'direction', '0b0001', 0],
+    ['1', 'Button::A', 'action', '0b0001', 0], ['2', 'Button::B', 'action', '0b0010', 1], ['3', 'Button::Select', 'action', '0b0100', 2], ['4', 'Button::Start', 'action', '0b1000', 3]];
+  const s3 = {
+    steps: [
+      { title: 'イベントを取り出す：poll_iter と match', text: '`poll_iter()` は溜まった OS のイベントを順に返す反復子で、無ければすぐ終わる。`match event` で種類ごとに腕を分ける。`Event::KeyDown { keycode: Some(k), .. }` は「キーが押され、番号が分かる」場合だけに合い、`k` に番号が入る。`..` は残りの欄を見ない印。' },
+      { title: 'key2joy：キーを Option<Button> に写す', text: '`key2joy` は `match` で W → `Some(Button::Up)`、1 → `Some(Button::A)` と写し、どれでもなければ `None`。型 `Option<Button>` が「無いことがある」と宣言する。呼ぶ側の `.map(|j| …)` は `Some` のときだけ閉包を動かし、`None` なら何もしない。' },
+      { title: 'button_down：ビットを 0 に倒し、割り込みを要求する', text: '入力は負論理で、0 が「押されている」。`Button::Up` の `as_direction()` は 0b0100。`direction &= !0b0100` で 0xFF → **0xFB**。同時に `interrupts.irq(JOYPAD)` が IF（$FF0F）のビット 4 を立てる。[[07-shuuhen.html#s3|第7章 場面3]]の割り込み線の代わり。' },
+      { title: 'ゲームが P1（$FF00）を読む', text: 'ゲームはビット 5・4 に 0 を書いて読む組を選ぶ。十字キーなら 0x20 を書き（`mode` ＝ 0x20）、読むと `0xCF | 0x20` ＝ 0xEF、ビット 4 が 0 なので `& direction` ＝ 0xEF & 0xFB ＝ **0xEB**。ビット 2 が 0 なので、ゲームは「上」と知る。' },
+      { title: '離す・Escape・Enter', text: '`KeyUp` では `button_up` が `|=` でビットを 1 に戻す。同じ腕で `Enter`（`Keycode::Return`）ならセーブ（[[6|セーブとケーブル]]）。`KeyDown` の `Escape` は `break \'running` でループを抜ける。押す・離すが別のイベントなので、押している間はビットが 0 のまま。' },
+      { title: 'なぜ &mut を 2 つ同時に取れるのか', text: '`joypad.button_down(&mut …cpu.interrupts, j)` は、`peripherals.joypad` を `&mut self` として、`cpu.interrupts` を引数として同時に借りる。構造体の**別の欄**への借用は別物（分割借用）なので通る。全体を `&mut` で渡すと E0499。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'main.rs（run の中）'],
+        [76, 'for event in event_pump.poll_iter() {'],
+        [77, '  match event {'],
+        [78, "    Event::Quit { .. } => break 'running,"],
+        [79, '    Event::Window { win_event: WindowEvent::Resized(w, h),'],
+        [null, '      .. } => self.lcd.resize(w as u32, h as u32),'],
+        [81, '    Event::KeyDown { keycode: Some(k), .. } => {'],
+        [82, "      if k == Keycode::Escape { break 'running }"],
+        [83, '      key2joy(k).map(|j| self.gameboy.peripherals.joypad'],
+        [null, '        .button_down(&mut self.gameboy.cpu.interrupts, j));'],
+        [84, '    },'],
+        [85, '    Event::KeyUp { keycode: Some(k), .. } => {'],
+        [86, '      if k == Keycode::Return { self.save_to_file() }'],
+        [87, '      key2joy(k).map(|j| self.gameboy.peripherals.joypad'],
+        [null, '        .button_up(j));'],
+        [88, '    },'],
+        [89, '    _ => (),'],
+        [90, '  }'],
+        [91, '}']
+      ]).hl(1, 6);
+      panel([
+        ['', 'main.rs'],
+        [35, 'fn key2joy(keycode: Keycode) -> Option<Button> {'],
+        [36, '  match keycode {'],
+        [37, '    Keycode::W    => Some(Button::Up),'],
+        [38, '    Keycode::S    => Some(Button::Down),'],
+        [39, '    Keycode::A    => Some(Button::Left),'],
+        [40, '    Keycode::D    => Some(Button::Right),'],
+        [41, '    Keycode::Num4 => Some(Button::Start),'],
+        [42, '    Keycode::Num3 => Some(Button::Select),'],
+        [43, '    Keycode::Num2 => Some(Button::B),'],
+        [44, '    Keycode::Num1 => Some(Button::A),'],
+        [45, '    _ => None,'],
+        [46, '  }'],
+        [47, '}'],
+        ['', 'main.rs 83（呼ぶ側）'],
+        [83, 'key2joy(k).map(|j| … .button_down(…, j));']
+      ]).hl(3, 3);
+      panel([
+        ['', 'joypad.rs（本体。read の空行は詰めた）'],
+        [53, 'pub fn read(&self) -> u8 {'],
+        [54, '  let mut ret = 0xCF | self.mode;'],
+        [55, '  if ret & 0x10 == 0 { ret &= self.direction; }'],
+        [58, '  if ret & 0x20 == 0 { ret &= self.action; }'],
+        [61, '  ret'],
+        [62, '}'],
+        [63, 'pub fn write(&mut self, _: u16, val: u8) {'],
+        [64, '  self.mode = 0x30 & val; }'],
+        [66, 'pub fn button_down(&mut self, interrupts: &mut Interrupts,'],
+        [null, '                   button: Button) {'],
+        [67, '  self.direction &= !button.as_direction();'],
+        [68, '  self.action &= !button.as_action();'],
+        [69, '  interrupts.irq(interrupts::JOYPAD); // intr_flags |= 1<<4'],
+        [70, '}'],
+        [71, 'pub fn button_up(&mut self, button: Button) {'],
+        [72, '  self.direction |= button.as_direction();'],
+        [73, '  self.action |= button.as_action();'],
+        [74, '}']
+      ]).hl(9, 14);
+      panel([
+        ['', 'main.rs 83'],
+        [83, 'key2joy(k).map(|j| self.gameboy.peripherals.joypad'],
+        [null, '    .button_down(&mut self.gameboy.cpu.interrupts, j));'],
+        ['', 'gameboy.rs 12〜15（本体）'],
+        [12, 'pub struct GameBoy {'],
+        [13, '  pub cpu: Cpu,'],
+        [14, '  pub peripherals: Peripherals,'],
+        [15, '}'],
+        ['', 'cpu.rs 49〜53 ／ peripherals.rs 17〜27（抜粋）'],
+        [49, 'pub struct Cpu { …, pub interrupts: Interrupts, … }'],
+        [17, 'pub struct Peripherals { …, pub joypad: Joypad, … }'],
+        ['', 'joypad.rs 66'],
+        [66, 'pub fn button_down(&mut self, interrupts: &mut Interrupts, …)']
+      ]).hl(1, 2);
+      st.tr = S.g({}, svg);
+      // 右上: 対応表
+      const g = st.g = S.g({}, svg);
+      S.text(496, 34, 'キー', { cls: 't-xs t-dim' }, g);
+      S.text(560, 34, 'key2joy →', { cls: 't-xs t-dim' }, g);
+      S.text(690, 34, 'joypad の欄', { cls: 't-xs t-dim' }, g);
+      S.text(790, 34, 'as_*() のビット', { cls: 't-xs t-dim' }, g);
+      S.line(490, 40, 944, 40, { cls: 's-rule w1' }, g);
+      st.rows = S3MAP.map((r, k) => {
+        const y = 56 + k * 16;
+        const bg = S.rect(490, y - 11, 454, 15, { rx: 3, cls: 'f-x-soft', style: { opacity: 0 } }, g);
+        const cap = S.rect(496, y - 10, 18, 13, { rx: 2, cls: 'f-sf s-rule w1' }, g);
+        S.text(505, y, r[0], { cls: 't-c t-xs t-mono t-b' }, g);
+        S.text(560, y, r[1], { cls: 't-xs t-mono' }, g);
+        S.text(690, y, r[2], { cls: 't-xs t-mono' }, g);
+        S.text(790, y, r[3] + '（ビット ' + r[4] + '）', { cls: 't-xs t-mono' }, g);
+        return { bg, cap };
+      });
+      st.qRow = S.text(560, 56 + 8 * 16 + 2, 'Q などほかのキー → None（何もしない）', { cls: 't-xs t-dim' }, g);
+      st.optT = S.text(790, 56 + 8 * 16 + 2, '', { cls: 't-xs t-b t-x' }, g);
+      // 右中: 本体の欄
+      const gr = st.gr = S.g({}, svg);
+      S.text(496, 214, '本体の Joypad の欄（1 ＝ 離している、0 ＝ 押している）', { cls: 't-xs t-dim' }, gr);
+      S.text(496, 244, 'direction', { cls: 't-sm t-mono t-b' }, gr);
+      st.dir = bitRow(gr, 580, 228, 4, ['Down', 'Up', 'Left', 'Right'], { w: 28, h: 22, gap: 6, fs: 12 });
+      st.dirHex = S.text(724, 244, '0xFF', { cls: 't-sm t-mono' }, gr);
+      S.text(496, 294, 'action', { cls: 't-sm t-mono t-b' }, gr);
+      st.act = bitRow(gr, 580, 278, 4, ['Start', 'Select', 'B', 'A'], { w: 28, h: 22, gap: 6, fs: 12 });
+      st.actHex = S.text(724, 294, '0xFF', { cls: 't-sm t-mono' }, gr);
+      S.text(496, 344, 'mode', { cls: 't-sm t-mono t-b' }, gr);
+      st.mode = bitRow(gr, 580, 328, 2, null, { w: 28, h: 22, gap: 6, fs: 12 });
+      st.modeHex = S.text(656, 344, '0x20：ビット 5 ＝ 1、ビット 4 ＝ 0 → 十字の組を読む', { cls: 't-xs t-mono' }, gr);
+      // P1 を読んだ値
+      const gp = st.gp = S.g({}, svg);
+      S.text(790, 214, 'ゲームが読む P1（$FF00）', { cls: 't-xs t-dim' }, gp);
+      st.p1 = bitRow(gp, 790, 228, 8, ['7', '6', '5', '4', '3', '2', '1', '0'], { w: 16, h: 20, gap: 3, fs: 11 });
+      st.p1Hex = S.text(790, 290, '', { cls: 't-sm t-mono t-b' }, gp);
+      st.p1Note = S.text(790, 306, '', { cls: 't-xs' }, gp);
+      // IF
+      const gi = st.gi = S.g({}, svg);
+      S.text(496, 398, 'IF（$FF0F）', { cls: 't-sm t-b' }, gi);
+      S.text(496, 414, '割り込みの要求の旗', { cls: 't-xs t-dim' }, gi);
+      st.ifr = bitRow(gi, 628, 384, 5, ['ジョイパッド', 'シリアル', 'タイマ', 'STAT', 'VBlank'], { w: 58, h: 22, gap: 6, fs: 12 });
+      S.text(628, 374, 'ビット 4 → 飛び先 $60', { cls: 't-xs t-dim' }, gi);
+      S.text(628, 438, 'IME と IE が許せば本体の CPU が受け付け、受け付けると 0 に戻る', { cls: 't-xs t-dim' }, gi);
+      // 右下: 分割借用の図（段階6）
+      const gb = st.gb = S.g({ cls: 'fade hide' }, svg);
+      S.text(496, 428, 'self.gameboy: GameBoy', { cls: 't-sm t-b t-mono' }, gb);
+      const b1 = box(gb, 520, 440, 110, 26, 'cpu: Cpu', null, 'f-sf s-rule w1', 't-xs t-mono');
+      const b2 = box(gb, 660, 440, 120, 26, 'interrupts', null, 'f-sf s-x w2', 't-xs t-mono t-b');
+      const b3 = box(gb, 520, 480, 110, 26, 'peripherals', null, 'f-sf s-rule w1', 't-xs t-mono');
+      const b4 = box(gb, 660, 480, 120, 26, 'joypad', null, 'f-sf s-x w2', 't-xs t-mono t-b');
+      S.path('M630,453 H660', { cls: 'f-none s-dim w1' }, gb);
+      S.path('M630,493 H660', { cls: 'f-none s-dim w1' }, gb);
+      S.path('M900,453 H786', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, gb);
+      S.path('M900,493 H786', { cls: 'f-none s-x w2', 'marker-end': mk('x') }, gb);
+      S.text(800, 446, '&mut（引数）', { cls: 't-xs t-x t-b' }, gb);
+      S.text(800, 486, '&mut（self）', { cls: 't-xs t-x t-b' }, gb);
+      S.text(496, 536, '別の欄なので同時に借りてよい（分割借用）。self.gameboy 全体を &mut で渡すと E0499', { cls: 't-xs' }, gb);
+      void b1; void b2; void b3; void b4;
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const which = i === 1 ? 1 : (i === 2 || i === 3) ? 2 : i === 5 ? 3 : 0;
+      st.C.forEach((c, k) => S.fade(c.g, k === which));
+      if (which === 0) st.C[0].p.hl(...(i === 0 ? [1, 6] : [11, 16]));
+      if (which === 2) st.C[2].p.hl(...(i === 2 ? [9, 14] : [1, 6]));
+      const T = [
+        ['poll_iter(): 溜まったイベントを順に取り出す（無ければすぐ終わる）', 'Event::KeyDown { keycode: Some(k), .. }　k ＝ Keycode::W', 'Event::KeyUp { keycode: Some(k), .. }　離したとき', '.. は「残りの欄は見ない」。Some(k) は番号が分かるときだけ合う'],
+        ['key2joy(Keycode::W) ＝ Some(Button::Up)', 'key2joy(Keycode::Q) ＝ None　← 対応するボタンが無い', 'Some(j).map(|j| 処理) → 処理が動く', 'None.map(|j| 処理) → 何もしない（閉包は呼ばれない）'],
+        ['Button::Up.as_direction() ＝ 0b0100', 'direction ＝ 0xFF & !0b0100 ＝ 0xFF & 0xFB ＝ 0xFB（1111 1011）', 'action &= !0 → 変わらない（Up は action の組ではない）', 'interrupts.irq(JOYPAD): intr_flags |= 0b1_0000 → IF ビット 4 ＝ 1'],
+        ['ゲーム: write(0xFF00, 0x20) → mode ＝ 0x30 & 0x20 ＝ 0x20', 'read(): ret ＝ 0xCF | 0x20 ＝ 0xEF（1110 1111）', 'ret & 0x10 ＝ 0 → ret &= direction → 0xEF & 0xFB ＝ 0xEB', 'ret & 0x20 ≠ 0 → action は混ぜない。0xEB ＝ 1110 1011 → ビット 2 が 0 ＝ 上'],
+        ['KeyUp: button_up(Up): direction |= 0b0100 → 0xFB | 0x04 ＝ 0xFF', 'KeyUp の Return（Enter）: save_to_file()（場面6）', "KeyDown の Escape: break 'running → run を抜ける", '押している間（KeyDown と KeyUp の間）はビットが 0 のまま'],
+        ['&mut self.gameboy.peripherals.joypad　← メソッドの self', '&mut self.gameboy.cpu.interrupts　　← 引数', '別の欄なので、2 つの &mut が同時に成り立つ（分割借用）', '&mut self.gameboy 全体を渡すと E0499（二重の可変借用）']
+      ];
+      S.clear(st.tr);
+      trace(st.tr, 20, 352, T[i].map((s, k) => [s, k === 0 ? 't-sm t-b' : 't-sm']), 22);
+      op(st.gr, i >= 2 && i <= 4 ? '' : (i === 5 ? 0 : 0.3));
+      op(st.gp, i === 3 || i === 4 ? '' : (i === 5 ? 0 : 0.3));
+      op(st.gi, i >= 2 && i <= 4 ? '' : (i === 5 ? 0 : 0.3));
+      op(st.g, i === 5 ? 0.3 : '');
+      S.fade(st.gb, i === 5);
+      st.qRow.style.display = i === 1 ? '' : 'none';
+    },
+    frame(ctx) {
+      const st = ctx.state, i = ctx.step;
+      // 6 秒で 1 周: 0.6 秒で W を押し、3.6 秒で離す。段階2 では 4.2〜5.4 秒に Q も押す。止めている人には押した直後の姿
+      const tt = playing() ? U.mod(ctx.ts, 6) : 1.0;
+      const pressed = tt >= 0.6 && tt < 3.6;
+      const qPressed = i === 1 && tt >= 4.2 && tt < 5.4;
+      st.rows.forEach((r, k) => { op(r.bg, k === 0 && pressed ? 1 : 0); r.cap.setAttribute('class', k === 0 && pressed ? 'f-x-soft s-x w15' : 'f-sf s-rule w1'); });
+      st.optT.textContent = i === 1 ? (pressed ? 'Some(Button::Up) → 閉包が動く' : qPressed ? 'None → 何もしない' : '') : (pressed ? 'KeyDown' : '');
+      // 欄のビット（段階3 以降は値が変わる。前は離した状態）
+      const live = i >= 2;
+      const dirBits = [1, live && pressed ? 0 : 1, 1, 1];
+      st.dir.set(dirBits);
+      st.dir.bits[1].g.setAttribute('class', live && pressed ? 'glow' : '');
+      st.dirHex.textContent = live && pressed ? '0xFB' : '0xFF';
+      st.act.set([1, 1, 1, 1]);
+      st.mode.set([1, 0]);
+      // IF ビット 4 は押した瞬間に立ち、CPU が受け付けると 0 に戻る（離しても変わらない。図では 0.6 秒後）
+      const irq = live && tt >= 0.6 && tt < 1.2;
+      st.ifr.set([irq ? 1 : 0, 0, 0, 0, 0]);
+      irqColor(st.ifr.bits[0], irq);
+      const v = live && pressed ? 0xEB : 0xEF;
+      st.p1.set([7, 6, 5, 4, 3, 2, 1, 0].map((b) => (v >> b) & 1));
+      st.p1Hex.textContent = '0x' + v.toString(16).toUpperCase() + '（' + v.toString(2).replace(/(\d{4})(\d{4})/, '$1 $2') + '）';
+      st.p1Note.textContent = v === 0xEB ? 'ビット 2 が 0 → 上が押されている' : '下位が全部 1 → 何も押されていない';
+    }
+  };
+
+  /* ================================================================
+     場面4 画素の列を窓に
+     buffer ＝ 160 × 144 × 4 ＝ 92,160 バイト、ピッチ 640。階調 → 色は ppu.rs のパレットメモリ（0x7FFF, 0x56B5, 0x294A, 0x0000）
+     ================================================================ */
+  const GW = 20, GH = 18, CELL = 11;
+  const SHADE_FILL = ['#ffffff', '#adadad', '#525252', '#000000'];   // 階調 0〜3 の実際の色（255・173・82・0）。テーマで変えない
+  /* n フレームめの絵（1 マス ＝ 8×8 画素の階調 0〜3）: 枠は 3、中は 0 と 1 の市松、2 の 3×3 の塊が 1 フレームに 1 マス右へ動く */
+  function shadeAt(cx, cy, n) {
+    if (cx === 0 || cy === 0 || cx === GW - 1 || cy === GH - 1) return 3;
+    const bx = 2 + U.mod(n, GW - 6), by = 7;
+    if (cx >= bx && cx < bx + 3 && cy >= by && cy < by + 3) return 2;
+    return (cx + cy) % 2 ? 1 : 0;
+  }
+  const s4 = {
+    steps: [
+      { title: 'フレームの終わりに 1 回だけ draw', text: '本体の PPU は 1 行ごとに `buffer` の該当する行を書き換え、154 行めを終えて `ly` が 0 に戻る瞬間だけ `true` を返す。`emulate_cycle` が `true` なら `lcd.draw(&ppu.buffer)`。1 M サイクルごとに `if` で見るが、通るのは 17,556 回に 1 回。' },
+      { title: 'buffer の形：92,160 バイトの 1 本の列', text: '`buffer` は `Vec<u8>` で長さ 160 × 144 × 4 ＝ **92,160**。画素 (x, y) の赤は添字 (y × 160 + x) × 4 で、続く 3 バイトが緑・青・不透明度。(3, 2) なら (2 × 160 + 3) × 4 ＝ **1,292**。[[08-display.html#s1.3|第8章 場面1]]の「行ごとにつないだ 1 本の列」。' },
+      { title: '4 階調から RGBA へ', text: 'タイルの 1 画素は 2 ビット（0〜3）。本体は BGP（$FF47）で階調に写し、パレットメモリの 15 ビット色（階調 2 は 0x294A）を 5 ビットずつ取り出して 8 ビットに広げる。`(v << 3) | (v >> 2)` で 10 → 82。結果は [82, 82, 82, 255]。' },
+      { title: 'テクスチャに写す：pitch は 640', text: '`create_texture_streaming(RGBA32, 160, 144)` は GPU 側の置き場を作る。RGBA32 はメモリの並びが R, G, B, A の順という指定で、`buffer` と同じ。`update(None, pixels, 640)` の 640 は 1 行のバイト数、`None` は「全部」。' },
+      { title: '640×576 に引き伸ばし、縦横比を保つ', text: '`copy(&texture, None, None)` は 160×144 を窓いっぱいに伸ばし、`present` で表に出す。初期の窓は 4 倍の 640×576。広げられると `resize` が `set_logical_size(w, w × 144 ÷ 160)` で 10:9 を保ち、余りは中央寄せの余白にする。' },
+      { title: 'この先は第8章の道', text: 'SDL のテクスチャは多くの環境で GPU のメモリ（[[08-display.html#s2|第8章 場面2]]）に置かれ、`present` の先は OS の合成と走査（[[08-display.html#s3|場面3]]）。本体の PPU はフレームバッファを書く側で、第8章の「画素＝数値」の層をプログラムで持っている。92,160 バイトが 1 秒に約 60 回、約 5.5 MB/s 流れる。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'main.rs（run の中）'],
+        [92, 'if self.gameboy.emulate_cycle() {'],
+        [93, '  self.lcd.draw(&self.gameboy.peripherals.ppu.buffer);'],
+        [94, '}'],
+        ['', 'ppu.rs（本体。emulate_cycle の VBlank の腕）'],
+        [284, 'Mode::VBlank => {'],
+        [285, '  self.ly += 1;'],
+        [286, '  if self.ly > 153 {'],
+        [287, '    ret = true;             // 154 行めを終えた'],
+        [288, '    self.ly = 0;'],
+        [290, '    self.mode = Mode::OamScan;'],
+        [291, '    self.cycles = 20;'],
+        [295, '  } else { self.cycles = 114; }'],
+        [313, 'ret']
+      ]).hl(1, 3);
+      panel([
+        ['', 'ppu.rs（本体。render_bg の 1 画素ぶん）'],
+        [392, 'pixel = (self.bgp >> (pixel << 1)) & 0b11;'],
+        [394, 'let color = self.get_color_from_palette_memory('],
+        [null, '  palette, pixel, false);'],
+        [395, 'for j in 0..4 {'],
+        [396, '  self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j]'],
+        [null, '    = color[j];'],
+        [397, '}'],
+        ['', 'ppu.rs 537〜552（階調 → RGBA）'],
+        [538, 'let mut rgba = [0xFF; 4];'],
+        [544, 'let rgb555 ='],
+        [545, '  (palette_memory[((palette as usize) << 3)'],
+        [null, '     + ((pixel as usize) << 1)] as u16) |'],
+        [546, '  (palette_memory[((palette as usize) << 3)'],
+        [null, '     + ((pixel as usize) << 1) + 1] as u16) << 8;'],
+        [547, 'for i in 0..3 {'],
+        [548, '  rgba[i] = ((rgb555 >> (5 * i)) & 0x1F) as u8;'],
+        [549, '  rgba[i] = (rgba[i] << 3) | (rgba[i] >> 2);'],
+        [550, '}'],
+        [551, 'rgba']
+      ]).hl(3, 7);
+      panel([
+        ['', 'lcd.rs'],
+        [10, 'pub struct LCD(Canvas<Window>);'],
+        [15, '  .window("gb-emu", LCD_WIDTH as u32 * scale,'],
+        [null, '          LCD_HEIGHT as u32 * scale)'],
+        [23, 'pub fn draw(&mut self, pixels: &Vec<u8>) {'],
+        [24, '  let texture_creator = self.0.texture_creator();'],
+        [25, '  let mut texture = texture_creator'],
+        [26, '    .create_texture_streaming(PixelFormatEnum::RGBA32,'],
+        [null, '        LCD_WIDTH as u32, LCD_HEIGHT as u32)'],
+        [27, '    .unwrap();'],
+        [29, '  texture.update(None, pixels, 640).unwrap();'],
+        [30, '  self.0.clear();'],
+        [31, '  self.0.copy(&texture, None, None).unwrap();'],
+        [32, '  self.0.present();'],
+        [33, '}'],
+        [34, 'pub fn resize(&mut self, width: u32, _: u32) {'],
+        [35, '  self.0.set_logical_size(width,'],
+        [null, '    width * LCD_HEIGHT as u32 / LCD_WIDTH as u32).unwrap();'],
+        [36, '}']
+      ]).hl(5, 9);
+      st.tr = S.g({}, svg);
+      // 右: buffer の格子
+      const g = st.g = S.g({}, svg);
+      S.text(490, 34, 'ppu.buffer（160×144 画素。1 マス ＝ 8×8 画素）', { cls: 't-xs t-dim' }, g);
+      st.cells = [];
+      for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) st.cells.push(S.rect(490 + cx * CELL, 44 + cy * CELL, CELL, CELL, { style: { fill: SHADE_FILL[0] } }, g));
+      S.rect(490, 44, GW * CELL, GH * CELL, { cls: 'f-none s-rule w1' }, g);
+      st.scan = S.rect(490, 44, GW * CELL, CELL, { cls: 'f-none s-x w2' }, g);
+      st.scanLbl = S.text(490, 260, '', { cls: 't-xs t-x t-mono' }, g);
+      st.pixMark = S.rect(490, 44, CELL, CELL, { cls: 'f-none s-x w2 fade hide' }, g);
+      st.pixLbl = S.label(g, 574, 58, '← (3, 2) はこのマスの中', { cls: 't-xs t-x t-b', box: 'f-sf s-x w1', gcls: 'fade hide' });
+      // 窓
+      const gw = st.gw = S.g({}, svg);
+      st.winR = S.rect(740, 44, 204, 200, { rx: 4, cls: 'f-sf s-rule w1' }, gw);
+      S.rect(740, 44, 204, 16, { rx: 4, cls: 'f-in' }, gw);
+      S.text(842, 56, 'gb-emu（640×576、×4）', { cls: 't-c t-xs t-dim' }, gw);
+      st.wcells = [];
+      for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) st.wcells.push(S.rect(752 + cx * 9, 70 + cy * 9, 9, 9, { style: { fill: SHADE_FILL[0] } }, gw));
+      S.rect(752, 70, GW * 9, GH * 9, { cls: 'f-none s-rule w1' }, gw);
+      st.drawTag = S.label(gw, 876, 258, 'true → draw → present', { cls: 't-xs t-b t-x', box: 'f-sf s-x w15' });
+      // 右中: 画素 (3, 2) の 4 バイト
+      const gp = st.gp = S.g({}, svg);
+      S.text(490, 278, '画素 (x, y) ＝ (3, 2) の 4 バイト', { cls: 't-sm t-b' }, gp);
+      S.text(490, 298, '添字 ＝ (2 × 160 + 3) × 4 ＝ 1,292', { cls: 't-sm t-mono' }, gp);
+      st.bytes = [['R', '82'], ['G', '82'], ['B', '82'], ['A', '255']].map(([n, v], k) => {
+        const x = 490 + k * 56;
+        const b = box(gp, x, 308, 50, 28, v, null, 'f-d-soft s-d w1', 't-sm t-mono t-b');
+        S.text(x + 25, 350, n + '（' + (1292 + k) + '）', { cls: 't-c t-xs t-dim t-mono' }, gp);
+        return b;
+      });
+      S.text(490, 376, 'buffer.len() ＝ 160 × 144 × 4 ＝ 92,160', { cls: 't-xs' }, gp);
+      S.text(490, 392, '行 2 ＝ 添字 1,280〜1,919（1 行 640 バイト ＝ ピッチ）', { cls: 't-xs' }, gp);
+      // 右中右: 広げた窓
+      const gz = st.gz = S.g({ cls: 'fade hide' }, svg);
+      S.text(740, 278, '窓を 800 に広げたとき（resize）', { cls: 't-xs t-dim' }, gz);
+      S.rect(740, 286, 204, 100, { rx: 4, cls: 'f-sf s-rule w1' }, gz);
+      S.rect(740, 286, 204, 14, { rx: 4, cls: 'f-in' }, gz);
+      S.rect(740, 300, 46, 86, { cls: 'f-in' }, gz);
+      S.rect(898, 300, 46, 86, { cls: 'f-in' }, gz);
+      S.rect(787, 300, 110, 86, { cls: 'f-d-soft s-d w1' }, gz);
+      S.text(842, 346, '論理 800×720（10:9）', { cls: 't-c t-xs' }, gz);
+      S.text(763, 346, '余白', { cls: 't-c t-xs t-dim' }, gz);
+      S.text(921, 346, '余白', { cls: 't-c t-xs t-dim' }, gz);
+      // 下: 階調の表
+      const gt = st.gt = S.g({ cls: 'fade hide' }, svg);
+      S.text(490, 418, '4 階調 → パレットメモリの 15 ビット → 5 ビットずつ 8 ビットに → [R, G, B, A]', { cls: 't-sm t-b' }, gt);
+      [['0', '0x7FFF', '31', '255', 0], ['1', '0x56B5', '21', '173', 1], ['2', '0x294A', '10', '82', 2], ['3', '0x0000', '0', '0', 3]].forEach(([sh, v15, v5, v8, k], r) => {
+        const y = 442 + r * 22;
+        S.rect(490, y - 12, 20, 16, { rx: 2, cls: 's-rule w1', style: { fill: SHADE_FILL[k] } }, gt);
+        S.text(520, y, '階調 ' + sh + '：' + v15 + ' → ' + v5 + ' → (' + v5 + ' << 3) | (' + v5 + ' >> 2) ＝ ' + v8 + ' → [' + v8 + ', ' + v8 + ', ' + v8 + ', 255]', { cls: 't-xs t-mono' + (k === 2 ? ' t-b' : '') }, gt);
+      });
+      S.text(490, 538, 'タイルの値 v → 階調 ＝ (BGP >> (v × 2)) & 3。BGP ＝ 0xE4 なら v ＝ 2 → 階調 2', { cls: 't-xs' }, gt);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const which = i === 0 ? 0 : i <= 2 ? 1 : 2;
+      st.C.forEach((c, k) => S.fade(c.g, k === which));
+      if (which === 1) st.C[1].p.hl(...(i === 1 ? [3, 7] : [9, 19]));
+      if (which === 2) st.C[2].p.hl(...(i === 3 ? [6, 10] : i === 4 ? [11, 18] : [13, 13]));
+      const T = [
+        ['ppu.emulate_cycle(): cycles を 1 減らし、0 になったらモードを進める', 'VBlank で ly が 153 を超えた → ret ＝ true、ly ＝ 0', 'gameboy.emulate_cycle() が true → lcd.draw(&ppu.buffer)', '17,556 回に 1 回。残りの 17,555 回は false で if を通らない'],
+        ['buffer: Vec<u8>、長さ 160 × 144 × 4 ＝ 92,160', '画素 (x, y) ＝ (3, 2) → 添字 (2 × 160 + 3) × 4 ＝ 1,292', 'buffer[1292..1296] ＝ [R, G, B, A]', '行 y の先頭は y × 640。第8章 場面1 の「1 本の列」'],
+        ['タイルの 2 ビット v ＝ 2、BGP ＝ 0xE4 → (0xE4 >> 4) & 3 ＝ 2', 'パレットメモリ [4], [5] ＝ 0x4A, 0x29 → rgb555 ＝ 0x294A', '赤 ＝ 0x294A & 0x1F ＝ 10 → (10 << 3) | (10 >> 2) ＝ 80 | 2 ＝ 82', '緑・青も 10 → 82。rgba ＝ [82, 82, 82, 255]（A は最初から 0xFF）'],
+        ['create_texture_streaming(RGBA32, 160, 144)：書き換える前提の置き場', 'RGBA32 ＝ メモリの並びが R, G, B, A の順（little endian では ABGR8888）', 'texture.update(None, pixels, 640)：None ＝ 全部、640 ＝ 1 行のバイト数', 'pixels: &Vec<u8> は &[u8] として渡る（参照の自動変換）'],
+        ['clear() → copy(&texture, None, None) → present()', 'None, None ＝ テクスチャ全体を、描画先の全体に引き伸ばす', '初期の窓 640×576 なら 1 画素が 4×4 に', 'resize(800, _): set_logical_size(800, 800 × 144 ÷ 160 ＝ 720)'],
+        ['buffer（RAM）→ テクスチャ（GPU のメモリ。第8章 場面2）', 'present → OS の合成 → 走査線でパネルへ（第8章 場面3）', '1 フレーム 92,160 バイト × 約 60 回/秒 ≈ 5.5 MB/s', 'PPU は「フレームバッファを書く側」をプログラムで持っている']
+      ];
+      S.clear(st.tr);
+      trace(st.tr, 20, 366, T[i].map((s, k) => [s, k === 0 ? 't-sm t-b' : 't-sm']), 22);
+      S.fade(st.pixMark, i === 1); S.fade(st.pixLbl, i === 1);
+      op(st.gp, i === 1 || i === 2 ? '' : 0.35);
+      S.fade(st.gt, i === 2);
+      S.fade(st.gz, i === 4);
+      op(st.gw, i === 2 ? 0.35 : '');
+      st.winR.setAttribute('class', i === 3 || i === 4 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.bytes.forEach((b) => b.r.setAttribute('class', i === 2 ? 'f-d-soft s-x w2' : 'f-d-soft s-d w1'));
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      // 1 フレームを 3 秒に: 2.6 秒で 18 段の行を上から書き、0.4 秒の VBlank の終わりに draw。止めている人には途中の姿
+      const tt = playing() ? ctx.ts : 4.5;
+      const n = Math.floor(tt / 3), f = tt - n * 3;
+      const row = f < 2.6 ? Math.floor(f / 2.6 * GH) : GH;
+      for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) {
+        const sh = shadeAt(cx, cy, cy < row ? n : n - 1);
+        st.cells[cy * GW + cx].style.fill = SHADE_FILL[sh];
+      }
+      const shown = n - 1;                     // 窓に出ているフレーム（VBlank の終わり ＝ 3 秒の境で draw した 1 つ前）
+      for (let cy = 0; cy < GH; cy++) for (let cx = 0; cx < GW; cx++) st.wcells[cy * GW + cx].style.fill = SHADE_FILL[shadeAt(cx, cy, shown)];
+      if (row < GH) {
+        st.scan.style.display = '';
+        st.scan.setAttribute('y', 44 + row * CELL);
+        st.scanLbl.textContent = 'いま ly ＝ ' + (row * 8) + '〜' + (row * 8 + 7) + ' の行を書いている（窓は 1 つ前のフレーム）';
+      } else {
+        st.scan.style.display = 'none';
+        st.scanLbl.textContent = 'VBlank（ly 144〜153）。終わりに true → draw';
+      }
+      op(st.drawTag, f < 0.4 && n > 0 ? 1 : 0);
+    }
+  };
+
+  /* ================================================================
+     場面5 サンプルをスピーカーに
+     1 回のコールバック ＝ 512 組 × 2 × 4 バイト ＝ 4,096 バイト ＝ 10.7 ms。しきい値 8,192 バイト ＝ 1,024 組 ＝ 21.3 ms。
+     図の模擬では、作る速さを使う速さより 20% 速くして差を誇張（実際はコードの式から 1.3%、計算上）
+     ================================================================ */
+  const Q_MAX = 16384, Q_X = 496, Q_W = 440;
+  /* T ミリ秒（実時間）ぶんの模擬。1 ms 刻みで、装置は 384 バイト/ms 使い、本体は 8.9 ms ごとに 4,096 バイト積む。
+     積む前に 8,192 を超えていれば 1 ms ずつ寝る。決まった入力に決まった結果（段階の行き来で変わらない） */
+  function qsim(T) {
+    let q = 0, acc = 0, sleeping = false, slept = 0, pushes = 0, sleepNow = 0;
+    const CB = 8.9;
+    for (let ms = 0; ms < T; ms++) {
+      q = Math.max(0, q - 384);
+      if (sleeping) {
+        if (q > 8192) { slept++; sleepNow++; continue; }
+        sleeping = false; q += 4096; pushes++; acc -= CB; sleepNow = 0;
+      }
+      acc += 1;
+      if (acc >= CB) {
+        if (q > 8192) { sleeping = true; slept++; sleepNow = 1; }
+        else { q += 4096; pushes++; acc -= CB; }
+      }
+    }
+    return { q, fill: sleeping ? 1 : U.clamp(acc / CB, 0, 1), sleeping, slept, pushes, sleepNow };
+  }
+  const s5 = {
+    steps: [
+      { title: 'キューを開く：48,000 Hz・2 ch・f32', text: '`AudioSpecDesired` は希望の形。`freq` 48,000、`channels` 2、`samples` は装置側のバッファで 512 × 2 ＝ 1,024 組（左右をまとめた組の数）。`AudioQueue<f32>` の `f32` が 1 サンプルの型。`resume()` で装置が鳴り始め、空なら無音を出す。' },
+      { title: '閉包を作り、Box に入れ、Rc で渡す', text: '`move |buffer| { … }` は `audio_queue` を中に**移した**閉包。`Box::new` でヒープに置くと `Box<dyn Fn(&[f32])>`（&[f32] を受け取る関数の箱）。`Audio(…)` は 1 欄の構造体で `audio.0` が中身。`Rc::new` で共有の `Rc` にして渡す。' },
+      { title: '本体が呼ぶとき：512 組で 1 回', text: 'APU は 87 T サイクル（4,194,304 ÷ 48,000 の整数除算）ごとに左右 1 組を `samples` に書き、512 組で `callback` を呼ぶ。`as_ref().map(|f| f(…))` は閉包があるときだけ呼ぶ書き方。1 回 ＝ 1,024 個の f32 ＝ 4,096 バイト。' },
+      { title: '背圧：8,192 バイトを超えたら 1 ms 寝る', text: '`queue_audio` は中身を写してキューに足すだけで待たない。そこで閉包は、積む前に `size()`（未再生のバイト数）が 8,192 を超えている間 `sleep(1 ms)` する。8,192 バイトは 1,024 組 ＝ 21.3 ms ぶん。寝ている間は `run` も止まるので、本体全体が音の消費に合わせて進む。' },
+      { title: '速さの主導権は音の装置へ（計算上）', text: '本体はサンプルを 87 T サイクルごとに作る。式どおりに数えると 1 秒に 48,640 組で、装置が使う 48,000 組より 1.3% 多い。キューは 1〜2 秒で 8,192 バイトに届き、以後は寝る時間が差を埋める。本体は実機の約 98.7% の速さで進み、音は 1.3% 低い（式から求めた推定）。' },
+      { title: '遅れと、この先の道', text: 'サンプルが作られてから鳴るまでの遅れは、キューの最大 32 ms（12,288 バイト）＋ 装置のバッファ 1,024 組（21 ms）で、最大 50 ms ほど（計算上）。この先は OS のオーディオの層、DAC、アンプ、スピーカー（[[08-display.html#s6|第8章 場面6]]）。キューは[[27-algorithm.html#s5.2|第27章 場面5]]のリングバッファと同じ役。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'audio.rs'],
+        [13, 'pub struct Audio(pub Box<dyn Fn(&[f32])>);'],
+        [16, 'pub fn new(sdl: &Sdl) -> Audio {'],
+        [17, '  let audio = sdl.audio()'],
+        [null, '    .expect("failed to initialize SDL audio subsystem");'],
+        [20, '  let audio_queue: AudioQueue<f32> = audio.open_queue(None,'],
+        [21, '    &AudioSpecDesired {'],
+        [22, '      freq: Some(SAMPLE_RATE as i32),      // 48,000'],
+        [23, '      channels: Some(2),'],
+        [24, '      samples: Some(SAMPLES as u16 * 2),   // 1,024 組'],
+        [25, '    }'],
+        [26, '  ).expect("failed to create audio queue");'],
+        [27, '  audio_queue.resume();'],
+        [28, '  Self('],
+        [29, '    Box::new(move |buffer| {'],
+        [30, '      while audio_queue.size() > 8192 {'],
+        [31, '        std::thread::sleep(time::Duration::from_millis(1));'],
+        [32, '      }'],
+        [33, '      audio_queue.queue_audio(buffer).unwrap();'],
+        [34, '    }),'],
+        [35, '  )'],
+        [36, '}']
+      ]).hl(5, 12);
+      panel([
+        ['', 'main.rs 60〜61'],
+        [60, 'let audio = Audio::new(&sdl);'],
+        [61, 'gameboy.peripherals.apu.set_callback(Rc::new(audio.0));'],
+        ['', 'apu.rs（本体。抜粋）'],
+        [40, 'pub callback: Option<Rc<dyn Fn(&[f32])>>,'],
+        [61, 'pub fn set_callback(&mut self,'],
+        [null, '                    callback: Rc<dyn Fn(&[f32])>) {'],
+        [62, '  self.callback = Some(callback);'],
+        [63, '}'],
+        [83, 'if self.cycles % (CPU_CLOCK_HZ / SAMPLE_RATE) == 0 { // = 87'],
+        [96, '  self.samples[self.sample_idx * 2] = … * left_sample;'],
+        [97, '  self.samples[self.sample_idx * 2 + 1] = … * right_sample;'],
+        [98, '  self.sample_idx += 1;'],
+        [99, '}'],
+        [101, 'if self.sample_idx >= SAMPLES {   // SAMPLES = 512'],
+        [102, '  self.callback.as_ref().map(|f| f(self.samples.as_ref()));'],
+        [103, '  self.sample_idx = 0;'],
+        [104, '}']
+      ]).hl(14, 17);
+      st.tr = S.g({}, svg);
+      // 右上: APU
+      const g = st.g = S.g({}, svg);
+      S.text(496, 36, 'APU（本体の apu.rs）', { cls: 't-sm t-b' }, g);
+      ['パルス 1', 'パルス 2', '波形', 'ノイズ'].forEach((n, k) => box(g, 496 + k * 76, 46, 70, 24, n, null, 'f-sf s-rule w1', 't-xs'));
+      S.path('M800,58 H812', { cls: 'f-none s-dim w15', 'marker-end': mk('dim') }, g);
+      box(g, 814, 46, 122, 24, 'NR51・NR50 で混ぜる', null, 'f-sf s-rule w1', 't-xs');
+      S.text(496, 90, 'samples: Vec<f32>（512 組 × 左右 ＝ 1,024 個 ＝ 4,096 バイト）', { cls: 't-xs t-dim' }, g);
+      st.scells = [];
+      for (let k = 0; k < 16; k++) st.scells.push(S.rect(496 + k * 27.5, 96, 25.5, 16, { rx: 2, cls: 'f-in s-rule w1' }, g));
+      st.sIdx = S.text(936, 90, '', { cls: 't-end t-xs t-mono' }, g);
+      // コールバック
+      st.cbArrow = S.path('M716,118 V156', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, g);
+      st.cbLbl = S.text(724, 140, 'callback(&samples)：4,096 バイトを 1 回で', { cls: 't-xs t-d t-b' }, g);
+      // キュー
+      const gq = st.gq = S.g({}, svg);
+      S.text(496, 174, 'SDL の AudioQueue（未再生のバイト数 ＝ size()）', { cls: 't-sm t-b' }, gq);
+      S.rect(Q_X, 186, Q_W, 26, { rx: 3, cls: 'f-in s-rule w1' }, gq);
+      st.qFill = S.rect(Q_X, 186, 0, 26, { rx: 3, cls: 'f-d-soft s-d w1' }, gq);
+      const thX = Q_X + Q_W * 8192 / Q_MAX;
+      st.thLine = S.line(thX, 180, thX, 218, { cls: 's-x w2' }, gq);
+      S.text(thX, 232, '8,192', { cls: 't-c t-xs t-x t-b t-mono' }, gq);
+      S.text(Q_X, 232, '0', { cls: 't-xs t-mono t-dim' }, gq);
+      S.text(Q_X + Q_W, 232, '16,384 バイト', { cls: 't-end t-xs t-mono t-dim' }, gq);
+      st.qTxt = S.text(496, 254, '', { cls: 't-sm t-mono' }, gq);
+      st.sleepTag = S.label(gq, 870, 250, 'sleep(1 ms)', { cls: 't-xs t-b t-x', box: 'f-sf s-x w15' });
+      st.loopTxt = S.text(496, 276, '', { cls: 't-xs' }, gq);
+      // 装置
+      const gd = st.gd = S.g({}, svg);
+      S.path('M716,290 V306', { cls: 'f-none s-d w2', 'marker-end': mk('d') }, gd);
+      st.devR = S.rect(496, 308, 440, 44, { rx: 5, cls: 'f-sf s-rule w1' }, gd);
+      S.text(716, 326, '音の装置：48,000 組/秒で取り出す（装置のバッファ 1,024 組 ＝ 21.3 ms）', { cls: 't-c t-xs' }, gd);
+      S.text(716, 342, '→ DAC → アンプ → スピーカー（第8章 場面6）', { cls: 't-c t-xs t-dim' }, gd);
+      // 右下: 計算（段階5）と遅れ（段階6）
+      const g5 = st.g5 = S.g({ cls: 'fade hide' }, svg);
+      S.text(496, 386, '作る速さと使う速さ（コードの式から。計算上）', { cls: 't-sm t-b' }, g5);
+      ['APU: 4,194,304 ÷ 48,000 ＝ 87.38 → 整数除算で 87 T サイクルごとに 1 組', 'cycles は 8,192 T ごとに 0 に戻るので、1 周期に 95 組 → 1 秒に 512 × 95 ＝ 48,640 組', '装置が使うのは 48,000 組/秒 → 作るほうが 640 組/秒（1.3%）多い', 'キューは 1〜2 秒で 8,192 バイトに届き、以後は寝る時間が差を埋める', '→ 本体は 48,000 ÷ 48,640 ＝ 98.7% の速さで進み、音は 1.3% 低い（推定）'].forEach((s, k) => S.text(496, 410 + k * 22, s, { cls: 't-xs' + (k === 4 ? ' t-b t-x' : '') }, g5));
+      S.text(496, 530, '上の時間軸の 20% の差は見えるように誇張したもの', { cls: 't-xs t-dim' }, g5);
+      const g6 = st.g6 = S.g({ cls: 'fade hide' }, svg);
+      S.text(496, 386, '作られてから鳴るまでの遅れ（計算上）', { cls: 't-sm t-b' }, g6);
+      ['キューの中: 8,192 バイト以下を見てから 4,096 を積む → 最大 12,288 バイト ＝ 1,536 組 ＝ 32 ms', '装置のバッファ: samples 1,024 組 ＝ 21.3 ms', '→ 合わせて最大 50 ms ほど。第8章 場面6 の「音と画が数十 ms ずれると気づく」と同じ桁','この先: OS のオーディオの層 → DAC → アンプ → スピーカー（第8章 場面6）', 'キューの役は第27章 場面5 のリングバッファと同じ（作る側と使う側の速さの差を吸収）'].forEach((s, k) => S.text(496, 410 + k * 22, s, { cls: 't-xs' }, g6));
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const which = i === 2 ? 1 : 0;
+      st.C.forEach((c, k) => S.fade(c.g, k === which));
+      if (which === 0) st.C[0].p.hl(...(i === 0 ? [5, 12] : i === 1 ? [14, 20] : i === 3 ? [15, 18] : i === 4 ? [15, 17] : [9, 9]));
+      const T = [
+        ['open_queue(None, &spec): None ＝ 既定の装置', 'freq 48,000 / channels 2 / samples 1,024 組（装置側のバッファ）', 'AudioQueue<f32>: 1 サンプル ＝ f32（4 バイト）、左右で 8 バイト', 'resume(): 装置が動き出す。キューが空の間は無音を出す'],
+        ['move |buffer| { … }: audio_queue の持ち主が閉包に移る', 'Box::new(…): Box<dyn Fn(&[f32])>（大きさの決まらない型を箱に）', 'Rc::new(audio.0) → Rc<Box<dyn Fn>>（Box も Fn なので Rc<dyn Fn> として渡せる）', 'set_callback で本体の apu.callback（Option）に Some として入る'],
+        ['87 T サイクルごと: samples[idx × 2], [idx × 2 + 1] に左右を書く', 'idx が 512 になったら callback.as_ref().map(|f| f(&samples))', '&samples は &[f32]（長さ 1,024）。閉包が queue_audio に渡す', '1 回 ＝ 1,024 × 4 ＝ 4,096 バイト ＝ 512 ÷ 48,000 ＝ 10.7 ms ぶん'],
+        ['size() が 8,192 バイトを超えている間、sleep(1 ms) を繰り返す', '8,192 バイト ÷ 8 ＝ 1,024 組 ＝ 21.3 ms ぶんの未再生', '寝ている間は run のループも止まる（同じスレッド）', '→ 本体の時計より先に、音の消費の速さが上限になる'],
+        ['1 秒に作る: 48,640 組（式から数えた値）', '1 秒に使う: 48,000 組（装置の freq）', '差 640 組/秒 ＝ 5,120 バイト/秒 → 1.6 秒で 8,192 に届く', '以後は毎秒 640 組ぶん寝る ＝ 本体は 98.7% の速さ（推定）'],
+        ['遅れ: キュー ≤ 32 ms（12,288 バイト）＋ 装置のバッファ 21.3 ms（計算上）','PCM（第8章 場面6）→ OS → DAC → アンプ → スピーカー', 'キュー ＝ リングバッファ（第27章 場面5）', '作る側（本体）と使う側（装置）の速さの差をここで吸収する']
+      ];
+      S.clear(st.tr);
+      trace(st.tr, 20, 398, T[i].map((s, k) => [s, k === 0 ? 't-sm t-b' : 't-sm']), 22);
+      op(st.g, i === 2 || i === 4 ? '' : 0.5);
+      op(st.gq, i === 0 || i >= 3 ? '' : 0.5);
+      op(st.gd, i === 0 || i === 4 || i === 5 ? '' : 0.5);
+      st.cbLbl.setAttribute('class', i === 1 || i === 2 ? 't-xs t-d t-b' : 't-xs t-dim');
+      st.cbArrow.setAttribute('class', i === 1 || i === 2 ? 'f-none s-d w2' : 'f-none s-dim w15');
+      st.thLine.setAttribute('class', i === 3 || i === 4 ? 's-x w3' : 's-x w2');
+      st.devR.setAttribute('class', i === 5 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      S.fade(st.g5, i === 4);
+      S.fade(st.g6, i === 5);
+    },
+    frame(ctx) {
+      const st = ctx.state;
+      // 1 秒 ＝ 実時間 40 ms。止めている人には、しきい値に当たった後の落ち着いた姿
+      const r = qsim(Math.round((playing() ? Math.min(ctx.ts, 120) : 9) * 40));
+      const n = Math.round(r.fill * 16);
+      st.scells.forEach((c, k) => c.setAttribute('class', k < n ? 'f-d-soft s-d w1' : 'f-in s-rule w1'));
+      st.sIdx.textContent = 'sample_idx ＝ ' + Math.min(512, Math.round(r.fill * 512));
+      st.qFill.setAttribute('width', (Q_W * U.clamp(r.q, 0, Q_MAX) / Q_MAX).toFixed(1));
+      st.qFill.setAttribute('class', r.q > 8192 ? 'f-x-soft s-x w1' : 'f-d-soft s-d w1');
+      st.qTxt.textContent = 'size() ＝ ' + U.fmt(r.q) + ' バイト ＝ ' + U.fmt(r.q / 8) + ' 組 ＝ ' + (r.q / 8 / 48).toFixed(1) + ' ms ぶん';
+      op(st.sleepTag, r.sleeping ? 1 : 0);
+      st.loopTxt.textContent = r.sleeping ? 'run のループ: 閉包の中で寝ている（本体も止まる。積んだ回数 ' + r.pushes + '、寝た回数 ' + r.slept + '）' : 'run のループ: 回っている（積んだ回数 ' + r.pushes + '、寝た回数 ' + r.slept + '）';
+    }
+  };
+
+  /* ================================================================
+     場面6 セーブとケーブル
+     題名 SAMPLE、$0149 ＝ 0x03（32 KiB）は例。段階1 だけ RAM の無いカートリッジ（$0149 ＝ 0x00）を見せる。
+     シリアルの送るバイト 0x12 は例
+     ================================================================ */
+  const s6 = {
+    steps: [
+      { title: 'Enter でセーブ。RAM の無いカートリッジなら断る', text: '`KeyUp` の `Return` で `save_to_file`。最初に `sram.len() == 0` を見て、RAM の無いカートリッジ（$0149 が 0x00）なら `eprintln!` で「RAM が無い」と標準エラーに書いて `return`。`return eprintln!(…)` は `()` を返して抜ける書き方。' },
+      { title: 'ファイル名はヘッダの題名 ＋ .SAV', text: '本体はヘッダの $0134 から 11 バイトを `from_utf8` で文字列にし、末尾の詰め物 `\\0` を落として `title` にする。SAMPLE なら `format!("{}.SAV", title)` で **SAMPLE.SAV**。SRAM の大きさは $0149 の符号で、0x03 なら 32 KiB。' },
+      { title: '開けなければ戻る、書けなければ知らせる', text: '`File::create` は `Result`。`if let Ok(f) = … { f } else { return; }` で失敗なら戻る。`write_all(&sram)` と `flush` も `Result` で、`.is_err()` なら `eprintln!` して `return`。`?` で呼び元に返す手もある。' },
+      { title: '起動時に読み戻す', text: '2 つめの引数があれば `file2vec` で読み、無ければ `vec![]`。本体は `save.unwrap_or(vec![0; sram_size])` で、セーブが無ければ 0 で埋め、長さがヘッダと違えば `assert!` で止まる。SAMPLE.SAV の 32,768 バイトがそのまま SRAM になる。' },
+      { title: 'ケーブルの相手がいないので 0xFF を返す', text: 'ゲームが SC（$FF02）のビット 7 と 0 を立てると送信が始まる。`serial.send()` が送り終えたバイトを `Some` で返すたび、外側は `recv(0xFF)` で「相手から 0xFF が来た」ことにする。つながっていない主機は $FF を受け取る（Pan Docs）。本体は IF ビット 3 を立てる。' },
+      { title: '層に当てはめる', text: 'ファイルの作成・書き込みは[[09-os.html#s3|第9章 場面3]]のシステムコール（open・write）で、OS がストレージへ運ぶ。SB・SC や P1 は[[07-shuuhen.html#s2|第7章 場面2]]のデバイスレジスタで、本体は `match addr` で番地を部品に振り分けている。外側の 218 行は、この 2 つの層の間の翻訳である。' }
+    ],
+    setup(ctx) {
+      const svg = ctx.svg, st = ctx.state;
+      const mk = S.markers(svg);
+      const C = st.C = [];
+      const panel = (lines) => { const g = S.g({ cls: 'fade hide' }, svg); const p = codePanel(g, 16, 16, 452, lines); C.push({ g, p }); return p; };
+      panel([
+        ['', 'main.rs'],
+        [103, 'fn save_to_file(&self) {'],
+        [104, '  if self.gameboy.peripherals.cartridge.sram.len() == 0 {'],
+        [105, '    return eprintln!("The cartridge doesn\'t have ram.");'],
+        [106, '  }'],
+        [107, '  let fname = format!("{}.SAV",'],
+        [null, '    self.gameboy.peripherals.cartridge.title);'],
+        [108, '  let mut file = if let Ok(f) = File::create(&fname) { f }'],
+        [null, '                 else { return; };'],
+        [113, '  if file.write_all(&self.gameboy.peripherals'],
+        [null, '                    .cartridge.sram).is_err() {'],
+        [114, '    return eprintln!("Failed to save \\"{}\\"", fname);'],
+        [115, '  }'],
+        [116, '  if file.flush().is_err() {'],
+        [117, '    return eprintln!("Failed to save \\"{}\\"", fname);'],
+        [118, '  }'],
+        [119, '  println!("Save file \\"{}\\"", fname);'],
+        [120, '}']
+      ]).hl(2, 4);
+      panel([
+        ['', 'main.rs'],
+        [139, 'let cartridge_raw = file2vec(&args[1]);'],
+        [140, 'let save = if args.len() >= 3 { file2vec(&args[2]) }'],
+        [null, '           else { vec![] };'],
+        [142, 'let mut emulator = Emulator::new(&cartridge_raw, &save);'],
+        ['', 'gameboy.rs 19〜23（本体）'],
+        [19, 'let cartridge = Cartridge::new(cart_rom.into(),'],
+        [null, '  if save.len() > 0 { Some(save.to_vec()) } else { None });'],
+        ['', 'cartridge.rs（本体。Cartridge::new の抜粋）'],
+        [67, 'pub fn new(rom: Vec<u8>, save: Option<Vec<u8>>) -> Self {'],
+        [73, '  let sram_size = header.sram_size(); // 0x03 → 0x8000'],
+        [94, '  let sram = save.unwrap_or(vec![0; sram_size]);'],
+        [95, '  assert!(sram.len() == sram_size,'],
+        [96, '    "Expected {} bytes of save file, got {}",'],
+        [null, '    sram_size, sram.len()'],
+        [97, '  );']
+      ]).hl(11, 15);
+      panel([
+        ['', 'main.rs（run の中）'],
+        [95, 'if self.gameboy.peripherals.serial.send().is_some() {'],
+        [96, '  self.gameboy.peripherals.serial.recv(0xFF);'],
+        [97, '}'],
+        ['', 'serial.rs（本体。抜粋）'],
+        [38, 'if self.control & 0x81 == 0x81 {        // SC のビット 7 と 0'],
+        [45, '  self.transfer_cnt = 128;'],
+        [47, '  self.send_data = Some(self.data);     // SB の値'],
+        [68, 'pub fn send(&mut self) -> Option<u8> {'],
+        [69, '  if self.transfer_cnt == 0 && self.send_data.is_some() {'],
+        [70, '    self.send_data.take()'],
+        [71, '  } else { None } }'],
+        [75, 'pub fn recv(&mut self, val: u8) {'],
+        [79, '  self.recv_data = Some(val); }'],
+        [54, 'if self.recv_data.is_some() {            // 次の M サイクルで'],
+        [55, '  self.data = self.recv_data.take().unwrap();'],
+        [57, '  interrupts.irq(interrupts::SERIAL);   // IF ビット 3'],
+        [58, '}']
+      ]).hl(1, 3);
+      panel([
+        ['', 'peripherals.rs（本体。read の抜粋。write も同じ形）'],
+        [44, 'pub fn read(&self, interrupts: &Interrupts, addr: u16)'],
+        [null, '  -> u8 {'],
+        [45, '  match addr {'],
+        [52, '    0x0000..=0x7FFF => self.cartridge.read(addr), // ROM'],
+        [54, '    0xA000..=0xBFFF => self.cartridge.read(addr), // SRAM'],
+        [57, '    0xFF00          => self.joypad.read(),        // P1'],
+        [58, '    0xFF01..=0xFF02 => self.serial.read(addr),    // SB, SC'],
+        [59, '    0xFF04..=0xFF07 => self.timer.read(addr),'],
+        [60, '    0xFF0F          => interrupts.read(addr),     // IF'],
+        [62, '    0xFF40..=0xFF4B => self.ppu.read(addr),       // LCDC …'],
+        [68, '    0xFFFF          => interrupts.read(addr),     // IE'],
+        [69, '    _               => 0xFF,'],
+        [70, '  }'],
+        [71, '}']
+      ]).hl(6, 7);
+      st.tr = S.g({}, svg);
+      // 右上: カートリッジ
+      const g = st.g = S.g({}, svg);
+      S.rect(490, 24, 454, 226, { rx: 6, cls: 'f-sf s-rule w1' }, g);
+      S.text(500, 42, 'カートリッジ（本体の Cartridge）', { cls: 't-sm t-b' }, g);
+      S.text(934, 42, 'ヘッダは ROM の $0100〜$014F', { cls: 't-end t-xs t-dim' }, g);
+      let hx = 500;
+      st.hcells = [['$0134〜$013E', '題名 "SAMPLE"', 118], ['$0143', 'CGB 0x00', 60], ['$0147', '種類 0x03', 72], ['$0149', 'RAM 0x03 → 32 KiB', 118], ['$014D', '検査和', 62]].map(([a, b, w]) => {
+        const bx = box(g, hx, 52, w, 40, b, a, 'f-in s-rule w1', 't-xs t-mono t-b');
+        hx += w + 2;
+        return bx;
+      });
+      st.hcells.forEach((c) => { c.t.setAttribute('y', 52 + 26); c.s.setAttribute('y', 52 + 13); });
+      st.sramLbl = S.text(500, 118, 'sram: Vec<u8>　長さ 32,768（$A000〜$BFFF に見える。電池で残るので、セーブに使う）', { cls: 't-xs' }, g);
+      st.scells = [];
+      for (let k = 0; k < 32; k++) st.scells.push(S.rect(500 + k * 13.5, 126, 12, 20, { rx: 2, cls: 'f-d-soft s-d w1' }, g));
+      st.sramNone = S.text(500, 140, 'sram の長さ 0（RAM なし。$0149 ＝ 0x00）', { cls: 't-xs t-x t-b', style: { display: 'none' } }, g);
+      st.bankLbl = S.text(934, 164, '8 KiB × 4 バンク（MBC1 が切り替える）', { cls: 't-end t-xs t-dim' }, g);
+      // 出力とファイル
+      S.rect(500, 186, 270, 54, { rx: 4, cls: 'f-in s-rule w1' }, g);
+      S.text(510, 202, '標準出力／標準エラー', { cls: 't-xs t-dim' }, g);
+      st.msg = S.text(510, 224, '', { cls: 't-xs t-mono t-b' }, g);
+      st.file = fileIcon(g, 790, 192, 150, 48, 'SAMPLE.SAV', '32,768 バイト');
+      st.pSave = S.path('M716,146 V176 H865 V192', { cls: 'f-none s-rule w15' }, g);
+      st.fSave = A.flow(st.pSave, { count: 7, speed: 0, r: 3, cls: 'f-d', parent: g });
+      st.enterTag = S.label(g, 600, 160, 'Enter を離す → save_to_file()', { cls: 't-xs t-b t-x', box: 'f-sf s-x w15' });
+      // 右中: シリアル
+      const gs = st.gs = S.g({}, svg);
+      S.text(496, 270, 'シリアル（本体の Serial）', { cls: 't-sm t-b' }, gs);
+      S.text(496, 300, 'SB $FF01', { cls: 't-xs t-mono' }, gs);
+      st.sb = box(gs, 566, 284, 64, 24, '0x12', null, 'f-sf s-rule w1', 't-sm t-mono t-b');
+      S.text(496, 336, 'SC $FF02', { cls: 't-xs t-mono' }, gs);
+      st.sc = bitRow(gs, 566, 320, 2, ['7 開始', '0 内部'], { w: 30, h: 22, gap: 4, fs: 12 });
+      S.text(496, 388, 'IF ビット 3', { cls: 't-xs t-mono' }, gs);
+      st.if3 = bitRow(gs, 566, 372, 1, ['シリアル'], { w: 30, h: 22, gap: 4, fs: 12 });
+      S.line(650, 296, 880, 296, { cls: 's-mid w2' }, gs);
+      S.line(650, 316, 880, 316, { cls: 's-mid w2 dash' }, gs);
+      S.rect(880, 286, 26, 40, { rx: 3, cls: 'f-in s-rule w1' }, gs);
+      S.text(936, 300, '相手なし', { cls: 't-end t-xs t-dim' }, gs);
+      S.text(936, 316, '（空の端子）', { cls: 't-end t-xs t-dim' }, gs);
+      st.tokOut = S.label(gs, 700, 296, '0x12 →', { cls: 't-xs t-mono t-b t-d', box: 'f-sf s-d w1' });
+      st.tokIn = S.label(gs, 820, 316, '← 0xFF', { cls: 't-xs t-mono t-b t-x', box: 'f-sf s-x w1' });
+      st.serNote = S.text(650, 352, '', { cls: 't-xs' }, gs);
+      S.text(650, 370, 'main.rs 95〜97: send() が Some(0x12) → recv(0xFF)', { cls: 't-xs t-dim' }, gs);
+      S.text(650, 386, 'Pan Docs: 相手がいなければ主機は $FF を受け取る', { cls: 't-xs t-dim' }, gs);
+      // 右下: 層（段階6）
+      const gl = st.gl = S.g({ cls: 'fade hide' }, svg);
+      S.text(496, 424, '外側の 218 行は、この 2 つの層の間の翻訳', { cls: 't-sm t-b' }, gl);
+      [['ファイル（SAMPLE.SAV）', '第9章 場面3 システムコール open・write・close', '09-os.html#s3'], ['P1・SB・SC・IF（$FF00〜）', '第7章 場面2 デバイスレジスタ（番地で部品を選ぶ match）', '07-shuuhen.html#s2'], ['割り込み（IF の旗）', '第7章 場面3 割り込み（線の代わりに旗のビット）', '07-shuuhen.html#s3']].forEach(([a, b, href], k) => {
+        const y = 450 + k * 30;
+        S.text(496, y, a, { cls: 't-xs t-mono t-b' }, gl);
+        xlink(gl, 680, y, href, b);
+      });
+      S.text(496, 540, '本体（gbemu）は第4〜8章の機械。外側（gb-emu-desktop）はそれを OS につなぐ', { cls: 't-xs t-dim' }, gl);
+    },
+    onStep(ctx, i) {
+      const st = ctx.state;
+      const which = i <= 2 ? 0 : i === 3 ? 1 : i === 4 ? 2 : 3;
+      st.C.forEach((c, k) => S.fade(c.g, k === which));
+      if (which === 0) st.C[0].p.hl(...(i === 0 ? [2, 4] : i === 1 ? [5, 6] : [7, 17]));
+      const T = [
+        ['KeyUp { keycode: Some(Keycode::Return), .. } → save_to_file()', 'cartridge.sram.len() ＝ 0（$0149 が 0x00 ＝ RAM なし）', '→ eprintln!("The cartridge doesn\'t have ram.") して return', 'return eprintln!(…) は、() を返して関数を抜ける省略の書き方'],
+        ['title ＝ from_utf8($0134〜$013E の 11 バイト) → "SAMPLE\\0\\0\\0\\0\\0"', 'trim_end_matches(\'\\0\') → "SAMPLE"', 'format!("{}.SAV", title) ＝ "SAMPLE.SAV"', '$0149 ＝ 0x03 → sram_size ＝ 0x8000 ＝ 32,768（Pan Docs: 32 KiB、4 バンク）'],
+        ['File::create("SAMPLE.SAV") → Result<File, io::Error>', 'Ok(f) → file ＝ f。Err なら return（黙って戻る）', 'file.write_all(&sram) → 32,768 バイト。Err なら eprintln! して return', 'flush の失敗も eprintln!。成功なら println!("Save file \\"SAMPLE.SAV\\"")'],
+        ['cargo run -- game.gb SAMPLE.SAV → args.len() ＝ 3', 'save ＝ file2vec("SAMPLE.SAV") → 長さ 32,768 の Vec<u8>', 'Cartridge::new: save.unwrap_or(vec![0; 32768]) → セーブがあればそれ', 'assert!(sram.len() == sram_size) → 32,768 ＝ 32,768 で通る'],
+        ['ゲーム: write($FF01, 0x12); write($FF02, 0x81) → 送信開始', 'serial.send() → 送り終えると Some(0x12)（main.rs 95）', '外側: serial.recv(0xFF) → 次の M サイクルで data ＝ 0xFF、IF ビット 3', 'Pan Docs: つながっていない主機は $FF を受け取る'],
+        ['peripherals.read(addr): 0xFF00 → joypad.read()', '0xFF01..=0xFF02 → serial.read(addr)、0xFF0F → IF', '番地で部品を選ぶ match ＝ 第7章 場面2 のデバイスレジスタ', 'ファイル ＝ 第9章 場面3 のシステムコール（open・write・close）']
+      ];
+      S.clear(st.tr);
+      trace(st.tr, 20, 352, T[i].map((s, k) => [s, k === 0 ? 't-sm t-b' : 't-sm']), 22);
+      // カートリッジ: 段階1 だけ RAM なし
+      const none = i === 0;
+      st.hcells[3].t.textContent = none ? 'RAM 0x00 → 0' : 'RAM 0x03 → 32 KiB';
+      st.hcells[3].r.setAttribute('class', i <= 1 || i === 3 ? 'f-in s-x w2' : 'f-in s-rule w1');
+      st.hcells[0].r.setAttribute('class', i === 1 ? 'f-in s-x w2' : 'f-in s-rule w1');
+      st.scells.forEach((c) => { c.style.display = none ? 'none' : ''; });
+      st.sramLbl.style.display = none ? 'none' : '';
+      st.bankLbl.style.display = none ? 'none' : '';
+      st.sramNone.style.display = none ? '' : 'none';
+      st.file.r.setAttribute('class', i === 1 || i === 2 || i === 3 ? 'f-sf s-x w2' : 'f-sf s-rule w1');
+      st.msg.textContent = none ? 'The cartridge doesn\'t have ram.' : i === 2 ? 'Save file "SAMPLE.SAV"' : i === 3 ? '（起動: 引数 2 個め SAMPLE.SAV を読む）' : '';
+      st.fSave.set('speed', i === 1 || i === 2 ? 70 : i === 3 ? -70 : 0).show(i >= 1 && i <= 3).reset();
+      op(st.enterTag, i <= 2 ? 1 : 0);
+      op(st.g, i === 4 ? 0.4 : (i === 5 ? 0.6 : ''));
+      op(st.gs, i === 4 ? '' : (i === 5 ? 0.6 : 0.35));
+      S.fade(st.gl, i === 5);
+      op(st.tokOut, i === 4 ? 1 : 0); op(st.tokIn, i === 4 ? 1 : 0);
+      st.sc.set([1, 1]); st.if3.set([0]); irqColor(st.if3.bits[0], false);
+      st.sb.t.textContent = '0x12';
+      st.serNote.textContent = '';
+    },
+    frame(ctx, t, dt) {
+      const st = ctx.state, i = ctx.step;
+      st.fSave.update(dt);
+      if (i !== 4) return;
+      // 4 秒で 1 周: 0〜1.5 秒で 0x12 が出ていき、1.5〜3 秒で 0xFF が戻る。止めている人には戻り終えた姿
+      const tt = playing() ? U.mod(ctx.ts, 4) : 3.2;
+      const f1 = U.prog(tt, 0.2, 1.3), f2 = U.prog(tt, 1.6, 1.3);
+      st.tokOut.setAttribute('transform', 'translate(' + (690 + f1 * 150) + ',296)');
+      op(st.tokOut, tt < 1.6 ? 1 : 0);
+      st.tokIn.setAttribute('transform', 'translate(' + (850 - f2 * 150) + ',316)');
+      op(st.tokIn, tt >= 1.6 ? 1 : 0);
+      const done = tt >= 2.9;
+      st.sc.set([done ? 0 : 1, 1]);
+      st.if3.set([done ? 1 : 0]); irqColor(st.if3.bits[0], done);
+      st.sb.t.textContent = done ? '0xFF' : '0x12';
+      st.serNote.textContent = tt < 1.6 ? 'SC ビット 7 ＝ 1（転送中）。SB の 0x12 が出ていく' : (done ? 'data ＝ 0xFF、SC ビット 7 ＝ 0、IF ビット 3 ＝ 1' : '外側が recv(0xFF)：相手の返事の代わり');
+    }
+  };
+
+  YT.chapter({
+    meta: {
+      eyebrow: '第VIII部 実物を読む ／ 第30章',
+      title: 'エミュレータの外側',
+      home: '../index.html',
+      prev: { href: '29-imi.html', title: '型で意味を表す' },
+      legend: [{ c: 'd', label: 'データ（ROM・画素・サンプル）' }, { c: 'h', label: 'ビットの 1' }, { c: 'e', label: '割り込み' }, { c: 'x', label: '注目・変化' }]
+    },
+    scenes: { s1, s2, s3, s4, s5, s6 }
+  });
+})();
+</script>
+</body>
+</html>
