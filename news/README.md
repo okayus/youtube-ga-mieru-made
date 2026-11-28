@@ -23,7 +23,7 @@ tech ニュースを 1 件ずつ調べ、この教材のどの層（章・場面
 <!-- news-months:start -->
 | 月 | ノート | うち日刊 |
 |---|---|---|
-| [2026-11](https://sukitooru.shiraoka.workers.dev/news/2026-11.html) | 15 件 | 15 件 |
+| [2026-11](https://sukitooru.shiraoka.workers.dev/news/2026-11.html) | 16 件 | 16 件 |
 | [2026-10](https://sukitooru.shiraoka.workers.dev/news/2026-10.html) | 4 件 | 0 件 |
 | [2026-09](https://sukitooru.shiraoka.workers.dev/news/2026-09.html) | 1 件 | 0 件 |
 | [2026-06](https://sukitooru.shiraoka.workers.dev/news/2026-06.html) | 1 件 | 0 件 |
